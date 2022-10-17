@@ -8,7 +8,9 @@
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -21,8 +23,7 @@ dependencies {
 }
 
 dockerCompose {
-  environment.put 'STACK_VERSION', VersionProperties.elasticsearch
-  // retainContainersOnStartupFailure = true
+  environment.put 'STACK_VERSION', BuildParams.snapshotBuild ? VersionProperties.elasticsearch : VersionProperties.elasticsearch + "-SNAPSHOT"
 }
 
 elasticsearch_distributions {

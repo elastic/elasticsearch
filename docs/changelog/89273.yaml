@@ -1,0 +1,5 @@
+pr: 89273
+summary: Limited-by role descriptors in Get/QueryApiKey response
+area: Security
+type: enhancement
+issues: []

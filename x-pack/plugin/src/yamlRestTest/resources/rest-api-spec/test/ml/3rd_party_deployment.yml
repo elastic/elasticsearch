@@ -135,6 +135,31 @@ setup:
         model_id: test_model
   - match: { stopped: true }
 ---
+"Test update deployment":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        wait_for: started
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  - do:
+      # We update to the same value of 1 as if the test runs on a node with just 1 processor it would fail otherwise
+      ml.update_trained_model_deployment:
+        model_id: test_model
+        body: >
+          {
+            "number_of_allocations": 1
+          }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
+---
 "Test clear deployment cache":
   - skip:
       features: allowed_warnings

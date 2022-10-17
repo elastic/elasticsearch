@@ -144,7 +144,7 @@ public class RestRequest implements ToXContent.Params {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
-            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " + "Only one value should be provided");
+            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. Only one value should be provided");
         }
         String rawContentType = header.get(0);
         if (Strings.hasText(rawContentType)) {

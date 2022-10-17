@@ -22,6 +22,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.plugin.api;
+    requires org.elasticsearch.plugin.analysis.api;
 
     requires com.sun.jna;
     requires hppc;
@@ -224,6 +226,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
     exports org.elasticsearch.index.fielddata.fieldcomparator;
@@ -300,7 +303,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
-    exports org.elasticsearch.search.aggregations.bucket.adjacency;
     exports org.elasticsearch.search.aggregations.bucket.composite;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
@@ -327,6 +329,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.lookup;
     exports org.elasticsearch.search.profile;
     exports org.elasticsearch.search.profile.aggregation;
+    exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rescore;
@@ -362,4 +365,6 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+
+    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 }

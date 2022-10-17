@@ -80,7 +80,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
     }
 
     public void testTaskCreation() {
-        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", initialState(), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, times(1)).sendStartRequest(
             eq("health-node"),
@@ -91,7 +91,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
     }
 
     public void testSkippingTaskCreationIfItExists() {
-        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, never()).sendStartRequest(
             eq("health-node"),
@@ -102,7 +102,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
     }
 
     public void testDoNothingIfAlreadyShutdown() {
-        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeTaskParams(), state);
@@ -112,7 +112,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
     }
 
     public void testAbortOnShutdown() {
-        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeTaskParams(), state);
@@ -123,7 +123,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
     }
 
     public void testAbortOnDisable() {
-        HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeTaskParams(), state);

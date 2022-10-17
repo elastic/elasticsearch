@@ -131,7 +131,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
 
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(formatted("""
             {
               "properties": {
                 "foo": {
@@ -142,7 +142,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
               },
               "_source": { %s }
               }
-            }""".formatted(fieldType, fieldType, sourceOptions)).settings(settings).primaryTerm(0, 1).build();
+            }""", fieldType, fieldType, sourceOptions)).settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
@@ -151,6 +151,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertFalse(testGet.getFields().containsKey("foo"));
+        assertFalse(testGet.getFields().containsKey("bar"));
         assertThat(new String(testGet.source() == null ? new byte[0] : testGet.source(), StandardCharsets.UTF_8), equalTo(expectedResult));
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
@@ -161,6 +163,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(new String(testGet1.source() == null ? new byte[0] : testGet1.source(), StandardCharsets.UTF_8), expectedResult);
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertFalse(testGet.getFields().containsKey("foo"));
+        assertFalse(testGet.getFields().containsKey("bar"));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         if (sourceOnlyFetchCreatesInMemoryReader) {
             translogInMemorySegmentCountExpected++;

@@ -10,6 +10,7 @@ package org.elasticsearch.http;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -412,6 +414,57 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         verify(tracer).setAttribute(argThat(id -> id.startsWith("rest-")), eq("http.status_code"), eq(200L));
         verify(tracer).stopTrace(argThat(id -> id.startsWith("rest-")));
+    }
+
+    public void testHandleHeadRequest() {
+        HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.HEAD, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            request.getHttpRequest(),
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            httpTracer,
+            tracer
+        );
+        ArgumentCaptor<HttpResponse> requestCaptor = ArgumentCaptor.forClass(HttpResponse.class);
+        {
+            // non-chunked response
+            channel.sendResponse(
+                new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray(randomByteArrayOfLength(5)))
+            );
+            verify(httpChannel).sendResponse(requestCaptor.capture(), any());
+            HttpResponse response = requestCaptor.getValue();
+            assertThat(response, instanceOf(TestHttpResponse.class));
+            assertThat(((TestHttpResponse) response).content().length(), equalTo(0));
+        }
+        {
+            // chunked response
+            channel.sendResponse(new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
+
+                @Override
+                public boolean isDone() {
+                    throw new AssertionError("should not try to serialize response body for HEAD request");
+                }
+
+                @Override
+                public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                    throw new AssertionError("should not try to serialize response body for HEAD request");
+                }
+
+                @Override
+                public String getResponseContentTypeString() {
+                    return RestResponse.TEXT_CONTENT_TYPE;
+                }
+            }));
+            verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), any());
+            HttpResponse response = requestCaptor.getValue();
+            assertThat(response, instanceOf(TestHttpResponse.class));
+            assertThat(((TestHttpResponse) response).content().length(), equalTo(0));
+        }
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String host) {

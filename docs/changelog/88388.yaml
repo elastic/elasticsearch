@@ -1,0 +1,6 @@
+pr: 88388
+summary: Implement DATE_FORMAT function
+area: SQL
+type: enhancement
+issues:
+  - 55065

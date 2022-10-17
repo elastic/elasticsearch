@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -110,8 +110,8 @@ setup:
 "Get simple time series field caps":
 
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       field_caps:
@@ -172,8 +172,8 @@ setup:
 "Get time series field caps with conflicts":
 
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       field_caps:

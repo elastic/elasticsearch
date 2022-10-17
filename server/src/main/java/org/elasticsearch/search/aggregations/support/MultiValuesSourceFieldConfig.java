@@ -95,7 +95,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         if (filtered) {
             parser.declareField(
                 MultiValuesSourceFieldConfig.Builder::setFilter,
-                (p, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                (p, context) -> AbstractQueryBuilder.parseTopLevelQuery(p),
                 FILTER,
                 ObjectParser.ValueType.OBJECT
             );

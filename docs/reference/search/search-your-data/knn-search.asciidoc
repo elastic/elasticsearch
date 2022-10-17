@@ -279,41 +279,14 @@ POST image-index/_search
 ----
 // TEST[continued]
 
-[source,console-result]
-----
-{
-  "took": 5,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 0.003144654,
-    "hits": [
-      {
-        "_index": "image-index",
-        "_id": "2",
-        "_score": 0.003144654,
-        "fields": {
-          "title": ["alpine lake"]
-        }
-      }
-    ]
-  }
-}
-----
-// TESTRESPONSE[s/"took": 5/"took": $body.took/]
-// TESTRESPONSE[s/,\n      \.\.\.//]
+NOTE: The filter is applied **during** the approximate kNN search to ensure
+that `k` matching documents are returned. This contrasts with a
+post-filtering approach, where the filter is applied **after** the approximate
+kNN search completes. Post-filtering has the downside that it sometimes
+returns fewer than k results, even when there are enough matching documents.
 
 [discrete]
-==== Combine approximate kNN and a query
+==== Combine approximate kNN with other features
 
 You can perform 'hybrid retrieval' by providing both the
 <<search-api-knn, `knn` option>> and a <<request-body-search-query, `query`>>:
@@ -353,6 +326,11 @@ each score in the sum. In the example above, the scores will be calculated as
 ```
 score = 0.9 * match_score + 0.1 * knn_score
 ```
+
+The `knn` option can also be used with <<search-aggregations, `aggregations`>>. In general, {es} computes aggregations
+over all documents that match the search. So for approximate kNN search, aggregations are calculated on the top `k`
+nearest documents. If the search also includes a `query`, then aggregations are calculated on the combined set of `knn`
+and `query` matches.
 
 [discrete]
 [[knn-indexing-considerations]]

@@ -9,7 +9,7 @@ is recommended in most circumstances.
 ==== Set JVM options
 
 If needed, you can override the default JVM options by adding custom options
-files (preferred) or setting the `CLI_JAVA_OPTS` environment variable.
+files (preferred) or setting the `ES_JAVA_OPTS` environment variable.
 
 JVM options files must have the suffix '.options' and contain a line-delimited
 list of JVM arguments. JVM processes options files in lexicographic order.
@@ -70,16 +70,16 @@ as valid JVM arguments are rejected and {es} will fail to start.
 
 In production, use JVM options files to override the
 default settings. In testing and development environments,
-you can also set JVM options through the `CLI_JAVA_OPTS` environment variable.
+you can also set JVM options through the `ES_JAVA_OPTS` environment variable.
 
 [source,sh]
 ---------------------------------
-export CLI_JAVA_OPTS="$CLI_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
+export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 ./bin/elasticsearch
 ---------------------------------
 
 If you're using the RPM or Debian packages, you can specify
-`CLI_JAVA_OPTS` in the <<sysconfig,system configuration file>>.
+`ES_JAVA_OPTS` in the <<sysconfig,system configuration file>>.
 
 NOTE: {es} ignores the `JAVA_TOOL_OPTIONS` and `JAVA_OPTS` environment variables.
 
@@ -141,16 +141,16 @@ For example, to set the maximum heap size to 2GB, set both `Xms` and `Xmx` to `2
 -Xmx2g
 ------------------
 
-For testing, you can also set the heap sizes using the `CLI_JAVA_OPTS`
+For testing, you can also set the heap sizes using the `ES_JAVA_OPTS`
 environment variable:
 
 [source,sh]
 ------------------
-CLI_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch
+ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch
 ------------------
 
-The `CLI_JAVA_OPTS` variable overrides all other JVM
-options. We do not recommend using `CLI_JAVA_OPTS` in production.
+The `ES_JAVA_OPTS` variable overrides all other JVM
+options. We do not recommend using `ES_JAVA_OPTS` in production.
 
 NOTE: If you are running {es} as a Windows service, you can change the heap size
 using the service manager. See <<windows-service>>.

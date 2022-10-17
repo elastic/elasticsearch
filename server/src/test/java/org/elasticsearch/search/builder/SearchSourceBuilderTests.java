@@ -354,9 +354,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithUnits() throws IOException {
         final String timeout = randomTimeValue();
-        final String query = """
+        final String query = formatted("""
             { "query": { "match_all": {}}, "timeout": "%s"}
-            """.formatted(timeout);
+            """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(parser);
             assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
@@ -365,9 +365,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithoutUnits() throws IOException {
         final int timeout = randomIntBetween(1, 1024);
-        final String query = """
+        final String query = formatted("""
             { "query": { "match_all": {}}, "timeout": "%s"}
-            """.formatted(timeout);
+            """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));

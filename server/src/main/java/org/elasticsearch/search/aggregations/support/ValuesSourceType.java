@@ -92,4 +92,15 @@ public interface ValuesSourceType {
      * @return the name of the Values Source Type
      */
     String typeName();
+
+    /**
+     * Returns the exception to throw in case the registry (type, aggregator) entry
+     * is not registered.
+     *
+     * @param message the message for the exception
+     * @return the exception to throw
+     */
+    default RuntimeException getUnregisteredException(String message) {
+        return new IllegalArgumentException(message);
+    }
 }

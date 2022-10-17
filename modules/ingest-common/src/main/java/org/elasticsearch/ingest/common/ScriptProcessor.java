@@ -75,7 +75,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         if (factory == null) {
             factory = scriptService.compile(script, IngestScript.CONTEXT);
         }
-        factory.newInstance(script.getParams(), document.getMetadata(), document.getSourceAndMetadata()).execute();
+        factory.newInstance(script.getParams(), document.getCtxMap()).execute();
         return document;
     }
 

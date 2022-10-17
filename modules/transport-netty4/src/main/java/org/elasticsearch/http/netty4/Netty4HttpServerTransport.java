@@ -158,7 +158,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             clusterSettings,
             tracer
         );
-        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 

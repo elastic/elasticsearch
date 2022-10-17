@@ -409,11 +409,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             buildClassificationConfig("some_keyword"),
             100,
             fieldCapabilities,
-            Collections.singletonMap("some_keyword", 31L)
+            Collections.singletonMap("some_keyword", 101L)
         );
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
-        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [30] distinct values but there were at least [31]"));
+        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [100] distinct values but there were at least [101]"));
     }
 
     public void testDetect_GivenIgnoredField() {

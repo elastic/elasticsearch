@@ -31,8 +31,10 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -67,6 +69,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -168,12 +171,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 ignoreMalformedByDefault
             );
 
-            this.timeSeriesMetric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType,
-                MetricType.gauge,
-                MetricType.counter,
-                MetricType.summary
-            );
+            this.timeSeriesMetric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge);
 
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
         }
@@ -224,7 +222,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         false,
                         false,
                         indexCreatedVersion
-                    );
+                    ).allowMultipleValues(false);
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,
@@ -233,7 +231,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         false,
                         true,
                         indexCreatedVersion
-                    );
+                    ).allowMultipleValues(false);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
@@ -301,17 +299,16 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public String familyTypeName() {
-            return NumberFieldMapper.NumberType.DOUBLE.typeName();
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
 
         private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
             this.metricFields = metricFields;
+        }
+
+        public Map<Metric, NumberFieldMapper.NumberFieldType> getMetricFields() {
+            return Collections.unmodifiableMap(metricFields);
         }
 
         public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {
@@ -389,6 +386,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             QueryRewriteContext context
         ) throws IOException {
             return delegateFieldType().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
+        }
+
+        @Override
+        public boolean isAggregatable() {
+            return true;
         }
 
         @Override
@@ -495,18 +497,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-
-            return new SourceValueFetcher(name(), context) {
-                @Override
-                @SuppressWarnings("unchecked")
-                protected Object parseSourceValue(Object value) {
-                    Map<String, Double> metrics = (Map<String, Double>) value;
-                    return metrics.get(defaultMetric.name());
-                }
-            };
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         /**
@@ -551,7 +542,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed;
     }
 
@@ -580,6 +572,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         XContentParser.Token token;
         XContentSubParser subParser = null;
         EnumSet<Metric> metricsParsed = EnumSet.noneOf(Metric.class);
+        Number max = null, min = null;
         try {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -606,32 +599,50 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 // new aggregate metric types are added (histogram, cardinality etc)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
-                // We don't accept arrays of metrics
-                if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + name()
-                            + "] of type ["
-                            + typeName()
-                            + "] does not support indexing multiple values for the same field in the same document"
-                    );
-                }
                 // Delegate parsing the field to a numeric field mapper
-                delegateFieldMapper.parse(context);
-
+                try {
+                    delegateFieldMapper.parse(context);
+                } catch (MapperParsingException e) {
+                    // when parse multiple values, it will throw IllegalStateException
+                    // in org.apache.lucene.document.Document.onlyAddKey
+                    if (e.getCause() instanceof IllegalStateException) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + name()
+                                + "] of type ["
+                                + typeName()
+                                + "] does not support indexing multiple values for the same field in the same document"
+                        );
+                    } else if (e.getCause()instanceof IOException exception) {
+                        // throw the cause of the exception
+                        throw exception;
+                    } else {
+                        throw e;
+                    }
+                }
                 // Ensure a value_count metric does not have a negative value
                 if (Metric.value_count == metric) {
                     // context.doc().getField() method iterates over all fields in the document.
                     // Making the following call slow down. Maybe we can think something smarter.
-                    Number n = context.doc().getField(delegateFieldMapper.name()).numericValue();
+                    Number n = context.doc().getByKey(delegateFieldMapper.name()).numericValue();
                     if (n.intValue() < 0) {
                         throw new IllegalArgumentException(
                             "Aggregate metric [" + metric.name() + "] of field [" + mappedFieldType.name() + "] cannot be a negative number"
                         );
                     }
+                } else if (Metric.max == metric) {
+                    max = context.doc().getByKey(delegateFieldMapper.name()).numericValue();
+                } else if (Metric.min == metric) {
+                    min = context.doc().getByKey(delegateFieldMapper.name()).numericValue();
                 }
                 metricsParsed.add(metric);
                 token = subParser.nextToken();
+            }
+            // check max value must bigger then min value
+            if (max != null && min != null && max.doubleValue() < min.doubleValue()) {
+                throw new IllegalArgumentException(
+                    "Aggregate metric field [" + mappedFieldType.name() + "] max value cannot be smaller than min value"
+                );
             }
 
             // Check if all required metrics have been parsed.
@@ -691,6 +702,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         private final String name;
         private final String simpleName;
         private final EnumSet<Metric> metrics;
+        private final Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
+        private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
 
         protected AggregateMetricSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
             this.name = name;
@@ -699,37 +712,54 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of();
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            metricDocValues.clear();
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
-                SortedNumericDocValues dv = NumberFieldMapper.NumericSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
+                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
                 if (dv != null) {
                     metricDocValues.put(m, dv);
                 }
             }
 
             if (metricDocValues.isEmpty()) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+                return null;
             }
 
-            return new AggregateMetricSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
+            return new AggregateDocValuesLoader();
         }
 
-        private class ImmediateLeaf implements Leaf {
-            private final Map<Metric, SortedNumericDocValues> metricDocValues;
-            private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
+        @Override
+        public boolean hasValue() {
+            return metricHasValue.isEmpty() == false;
+        }
 
-            ImmediateLeaf(Map<Metric, SortedNumericDocValues> metricDocValues) {
-                assert metricDocValues.isEmpty() == false : "doc_values for metrics cannot be empty";
-                this.metricDocValues = metricDocValues;
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (metricHasValue.isEmpty()) {
+                return;
             }
-
-            @Override
-            public boolean empty() {
-                return false;
+            b.startObject(simpleName);
+            for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
+                if (metricHasValue.contains(entry.getKey())) {
+                    String metricName = entry.getKey().name();
+                    long value = entry.getValue().nextValue();
+                    if (entry.getKey() == Metric.value_count) {
+                        b.field(metricName, value);
+                    } else {
+                        b.field(metricName, NumericUtils.sortableLongToDouble(value));
+                    }
+                }
             }
+            b.endObject();
+        }
 
+        private class AggregateDocValuesLoader implements DocValuesLoader {
             @Override
             public boolean advanceToDoc(int docId) throws IOException {
                 // It is required that all defined metrics must exist. In this case
@@ -744,26 +774,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 return metricHasValue.isEmpty() == false;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (metricHasValue.isEmpty()) {
-                    return;
-                }
-                b.startObject(simpleName);
-                for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
-                    if (metricHasValue.contains(entry.getKey())) {
-                        String metricName = entry.getKey().name();
-                        long value = entry.getValue().nextValue();
-                        if (entry.getKey() == Metric.value_count) {
-                            b.field(metricName, value);
-                        } else {
-                            b.field(metricName, NumericUtils.sortableLongToDouble(value));
-                        }
-                    }
-                }
-                b.endObject();
             }
         }
     }

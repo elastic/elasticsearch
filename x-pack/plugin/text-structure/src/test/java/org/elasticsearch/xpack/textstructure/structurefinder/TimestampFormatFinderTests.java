@@ -848,375 +848,491 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     public void testFindFormatGivenOnlyIso8601() {
 
-        validateTimestampMatch(
-            "2018-05-15T16:14:56,374Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56,374+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56,374+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56,374",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
+        Consumer<Boolean> testFindFormatGivenOnlyIso8601AndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018-05-15T16:14:56,374Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56,374+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56,374+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56,374",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15T16:14:56Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "2018-05-15T16:14:56Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15T16:14Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
+            validateTimestampMatch(
+                "2018-05-15T16:14Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
 
-        // TIMESTAMP_ISO8601 doesn't match ISO8601 if it's only a date with no time
-        validateTimestampMatch("2018-05-15", "CUSTOM_TIMESTAMP", "\\b\\d{4}-\\d{2}-\\d{2}\\b", "ISO8601", 1526338800000L);
+            // TIMESTAMP_ISO8601 doesn't match ISO8601 if it's only a date with no time
+            validateTimestampMatch(
+                "2018-05-15",
+                "CUSTOM_TIMESTAMP",
+                "\\b\\d{4}-\\d{2}-\\d{2}\\b",
+                "ISO8601",
+                1526338800000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15 16:14:56,374Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSSXX",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSSXX",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSSXXX",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSS",
-            1526400896374L
-        );
+            validateTimestampMatch(
+                "2018-05-15 16:14:56,374Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSSXX",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSSXX",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSSXXX",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15 16:14:56Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ssXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ssXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ssXXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "2018-05-15 16:14:56Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ssXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ssXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ssXXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15 16:14Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mmXX",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mmXX",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mmXXX",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm",
-            1526400840000L
-        );
+            validateTimestampMatch(
+                "2018-05-15 16:14Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mmXX",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mmXX",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mmXXX",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm",
+                1526400840000L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenOnlyIso8601AndEcsCompatibility);
+
     }
 
     public void testFindFormatGivenOnlyKnownTimestampFormat() {
 
         // Note: some of the time formats give millisecond accuracy, some second accuracy and some minute accuracy
 
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374 +0100",
-            "TOMCAT_DATESTAMP",
-            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
-            "yyyy-MM-dd HH:mm:ss,SSS XX",
-            1526400896374L
-        );
+        Consumer<Boolean> testFindFormatGivenOnlyKnownTimestampFormatAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374 +0100",
+                "TOMCAT_DATESTAMP",
+                "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
+                "yyyy-MM-dd HH:mm:ss,SSS XX",
+                1526400896374L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue May 15 18 16:14:56 UTC",
-            "DATESTAMP_RFC822",
-            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("EEE MMM dd yy HH:mm:ss zzz", "EEE MMM d yy HH:mm:ss zzz"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue May 15 18 16:14:56 UTC",
+                "DATESTAMP_RFC822",
+                "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("EEE MMM dd yy HH:mm:ss zzz", "EEE MMM d yy HH:mm:ss zzz"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue, 15 May 2018 17:14:56 +01:00",
-            "DATESTAMP_RFC2822",
-            "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            "EEE, dd MMM yyyy HH:mm:ss XXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "Tue, 15 May 2018 17:14:56 +0100",
-            "DATESTAMP_RFC2822",
-            "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            "EEE, dd MMM yyyy HH:mm:ss XX",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue, 15 May 2018 17:14:56 +01:00",
+                "DATESTAMP_RFC2822",
+                "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+                "EEE, dd MMM yyyy HH:mm:ss XXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "Tue, 15 May 2018 17:14:56 +0100",
+                "DATESTAMP_RFC2822",
+                "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+                "EEE, dd MMM yyyy HH:mm:ss XX",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue May 15 16:14:56 UTC 2018",
-            "DATESTAMP_OTHER",
-            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("EEE MMM dd HH:mm:ss zzz yyyy", "EEE MMM d HH:mm:ss zzz yyyy"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue May 15 16:14:56 UTC 2018",
+                "DATESTAMP_OTHER",
+                "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("EEE MMM dd HH:mm:ss zzz yyyy", "EEE MMM d HH:mm:ss zzz yyyy"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch("20180515171456", "DATESTAMP_EVENTLOG", "\\b\\d{14}\\b", "yyyyMMddHHmmss", 1526400896000L);
+            validateTimestampMatch(
+                "20180515171456",
+                "DATESTAMP_EVENTLOG",
+                "\\b\\d{14}\\b",
+                "yyyyMMddHHmmss",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue May 15 17:14:56 2018",
-            "HTTPDERROR_DATE",
-            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
-            "EEE MMM dd HH:mm:ss yyyy",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue May 15 17:14:56 2018",
+                "HTTPDERROR_DATE",
+                "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
+                "EEE MMM dd HH:mm:ss yyyy",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "May 15 17:14:56.725",
-            "SYSLOGTIMESTAMP",
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd HH:mm:ss.SSS", "MMM  d HH:mm:ss.SSS", "MMM d HH:mm:ss.SSS"),
-            1526400896725L
-        );
-        validateTimestampMatch(
-            "May 15 17:14:56",
-            "SYSLOGTIMESTAMP",
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss", "MMM d HH:mm:ss"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "May 15 17:14:56.725",
+                "SYSLOGTIMESTAMP",
+                "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("MMM dd HH:mm:ss.SSS", "MMM  d HH:mm:ss.SSS", "MMM d HH:mm:ss.SSS"),
+                1526400896725L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "May 15 17:14:56",
+                "SYSLOGTIMESTAMP",
+                "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss", "MMM d HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "15/May/2018:17:14:56 +0100",
-            "HTTPDATE",
-            "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
-            "dd/MMM/yyyy:HH:mm:ss XX",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "15/May/2018:17:14:56 +0100",
+                "HTTPDATE",
+                "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
+                "dd/MMM/yyyy:HH:mm:ss XX",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "May 15, 2018 5:14:56 PM",
-            "CATALINA_DATESTAMP",
-            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
-            "MMM dd, yyyy h:mm:ss a",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "May 15, 2018 5:14:56 PM",
+                "CATALINA_DATESTAMP",
+                "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
+                "MMM dd, yyyy h:mm:ss a",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "May 15 2018 17:14:56",
-            "CISCOTIMESTAMP",
-            "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "May 15 2018 17:14:56",
+                "CISCOTIMESTAMP",
+                "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "05/15/2018 17:14:56,374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM/dd/yyyy HH:mm:ss,SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "05-15-2018-17:14:56.374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM-dd-yyyy-HH:mm:ss.SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "15/05/2018 17:14:56.374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd/MM/yyyy HH:mm:ss.SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "15-05-2018-17:14:56,374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd-MM-yyyy-HH:mm:ss,SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "15.05.2018 17:14:56.374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd.MM.yyyy HH:mm:ss.SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "05/15/2018 17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM/dd/yyyy HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "05-15-2018-17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM-dd-yyyy-HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "15/05/2018 17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd/MM/yyyy HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "15-05-2018-17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd-MM-yyyy-HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "15.05.2018 17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd.MM.yyyy HH:mm:ss",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "05/15/2018 17:14:56,374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM/dd/yyyy HH:mm:ss,SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05-15-2018-17:14:56.374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM-dd-yyyy-HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15/05/2018 17:14:56.374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd/MM/yyyy HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15-05-2018-17:14:56,374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd-MM-yyyy-HH:mm:ss,SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15.05.2018 17:14:56.374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd.MM.yyyy HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05/15/2018 17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM/dd/yyyy HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05-15-2018-17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM-dd-yyyy-HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15/05/2018 17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd/MM/yyyy HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15-05-2018-17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd-MM-yyyy-HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15.05.2018 17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd.MM.yyyy HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch("05/15/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "MM/dd/yyyy", 1526338800000L);
-        validateTimestampMatch("05-15-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "MM-dd-yyyy", 1526338800000L);
-        validateTimestampMatch("15/05/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd/MM/yyyy", 1526338800000L);
-        validateTimestampMatch("15-05-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd-MM-yyyy", 1526338800000L);
-        validateTimestampMatch("15.05.2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd.MM.yyyy", 1526338800000L);
+            validateTimestampMatch(
+                "05/15/2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "MM/dd/yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05-15-2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "MM-dd-yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15/05/2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "dd/MM/yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15-05-2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "dd-MM-yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15.05.2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "dd.MM.yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
 
-        // The Kibana export format doesn't correspond to a built-in Grok pattern, so it has to be custom
-        validateTimestampMatch(
-            "May 15, 2018 @ 17:14:56.374",
-            "CUSTOM_TIMESTAMP",
-            "\\b[A-Z]\\S{2} \\d{1,2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
-            "MMM d, yyyy @ HH:mm:ss.SSS",
-            1526400896374L
-        );
+            // The Kibana export format doesn't correspond to a built-in Grok pattern, so it has to be custom
+            validateTimestampMatch(
+                "May 15, 2018 @ 17:14:56.374",
+                "CUSTOM_TIMESTAMP",
+                "\\b[A-Z]\\S{2} \\d{1,2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
+                "MMM d, yyyy @ HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenOnlyKnownTimestampFormatAndEcsCompatibility);
     }
 
     public void testFindFormatGivenOnlySystemDate() {
 
-        validateTimestampMatch("1000000000000", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1000000000000L);
-        validateTimestampMatch("1526400896374", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1526400896374L);
-        validateTimestampMatch("2999999999999", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 2999999999999L);
+        Consumer<Boolean> testFindFormatGivenOnlySystemDateAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch("1000000000000", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1000000000000L, ecsCompatibility);
+            validateTimestampMatch("1526400896374", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1526400896374L, ecsCompatibility);
+            validateTimestampMatch("2999999999999", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 2999999999999L, ecsCompatibility);
 
-        validateTimestampMatch("1000000000", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1000000000000L);
-        validateTimestampMatch("1526400896.736", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896736L);
-        validateTimestampMatch("1526400896", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896000L);
-        validateTimestampMatch("2999999999.999", "NUMBER", "\\b\\d{10}\\b", "UNIX", 2999999999999L);
+            validateTimestampMatch("1000000000", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1000000000000L, ecsCompatibility);
+            validateTimestampMatch("1526400896.736", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896736L, ecsCompatibility);
+            validateTimestampMatch("1526400896", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896000L, ecsCompatibility);
+            validateTimestampMatch("2999999999.999", "NUMBER", "\\b\\d{10}\\b", "UNIX", 2999999999999L, ecsCompatibility);
 
-        validateTimestampMatch("400000005afb078a164ac980", "BASE16NUM", "\\b[0-9A-Fa-f]{24}\\b", "TAI64N", 1526400896374L);
+            validateTimestampMatch(
+                "400000005afb078a164ac980",
+                "BASE16NUM",
+                "\\b[0-9A-Fa-f]{24}\\b",
+                "TAI64N",
+                1526400896374L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenOnlySystemDateAndEcsCompatibility);
+
     }
 
     public void testCustomOverrideMatchingBuiltInFormat() {
@@ -1599,14 +1715,16 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedGrokPatternName,
         String expectedSimpleRegex,
         String expectedJavaTimestampFormat,
-        long expectedEpochMs
+        long expectedEpochMs,
+        boolean ecsCompatibility
     ) {
         validateTimestampMatch(
             text,
             expectedGrokPatternName,
             expectedSimpleRegex,
             Collections.singletonList(expectedJavaTimestampFormat),
-            expectedEpochMs
+            expectedEpochMs,
+            ecsCompatibility
         );
     }
 
@@ -1615,16 +1733,23 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedGrokPatternName,
         String expectedSimpleRegex,
         List<String> expectedJavaTimestampFormats,
-        long expectedEpochMs
+        long expectedEpochMs,
+        boolean ecsCompatibility
     ) {
 
         Pattern expectedSimplePattern = Pattern.compile(expectedSimpleRegex);
         assertTrue(expectedSimplePattern.matcher(text).find());
         validateJavaTimestampFormats(expectedJavaTimestampFormats, text, expectedEpochMs);
 
-        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
+            explanation,
+            true,
+            true,
+            true,
+            NOOP_TIMEOUT_CHECKER,
+            ecsCompatibility
+        );
         strictTimestampFormatFinder.addSample(text);
-        assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
         assertEquals(expectedSimplePattern.pattern(), strictTimestampFormatFinder.getSimplePattern().pattern());
         assertEquals(expectedJavaTimestampFormats, strictTimestampFormatFinder.getJavaTimestampFormats());
         assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
@@ -1634,14 +1759,27 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             false,
             false,
             false,
-            NOOP_TIMEOUT_CHECKER
+            NOOP_TIMEOUT_CHECKER,
+            ecsCompatibility
         );
         lenientTimestampFormatFinder.addSample(text);
         lenientTimestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
         assertEquals(expectedSimplePattern.pattern(), lenientTimestampFormatFinder.getSimplePattern().pattern());
         assertEquals(expectedJavaTimestampFormats, lenientTimestampFormatFinder.getJavaTimestampFormats());
         assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+
+        if (ecsCompatibility) {
+            if ("TOMCAT_DATESTAMP".equals(expectedGrokPatternName)) {
+                assertEquals("TOMCATLEGACY_DATESTAMP", strictTimestampFormatFinder.getGrokPatternName());
+                assertEquals("TOMCATLEGACY_DATESTAMP", lenientTimestampFormatFinder.getGrokPatternName());
+            } else if ("CATALINA_DATESTAMP".equals(expectedGrokPatternName)) {
+                assertEquals("CATALINA7_DATESTAMP", strictTimestampFormatFinder.getGrokPatternName());
+                assertEquals("CATALINA7_DATESTAMP", lenientTimestampFormatFinder.getGrokPatternName());
+            }
+        } else {
+            assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
+            assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
+        }
     }
 
     private void validateFindInFullMessage(

@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -122,14 +121,6 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
         this.fractions = in.readBoolean() ? in.readDoubleArray() : null;
         this.alternative = in.readEnumSet(Alternative.class);
         this.samplingMethod = SamplingMethod.fromStream(in);
-    }
-
-    public static SearchPlugin.PipelineAggregationSpec buildSpec() {
-        return new SearchPlugin.PipelineAggregationSpec(
-            NAME,
-            BucketCountKSTestAggregationBuilder::new,
-            BucketCountKSTestAggregationBuilder.PARSER
-        ).addResultReader(InternalKSTestAggregation::new);
     }
 
     @Override

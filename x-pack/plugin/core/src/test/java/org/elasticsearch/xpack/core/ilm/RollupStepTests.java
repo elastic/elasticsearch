@@ -34,6 +34,11 @@ import static org.hamcrest.Matchers.is;
 
 public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90843")
+    public void testHashcodeAndEquals() {
+        super.testHashcodeAndEquals();
+    }
+
     @Override
     public RollupStep createRandomInstance() {
         StepKey stepKey = randomStepKey();

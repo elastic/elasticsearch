@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -44,33 +45,33 @@ public class XSearchRequestValidationServiceTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testSuccessfulValidationAgainstSingleEngine() throws XSearchRequestValidationService.InvalidXSearchRequestException {
+    public void testSuccessfulValidationAgainstSingleEngine() {
         XSearchAction.Request validRequest = new XSearchAction.Request(new String[] { "engine1" }, "query", true);
         xSearchRequestValidationService.validateRequest(validRequest);
     }
 
-    public void testSuccessfulValidationAgainstMultipleEngines() throws XSearchRequestValidationService.InvalidXSearchRequestException {
+    public void testSuccessfulValidationAgainstMultipleEngines() {
         XSearchAction.Request validRequest = new XSearchAction.Request(new String[] { "engine1", "engine2" }, "query", true);
         xSearchRequestValidationService.validateRequest(validRequest);
     }
 
-    public void testValidationErrorOnNonEngines() throws XSearchRequestValidationService.InvalidXSearchRequestException {
+    public void testValidationErrorOnNonEngines() {
         XSearchAction.Request invalidRequest = new XSearchAction.Request(new String[] { "index1", "alias1" }, "query", true);
 
-        XSearchRequestValidationService.InvalidXSearchRequestException ex = expectThrows(
-            XSearchRequestValidationService.InvalidXSearchRequestException.class,
+        ValidationException ex = expectThrows(
+            ValidationException.class,
             () -> xSearchRequestValidationService.validateRequest(invalidRequest)
         );
-        assertEquals("XSearch not supported for non-engine indices index1,alias1", ex.getMessage());
+        assertEquals("Validation Failed: 1: XSearch not supported for non-engine indices index1,alias1;", ex.getMessage());
     }
 
-    public void testValidationErrorOnIncompleteEngines() throws XSearchRequestValidationService.InvalidXSearchRequestException {
+    public void testValidationErrorOnIncompleteEngines() {
         XSearchAction.Request invalidRequest = new XSearchAction.Request(new String[] { "index1", "engine1" }, "query", true);
-        XSearchRequestValidationService.InvalidXSearchRequestException ex = expectThrows(
-            XSearchRequestValidationService.InvalidXSearchRequestException.class,
+        ValidationException ex = expectThrows(
+            ValidationException.class,
             () -> xSearchRequestValidationService.validateRequest(invalidRequest)
         );
-        assertEquals("XSearch not supported for non-engine indices index1", ex.getMessage());
+        assertEquals("Validation Failed: 1: XSearch not supported for non-engine indices index1;", ex.getMessage());
     }
 
     static class MockResolver extends IndexNameExpressionResolver {

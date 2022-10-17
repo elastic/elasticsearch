@@ -47,11 +47,7 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
     @Override
     protected void doExecute(Task task, XSearchAction.Request request, ActionListener<SearchResponse> listener) {
 
-        try {
-            xSearchRequestValidationService.validateRequest(request);
-        } catch (XSearchRequestValidationService.InvalidXSearchRequestException e) {
-            throw new IllegalArgumentException(e);
-        }
+        xSearchRequestValidationService.validateRequest(request);
 
         String[] indices = request.indices();
         QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());

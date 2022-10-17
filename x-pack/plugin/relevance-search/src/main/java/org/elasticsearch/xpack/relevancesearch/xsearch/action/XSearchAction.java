@@ -87,7 +87,7 @@ public class XSearchAction extends ActionType<SearchResponse> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalStringArray(indices);
+            out.writeStringArray(indices);
             out.writeString(query);
             out.writeBoolean(explain);
             indicesOptions.writeIndicesOptions(out);

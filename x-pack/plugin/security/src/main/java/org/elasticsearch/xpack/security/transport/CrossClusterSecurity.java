@@ -12,13 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.common.util.StringLiteralOutturn;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.TcpTransport;
 
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -38,6 +36,11 @@ public class CrossClusterSecurity {
 
     private final Map<String, String> apiKeys = ConcurrentCollections.newConcurrentMap();
 
+    /**
+     * Initialize load and reload REMOTE_CLUSTER_AUTHORIZATION values.
+     * @param settings Contains zero, one, or many values of REMOTE_CLUSTER_AUTHORIZATION literal values.
+     * @param clusterSettings Contains one affix of setting REMOTE_CLUSTER_AUTHORIZATION.
+     */
     public CrossClusterSecurity(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             // Settings.getAsMap returns HashMap which is passed to setApiKeys.
@@ -58,36 +61,40 @@ public class CrossClusterSecurity {
     public static final StringLiteralDeduplicator x = new StringLiteralDeduplicator();
 
     private void setApiKeys(final Map<String, String> map) {
-        final Map<String, String> newClusterAliasApiKeyMap = (map instanceof IdentityHashMap) ? internKeysToNonIntern(map) : map;
-        final Collection<String> added = newClusterAliasApiKeyMap.keySet()
+        final Map<String, String> newClusterAliasApiKeyMap = (map instanceof IdentityHashMap)
+            ? StringLiteralOutturn.MapStringKey.outturn(map)
+            : map;
+        final Collection<String> added = newClusterAliasApiKeyMap.entrySet()
             .stream()
-            .filter(clusterAlias -> this.apiKeys.containsKey(clusterAlias) == false)
+            .filter(clusterAliasApiKey -> this.apiKeys.containsKey(clusterAliasApiKey.getKey()) == false)
+            .map(Object::toString)
             .toList();
-        final Collection<String> removed = this.apiKeys.keySet()
+        final Collection<String> removed = this.apiKeys.entrySet()
             .stream()
-            .filter(clusterAlias -> newClusterAliasApiKeyMap.containsKey(clusterAlias) == false)
+            .filter(clusterAliasApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasApiKey.getKey()) == false)
+            .map(Object::toString)
             .toList();
-        final Collection<String> changed = this.apiKeys.entrySet()
+        final Collection<String> changed = newClusterAliasApiKeyMap.entrySet()
             .stream()
             .filter(
-                clusterAliasApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasApiKey.getKey())
-                    && Objects.equals(clusterAliasApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasApiKey.getKey())) == false
+                clusterAliasApiKey -> this.apiKeys.containsKey(clusterAliasApiKey.getKey())
+                    && Objects.equals(clusterAliasApiKey.getValue(), this.apiKeys.get(clusterAliasApiKey.getKey())) == false
             )
-            .map(Map.Entry::getKey)
+            .map(Object::toString)
             .toList();
-        final Collection<String> unchanged = this.apiKeys.entrySet()
+        final Collection<String> unchanged = newClusterAliasApiKeyMap.entrySet()
             .stream()
             .filter(
-                clusterAliasAndApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasAndApiKey.getKey())
-                    && Objects.equals(clusterAliasAndApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasAndApiKey.getKey()))
+                clusterAliasAndApiKey -> this.apiKeys.containsKey(clusterAliasAndApiKey.getKey())
+                    && Objects.equals(clusterAliasAndApiKey.getValue(), this.apiKeys.get(clusterAliasAndApiKey.getKey()))
             )
-            .map(Map.Entry::getKey)
+            .map(Object::toString)
             .toList();
         LOGGER.info(
-            "Added: {}, Removed: {}, Changed: {}, Unchanged: {}, Old: {}, New: {}",
+            "Changed: {}, Added: {}, Removed: {}, Unchanged: {}, Old: {}, New: {}",
+            new TreeSet<>(changed),
             new TreeSet<>(added),
             new TreeSet<>(removed),
-            new TreeSet<>(changed),
             new TreeSet<>(unchanged),
             new TreeMap<>(this.apiKeys),
             new TreeMap<>(newClusterAliasApiKeyMap)
@@ -96,42 +103,5 @@ public class CrossClusterSecurity {
         removed.forEach(this.apiKeys::remove); // removed
         this.apiKeys.putAll(newClusterAliasApiKeyMap); // added, changed, and unchanged
     }
-
-    /**
-     * Copy all entries to a new Map, but use new non-intern copies of the String keys.
-     * For example, this can be used to convert an IdentityHashMap to a Map which complies with the equals(), get(), etc Map APIs.
-     * @param map Map with String keys that are assumed to be interned.
-     * @return New Map with non-intern String keys.
-     */
-    public static Map<String, String> internKeysToNonIntern(Map<String, String> map) {
-        final Map<String, String> nonInternMap;
-        nonInternMap = new HashMap<>();
-        for (final Map.Entry<String, String> entry : map.entrySet()) {
-            nonInternMap.put(internToNonIntern(entry.getKey()), entry.getValue());
-        }
-        return nonInternMap;
-    }
-
-    /**
-     * Copy intern String characters to a new non-intern String object.
-     * @param internString String that is assumed to be interned.
-     * @return New String object which is not interned.
-     */
-    public static String internToNonIntern(final String internString) {
-        return internToNonIntern(internString, DEFAULT_INTERMEDIATE_CHARSET);
-    }
-
-    public static String internToNonIntern(final String internString, final Charset intermediateCharset) {
-        final byte[] keyBytes = internString.getBytes(intermediateCharset); // copy bytes to a new, non-intern String object
-        return new String(keyBytes, 0, keyBytes.length, intermediateCharset);
-    }
-
-    /**
-     * Use UTF-16 encoded chars to avoid unnecessary conversions.
-     * Java Strings are internally encoded as UTF-16, so u
-     * If using something else like UTF-8, that leads to two unnecessary conversions.
-     * First UTF16 to UTF8, then UTF8 to UTF-16.
-     */
-    private static final Charset DEFAULT_INTERMEDIATE_CHARSET = StandardCharsets.UTF_16;
 
 }

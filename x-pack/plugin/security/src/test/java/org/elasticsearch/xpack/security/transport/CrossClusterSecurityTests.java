@@ -61,11 +61,11 @@ public class CrossClusterSecurityTests extends ESTestCase {
     public void testSendAsync() {
         assumeThat(TcpTransport.isUntrustedRemoteClusterEnabled(), is(true));
         final Settings fixedSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final String clusterNameA = "action";
+        final String clusterNameAction = "action"; // fake cluster name, appears in debug logs as Changed or Added with trace details
         final String clusterNameB = "clusterB";
         final Settings initialSettings = Settings.builder()
             .put(fixedSettings)
-            .put("cluster.remote." + clusterNameA + ".authorization", "initialize")
+            .put("cluster.remote." + clusterNameAction + ".authorization", "initialize")
             .build();
 
         this.clusterService = ClusterServiceUtils.createClusterService(this.threadPool);
@@ -84,29 +84,29 @@ public class CrossClusterSecurityTests extends ESTestCase {
         final DiscoveryNode masterNodeA = this.clusterService.state().nodes().getMasterNode();
 
         // Add clusterB authorization setting
-        final Settings newSettings1 = Settings.builder()
+        final Settings newSettingsAddClusterB = Settings.builder()
             .put(fixedSettings)
-            .put("cluster.remote." + clusterNameA + ".authorization", "addedB")
+            .put("cluster.remote." + clusterNameAction + ".authorization", "addB")
             .put("cluster.remote." + clusterNameB + ".authorization", randomApiKey())
             .build();
-        final ClusterState newClusterState1 = createClusterState(clusterNameA, masterNodeA, newSettings1);
+        final ClusterState newClusterState1 = createClusterState(clusterNameAction, masterNodeA, newSettingsAddClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState1);
 
         // Change clusterB authorization setting
-        final Settings newSettings2 = Settings.builder()
+        final Settings newSettingsUpdateClusterB = Settings.builder()
             .put(fixedSettings)
-            .put("cluster.remote." + clusterNameA + ".authorization", "updatedB")
+            .put("cluster.remote." + clusterNameAction + ".authorization", "editB")
             .put("cluster.remote." + clusterNameB + ".authorization", randomApiKey())
             .build();
-        final ClusterState newClusterState2 = createClusterState(clusterNameA, masterNodeA, newSettings2);
+        final ClusterState newClusterState2 = createClusterState(clusterNameAction, masterNodeA, newSettingsUpdateClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState2);
 
         // Remove clusterB authorization setting
-        final Settings newSettings3 = Settings.builder()
+        final Settings newSettingsOmitClusterB = Settings.builder()
             .put(fixedSettings)
-            .put("cluster.remote." + clusterNameA + ".authorization", "removedB")
+            .put("cluster.remote." + clusterNameAction + ".authorization", "omitB")
             .build();
-        final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettings3);
+        final ClusterState newClusterState3 = createClusterState(clusterNameAction, masterNodeA, newSettingsOmitClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState3);
     }
 

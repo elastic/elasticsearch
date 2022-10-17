@@ -15,9 +15,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
@@ -29,12 +28,14 @@ public interface FetchSubPhase {
         private final LeafReaderContext readerContext;
         private final int docId;
         private final Source source;
+        private final Map<String, List<Object>> loadedFields;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId, Source source) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId, Map<String, List<Object>> loadedFields, Source source) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.source = source;
+            this.loadedFields = loadedFields;
         }
 
         public SearchHit hit() {
@@ -67,18 +68,12 @@ public interface FetchSubPhase {
             return source;
         }
 
+        public Map<String, List<Object>> loadedFields() {
+            return loadedFields;
+        }
+
         public IndexReader topLevelReader() {
             return ReaderUtil.getTopLevelContext(readerContext).reader();
-        }
-    }
-
-    record StoredFieldsSpec(boolean requiresSource, Set<String> requiredStoredFields) {
-        public static StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, Set.of());
-
-        public StoredFieldsSpec merge(StoredFieldsSpec other) {
-            Set<String> mergedFields = new HashSet<>(this.requiredStoredFields);
-            mergedFields.addAll(other.requiredStoredFields);
-            return new StoredFieldsSpec(this.requiresSource || other.requiresSource, mergedFields);
         }
     }
 
@@ -89,12 +84,5 @@ public interface FetchSubPhase {
      * implementation should return {@code null}
      */
     FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException;
-
-    /**
-     * The stored fields or source required by this sub phase
-     */
-    default StoredFieldsSpec storedFieldsSpec(FetchContext fetchContext) {
-        return StoredFieldsSpec.NO_REQUIREMENTS;
-    }
 
 }

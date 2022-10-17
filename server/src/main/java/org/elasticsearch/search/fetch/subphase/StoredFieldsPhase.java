@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -16,34 +17,29 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class StoredFieldsPhase implements FetchSubPhase {
 
-    @Override
-    public StoredFieldsSpec storedFieldsSpec(FetchContext fetchContext) {
-        if (fetchContext.storedFieldsContext() == null || fetchContext.storedFieldsContext().fetchFields() == false) {
-            return StoredFieldsSpec.NO_REQUIREMENTS;
-        }
-        boolean requiresSource = false;
-        Set<String> requiredFields = new HashSet<>();
-        SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
-        for (String field : fetchContext.storedFieldsContext().fieldNames()) {
-            if (SourceFieldMapper.NAME.equals(field)) {
-                requiresSource = true;
-            } else {
-                Collection<String> fieldNames = sec.getMatchingFieldNames(field);
-                for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = sec.getFieldType(fieldName);
-                    requiredFields.add(fieldType.name());
-                }
+    private record StoredField(String name, MappedFieldType ft, boolean isMetadataField) {
+
+        List<Object> process(Map<String, List<Object>> loadedFields) {
+            List<Object> inputs = loadedFields.get(ft.name());
+            if (inputs == null) {
+                return List.of();
             }
+            return inputs.stream().map(ft::valueForDisplay).toList();
         }
-        return new StoredFieldsSpec(requiresSource, requiredFields);
+
     }
 
     @Override
@@ -52,15 +48,53 @@ public class StoredFieldsPhase implements FetchSubPhase {
         if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
             return null;
         }
+
+        boolean requiresSource = false;
+        List<StoredField> storedFields = new ArrayList<>();
+        Set<String> fieldsToLoad = new HashSet<>();
+        SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
+        for (String field : storedFieldsContext.fieldNames()) {
+            if (SourceFieldMapper.NAME.equals(field)) {
+                requiresSource = true;
+            } else {
+                Collection<String> fieldNames = sec.getMatchingFieldNames(field);
+                for (String fieldName : fieldNames) {
+                    MappedFieldType ft = sec.getFieldType(fieldName);
+                    if (ft.isStored() == false) {
+                        continue;
+                    }
+                    storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
+                    fieldsToLoad.add(ft.name());
+                }
+            }
+        }
+        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(requiresSource, fieldsToLoad);
+
         return new FetchSubPhaseProcessor() {
             @Override
-            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            public void setNextReader(LeafReaderContext readerContext) {
 
             }
 
             @Override
-            public void process(HitContext hitContext) throws IOException {
+            public void process(HitContext hitContext) {
+                Map<String, List<Object>> loadedFields = hitContext.loadedFields();
+                Map<String, DocumentField> docFields = new HashMap<>();
+                Map<String, DocumentField> metaFields = new HashMap<>();
+                for (StoredField storedField : storedFields) {
+                    DocumentField df = new DocumentField(storedField.name, storedField.process(loadedFields));
+                    if (storedField.isMetadataField) {
+                        metaFields.put(storedField.name, df);
+                    } else {
+                        docFields.put(storedField.name, df);
+                    }
+                }
+                hitContext.hit().setDocumentFields(docFields, metaFields);
+            }
 
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return storedFieldsSpec;
             }
         };
     }

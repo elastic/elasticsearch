@@ -22,6 +22,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -267,6 +268,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 if (false == needed.contains(entry.getKey())) {
                     continue;
                 }
+                MappedFieldType ft = mapperService.fieldType(entry.getKey());
                 List<Object> values = FetchPhase.processStoredField(mapperService::fieldType, entry.getKey(), entry.getValue());
                 if (mapperService.isMetadataField(entry.getKey())) {
                     metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));

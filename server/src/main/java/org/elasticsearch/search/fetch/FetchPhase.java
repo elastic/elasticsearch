@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.document.DocumentField;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,9 +51,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -105,15 +103,20 @@ public class FetchPhase {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
-        List<StoredField> storedFields = expandStoredFields(fetchContext);
-        FetchSubPhase.StoredFieldsSpec sfs = buildStoredFieldsSpec(fetchContext, storedFields, fetchSubPhases);
-        sfs.merge(new FetchSubPhase.StoredFieldsSpec(false, sourceLoader.requiredStoredFields()));
-
-        StoredFieldLoader storedFieldLoader = profiler.storedFields(
-            StoredFieldLoader.create(sfs.requiresSource(), sfs.requiredStoredFields())
-        );
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
+
+        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
+        for (FetchSubPhaseProcessor proc : processors) {
+            storedFieldsSpec = storedFieldsSpec.merge(proc.storedFieldsSpec());
+        }
+        storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, sourceLoader.requiredStoredFields()));
+
+        StoredFieldLoader storedFieldLoader = profiler.storedFields(
+            StoredFieldLoader.create(storedFieldsSpec.requiresSource(), storedFieldsSpec.requiredStoredFields())
+        );
+        boolean requiresSource = storedFieldsSpec.requiresSource();;
+
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
@@ -129,7 +132,7 @@ public class FetchPhase {
                 this.ctx = ctx;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
-                this.leafSourceLoader = fetchContext.sourceLoader().leaf(ctx.reader(), docsInLeaf);
+                this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);
                 }
@@ -143,12 +146,11 @@ public class FetchPhase {
                 }
                 HitContext hit = prepareHitContext(
                     context,
-                    sfs.requiresSource(),
+                    requiresSource,
                     profiler,
                     leafNestedDocuments,
                     leafStoredFieldLoader,
                     doc,
-                    storedFields,
                     ctx,
                     leafSourceLoader
                 );
@@ -184,49 +186,6 @@ public class FetchPhase {
         }
     }
 
-    record StoredField(String name, MappedFieldType ft, boolean isMetadataField) {}
-
-    private static List<StoredField> expandStoredFields(FetchContext fetchContext) {
-        StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
-        if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
-            return List.of();
-        }
-        List<StoredField> storedFields = new ArrayList<>();
-        SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
-        for (String field : storedFieldsContext.fieldNames()) {
-            Collection<String> fieldNames = sec.getMatchingFieldNames(field);
-            for (String fieldName : fieldNames) {
-                MappedFieldType ft = sec.getFieldType(fieldName);
-                storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
-            }
-        }
-        return storedFields;
-    }
-
-    private static FetchSubPhase.StoredFieldsSpec buildStoredFieldsSpec(
-        FetchContext fetchContext,
-        List<StoredField> storedFields,
-        FetchSubPhase[] subPhases
-    ) {
-        boolean requiresSource = false;
-        Set<String> requiredFields = new HashSet<>();
-        Iterator<StoredField> it = storedFields.iterator();
-        while (it.hasNext()) {
-            StoredField storedField = it.next();
-            if (SourceFieldMapper.NAME.equals(storedField.name)) {
-                requiresSource = true;
-                it.remove();
-            } else {
-                requiredFields.add(storedField.name);
-            }
-        }
-        FetchSubPhase.StoredFieldsSpec spec = new FetchSubPhase.StoredFieldsSpec(requiresSource, requiredFields);
-        for (FetchSubPhase subPhase : subPhases) {
-            spec = spec.merge(subPhase.storedFieldsSpec(fetchContext));
-        }
-        return spec;
-    }
-
     private static HitContext prepareHitContext(
         SearchContext context,
         boolean requiresSource,
@@ -234,7 +193,6 @@ public class FetchPhase {
         LeafNestedDocuments nestedDocuments,
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
-        List<StoredField> storedFields,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader
     ) throws IOException {
@@ -245,7 +203,6 @@ public class FetchPhase {
                 profiler,
                 leafStoredFieldLoader,
                 docId,
-                storedFields,
                 subReaderContext,
                 sourceLoader
             );
@@ -256,7 +213,6 @@ public class FetchPhase {
                 profiler,
                 docId,
                 nestedDocuments,
-                storedFields,
                 subReaderContext,
                 leafStoredFieldLoader
             );
@@ -276,7 +232,6 @@ public class FetchPhase {
         Profiler profiler,
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
-        List<StoredField> storedFields,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader
     ) throws IOException {
@@ -285,20 +240,11 @@ public class FetchPhase {
         leafStoredFieldLoader.advanceTo(subDocId);
 
         if (leafStoredFieldLoader.id() == null) {
-            SearchHit hit = new SearchHit(docId, null, null, null);
+            SearchHit hit = new SearchHit(docId, null);
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
-            return new HitContext(hit, subReaderContext, subDocId, source);
+            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
         } else {
-            SearchHit hit;
-            if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
-                Map<String, DocumentField> docFields = new HashMap<>();
-                Map<String, DocumentField> metaFields = new HashMap<>();
-                fillDocAndMetaFields(leafStoredFieldLoader.storedFields(), storedFields, docFields, metaFields);
-                hit = new SearchHit(docId, leafStoredFieldLoader.id(), docFields, metaFields);
-            } else {
-                hit = new SearchHit(docId, leafStoredFieldLoader.id(), emptyMap(), emptyMap());
-            }
-
+            SearchHit hit = new SearchHit(docId, leafStoredFieldLoader.id());
             Source source;
             if (requiresSource) {
                 try {
@@ -313,7 +259,7 @@ public class FetchPhase {
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
-            return new HitContext(hit, subReaderContext, subDocId, source);
+            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
         }
     }
 
@@ -345,7 +291,6 @@ public class FetchPhase {
         Profiler profiler,
         int topDocId,
         LeafNestedDocuments nestedInfo,
-        List<StoredField> storedFields,
         LeafReaderContext subReaderContext,
         LeafStoredFieldLoader childFieldLoader
     ) throws IOException {
@@ -379,20 +324,11 @@ public class FetchPhase {
             }
         }
 
-        Map<String, DocumentField> docFields = emptyMap();
-        Map<String, DocumentField> metaFields = emptyMap();
-        if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
-            childFieldLoader.advanceTo(nestedInfo.doc());
-            if (childFieldLoader.storedFields().isEmpty() == false) {
-                docFields = new HashMap<>();
-                metaFields = new HashMap<>();
-                fillDocAndMetaFields(childFieldLoader.storedFields(), storedFields, docFields, metaFields);
-            }
-        }
+        childFieldLoader.advanceTo(nestedInfo.doc());
 
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
+        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
 
         if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
@@ -417,31 +353,9 @@ public class FetchPhase {
                     current = next;
                 }
             }
-            return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.fromMap(nestedSourceAsMap, rootSourceContentType));
+            return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.fromMap(nestedSourceAsMap, rootSourceContentType));
         }
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.EMPTY);
-    }
-
-    private static void fillDocAndMetaFields(
-        Map<String, List<Object>> loadedFields,
-        List<StoredField> storedFields,
-        Map<String, DocumentField> docFields,
-        Map<String, DocumentField> metaFields
-    ) {
-        for (StoredField storedField : storedFields) {
-            if (loadedFields.containsKey(storedField.ft.name())) {
-                List<Object> storedValues = loadedFields.get(storedField.ft.name())
-                    .stream()
-                    .map(storedField.ft::valueForDisplay)
-                    .toList();
-                DocumentField df = new DocumentField(storedField.name, storedValues);
-                if (storedField.isMetadataField) {
-                    metaFields.put(storedField.name, df);
-                } else {
-                    docFields.put(storedField.name, df);
-                }
-            }
-        }
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.EMPTY);
     }
 
     interface Profiler {

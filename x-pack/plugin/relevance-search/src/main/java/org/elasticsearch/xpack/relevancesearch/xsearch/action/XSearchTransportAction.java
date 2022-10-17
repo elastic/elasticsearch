@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.relevancesearch.xsearch.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -56,7 +55,15 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
 
         String[] indices = request.indices();
         QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
+        // TODO at some point size should be part of the request
         SearchRequest searchRequest = client.prepareSearch(indices).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
-        client.execute(SearchAction.INSTANCE, searchRequest);
+
+        client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
+            try {
+                l.onResponse(searchResponse);
+            } catch (Exception t) {
+                l.onFailure(t);
+            }
+        }));
     }
 }

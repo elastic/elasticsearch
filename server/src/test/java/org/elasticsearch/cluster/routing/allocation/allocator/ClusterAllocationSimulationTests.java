@@ -54,9 +54,9 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
+public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
-    private static final Logger logger = LogManager.getLogger(ClusterRebalanceRoutingTests.class);
+    private static final Logger logger = LogManager.getLogger(ClusterAllocationSimulationTests.class);
 
     private Map.Entry<MockAllocationService, ShardsAllocator> createOldAllocationService(
         Settings settings,
@@ -273,7 +273,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                 }
             });
 
-            assertTrue(startLatch.await(10, TimeUnit.SECONDS));
+            assertTrue(startLatch.await(30, TimeUnit.SECONDS));
 
             initializing = RoutingNodesHelper.shardsWithState(clusterService.state().getRoutingNodes(), INITIALIZING).size();
             logger.info("Starting shards. [{}] remaining", initializing);

@@ -149,7 +149,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             logger.info("{} with {} indices", entry.getValue(), routingNode != null ? routingNode.numberOfOwningShards() : 0);
         }
 
-        if (allocationService.getValue() instanceof DesiredBalanceShardsAllocator allocator) {
+        if (allocationService.getValue()instanceof DesiredBalanceShardsAllocator allocator) {
             logger.info("Desired balance allocator stats [{}]", allocator.getStats());
         }
 

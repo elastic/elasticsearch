@@ -5,28 +5,41 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.physical;
+package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Experimental
-public class Optimizer extends RuleExecutor<PhysicalPlan> {
+public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
 
     private static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
 
     private final EsqlConfiguration configuration;
 
-    public Optimizer(EsqlConfiguration configuration) {
+    public PhysicalPlanOptimizer(EsqlConfiguration configuration) {
         this.configuration = configuration;
     }
 
@@ -39,122 +52,58 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
         return plan;
     }
 
-    protected abstract static class OptimizerRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
-
-        private final OptimizerRules.TransformDirection direction;
-
-        protected OptimizerRule() {
-            this(OptimizerRules.TransformDirection.DOWN);
-        }
-
-        protected OptimizerRule(OptimizerRules.TransformDirection direction) {
-            this.direction = direction;
-        }
-
-        @Override
-        public final PhysicalPlan apply(PhysicalPlan plan) {
-            return direction == OptimizerRules.TransformDirection.DOWN
-                ? plan.transformDown(typeToken(), this::rule)
-                : plan.transformUp(typeToken(), this::rule);
-        }
-
-        @Override
-        protected abstract PhysicalPlan rule(SubPlan plan);
-    }
-
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         List<Batch> batches = new ArrayList<>();
-        batches.add(new Batch("Create topN", new CreateTopN()));
-        batches.add(new Batch("Split nodes", new SplitAggregate(), new SplitTopN()));
-        batches.add(new Batch("Add exchange", new AddExchangeOnSingleNodeSplit()));
-        batches.add(
-            new Batch(
-                "Move FieldExtract upwards",
-                new FieldExtractPastEval(),
-                new FieldExtractPastAggregate(),
-                new EmptyFieldExtractRemoval()
-            )
-        );
+        batches.add(new Batch("Create topN", Limiter.ONCE, new CreateTopN()));
+        batches.add(new Batch("Split nodes", Limiter.ONCE, new SplitAggregate(), new SplitTopN()));
+        batches.add(new Batch("Add exchange", Limiter.ONCE, new AddExchangeOnSingleNodeSplit()));
+        // TODO: Needs another project at the end - depends on https://github.com/elastic/elasticsearch-internal/issues/293
+        Batch fieldExtract = new Batch("Lazy field loading", Limiter.ONCE, new AddFieldExtraction());
+        batches.add(fieldExtract);
+
         // TODO: add rule to prune _doc_id, _segment_id, _shard_id at the top
         // Batch addProject = new Batch("Add project", new AddProjectWhenInternalFieldNoLongerNeeded());
         if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(configuration.pragmas())) {
             batches.add(new Batch("Add task parallelization above query", new AddTaskParallelismAboveQuery()));
         }
+
         return batches;
     }
 
-    private static class FieldExtractPastEval extends OptimizerRule<EvalExec> {
+    static class AddFieldExtraction extends OptimizerRule<UnaryExec> {
+
+        // start from the source upwards
+        AddFieldExtraction() {
+            super(OptimizerRules.TransformDirection.UP);
+        }
 
         @Override
-        protected PhysicalPlan rule(EvalExec eval) {
-            if (eval.child()instanceof FieldExtractExec fieldExtractExec) {
-                // If you have an ExtractFieldNode below an EvalNode,
-                // only extract the things that the eval needs, and extract the rest above eval
-                return possiblySplitExtractFieldNode(eval, eval.fields(), fieldExtractExec, true);
+        protected PhysicalPlan rule(UnaryExec plan) {
+            // Exchange simply breaks down things so ignore it
+            if (plan instanceof ExchangeExec || plan.child() instanceof ExchangeExec) {
+                return plan;
             }
-            return eval;
-        }
-    }
 
-    private static class FieldExtractPastAggregate extends OptimizerRule<AggregateExec> {
+            // 1. add the extractors before each node that requires extra columns
+            var lastNodeWithExtraction = new Holder<PhysicalPlan>();
 
-        @Override
-        protected PhysicalPlan rule(AggregateExec aggregateExec) {
-            if (aggregateExec.child()instanceof FieldExtractExec fieldExtractExec) {
-                // If you have an ExtractFieldNode below an Aggregate,
-                // only extract the things that the aggregate needs, and extract the rest above eval
-                return possiblySplitExtractFieldNode(aggregateExec, aggregateExec.aggregates(), fieldExtractExec, false);
-            }
-            return aggregateExec;
-        }
-    }
+            var missing = new LinkedHashSet<Attribute>();
+            var input = plan.inputSet();
 
-    private static UnaryExec possiblySplitExtractFieldNode(
-        UnaryExec parent,
-        List<? extends NamedExpression> namedExpressions,
-        FieldExtractExec fieldExtractExec,
-        boolean preserveUnused
-    ) {
-        List<Attribute> attributesToKeep = new ArrayList<>();
-        List<Attribute> attributesToMoveUp = new ArrayList<>();
-        outer: for (Attribute fieldExtractAttribute : fieldExtractExec.getAttrs()) {
-            if (namedExpressions.stream().anyMatch(ne -> ne.anyMatch(e -> e.semanticEquals(fieldExtractAttribute)))) {
-                attributesToKeep.add(fieldExtractAttribute);
-            } else {
-                if (preserveUnused) {
-                    attributesToMoveUp.add(fieldExtractAttribute);
+            // collect field attributes used inside the expressions
+            plan.forEachExpression(FieldAttribute.class, f -> {
+                if (input.contains(f) == false) {
+                    missing.add(f);
                 }
-            }
-        }
-        if (attributesToKeep.size() == fieldExtractExec.getAttrs().size()) {
-            return parent;
-        }
-        return new FieldExtractExec(
-            fieldExtractExec.source(),
-            parent.replaceChild(
-                new FieldExtractExec(
-                    fieldExtractExec.source(),
-                    fieldExtractExec.child(),
-                    fieldExtractExec.index(),
-                    attributesToKeep,
-                    fieldExtractExec.getEsQueryAttrs()
-                )
-            ),
-            fieldExtractExec.index(),
-            attributesToMoveUp,
-            fieldExtractExec.getEsQueryAttrs()
-        );
-    }
+            });
 
-    private static class EmptyFieldExtractRemoval extends OptimizerRule<FieldExtractExec> {
-
-        @Override
-        protected PhysicalPlan rule(FieldExtractExec fieldExtractExec) {
-            if (fieldExtractExec.getAttrs().isEmpty()) {
-                return fieldExtractExec.child();
+            // ignore exchanges
+            if (missing.isEmpty() == false) {
+                plan = plan.replaceChild(new FieldExtractExec(plan.source(), plan.child(), missing));
             }
-            return fieldExtractExec;
+
+            return plan;
         }
     }
 
@@ -247,6 +196,60 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
                 );
             }
             return plan;
+        }
+    }
+
+    public abstract static class OptimizerRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
+
+        private final OptimizerRules.TransformDirection direction;
+
+        public OptimizerRule() {
+            this(OptimizerRules.TransformDirection.DOWN);
+        }
+
+        protected OptimizerRule(OptimizerRules.TransformDirection direction) {
+            this.direction = direction;
+        }
+
+        @Override
+        public final PhysicalPlan apply(PhysicalPlan plan) {
+            return direction == OptimizerRules.TransformDirection.DOWN
+                ? plan.transformDown(typeToken(), this::rule)
+                : plan.transformUp(typeToken(), this::rule);
+        }
+
+        @Override
+        protected abstract PhysicalPlan rule(SubPlan plan);
+    }
+
+    public abstract static class OptimizerExpressionRule<E extends Expression> extends Rule<PhysicalPlan, PhysicalPlan> {
+
+        private final OptimizerRules.TransformDirection direction;
+        // overriding type token which returns the correct class but does an uncheck cast to LogicalPlan due to its generic bound
+        // a proper solution is to wrap the Expression rule into a Plan rule but that would affect the rule declaration
+        // so instead this is hacked here
+        private final Class<E> expressionTypeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
+
+        public OptimizerExpressionRule(OptimizerRules.TransformDirection direction) {
+            this.direction = direction;
+        }
+
+        @Override
+        public final PhysicalPlan apply(PhysicalPlan plan) {
+            return direction == OptimizerRules.TransformDirection.DOWN
+                ? plan.transformExpressionsDown(expressionTypeToken, this::rule)
+                : plan.transformExpressionsUp(expressionTypeToken, this::rule);
+        }
+
+        @Override
+        protected PhysicalPlan rule(PhysicalPlan plan) {
+            return plan;
+        }
+
+        protected abstract Expression rule(E e);
+
+        public Class<E> expressionToken() {
+            return expressionTypeToken;
         }
     }
 }

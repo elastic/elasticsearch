@@ -8,62 +8,75 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 @Experimental
 public class FieldExtractExec extends UnaryExec {
 
-    private final EsIndex index;
-    private final List<Attribute> attrs;
-    private final List<Attribute> esQueryAttrs;
+    private final Set<Attribute> attributesToExtract;
+    private final Set<Attribute> sourceAttributes;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, EsIndex index, List<Attribute> attrs, List<Attribute> esQueryAttrs) {
+    public FieldExtractExec(Source source, PhysicalPlan child, Set<Attribute> attributesToExtract) {
         super(source, child);
-        this.index = index;
-        this.attrs = attrs;
-        this.esQueryAttrs = esQueryAttrs;
+        this.attributesToExtract = attributesToExtract;
+
+        var sourceAttr = new LinkedHashSet<Attribute>(mapSize(3));
+        child.outputSet().forEach(a -> {
+            if (EsQueryExec.isSourceAttribute(a)) {
+                sourceAttr.add(a);
+            }
+        });
+        if (sourceAttr.size() != 3) {
+            throw new QlIllegalArgumentException(
+                "Cannot find source attributes in the input to the source extractor from {}, discovered only {}",
+                child.toString(),
+                sourceAttr
+            );
+        }
+
+        this.sourceAttributes = sourceAttr;
     }
 
     @Override
     protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), index, attrs, esQueryAttrs);
-    }
-
-    public EsIndex index() {
-        return index;
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, index, attrs, esQueryAttrs);
+        return new FieldExtractExec(source(), newChild, attributesToExtract);
     }
 
-    public List<Attribute> getAttrs() {
-        return attrs;
+    public Set<Attribute> attributesToExtract() {
+        return attributesToExtract;
     }
 
-    public List<Attribute> getEsQueryAttrs() {
-        return esQueryAttrs;
+    public Set<Attribute> sourceAttributes() {
+        return sourceAttributes;
     }
 
     @Override
     public List<Attribute> output() {
         List<Attribute> output = new ArrayList<>(child().output());
-        output.addAll(attrs);
+        output.addAll(attributesToExtract);
         return output;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, attrs, esQueryAttrs, child());
+        return Objects.hash(attributesToExtract);
     }
 
     @Override
@@ -77,14 +90,11 @@ public class FieldExtractExec extends UnaryExec {
         }
 
         FieldExtractExec other = (FieldExtractExec) obj;
-        return Objects.equals(index, other.index)
-            && Objects.equals(attrs, other.attrs)
-            && Objects.equals(esQueryAttrs, other.esQueryAttrs)
-            && Objects.equals(child(), other.child());
+        return Objects.equals(attributesToExtract, other.attributesToExtract) && Objects.equals(child(), other.child());
     }
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+        return nodeName() + NodeUtils.limitedToString(attributesToExtract);
     }
 }

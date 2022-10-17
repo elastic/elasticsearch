@@ -25,11 +25,11 @@ public class EsqlParser {
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
-    public LogicalPlan createStatement(String eql) {
+    public LogicalPlan createStatement(String query) {
         if (log.isDebugEnabled()) {
-            log.debug("Parsing as statement: {}", eql);
+            log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(eql, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     private <T> T invokeParser(

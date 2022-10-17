@@ -245,7 +245,7 @@ public class MetadataIndexAliasesService {
     /**
      * A cluster state update task that applies the alias actions to the given cluster state.
      */
-    private record ApplyAliasActions(
+    record ApplyAliasActions(
         MetadataIndexAliasesService aliasesService,
         IndicesAliasesClusterStateUpdateRequest request,
         ActionListener<AcknowledgedResponse> listener

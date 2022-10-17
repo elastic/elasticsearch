@@ -10,8 +10,12 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -27,6 +31,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -47,6 +52,8 @@ import static org.mockito.Mockito.when;
 public class MetadataIndexAliasesServiceTests extends ESTestCase {
     private final MetadataDeleteIndexService deleteIndexService = mock(MetadataDeleteIndexService.class);
     private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(null, null, deleteIndexService, xContentRegistry());
+    private final MetadataIndexAliasesService.ApplyAliasActions.Executor executor =
+        new MetadataIndexAliasesService.ApplyAliasActions.Executor();
 
     public MetadataIndexAliasesServiceTests() {
         // Mock any deletes so we don't need to worry about how MetadataDeleteIndexService does its job
@@ -675,6 +682,95 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertThat(result.metadata().dataStreamAliases().get("logs-http"), nullValue());
     }
 
+    public void testAddAndRemoveAliasClusterStateUpdate() throws Exception {
+        // Create a state with a single index
+        String index = randomAlphaOfLength(5);
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
+        IndicesAliasesClusterStateUpdateRequest addAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
+            List.of(new AliasAction.Add(index, "test", null, null, null, null, null))
+        );
+        IndicesAliasesClusterStateUpdateRequest removeAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
+            List.of(new AliasAction.Remove(index, "test", true))
+        );
+
+        AtomicInteger counter = new AtomicInteger();
+        ActionListener<AcknowledgedResponse> listener1 = new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Unexpected failure " + e.getMessage());
+            }
+        };
+        ActionListener<AcknowledgedResponse> listener2 = new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Unexpected failure " + e.getMessage());
+            }
+        };
+        ActionListener<AcknowledgedResponse> listener3 = new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Unexpected failure " + e.getMessage());
+            }
+        };
+        ActionListener<AcknowledgedResponse> listener4 = new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Unexpected failure " + e.getMessage());
+            }
+        };
+        ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            before,
+            executor,
+            List.of(
+                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener1),
+                // Repeat the same change to ensure that the cluster state version won't increase
+                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener2),
+                new MetadataIndexAliasesService.ApplyAliasActions(service, removeAliasRequest, listener3),
+                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener4)
+            )
+        );
+
+        waitUntil(() -> counter.get() == 4);
+
+        IndexAbstraction alias = after.metadata().getIndicesLookup().get("test");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(alias.getIndices(), contains(after.metadata().index(index).getIndex()));
+        assertAliasesVersionIncreased(new String[] { index }, before, after, 3);
+        assertThat(after.metadata().aliasedIndices("test"), contains(after.metadata().index(index).getIndex()));
+    }
+
+    public void testEmptyTaskListProducesSameClusterState() throws Exception {
+        String index = randomAlphaOfLength(5);
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
+        ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(before, executor, List.of());
+        assertSame(before, after);
+    }
+
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {
         return service.applyAliasActions(
             before,
@@ -711,11 +807,19 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     }
 
     private void assertAliasesVersionIncreased(final String[] indices, final ClusterState before, final ClusterState after) {
+        assertAliasesVersionIncreased(indices, before, after, 1);
+    }
+
+    private void assertAliasesVersionIncreased(
+        final String[] indices,
+        final ClusterState before,
+        final ClusterState after,
+        final int diff
+    ) {
         for (final var index : indices) {
-            final long expected = 1 + before.metadata().index(index).getAliasesVersion();
+            final long expected = diff + before.metadata().index(index).getAliasesVersion();
             final long actual = after.metadata().index(index).getAliasesVersion();
             assertThat("index metadata aliases version mismatch", actual, equalTo(expected));
         }
     }
-
 }

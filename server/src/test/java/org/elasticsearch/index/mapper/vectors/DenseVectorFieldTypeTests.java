@@ -165,7 +165,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.FLOAT32,
+            DenseVectorFieldMapper.ElementType.INT8,
             3,
             true,
             VectorSimilarity.cosine,

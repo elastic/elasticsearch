@@ -242,6 +242,7 @@ public class DesiredBalanceComputer {
             // TODO what if we never converge?
             // TODO maybe expose interim desired balances computed here
 
+            i++;
             if (hasChanges == false) {
                 logger.debug("Desired balance computation converged after {} iterations", i);
                 break;
@@ -252,11 +253,10 @@ public class DesiredBalanceComputer {
                 logger.debug("Newer cluster state received, publishing incomplete desired balance and restarting computation");
                 break;
             }
-            if (i > 0 && i % 100 == 0) {
+            if (i % 100 == 0) {
                 // TODO this warning should be time based, iteration count should be proportional to the number of shards
                 logger.debug("Desired balance computation is still not converged after {} iterations", i);
             }
-            i++;
         }
         iterations.inc(i);
 

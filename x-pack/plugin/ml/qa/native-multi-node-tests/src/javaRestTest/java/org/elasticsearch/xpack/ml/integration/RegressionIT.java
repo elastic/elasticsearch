@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -649,7 +650,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         int numberTrees = ensemble.getModels().size();
         String str = "Failure: failed for seed %d modelId %s numberTrees %d\n";
         assertThat(
-            String.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
+            Strings.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
             meanPredictionError,
             lessThanOrEqualTo(20.0)
         );

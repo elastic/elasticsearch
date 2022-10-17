@@ -96,27 +96,33 @@ public class TransportPutFollowActionTests extends ESTestCase {
     }
 
     public void testLocalDataStreamBackingIndicesOrder() {
-        // follow backing index 7
         DataStream remoteDataStream = generateDataSteam("logs-foobar", 8, false);
 
         List<Index> initialLocalBackingIndices = new ArrayList<>();
         initialLocalBackingIndices.add(new Index("random-name", UUID.randomUUID().toString()));
-        initialLocalBackingIndices.add(new Index(DataStream.getDefaultBackingIndexName("logs-foobar", 1), UUID.randomUUID().toString()));
+        String dsFirstGeneration = DataStream.getDefaultBackingIndexName("logs-foobar", 1);
+        initialLocalBackingIndices.add(new Index(dsFirstGeneration, UUID.randomUUID().toString()));
+        String shrunkDsSecondGeneration = "shrink-" + DataStream.getDefaultBackingIndexName("logs-foobar", 2);
         initialLocalBackingIndices.add(
-            new Index("shrink-" + DataStream.getDefaultBackingIndexName("logs-foobar", 2), UUID.randomUUID().toString())
+            new Index(shrunkDsSecondGeneration, UUID.randomUUID().toString())
         );
+        String partialThirdGeneration = "partial-" + DataStream.getDefaultBackingIndexName("logs-foobar", 3);
         initialLocalBackingIndices.add(
-            new Index("partial-" + DataStream.getDefaultBackingIndexName("logs-foobar", 3), UUID.randomUUID().toString())
+            new Index(partialThirdGeneration, UUID.randomUUID().toString())
         );
-        initialLocalBackingIndices.add(new Index(DataStream.getDefaultBackingIndexName("logs-foobar", 4), UUID.randomUUID().toString()));
-        initialLocalBackingIndices.add(new Index(DataStream.getDefaultBackingIndexName("logs-foobar", 6), UUID.randomUUID().toString()));
+        String forthGeneration = DataStream.getDefaultBackingIndexName("logs-foobar", 4);
+        initialLocalBackingIndices.add(new Index(forthGeneration, UUID.randomUUID().toString()));
+        String sixthGeneration = DataStream.getDefaultBackingIndexName("logs-foobar", 6);
+        initialLocalBackingIndices.add(new Index(sixthGeneration, UUID.randomUUID().toString()));
         initialLocalBackingIndices.add(new Index("absolute-name", UUID.randomUUID().toString()));
         initialLocalBackingIndices.add(new Index("persistent-name", UUID.randomUUID().toString()));
+        String restoredFifthGeneration = "restored-" + DataStream.getDefaultBackingIndexName("logs-foobar", 5);
         initialLocalBackingIndices.add(
-            new Index("restore-" + DataStream.getDefaultBackingIndexName("logs-foobar", 5), UUID.randomUUID().toString())
+            new Index(restoredFifthGeneration, UUID.randomUUID().toString())
         );
+        String differentDSBackingIndex = DataStream.getDefaultBackingIndexName("different-datastream", 2);
         initialLocalBackingIndices.add(
-            new Index(DataStream.getDefaultBackingIndexName("different-datastream", 2), UUID.randomUUID().toString())
+            new Index(differentDSBackingIndex, UUID.randomUUID().toString())
         );
 
         DataStream localDataStream = new DataStream(
@@ -131,6 +137,7 @@ public class TransportPutFollowActionTests extends ESTestCase {
             null
         );
 
+        // follow backing index 7
         Index backingIndexToFollow = remoteDataStream.getIndices().get(6);
         DataStream result = TransportPutFollowAction.updateLocalDataStream(
             backingIndexToFollow,
@@ -151,16 +158,16 @@ public class TransportPutFollowActionTests extends ESTestCase {
             localIndicesNames,
             is(
                 List.of(
-                    DataStream.getDefaultBackingIndexName("different-datastream", 2),
+                    differentDSBackingIndex,
                     "absolute-name",
                     "persistent-name",
                     "random-name",
-                    DataStream.getDefaultBackingIndexName("logs-foobar", 1),
-                    "shrink-" + DataStream.getDefaultBackingIndexName("logs-foobar", 2),
-                    "partial-" + DataStream.getDefaultBackingIndexName("logs-foobar", 3),
-                    DataStream.getDefaultBackingIndexName("logs-foobar", 4),
-                    "restore-" + DataStream.getDefaultBackingIndexName("logs-foobar", 5),
-                    DataStream.getDefaultBackingIndexName("logs-foobar", 6),
+                    dsFirstGeneration,
+                    shrunkDsSecondGeneration,
+                    partialThirdGeneration,
+                    forthGeneration,
+                    restoredFifthGeneration,
+                    sixthGeneration,
                     DataStream.getDefaultBackingIndexName("logs-foobar", 7)
                 )
             )

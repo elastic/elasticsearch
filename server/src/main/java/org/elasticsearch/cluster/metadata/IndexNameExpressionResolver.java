@@ -51,6 +51,7 @@ import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1197,7 +1198,7 @@ public class IndexNameExpressionResolver {
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = validateAliasOrIndex(expressions.get(i));
-                final RuntimeException missingExpressionException = aliasOrIndexExists(context, expression);
+                final Supplier<RuntimeException> missingExpressionException = aliasOrIndexExists(context, expression);
                 if (missingExpressionException == null) {
                     // expression exists but skip adding it to result for optimisation purposes; they will be added later
                     if (result != null) {
@@ -1226,7 +1227,7 @@ public class IndexNameExpressionResolver {
                             // this must be a name for a resource that genuinely does not exist
                             // TODO investigate if this check can be moved outside the wildcard resolver
                             if (context.getOptions().ignoreUnavailable() == false) {
-                                throw missingExpressionException;
+                                throw missingExpressionException.get();
                             }
                             result.add(expression);
                         } else {
@@ -1274,22 +1275,20 @@ public class IndexNameExpressionResolver {
             return expression;
         }
 
-        private static RuntimeException aliasOrIndexExists(Context context, String expression) {
+        @Nullable
+        private static Supplier<RuntimeException> aliasOrIndexExists(Context context, String expression) {
             final IndicesOptions options = context.getOptions();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
-                return indexNotFoundException(expression);
+                return () -> indexNotFoundException(expression);
             }
-
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && options.ignoreAliases()) {
-                return aliasesNotSupportedException(expression);
+                return () -> aliasesNotSupportedException(expression);
             }
-
             if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                return indexNotFoundException(expression);
+                return () -> indexNotFoundException(expression);
             }
-
             return null;
         }
 

@@ -41,7 +41,8 @@ public class XSearchAction extends ActionType<SearchResponse> {
         private final String query;
 
         private final boolean explain;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false);
+
+        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
         public Request(String[] indices, String query, boolean explain) {
             this.indices = indices;

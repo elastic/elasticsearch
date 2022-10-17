@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.tasks;
 
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 
 /**
@@ -19,4 +20,6 @@ public interface MockTaskManagerListener {
     void onTaskUnregistered(Task task);
 
     void waitForTaskCompletion(Task task);
+
+    default void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {}
 }

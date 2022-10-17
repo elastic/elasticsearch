@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,6 +95,8 @@ public class TaskManager implements ClusterStateApplier {
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
+
+    private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
 
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
@@ -274,7 +277,7 @@ public class TaskManager implements ClusterStateApplier {
      * Unregister the task
      */
     public Task unregister(Task task) {
-        logger.trace("unregister task for id: {}", task.getId());
+        logger.debug("unregister task for id: {}", task.getId());
         try {
             if (task instanceof CancellableTask) {
                 CancellableTaskHolder holder = cancellableTasks.remove(task);
@@ -292,7 +295,18 @@ public class TaskManager implements ClusterStateApplier {
             }
         } finally {
             tracer.stopTrace("task-" + task.getId());
+            for (RemovedTaskListener listener : removedTaskListeners) {
+                threadPool.generic().submit(() -> listener.onRemoved(task));
+            }
         }
+    }
+
+    public void addRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.add(removedTaskListener);
+    }
+
+    public void removeRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.remove(removedTaskListener);
     }
 
     /**

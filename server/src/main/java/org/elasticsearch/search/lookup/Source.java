@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * The source of a document.  Note that, while objects returned from {@link #source()}
@@ -154,6 +155,40 @@ public interface Source {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
+            }
+        };
+    }
+
+    /**
+     * Build a source lazily if one of its methods is called
+     */
+    static Source lazy(Supplier<Source> sourceSupplier) {
+        return new Source() {
+
+            Source inner = null;
+
+            @Override
+            public XContentType sourceContentType() {
+                if (inner == null) {
+                    inner = sourceSupplier.get();
+                }
+                return inner.sourceContentType();
+            }
+
+            @Override
+            public Map<String, Object> source() {
+                if (inner == null) {
+                    inner = sourceSupplier.get();
+                }
+                return inner.source();
+            }
+
+            @Override
+            public BytesReference internalSourceRef() {
+                if (inner == null) {
+                    inner = sourceSupplier.get();
+                }
+                return inner.internalSourceRef();
             }
         };
     }

@@ -41,6 +41,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -50,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -233,17 +235,7 @@ public class FetchPhase {
     }
 
     private static boolean sourceRequired(SearchContext context) {
-        boolean innerHitsRequiredSource = false;
-        if (context.innerHits() != null) {
-            for (SearchContext innerContext : context.innerHits().getInnerHits().values()) {
-                innerHitsRequiredSource |= sourceRequired(innerContext);
-                innerHitsRequiredSource |= innerContext.highlight() != null;
-                // for inner hits, an unconfigured fetch source defaults to sourceRequested = true
-                // TODO this seems backwards?
-                innerHitsRequiredSource |= innerContext.fetchSourceContext() == null;
-            }
-        }
-        return innerHitsRequiredSource || context.sourceRequested() || context.fetchFieldsContext() != null;
+        return context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
     private static HitContext prepareHitContext(
@@ -301,7 +293,8 @@ public class FetchPhase {
 
         if (leafStoredFieldLoader.id() == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
-            return new HitContext(hit, subReaderContext, subDocId, Source.EMPTY);
+            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
+            return new HitContext(hit, subReaderContext, subDocId, source);
         } else {
             SearchHit hit;
             if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
@@ -325,10 +318,23 @@ public class FetchPhase {
                     profiler.stopLoadingSource();
                 }
             } else {
-                source = Source.EMPTY;
+                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
             return new HitContext(hit, subReaderContext, subDocId, source);
         }
+    }
+
+    private static Supplier<Source> lazyStoredSourceLoader(Profiler profiler, LeafReaderContext ctx, int doc) {
+        return () -> {
+            StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
+            LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
+            try {
+                leafRootLoader.advanceTo(doc);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return Source.fromBytes(leafRootLoader.source());
+        };
     }
 
     /**

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,9 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -185,22 +184,12 @@ public abstract class TransportBroadcastAction<
         }
 
         protected void sendShardRequest(DiscoveryNode node, ShardRequest shardRequest, ActionListener<ShardResponse> listener) {
-            transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
-                @Override
-                public ShardResponse read(StreamInput in) throws IOException {
-                    return readShardResponse(in);
-                }
-
-                @Override
-                public void handleResponse(ShardResponse response) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException e) {
-                    listener.onFailure(e);
-                }
-            });
+            transportService.sendRequest(
+                node,
+                transportShardAction,
+                shardRequest,
+                new ActionListenerResponseHandler<>(listener, TransportBroadcastAction.this::readShardResponse)
+            );
         }
 
         protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {

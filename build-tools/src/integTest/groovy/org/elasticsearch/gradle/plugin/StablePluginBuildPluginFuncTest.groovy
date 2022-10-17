@@ -19,7 +19,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.stream.Collectors
 
-class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
+class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
@@ -78,8 +78,8 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                implementation files('${StableApiJarMocks.createPluginApiJar(jarFolder.toPath()).toAbsolutePath()}')
-                implementation files('${StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath()}')
+                implementation files('${normalized(StableApiJarMocks.createPluginApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
+                implementation files('${normalized(StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
             }
 
             """

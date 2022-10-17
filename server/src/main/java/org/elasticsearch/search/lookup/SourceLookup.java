@@ -20,7 +20,6 @@ import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -94,27 +93,6 @@ public class SourceLookup implements Source, Map<String, Object> {
      */
     public List<Object> extractRawValuesWithoutCaching(String path) {
         return sourceProvider.extractRawValuesWithoutCaching(path);
-    }
-
-    /**
-     * For the provided path, return its value in the source.
-     *
-     * Both array and object values can be returned.
-     *
-     * @param path the value's path in the source.
-     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
-     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
-     *
-     * @return the value associated with the path in the source or 'null' if the path does not exist.
-     */
-    @Override
-    public Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, source(), nullValue);
-    }
-
-    @Override
-    public Map<String, Object> filter(FetchSourceContext context) {
-        return context.getFilter().apply(source());
     }
 
     private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {

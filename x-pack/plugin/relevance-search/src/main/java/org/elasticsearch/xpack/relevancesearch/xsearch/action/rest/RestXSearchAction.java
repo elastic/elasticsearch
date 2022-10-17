@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch.action.rest;
 
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -84,7 +85,7 @@ public class RestXSearchAction extends BaseRestHandler {
             .setExplain(explain)
             .request();
 
-        client.execute(XSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+        client.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override

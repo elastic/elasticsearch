@@ -51,7 +51,7 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
         try {
             xSearchRequestValidationService.validateRequest(request);
         } catch (XSearchRequestValidationService.InvalidXSearchRequestException e) {
-            throw new RuntimeException(e);
+            throw new IllegalArgumentException(e);
         }
 
         String[] indices = request.indices();

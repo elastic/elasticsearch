@@ -58,21 +58,23 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
     private static final Logger logger = LogManager.getLogger(ClusterRebalanceRoutingTests.class);
 
-    private MockAllocationService createOldAllocationService(
+    private Map.Entry<MockAllocationService, ShardsAllocator> createOldAllocationService(
         Settings settings,
         ClusterService clusterService,
         ClusterInfoService clusterInfoService
     ) {
-        return new MockAllocationService(
-            randomAllocationDeciders(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+        var shardsAllocator = new BalancedShardsAllocator(settings);
+        var allocationService = new MockAllocationService(
+            randomAllocationDeciders(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(settings),
+            shardsAllocator,
             clusterInfoService,
             () -> SnapshotShardSizeInfo.EMPTY
         );
+        return Map.entry(allocationService, shardsAllocator);
     }
 
-    private MockAllocationService createNewAllocationService(
+    private Map.Entry<MockAllocationService, ShardsAllocator> createNewAllocationService(
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -87,14 +89,14 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         );
         var strategy = new MockAllocationService(
-            randomAllocationDeciders(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+            randomAllocationDeciders(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,
             () -> SnapshotShardSizeInfo.EMPTY
         );
         strategyRef.set(strategy);
-        return strategy;
+        return Map.entry(strategy, desiredBalanceShardsAllocator);
     }
 
     public void testCreateManyIndicesAndAddNewNode() throws InterruptedException {
@@ -115,8 +117,9 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         var threadPool = new TestThreadPool(getTestName());
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
         var clusterInfoService = new TestClusterInfoService(clusterService);
-        // var strategy = createOldAllocationService(settings, clusterService, clusterInfoService);
-        var strategy = createNewAllocationService(settings, threadPool, clusterService, clusterInfoService);
+        // var allocationService = createOldAllocationService(settings, clusterService, clusterInfoService);
+        var allocationService = createNewAllocationService(settings, threadPool, clusterService, clusterInfoService);
+        var strategy = allocationService.getKey();
 
         var nodeNameGenerator = new AtomicInteger(0);
         var indexNameGenerator = new AtomicInteger(0);
@@ -144,6 +147,10 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         for (var entry : info.getNodeMostAvailableDiskUsages().entrySet()) {
             var routingNode = state.getRoutingNodes().node(entry.getKey());
             logger.info("{} with {} indices", entry.getValue(), routingNode != null ? routingNode.numberOfOwningShards() : 0);
+        }
+
+        if (allocationService.getValue() instanceof DesiredBalanceShardsAllocator allocator) {
+            logger.info("Desired balance allocator stats [{}]", allocator.getStats());
         }
 
         clusterService.close();

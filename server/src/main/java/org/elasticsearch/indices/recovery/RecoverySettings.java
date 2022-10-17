@@ -388,6 +388,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
+    private volatile boolean nodeBandwidthSettingsExist;
     private volatile int maxConcurrentSnapshotFileDownloads;
     private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
 
@@ -418,7 +419,7 @@ public class RecoverySettings {
         this.availableNetworkBandwidth = NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.get(settings);
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
         this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
-        validateNodeBandwidthRecoverySettings(settings);
+        this.nodeBandwidthSettingsExist = validateNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
         if (DiscoveryNode.canContainData(settings)) {
             clusterSettings.addSettingsUpdateConsumer(
@@ -627,6 +628,10 @@ public class RecoverySettings {
         this.maxConcurrentOperations = maxConcurrentOperations;
     }
 
+    public boolean nodeBandwidthSettingsExist() {
+        return nodeBandwidthSettingsExist;
+    }
+
     public boolean getUseSnapshotsDuringRecovery() {
         return useSnapshotsDuringRecovery;
     }
@@ -673,19 +678,29 @@ public class RecoverySettings {
         return Releasables.releaseOnce(() -> maxSnapshotFileDownloadsPerNodeSemaphore.release(maxConcurrentSnapshotFileDownloads));
     }
 
-    private static void validateNodeBandwidthRecoverySettings(Settings settings) {
+    /**
+     * Validates that the node bandwidth recovery settings are either all set or all not set.
+     *
+     * @return whether the node bandwidth recovery settings are all set
+     */
+    public static boolean validateNodeBandwidthRecoverySettings(Settings settings) {
         final List<String> nonDefaults = NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .map(Setting::getKey)
             .toList();
-        if (nonDefaults.isEmpty() == false && nonDefaults.size() != NODE_BANDWIDTH_RECOVERY_SETTINGS.size()) {
-            throw new IllegalArgumentException(
-                "Settings "
-                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).toList()
-                    + " must all be defined or all be undefined; but only settings "
-                    + nonDefaults
-                    + " are configured."
-            );
+        if (nonDefaults.isEmpty() == false) {
+            if (nonDefaults.size() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size()) {
+                return true;
+            } else {
+                throw new IllegalArgumentException(
+                    "Settings "
+                        + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).toList()
+                        + " must all be defined or all be undefined; but only settings "
+                        + nonDefaults
+                        + " are configured."
+                );
+            }
         }
+        return false;
     }
 }

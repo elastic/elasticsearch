@@ -37,7 +37,7 @@ path is to the auto-generated CA certificate for the HTTP layer.
 
 [source,sh]
 ----
-openssl x509 -fingerprint -sha256 -in config/certs/http_ca.crt
+openssl x509 -fingerprint -sha256 -in /etc/elasticsearch/certs/http_ca.crt
 ----
 
 The command returns the security certificate, including the fingerprint.

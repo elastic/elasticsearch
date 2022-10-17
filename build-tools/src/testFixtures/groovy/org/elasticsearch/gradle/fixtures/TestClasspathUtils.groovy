@@ -22,7 +22,11 @@ import static org.junit.Assert.fail
 class TestClasspathUtils {
 
     static void setupJarHellJar(File projectRoot) {
-        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", FixedValue.value(TypeDescription.VOID))
+        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", "current", FixedValue.value(TypeDescription.VOID))
+    }
+
+    static void setupJarHellJar(File projectRoot, String version) {
+        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", version, FixedValue.value(TypeDescription.VOID))
     }
 
     static void setupJarJdkClasspath(File projectRoot) {
@@ -35,6 +39,10 @@ class TestClasspathUtils {
     }
 
     private static void generateJdkJarHellCheck(File targetDir, String className, Implementation mainImplementation) {
+        generateJdkJarHellCheck(targetDir, className, "current", mainImplementation)
+    }
+
+        private static void generateJdkJarHellCheck(File targetDir, String className, String version, Implementation mainImplementation) {
         DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
             .name(className)
             .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
@@ -42,15 +50,17 @@ class TestClasspathUtils {
             .intercept(mainImplementation)
             .make()
         try {
-            dynamicType.toJar(targetFile(targetDir))
+            dynamicType.toJar(targetFile(targetDir, version))
         } catch (IOException e) {
             e.printStackTrace()
             fail("Cannot setup jdk jar hell classpath")
         }
     }
 
-    private static File targetFile(File projectRoot) {
-        File targetFile = new File(projectRoot, "elasticsearch-core-current.jar")
+    private static File targetFile(File projectRoot, String version) {
+        File targetFile = new File(projectRoot, "elasticsearch-core-${version}.jar")
+
+        println "targetFile = $targetFile"
         targetFile.getParentFile().mkdirs()
         return targetFile
     }

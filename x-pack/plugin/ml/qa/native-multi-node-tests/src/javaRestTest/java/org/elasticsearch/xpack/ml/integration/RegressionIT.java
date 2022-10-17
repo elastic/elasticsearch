@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -32,8 +34,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.junit.After;
 
 import java.io.IOException;
@@ -76,6 +82,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String jobId;
     private String sourceIndex;
     private String destIndex;
+
+    private static final Logger logger = LogManager.getLogger(RegressionIT.class);
 
     @After
     public void cleanup() {
@@ -591,17 +599,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        Regression regression = new Regression(
-            "field_2",
-            BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
-            null,
-            90.0,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        long seed = randomLong();
+
+        Regression regression = new Regression("field_2", BoostedTreeParams.builder().build(), null, 90.0, seed, null, null, null, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
@@ -635,7 +635,24 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // We assert on the mean prediction error in order to reduce the probability
         // the test fails compared to asserting on the prediction of each individual doc.
         double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
-        assertThat(meanPredictionError, lessThanOrEqualTo(10.0));
+        logger.info("----> Seed: " + seed + " prediction error " + meanPredictionError);
+        String modelId = getModelId(jobId);
+        TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
+        // logger.info("modelDefinition " + modelDefinition);
+        TrainedModelMetadata modelMetadata = getModelMetadata(modelId);
+        double maxTrees = -1.0;
+        assertThat(modelMetadata.getHyperparameters().size(), greaterThan(0));
+        for (Hyperparameters hyperparameter : modelMetadata.getHyperparameters()) {
+            if (hyperparameter.hyperparameterName.equals("max_trees")) {
+                maxTrees = hyperparameter.value;
+            }
+        }
+        String trainedModelString = modelDefinition.getTrainedModel().toString();
+        Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
+        int numberTrees = ensemble.getModels().size();
+        logger.info("Number trees " + numberTrees);
+        String str = "Failure: failed for seed %d modelId %s numberTrees %d max_trees %f";
+        assertThat(String.format(str, seed, modelId, numberTrees, maxTrees), meanPredictionError, lessThanOrEqualTo(1.0));
 
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));

@@ -41,8 +41,8 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) throws IOException {
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 SearchHit hit = hitContext.hit();
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hit.docId());
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }

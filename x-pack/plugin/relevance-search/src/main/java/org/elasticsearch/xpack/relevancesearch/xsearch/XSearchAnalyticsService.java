@@ -7,20 +7,35 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.SearchEngine;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
 
+import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
 public class XSearchAnalyticsService {
-    
+
+    private static final Logger logger = LogManager.getLogger(XSearchAnalyticsService.class);
+
     private final ClusterService clusterService;
 
     public XSearchAnalyticsService(ClusterService clusterService) {
@@ -34,9 +49,40 @@ public class XSearchAnalyticsService {
     }
 
     private void recordEvent(String dataStream, XSearchAction.Request request, NodeClient client) {
-        Map<String, Object> analyticsEvent = Map.of("query", request.getQuery());
-        IndexRequest indexRequest = client.prepareIndex(dataStream).setSource(analyticsEvent).request();
-        client.execute(IndexAction.INSTANCE, indexRequest);
+        try (XContentBuilder builder = buildEvent(request)) {
+            if (builder != null) {
+                IndexRequest indexRequest = client.prepareIndex(dataStream)
+                    .setSource(buildEvent(request))
+                    .request()
+                    .opType(DocWriteRequest.OpType.CREATE);
+                logger.info("INDEXING REQUEST " + indexRequest.toString());
+                client.execute(IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        // No action required
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("analytics indexing failure", e);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            logger.error("analytics indexing failure", e);
+        }
+    }
+
+    private XContentBuilder buildEvent(XSearchAction.Request request) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
+            builder.startObject();
+            builder.field("@timestamp", ZonedDateTime.now(ZoneId.ofOffset("UTC", ZoneOffset.UTC)));
+            builder.field("query", request.getQuery());
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new ElasticsearchException("could not build analytics event", e);
+        }
     }
 
     private Collection<String> getDataStreamsForEngines(Collection<SearchEngine> engines) {

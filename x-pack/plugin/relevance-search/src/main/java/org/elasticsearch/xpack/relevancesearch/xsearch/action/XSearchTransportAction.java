@@ -19,15 +19,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
+import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchAnalyticsService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
 
 public class XSearchTransportAction extends HandledTransportAction<XSearchAction.Request, SearchResponse> {
 
     private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
-
     private final NodeClient client;
-
     private final XSearchRequestValidationService xSearchRequestValidationService;
+    private final XSearchAnalyticsService xSearchAnalyticsService;
 
     @Inject
     public XSearchTransportAction(
@@ -36,12 +36,14 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
         String executor,
         RelevanceMatchQueryRewriter relevanceMatchQueryRewriter,
         NodeClient client,
-        XSearchRequestValidationService xSearchRequestValidationService
+        XSearchRequestValidationService xSearchRequestValidationService,
+        XSearchAnalyticsService xSearchAnalyticsService
     ) {
         super(XSearchAction.NAME, false, transportService, actionFilters, XSearchAction.Request::new, executor);
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
         this.client = client;
         this.xSearchRequestValidationService = xSearchRequestValidationService;
+        this.xSearchAnalyticsService = xSearchAnalyticsService;
     }
 
     @Override
@@ -59,6 +61,8 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
                 l.onResponse(searchResponse);
             } catch (Exception t) {
                 l.onFailure(t);
+            } finally {
+                xSearchAnalyticsService.recordEvent(request, client);
             }
         }));
     }

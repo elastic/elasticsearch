@@ -85,7 +85,6 @@ public class RestXSearchAction extends BaseRestHandler {
     ) {
         doXSearch(index, xsearchRequest.explain(), queryBuilder, client, channel);
         xSearchAnalyticsService.recordEvent(xsearchRequest, client);
-
     }
 
     private static void doXSearch(

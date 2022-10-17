@@ -45,6 +45,7 @@ public class RestXSearchAction extends BaseRestHandler {
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
         this.xSearchRequestValidationService = xSearchRequestValidationService;
     }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, REST_BASE_PATH), new Route(POST, REST_BASE_PATH));

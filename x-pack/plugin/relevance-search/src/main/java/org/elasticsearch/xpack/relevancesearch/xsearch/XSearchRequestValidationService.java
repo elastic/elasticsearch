@@ -30,7 +30,9 @@ public class XSearchRequestValidationService {
     public void validateRequest(XSearchAction.Request request) throws InvalidXSearchRequestException {
 
         String[] indices = request.indices();
-        Set<String> engines = new HashSet<>(indexNameExpressionResolver.searchEngineNames(clusterService.state(), request.indicesOptions(), indices));
+        Set<String> engines = new HashSet<>(
+            indexNameExpressionResolver.searchEngineNames(clusterService.state(), request.indicesOptions(), indices)
+        );
 
         List<String> invalidIndices = Arrays.stream(indices).filter(index -> engines.contains(index) == false).toList();
         if (invalidIndices.size() > 0) {
@@ -43,6 +45,5 @@ public class XSearchRequestValidationService {
             super(message);
         }
     }
-
 
 }

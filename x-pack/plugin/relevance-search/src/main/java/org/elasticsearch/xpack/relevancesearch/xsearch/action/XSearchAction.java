@@ -11,11 +11,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -65,7 +67,20 @@ public class XSearchAction extends ActionType<SearchResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (Strings.hasText(query) == false) {
+                validationException = ValidateActions.addValidationError("no query specified", validationException);
+            }
+            if (CollectionUtils.isEmpty(indices)) {
+                validationException = ValidateActions.addValidationError("no indices specified", validationException);
+            }
+            for (String index : indices) {
+                if (Strings.hasText(index) == false) {
+                    validationException = ValidateActions.addValidationError("index name can't be empty", validationException);
+                }
+            }
+
+            return validationException;
         }
 
         @Override

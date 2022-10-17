@@ -23,7 +23,7 @@ import java.util.Map;
  * Extends the painless whitelist for the {@link MovingFunctionScript} to include {@link MovingFunctions}.
  */
 public class AggregationsPainlessExtension implements PainlessExtension {
-    private static final Whitelist MOVING_FUNCTION_WHITELIST = WhitelistLoader.loadFromResourceFiles(
+    private static final Whitelist MOVING_FUNCTION_ALLOWLIST = WhitelistLoader.loadFromResourceFiles(
         AggregationsPainlessExtension.class,
         "moving_function_whitelist.txt"
     );
@@ -31,8 +31,8 @@ public class AggregationsPainlessExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         return Map.ofEntries(
-            Map.entry(MovingFunctionScript.CONTEXT, List.of(MOVING_FUNCTION_WHITELIST)),
-            Map.entry(PainlessTestScript.CONTEXT, List.of(MOVING_FUNCTION_WHITELIST))
+            Map.entry(MovingFunctionScript.CONTEXT, List.of(MOVING_FUNCTION_ALLOWLIST)),
+            Map.entry(PainlessTestScript.CONTEXT, List.of(MOVING_FUNCTION_ALLOWLIST))
         );
     }
 }

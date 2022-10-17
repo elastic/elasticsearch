@@ -15,6 +15,7 @@ import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
@@ -81,18 +82,24 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void testDatabasesLoaded() throws IOException {
         Request getTaskState = new Request("GET", "/_cluster/state");
         ObjectPath state = ObjectPath.createFromResponse(client().performRequest(getTaskState));
 
-        Map<String, Object> databases = null;
-        try {
-            databases = state.evaluate("metadata.persistent_tasks.tasks.0.task.geoip-downloader.state.databases");
-        } catch (Exception e) {
-            // ObjectPath doesn't like the 0 above if the list of tasks is empty, and it throws rather than returning null,
-            // catch that and throw an AssertionError instead (which assertBusy will handle)
+        List<?> tasks = state.evaluate("metadata.persistent_tasks.tasks");
+        // Short-circuit to avoid using steams if the list is empty
+        if (tasks.isEmpty()) {
             fail();
         }
+        Map<String, Object> databases = (Map<String, Object>) tasks.stream().map(task -> {
+            try {
+                return ObjectPath.evaluate(task, "task.geoip-downloader.state.databases");
+            } catch (IOException e) {
+                return null;
+            }
+        }).filter(Objects::nonNull).findFirst().orElse(null);
+
         assertNotNull(databases);
 
         for (String name : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {

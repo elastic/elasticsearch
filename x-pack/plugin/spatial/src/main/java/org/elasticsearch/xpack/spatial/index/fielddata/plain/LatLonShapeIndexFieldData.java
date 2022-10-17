@@ -12,20 +12,20 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
-public class LatLonShapeIndexFieldData extends AbstractShapeIndexFieldData {
+public class LatLonShapeIndexFieldData extends AbstractShapeIndexFieldData<GeoShapeValues> {
     public LatLonShapeIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<ShapeValues> toScriptFieldFactory
+        ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, toScriptFieldFactory);
     }
 
     @Override
-    public LeafShapeFieldData load(LeafReaderContext context) {
+    public LeafShapeFieldData<GeoShapeValues> load(LeafReaderContext context) {
         LeafReader reader = context.reader();
         FieldInfo info = reader.getFieldInfos().fieldInfo(fieldName);
         if (info != null) {

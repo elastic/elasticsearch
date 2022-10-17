@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
@@ -152,45 +153,36 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     public void testMasterAwareExecution() throws Exception {
-        final MasterService nonMaster = createMasterService(false);
+        try (var nonMaster = createMasterService(false)) {
+            final CountDownLatch latch1 = new CountDownLatch(1);
+            nonMaster.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask(randomFrom(Priority.values())) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    throw new AssertionError("should not execute this task");
+                }
 
-        final boolean[] taskFailed = { false };
-        final CountDownLatch latch1 = new CountDownLatch(1);
-        nonMaster.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                latch1.countDown();
-                return currentState;
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    assert e instanceof NotMasterException : e;
+                    latch1.countDown();
+                }
+            });
+            assertTrue(latch1.await(10, TimeUnit.SECONDS));
 
-            @Override
-            public void onFailure(Exception e) {
-                taskFailed[0] = true;
-                latch1.countDown();
-            }
-        });
+            final CountDownLatch latch2 = new CountDownLatch(1);
+            new LocalMasterServiceTask(randomFrom(Priority.values())) {
+                @Override
+                public void execute(ClusterState currentState) {
+                    latch2.countDown();
+                }
 
-        latch1.await();
-        assertTrue("cluster state update task was executed on a non-master", taskFailed[0]);
-
-        final CountDownLatch latch2 = new CountDownLatch(1);
-        new LocalMasterServiceTask(Priority.NORMAL) {
-            @Override
-            public void execute(ClusterState currentState) {
-                taskFailed[0] = false;
-                latch2.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                taskFailed[0] = true;
-                latch2.countDown();
-            }
-        }.submit(nonMaster, "test");
-        latch2.await();
-        assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
-
-        nonMaster.close();
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("should not fail this task", e);
+                }
+            }.submit(nonMaster, "test");
+            assertTrue(latch2.await(10, TimeUnit.SECONDS));
+        }
     }
 
     /**

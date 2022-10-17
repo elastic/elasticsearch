@@ -212,7 +212,7 @@ public class ActiveShardCountTests extends ESTestCase {
                 ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                        .moveToStarted();
+                        .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 }
                 newIndexRoutingTable.addShard(shardRouting);
             }
@@ -237,7 +237,7 @@ public class ActiveShardCountTests extends ESTestCase {
                 } else {
                     if (numToStart > 0) {
                         shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                            .moveToStarted();
+                            .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                         numToStart--;
                     }
                 }
@@ -264,7 +264,7 @@ public class ActiveShardCountTests extends ESTestCase {
                     if (shardRouting.active() == false) {
                         if (numToStart > 0) {
                             shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                                .moveToStarted();
+                                .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                             numToStart--;
                         }
                     } else {
@@ -291,7 +291,7 @@ public class ActiveShardCountTests extends ESTestCase {
                 } else {
                     if (shardRouting.active() == false) {
                         shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                            .moveToStarted();
+                            .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     }
                 }
                 newIndexRoutingTable.addShard(shardRouting);

@@ -231,10 +231,11 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             assertThat(
                 decision.getExplanation(),
                 equalTo(
-                    """
-                        cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
-                        address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard\
-                        """.formatted(
+                    formatted(
+                        """
+                            cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
+                            address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard\
+                            """,
                         emptyNode.nodeId(),
                         otherNode.nodeId(),
                         host1,

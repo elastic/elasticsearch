@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 
 import java.io.IOException;
@@ -65,11 +64,11 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
         AggregationContext context
     ) {
         GeoShapeValuesSource shapeValuesSource = (GeoShapeValuesSource) valuesSource;
-        final ShapeValues.ShapeValue missing = GeoShapeValues.EMPTY.missing(rawMissing.toString());
+        final GeoShapeValues.GeoShapeValue missing = GeoShapeValues.EMPTY.missing(rawMissing.toString());
         return new GeoShapeValuesSource() {
             @Override
             public GeoShapeValues shapeValues(LeafReaderContext context) {
-                ShapeValues values = shapeValuesSource.shapeValues(context);
+                GeoShapeValues values = shapeValuesSource.shapeValues(context);
                 return new GeoShapeValues() {
 
                     private boolean exists;
@@ -88,7 +87,7 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
                     }
 
                     @Override
-                    public ShapeValue value() throws IOException {
+                    public GeoShapeValue value() throws IOException {
                         return exists ? values.value() : missing;
                     }
 

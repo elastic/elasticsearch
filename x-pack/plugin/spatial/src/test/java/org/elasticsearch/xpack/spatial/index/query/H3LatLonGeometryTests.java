@@ -31,7 +31,6 @@ public class H3LatLonGeometryTests extends ESTestCase {
 
     private static final String FIELD_NAME = "field";
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89868")
     public void testIndexPoints() throws Exception {
         Point queryPoint = GeometryTestUtils.randomPoint();
         String[] hexes = new String[H3.MAX_H3_RES + 1];

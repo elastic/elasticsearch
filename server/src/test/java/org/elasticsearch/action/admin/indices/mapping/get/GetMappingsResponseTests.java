@@ -79,7 +79,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
             chunks.next();
             chunkCount++;
         }
-        assertEquals(indexCount, chunkCount);
+        assertEquals(2 + indexCount, chunkCount);
     }
 
     // Not meant to be exhaustive

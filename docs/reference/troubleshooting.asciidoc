@@ -32,10 +32,18 @@ fix problems that an {es} deployment might encounter.
 * <<start-slm,Start snapshot lifecycle management>>
 
 [discrete]
+[[troubleshooting-capacity]]
+=== Capacity
+* <<fix-data-node-out-of-disk, Fix data nodes out of disk>>
+* <<fix-master-node-out-of-disk, Fix master nodes out of disk>>
+* <<fix-other-node-out-of-disk, Fix other role nodes out of disk>>
+
+[discrete]
 [[troubleshooting-snapshot]]
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
 * <<add-repository,Multiple deployments writing to the same snapshot repository>>
+* <<repeated-snapshot-failures,Troubleshooting repeated snapshot failures>>
 
 [discrete]
 [[troubleshooting-others]]
@@ -89,6 +97,12 @@ include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
 include::troubleshooting/corruption-issues.asciidoc[]
 
+include::troubleshooting/disk/fix-data-node-out-of-disk.asciidoc[]
+
+include::troubleshooting/disk/fix-master-node-out-of-disk.asciidoc[]
+
+include::troubleshooting/disk/fix-other-node-out-of-disk.asciidoc[]
+
 include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]
@@ -96,6 +110,8 @@ include::troubleshooting/data/start-slm.asciidoc[]
 include::troubleshooting/data/restore-from-snapshot.asciidoc[]
 
 include::troubleshooting/snapshot/add-repository.asciidoc[]
+
+include::troubleshooting/snapshot/repeated-snapshot-failures.asciidoc[]
 
 include::troubleshooting/discovery-issues.asciidoc[]
 

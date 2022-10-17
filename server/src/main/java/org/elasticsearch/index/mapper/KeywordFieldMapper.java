@@ -1105,7 +1105,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new SortedSetDocValuesSyntheticFieldLoader(
             name(),
             simpleName,
-            fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
+            fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
+            false
         ) {
             @Override
             protected BytesRef convert(BytesRef value) {

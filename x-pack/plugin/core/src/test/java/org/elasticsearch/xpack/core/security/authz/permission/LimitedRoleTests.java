@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -101,20 +102,22 @@ public class LimitedRoleTests extends ESTestCase {
             md.getIndicesLookup(),
             fieldPermissionsCache
         );
+        assertThat(iac.isGranted(), is(false));
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
-        assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+        assertThat(iac.hasIndexPermissions("_index"), is(true));
+        assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+        assertThat(iac.hasIndexPermissions("_index1"), is(false));
         iac = fromRole.authorize(
             CreateIndexAction.NAME,
             Sets.newHashSet("_index", "_index1"),
             md.getIndicesLookup(),
             fieldPermissionsCache
         );
+        assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("_index"), is(true));
         assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index1").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("_index1"), is(true));
 
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
@@ -128,30 +131,33 @@ public class LimitedRoleTests extends ESTestCase {
                 md.getIndicesLookup(),
                 fieldPermissionsCache
             );
+            assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.hasIndexPermissions("_index"), is(true));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
             iac = limitedByRole.authorize(
                 DeleteIndexAction.NAME,
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
                 fieldPermissionsCache
             );
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
             iac = limitedByRole.authorize(
                 CreateIndexAction.NAME,
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
                 fieldPermissionsCache
             );
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
 
             Role role;
             if (randomBoolean()) {
@@ -160,30 +166,33 @@ public class LimitedRoleTests extends ESTestCase {
                 role = fromRole.limitedBy(limitedByRole);
             }
             iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(), fieldPermissionsCache);
+            assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.hasIndexPermissions("_index"), is(true));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
             iac = role.authorize(
                 DeleteIndexAction.NAME,
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
                 fieldPermissionsCache
             );
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
             iac = role.authorize(
                 CreateIndexAction.NAME,
                 Sets.newHashSet("_index", "_index1"),
                 md.getIndicesLookup(),
                 fieldPermissionsCache
             );
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
         }
     }
 

@@ -136,4 +136,9 @@ public final class BytesArray extends AbstractBytesReference {
     public int getIntLE(int index) {
         return ByteUtils.readIntLE(bytes, offset + index);
     }
+
+    @Override
+    public double getDoubleLE(int index) {
+        return ByteUtils.readDoubleLE(bytes, offset + index);
+    }
 }

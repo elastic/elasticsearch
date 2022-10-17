@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
 /**
@@ -660,7 +660,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }, OPTIONS_FIELD);
         parser.declareObject(HB::highlightQuery, (XContentParser p, Void c) -> {
             try {
-                return parseInnerQueryBuilder(p);
+                return parseTopLevelQuery(p);
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing query", e);
             }

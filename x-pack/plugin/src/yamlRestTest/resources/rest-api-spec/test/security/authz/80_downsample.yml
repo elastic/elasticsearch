@@ -1,0 +1,253 @@
+setup:
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+                          sent:
+                            type: long
+                            time_series_metric: counter
+                          received:
+                            type: long
+                            time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        index: source
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2001818691, "rx": 802133794, "sent": 2001818691, "received": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2005177954, "rx": 801479970, "sent": 2001826691, "received": 802143794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2006223737, "rx": 802337279, "sent": 2002018680, "received": 802173799}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2012916202, "rx": 803685721, "sent": 2002267888, "received": 802178800}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434521831, "rx": 530575198, "sent": 1434521831, "received": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434577921, "rx": 530600088, "sent": 1434557898, "received": 530577811}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434587694, "rx": 530604797, "sent": 1434589900, "received": 530600110}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434595272, "rx": 530605511, "sent": 1434612001, "received": 530622980}}}}'
+
+  # Make the downsample source index read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+---
+"Downsample user missing admin permissions to run the downsample operation":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source"],
+                "privileges": ["read"]
+              },
+              {
+                "names": ["target"],
+                "privileges": ["write"]
+              }
+            ]
+          }
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user without permissions on the downsample source index"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/action \[indices:admin/xpack/downsample\] is unauthorized for user \[downsample-user\] with effective roles \[downsample-role\] on indices \[source\], this action is granted by the index privileges \[manage,all\]/'
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Downsample admin user with field level security settings defined on the source index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source"],
+                "privileges": ["all"],
+                "field_security": {
+                  "grant": ["@timestamp", "k8s.pod.network.*"]
+                }
+              }
+            ]
+          }
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user who can read a limited set of fields in the source index"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/Rollup forbidden for index \[source\] with document level or field level security settings\./'
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Downsample admin user with document level security settings defined on the source index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source", "target"],
+                "privileges": ["all"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+
+  # User performing the downsample operation
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user with all privileges on downsample source and target indices"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/Rollup forbidden for index \[source\] with document level or field level security settings./'
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Downsample admin user without document level or field level security settings defined on the source index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source"],
+                "privileges": ["all"]
+              }
+            ]
+          }
+
+  # User performing the downsample operation
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user with all privileges on downsample source and target indices"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged

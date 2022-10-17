@@ -167,7 +167,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 }, DOCUMENT_FIELD);
                 PARSER.declareObject(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                    (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
                     QUERY_FIELD
                 );
             }

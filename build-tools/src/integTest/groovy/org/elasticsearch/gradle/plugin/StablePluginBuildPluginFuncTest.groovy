@@ -19,7 +19,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.stream.Collectors
 
-class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
+class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
@@ -46,17 +46,18 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
-        props.get("classname") == null
 
         props.get("name") == "myplugin"
         props.get("version") == "1.2.3"
         props.get("description") == "test plugin"
-        props.get("modulename") == ""
         props.get("java.version") == Integer.toString(Runtime.version().feature())
         props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
-        props.get("extended.plugins") == ""
-        props.get("has.native.controller") == "false"
-        props.size() == 8
+
+        props.get("classname") == null
+        props.get("modulename") == null
+        props.get("extended.plugins") == null
+        props.get("has.native.controller") == null
+        props.size() == 5
 
     }
 
@@ -77,8 +78,8 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                implementation files('${StableApiJarMocks.createPluginApiJar(jarFolder.toPath()).toAbsolutePath()}')
-                implementation files('${StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath()}')
+                implementation files('${normalized(StableApiJarMocks.createPluginApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
+                implementation files('${normalized(StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
             }
 
             """

@@ -415,7 +415,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
     }
 
-    private Plugin loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
+    private void loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
         String name = bundle.plugin.getName();
         logger.debug(() -> "Loading bundle: " + name);
 
@@ -463,25 +463,36 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
+            Plugin plugin;
             if (bundle.pluginDescriptor().isStable()) {
                 stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
-            }
+                /*
+                Contrary to old plugins we don't need an instance of the plugin here.
+                Stable plugin register components (like CharFilterFactory) in stable plugin registry, which is then used in AnalysisModule
+                when registering char filter factories and other analysis components.
+                We don't have to support for settings, additional components and other methods
+                that are in org.elasticsearch.plugins.Plugin
+                We need to pass a name though so that we can show that a plugin was loaded (via cluster state api)
+                This might need to be revisited once support for settings is added
+                 */
+                plugin = new StablePluginPlaceHolder(bundle.plugin.getName());
+            } else {
 
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
-            if (pluginClassLoader != pluginClass.getClassLoader()) {
-                throw new IllegalStateException(
-                    "Plugin ["
-                        + name
-                        + "] must reference a class loader local Plugin class ["
-                        + bundle.plugin.getClassname()
-                        + "] (class loader ["
-                        + pluginClass.getClassLoader()
-                        + "])"
-                );
+                Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
+                if (pluginClassLoader != pluginClass.getClassLoader()) {
+                    throw new IllegalStateException(
+                        "Plugin ["
+                            + name
+                            + "] must reference a class loader local Plugin class ["
+                            + bundle.plugin.getClassname()
+                            + "] (class loader ["
+                            + pluginClass.getClassLoader()
+                            + "])"
+                    );
+                }
+                plugin = loadPlugin(pluginClass, settings, configPath);
             }
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
-            return plugin;
         } finally {
             privilegedSetContextClassLoader(cl);
         }

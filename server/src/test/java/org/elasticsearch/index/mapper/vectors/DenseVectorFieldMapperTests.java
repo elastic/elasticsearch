@@ -550,9 +550,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString(
-                "byte element_type vectors only support integers between[-128, 127] but found [128.0] at index [0]; Preview of invalid vector: [128.0, 0.0, 0.0]"
-            )
+            containsString("byte element_type vectors only support integers between[-128, 127] but found [128.0] at index [0];")
         );
 
         e = expectThrows(
@@ -561,9 +559,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString(
-                "byte element_type vectors only support integers between[-128, 127] but found [-129.0] at index [2]; Preview of invalid vector: [0.0, 0.0, -129.0]"
-            )
+            containsString("byte element_type vectors only support integers between[-128, 127] but found [-129.0] at index [2];")
         );
 
     }
@@ -590,9 +586,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "byte element_type vectors only support integers between[-128, 127] but found [128.0] at index [0]; Preview of invalid vector: [128.0, 0.0, 0.0]"
-            )
+            containsString("byte element_type vectors only support integers between[-128, 127] but found [128.0] at index [0];")
         );
 
         e = expectThrows(
@@ -601,9 +595,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "byte element_type vectors only support integers between[-128, 127] but found [-129.0] at index [2]; Preview of invalid vector: [0.0, 0.0, -129.0]"
-            )
+            containsString("byte element_type vectors only support integers between[-128, 127] but found [-129.0] at index [2];")
         );
 
         e = expectThrows(
@@ -612,9 +604,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "byte element_type vectors only support integers between[-128, 127] but found [0.5] at index [1]; Preview of invalid vector: [0.0, 0.5, 0.0]"
-            )
+            containsString("byte element_type vectors only support integers between[-128, 127] but found [0.5] at index [1];")
         );
 
         e = expectThrows(
@@ -623,9 +613,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "byte element_type vectors only support integers between[-128, 127] but found [-0.25] at index [2]; Preview of invalid vector: [0.0, 0.0, -0.25]"
-            )
+            containsString("byte element_type vectors only support integers between[-128, 127] but found [-0.25] at index [2];")
         );
     }
 

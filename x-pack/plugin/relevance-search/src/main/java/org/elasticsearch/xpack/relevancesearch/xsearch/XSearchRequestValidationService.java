@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,8 +32,7 @@ public class XSearchRequestValidationService {
         String[] indices = request.indices();
         Set<String> engines = new HashSet<>(indexNameExpressionResolver.searchEngineNames(clusterService.state(), request.indicesOptions(), indices));
 
-List<String> invalidIndices = Arrays.stream(indices).filter(index -> engines.contains(index) == false)
-
+        List<String> invalidIndices = Arrays.stream(indices).filter(index -> engines.contains(index) == false).toList();
         if (invalidIndices.size() > 0) {
             throw new InvalidXSearchRequestException("XSearch not supported for non-engine indices " + String.join(",", invalidIndices));
         }

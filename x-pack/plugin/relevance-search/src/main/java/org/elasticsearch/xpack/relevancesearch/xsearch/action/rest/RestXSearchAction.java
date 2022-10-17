@@ -7,20 +7,14 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch.action.rest;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
@@ -89,13 +83,15 @@ public class RestXSearchAction extends BaseRestHandler {
             .setExplain(explain)
             .request();
 
-        client.execute(SearchAction.INSTANCE, searchRequest, new RestBuilderListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(SearchResponse searchResponse, XContentBuilder builder) throws Exception {
-                searchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                return new RestResponse(RestStatus.OK, builder);
-            }
-        });
+        client.execute(XSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+
+        // client.execute(SearchAction.INSTANCE, searchRequest, new RestBuilderListener<>(channel) {
+        // @Override
+        // public RestResponse buildResponse(SearchResponse searchResponse, XContentBuilder builder) throws Exception {
+        // searchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        // return new RestResponse(RestStatus.OK, builder);
+        // }
+        // });
     }
 
     @Override

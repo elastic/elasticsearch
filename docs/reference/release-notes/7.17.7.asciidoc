@@ -25,6 +25,9 @@ Infra/Core::
 Ingest Node::
 * Fix pipeline id not being present in ingest metadata inside `on_failure` block {es-pull}89632[#89632]
 
+Machine Learning::
+* Do not retain categorization tokens when existing category matches {ml-pull}2398[#2398]
+
 Network::
 * Fix memory leak when double invoking `RestChannel.sendResponse` {es-pull}89873[#89873]
 

@@ -84,14 +84,6 @@ public class RestXSearchAction extends BaseRestHandler {
             .request();
 
         client.execute(XSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
-
-        // client.execute(SearchAction.INSTANCE, searchRequest, new RestBuilderListener<>(channel) {
-        // @Override
-        // public RestResponse buildResponse(SearchResponse searchResponse, XContentBuilder builder) throws Exception {
-        // searchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        // return new RestResponse(RestStatus.OK, builder);
-        // }
-        // });
     }
 
     @Override

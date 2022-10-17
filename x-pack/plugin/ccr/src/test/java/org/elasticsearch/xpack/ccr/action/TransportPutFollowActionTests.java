@@ -103,13 +103,9 @@ public class TransportPutFollowActionTests extends ESTestCase {
         String dsFirstGeneration = DataStream.getDefaultBackingIndexName("logs-foobar", 1);
         initialLocalBackingIndices.add(new Index(dsFirstGeneration, UUID.randomUUID().toString()));
         String shrunkDsSecondGeneration = "shrink-" + DataStream.getDefaultBackingIndexName("logs-foobar", 2);
-        initialLocalBackingIndices.add(
-            new Index(shrunkDsSecondGeneration, UUID.randomUUID().toString())
-        );
+        initialLocalBackingIndices.add(new Index(shrunkDsSecondGeneration, UUID.randomUUID().toString()));
         String partialThirdGeneration = "partial-" + DataStream.getDefaultBackingIndexName("logs-foobar", 3);
-        initialLocalBackingIndices.add(
-            new Index(partialThirdGeneration, UUID.randomUUID().toString())
-        );
+        initialLocalBackingIndices.add(new Index(partialThirdGeneration, UUID.randomUUID().toString()));
         String forthGeneration = DataStream.getDefaultBackingIndexName("logs-foobar", 4);
         initialLocalBackingIndices.add(new Index(forthGeneration, UUID.randomUUID().toString()));
         String sixthGeneration = DataStream.getDefaultBackingIndexName("logs-foobar", 6);
@@ -117,13 +113,9 @@ public class TransportPutFollowActionTests extends ESTestCase {
         initialLocalBackingIndices.add(new Index("absolute-name", UUID.randomUUID().toString()));
         initialLocalBackingIndices.add(new Index("persistent-name", UUID.randomUUID().toString()));
         String restoredFifthGeneration = "restored-" + DataStream.getDefaultBackingIndexName("logs-foobar", 5);
-        initialLocalBackingIndices.add(
-            new Index(restoredFifthGeneration, UUID.randomUUID().toString())
-        );
+        initialLocalBackingIndices.add(new Index(restoredFifthGeneration, UUID.randomUUID().toString()));
         String differentDSBackingIndex = DataStream.getDefaultBackingIndexName("different-datastream", 2);
-        initialLocalBackingIndices.add(
-            new Index(differentDSBackingIndex, UUID.randomUUID().toString())
-        );
+        initialLocalBackingIndices.add(new Index(differentDSBackingIndex, UUID.randomUUID().toString()));
 
         DataStream localDataStream = new DataStream(
             "logs-foobar",

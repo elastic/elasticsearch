@@ -12,11 +12,12 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description 'Adds "built in" aggregations to Elasticsearch.'
   classname 'org.elasticsearch.aggregations.AggregationsPlugin'
+  extendedPlugins = ['lang-painless']
 }
 
 restResources {
   restApi {
-    include '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk'
+    include '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk', 'scripts_painless_execute'
   }
   restTests {
     // Pulls in all aggregation tests from core AND the forwards v7's core for forwards compatibility
@@ -37,4 +38,12 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
 artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+testClusters.configureEach {
+  module ':modules:lang-painless'
+}
+
+dependencies {
+  compileOnly(project(':modules:lang-painless:spi'))
 }

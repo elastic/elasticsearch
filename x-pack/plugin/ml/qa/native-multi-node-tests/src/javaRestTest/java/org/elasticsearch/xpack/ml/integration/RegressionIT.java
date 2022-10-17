@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -82,8 +80,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String jobId;
     private String sourceIndex;
     private String destIndex;
-
-    private static final Logger logger = LogManager.getLogger(RegressionIT.class);
 
     @After
     public void cleanup() {
@@ -651,7 +647,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
         Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
         int numberTrees = ensemble.getModels().size();
-        logger.info("Number trees " + numberTrees);
         String str = "Failure: failed for seed %d modelId %s numberTrees %d\n";
         assertThat(
             String.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,

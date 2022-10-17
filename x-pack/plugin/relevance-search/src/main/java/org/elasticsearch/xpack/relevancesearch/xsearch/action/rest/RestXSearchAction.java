@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
+import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchAnalyticsService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
 
@@ -36,15 +37,18 @@ public class RestXSearchAction extends BaseRestHandler {
 
     private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
     private final XSearchRequestValidationService xSearchRequestValidationService;
+    private final XSearchAnalyticsService xSearchAnalyticsService;
 
     @Inject
     public RestXSearchAction(
         RelevanceMatchQueryRewriter relevanceMatchQueryRewriter,
-        XSearchRequestValidationService xSearchRequestValidationService
+        XSearchRequestValidationService xSearchRequestValidationService,
+        XSearchAnalyticsService xSearchAnalyticsService
     ) {
         super();
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
         this.xSearchRequestValidationService = xSearchRequestValidationService;
+        this.xSearchAnalyticsService = xSearchAnalyticsService;
     }
 
     @Override
@@ -68,7 +72,20 @@ public class RestXSearchAction extends BaseRestHandler {
         xSearchRequestValidationService.validateRequest(xsearchRequest);
 
         RelevanceMatchQueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, xsearchRequest.getQuery());
-        return channel -> doXSearch(index, xsearchRequest.explain(), queryBuilder, client, channel);
+
+        return channel -> performRequest(index, xsearchRequest, queryBuilder, client, channel);
+    }
+
+    private void performRequest(
+        String index,
+        XSearchAction.Request xsearchRequest,
+        RelevanceMatchQueryBuilder queryBuilder,
+        NodeClient client,
+        RestChannel channel
+    ) {
+        doXSearch(index, xsearchRequest.explain(), queryBuilder, client, channel);
+        xSearchAnalyticsService.recordEvent(xsearchRequest, client);
+
     }
 
     private static void doXSearch(

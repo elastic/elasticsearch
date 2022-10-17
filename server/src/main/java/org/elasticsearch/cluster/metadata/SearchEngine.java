@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
@@ -30,11 +31,19 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings_id");
+    public static ParseField ANALYTICS_COLLECTION_FIELD = new ParseField("analytics_collection");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SearchEngine, Void> PARSER = new ConstructingObjectParser<>(
         "search_engine",
-        args -> new SearchEngine((String) args[0], (List<Index>) args[1], (boolean) args[2], (boolean) args[3], (String) args[4])
+        args -> new SearchEngine(
+            (String) args[0],
+            (List<Index>) args[1],
+            (boolean) args[2],
+            (boolean) args[3],
+            (String) args[4],
+            (String) args[5]
+        )
     );
 
     static {
@@ -43,6 +52,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RELEVANCE_SETTINGS_ID_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ANALYTICS_COLLECTION_FIELD);
     }
 
     public static SearchEngine fromXContent(XContentParser parser) throws IOException {
@@ -58,17 +68,33 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     private final boolean isHidden;
     private final boolean isSystem;
     private final String relevanceSettingsId;
+    private final String analyticsCollection;
 
-    public SearchEngine(String name, List<Index> indices, boolean isHidden, boolean isSystem, String relevanceSettingsId) {
+    public SearchEngine(
+        String name,
+        List<Index> indices,
+        boolean isHidden,
+        boolean isSystem,
+        String relevanceSettingsId,
+        String analyticsCollection
+    ) {
         this.name = name;
         this.indices = indices;
         this.isHidden = isHidden;
         this.isSystem = isSystem;
         this.relevanceSettingsId = relevanceSettingsId;
+        this.analyticsCollection = analyticsCollection;
     }
 
     public SearchEngine(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(Index::new), in.readBoolean(), in.readBoolean(), in.readOptionalString());
+        this(
+            in.readString(),
+            in.readList(Index::new),
+            in.readBoolean(),
+            in.readBoolean(),
+            in.readOptionalString(),
+            in.readOptionalString()
+        );
     }
 
     public String getName() {
@@ -91,6 +117,14 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         return relevanceSettingsId;
     }
 
+    public boolean shouldRecordAnalytics() {
+        return Strings.hasText(analyticsCollection);
+    }
+
+    public String getAnalyticsCollection() {
+        return analyticsCollection;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -99,6 +133,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         builder.field(HIDDEN_FIELD.getPreferredName(), isHidden);
         builder.field(SYSTEM_FIELD.getPreferredName(), isSystem);
         builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), relevanceSettingsId);
+        builder.field(ANALYTICS_COLLECTION_FIELD.getPreferredName(), analyticsCollection);
         builder.endObject();
         return builder;
     }
@@ -110,6 +145,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         out.writeBoolean(isHidden);
         out.writeBoolean(isSystem);
         out.writeOptionalString(relevanceSettingsId);
+        out.writeOptionalString(analyticsCollection);
     }
 
     @Override
@@ -121,11 +157,12 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
             && indices.equals(that.indices)
             && Objects.equals(isHidden, that.isHidden)
             && Objects.equals(isSystem, that.isSystem)
-            && relevanceSettingsId.equals(that.relevanceSettingsId);
+            && relevanceSettingsId.equals(that.relevanceSettingsId)
+            && analyticsCollection.equals(that.analyticsCollection);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, indices, isHidden, isSystem, relevanceSettingsId);
+        return Objects.hash(name, indices, isHidden, isSystem, relevanceSettingsId, analyticsCollection);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -48,6 +49,8 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
         private String relevanceSettingsId;
 
+        private String analyticsCollection;
+
         private static final ObjectParser<Request, RestRequest> PARSER;
         static {
             PARSER = new ObjectParser<>("put_search_engine");
@@ -61,16 +64,18 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
                 return indices;
             }, new ParseField("indices"), ObjectParser.ValueType.OBJECT_ARRAY);
             PARSER.declareString(Request::setRelevanceSettingsId, new ParseField("relevance_settings"));
+            PARSER.declareString(Request::setAnalyticsCollection, new ParseField("analytics_collection"));
         }
 
         public Request(String name) {
-            this(name, new String[0], null);
+            this(name, new String[0], null, null);
         }
 
-        public Request(String name, String[] indices, String relevanceSettingsId) {
+        public Request(String name, String[] indices, String relevanceSettingsId, String analyticsCollection) {
             this.name = name;
             this.indices = indices;
             this.relevanceSettingsId = relevanceSettingsId;
+            this.analyticsCollection = analyticsCollection;
         }
 
         public String getName() {
@@ -83,6 +88,18 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
         public void setRelevanceSettingsId(String relevanceSettingsId) {
             this.relevanceSettingsId = relevanceSettingsId;
+        }
+
+        public boolean shouldRecordAnalytics() {
+            return Strings.hasText(analyticsCollection);
+        }
+
+        public String getAnalyticsCollection() {
+            return analyticsCollection;
+        }
+
+        public void setAnalyticsCollection(String analyticsCollection) {
+            this.analyticsCollection = analyticsCollection;
         }
 
         @Override
@@ -115,6 +132,7 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             this.name = in.readString();
             this.indices = in.readStringArray();
             this.relevanceSettingsId = in.readString();
+            this.analyticsCollection = in.readOptionalString();
         }
 
         @Override
@@ -123,6 +141,7 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             out.writeString(name);
             out.writeStringArray(indices);
             out.writeString(relevanceSettingsId);
+            out.writeOptionalString(analyticsCollection);
         }
 
         @Override
@@ -130,7 +149,9 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name) && indices.equals(request.indices);
+            return name.equals(request.name)
+                && Arrays.equals(indices, request.indices)
+                && analyticsCollection.equals(request.getAnalyticsCollection());
         }
 
         @Override

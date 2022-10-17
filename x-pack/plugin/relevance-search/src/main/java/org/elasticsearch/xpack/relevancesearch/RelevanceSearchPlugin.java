@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
 import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchAnalyticsService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchTransportAction;
@@ -64,6 +65,8 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
 
     private final SetOnce<XSearchRequestValidationService> xSearchRequestValidationService = new SetOnce<>();
 
+    private final SetOnce<XSearchAnalyticsService> xSearchAnalyticsService = new SetOnce<>();
+
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,
@@ -74,7 +77,9 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestXSearchAction(relevanceMatchQueryRewriter.get(), xSearchRequestValidationService.get()));
+        return List.of(
+            new RestXSearchAction(relevanceMatchQueryRewriter.get(), xSearchRequestValidationService.get(), xSearchAnalyticsService.get())
+        );
     }
 
     @Override
@@ -112,6 +117,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
 
         indexCreationService.set(new IndexCreationService(client, clusterService));
         xSearchRequestValidationService.set(new XSearchRequestValidationService(indexNameExpressionResolver, clusterService));
+        xSearchAnalyticsService.set(new XSearchAnalyticsService(clusterService));
         RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client);
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
@@ -120,6 +126,11 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
             new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver)
         );
 
-        return List.of(relevanceMatchQueryRewriter.get(), indexCreationService.get(), xSearchRequestValidationService.get());
+        return List.of(
+            relevanceMatchQueryRewriter.get(),
+            indexCreationService.get(),
+            xSearchRequestValidationService.get(),
+            xSearchAnalyticsService.get()
+        );
     }
 }

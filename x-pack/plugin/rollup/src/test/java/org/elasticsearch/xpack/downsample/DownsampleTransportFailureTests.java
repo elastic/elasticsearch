@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -278,6 +279,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
         logger.info(
             String.format(
+                Locale.ROOT,
                 "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
                 testCluster.size(),
                 testCluster.masterName(),
@@ -322,6 +324,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         final MockTransportService coordinator = testCluster.coordinatorMockTransportService();
         logger.info(
             String.format(
+                Locale.ROOT,
                 "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
                 testCluster.size(),
                 testCluster.masterName(),
@@ -378,6 +381,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         final MockTransportService master = testCluster.masterMockTransportService();
         logger.info(
             String.format(
+                Locale.ROOT,
                 "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
                 testCluster.size(),
                 testCluster.masterName(),

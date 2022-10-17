@@ -27,19 +27,23 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -120,7 +124,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         for (int i = 0; i < 5_000; i++) {
             if (clusterInfoService.totalIndicesSize * 1.15 > clusterInfoService.totalNodesSize) {
                 startNewNode(clusterService, clusterInfoService, strategy, "node-" + nodeNameGenerator.incrementAndGet(), 1_000_000);
-                initializeAllShards(clusterService, strategy);
+                initializeAllShards(clusterService, strategy, "adding new node");
             }
 
             var indexSize = switch (randomIntBetween(0, 1000)) {
@@ -130,7 +134,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
             createIndex(clusterService, clusterInfoService, strategy, "index-" + indexNameGenerator.incrementAndGet(), indexSize, false);
             if (randomIntBetween(0, 9) == 0) {
-                initializeAllShards(clusterService, strategy);
+                initializeAllShards(clusterService, strategy, "starting indices");
             }
             clusterInfoService.verifyDiskUsage();
         }
@@ -225,7 +229,10 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         return ClusterState.builder(clusterState).metadata(metadataBuilder).routingTable(routingTableBuilder).build();
     }
 
-    private void initializeAllShards(ClusterService clusterService, AllocationService strategy) throws InterruptedException {
+    private void initializeAllShards(ClusterService clusterService, AllocationService strategy, String reason) throws InterruptedException {
+
+        var movements = new HashMap<ShardId, List<String>>();
+
         int initializing = 0;
         do {
             var startLatch = new CountDownLatch(2);
@@ -235,6 +242,12 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                 public ClusterState execute(ClusterState currentState) {
                     var initializing = RoutingNodesHelper.shardsWithState(currentState.getRoutingNodes(), INITIALIZING);
                     var initialized = randomSubsetOf(initializing);
+                    for (ShardRouting shardRouting : initialized) {
+                        if (shardRouting.relocatingNodeId() != null) {
+                            movements.computeIfAbsent(shardRouting.shardId(), k -> new ArrayList<>())
+                                .add(shardRouting.relocatingNodeId() + "-->" + shardRouting.currentNodeId());
+                        }
+                    }
                     return strategy.reroute(
                         strategy.applyStartedShards(currentState, initialized),
                         "start-shards",
@@ -259,6 +272,12 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             logger.info("Starting shards. [{}] remaining", initializing);
 
         } while (initializing > 0);
+
+        for (var entry : movements.entrySet()) {
+            if (entry.getValue().size() > 1) {
+                logger.warn("Shard {} moved too many times: {} after {}", entry.getKey(), entry.getValue(), reason);
+            }
+        }
     }
 
     private static class TestClusterInfoService implements ClusterInfoService {

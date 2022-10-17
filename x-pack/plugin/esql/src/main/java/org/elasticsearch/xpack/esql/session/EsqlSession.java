@@ -13,11 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.analyzer.Analyzer;
 import org.elasticsearch.xpack.esql.analyzer.Verifier;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.physical.Mapper;
-import org.elasticsearch.xpack.esql.plan.physical.Optimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
 public class EsqlSession {
 
@@ -45,7 +45,7 @@ public class EsqlSession {
     private final LogicalPlanOptimizer logicalPlanOptimizer;
 
     private final Mapper mapper;
-    private final Optimizer physicalOptimizer;
+    private final PhysicalPlanOptimizer physicalPlanOptimizer;
 
     public EsqlSession(
         EsqlConfiguration configuration,
@@ -63,34 +63,18 @@ public class EsqlSession {
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
-        this.physicalOptimizer = new Optimizer(configuration);
+        this.physicalPlanOptimizer = new PhysicalPlanOptimizer(configuration);
     }
 
     public void execute(String query, ActionListener<PhysicalPlan> listener) {
-        LogicalPlan parsed;
         LOGGER.debug("ESQL query:\n{}", query);
-        try {
-            parsed = parse(query);
-            LOGGER.debug("Parsed logical plan:\n{}", parsed);
-        } catch (ParsingException pe) {
-            listener.onFailure(pe);
-            return;
-        }
-
-        analyzedPlan(parsed, ActionListener.wrap(plan -> {
-            LOGGER.debug("Analyzed plan:\n{}", plan);
-            var optimizedPlan = logicalPlanOptimizer.optimize(plan);
-            LOGGER.debug("Optimized logical plan:\n{}", optimizedPlan);
-            var physicalPlan = mapper.map(plan);
-            LOGGER.debug("Physical plan:\n{}", physicalPlan);
-            physicalPlan = physicalOptimizer.optimize(physicalPlan);
-            LOGGER.debug("Optimized physical plan:\n{}", physicalPlan);
-            listener.onResponse(physicalPlan);
-        }, listener::onFailure));
+        optimizedPhysicalPlan(parse(query), listener);
     }
 
     private LogicalPlan parse(String query) {
-        return new EsqlParser().createStatement(query);
+        var parsed = new EsqlParser().createStatement(query);
+        LOGGER.debug("Parsed logical plan:\n{}", parsed);
+        return parsed;
     }
 
     public void analyzedPlan(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
@@ -101,7 +85,9 @@ public class EsqlSession {
 
         preAnalyze(parsed, r -> {
             Analyzer analyzer = new Analyzer(r, functionRegistry, verifier, configuration);
-            return analyzer.analyze(parsed);
+            var plan = analyzer.analyze(parsed);
+            LOGGER.debug("Analyzed plan:\n{}", plan);
+            return plan;
         }, listener);
     }
 
@@ -129,5 +115,29 @@ public class EsqlSession {
                 listener.onFailure(ex);
             }
         }
+    }
+
+    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
+        analyzedPlan(logicalPlan, map(listener, p -> {
+            var plan = logicalPlanOptimizer.optimize(p);
+            LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
+            return plan;
+        }));
+    }
+
+    public void physicalPlan(LogicalPlan optimized, ActionListener<PhysicalPlan> listener) {
+        optimizedPlan(optimized, map(listener, p -> {
+            var plan = mapper.map(p);
+            LOGGER.debug("Physical plan:\n{}", plan);
+            return plan;
+        }));
+    }
+
+    public void optimizedPhysicalPlan(LogicalPlan logicalPlan, ActionListener<PhysicalPlan> listener) {
+        physicalPlan(logicalPlan, map(listener, p -> {
+            var plan = physicalPlanOptimizer.optimize(p);
+            LOGGER.debug("Optimized physical plan:\n{}", plan);
+            return plan;
+        }));
     }
 }

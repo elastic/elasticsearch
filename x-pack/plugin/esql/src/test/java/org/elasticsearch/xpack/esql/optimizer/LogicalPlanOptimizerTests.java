@@ -8,14 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
-import org.elasticsearch.xpack.esql.session.EmptyExecutable;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ql.TestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class LogicalPlanOptimizerTests extends ESTestCase {
@@ -42,18 +38,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
             plan = new Limit(EMPTY, L(value), plan);
         }
-        assertEquals(new Limit(EMPTY, L(minimum), emptySource()), optimizer().optimize(plan));
-    }
-
-    private static Literal L(Object value) {
-        return of(value);
-    }
-
-    private static LogicalPlan emptySource() {
-        return new LocalRelation(EMPTY, new EmptyExecutable(emptyList()));
-    }
-
-    private static LogicalPlanOptimizer optimizer() {
-        return new LogicalPlanOptimizer();
+        assertEquals(new Limit(EMPTY, L(minimum), emptySource()), new LogicalPlanOptimizer().optimize(plan));
     }
 }

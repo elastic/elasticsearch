@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.physical;
+package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -35,6 +35,15 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RowExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -201,17 +210,19 @@ public class LocalExecutionPlanner {
             Map<Object, Integer> layout = new HashMap<>();
             layout.putAll(source.layout);
 
+            var souceAttributes = fieldExtractExec.sourceAttributes().toArray(new Attribute[3]);
+
             PhysicalOperation op = source;
-            for (Attribute attr : fieldExtractExec.getAttrs()) {
+            for (Attribute attr : fieldExtractExec.attributesToExtract()) {
                 layout = new HashMap<>(layout);
                 layout.put(attr.id(), layout.size());
                 Map<Object, Integer> previousLayout = op.layout;
                 op = new PhysicalOperation(
                     () -> new NumericDocValuesExtractor(
                         indexReaders.stream().map(IndexReaderReference::indexReader).collect(Collectors.toList()),
-                        previousLayout.get(fieldExtractExec.getEsQueryAttrs().get(0).id()),
-                        previousLayout.get(fieldExtractExec.getEsQueryAttrs().get(1).id()),
-                        previousLayout.get(fieldExtractExec.getEsQueryAttrs().get(2).id()),
+                        previousLayout.get(souceAttributes[0].id()),
+                        previousLayout.get(souceAttributes[1].id()),
+                        previousLayout.get(souceAttributes[2].id()),
                         attr.name()
                     ),
                     layout,

@@ -12,7 +12,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettings;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
 
@@ -45,7 +47,9 @@ class OrganicQueryRewriter extends AbstractQueryRewriter<RelevanceSettings> {
 
     public QueryBuilder rewriteQuery(RelevanceMatchQueryBuilder relevanceMatchQuery, SearchExecutionContext context) {
         Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(relevanceMatchQuery, context);
-        return new CombinedFieldsQueryBuilder(relevanceMatchQuery.getQuery(), fieldsAndBoosts);
+        QueryBuilder queryBuilder = new CombinedFieldsQueryBuilder(relevanceMatchQuery.getQuery(), fieldsAndBoosts);
+        queryBuilder = applyScriptScoring(relevanceMatchQuery, context, queryBuilder);
+        return queryBuilder;
     }
 
     @Override
@@ -56,6 +60,21 @@ class OrganicQueryRewriter extends AbstractQueryRewriter<RelevanceSettings> {
     @Override
     protected String getSettingsId(RelevanceMatchQueryBuilder relevanceMatchQuery) {
         return relevanceMatchQuery.getRelevanceSettingsId();
+    }
+
+    private QueryBuilder applyScriptScoring(
+        RelevanceMatchQueryBuilder relevanceMatchQuery,
+        SearchExecutionContext context,
+        QueryBuilder queryBuilder
+    ) {
+        RelevanceSettings relevanceSettings = this.getSettings(relevanceMatchQuery, context);
+        if (relevanceSettings != null) {
+            String scriptSource = relevanceSettings.getQueryConfiguration().getScriptSource();
+            if (scriptSource != null) {
+                return QueryBuilders.scriptScoreQuery(queryBuilder, new Script(scriptSource));
+            }
+        }
+        return queryBuilder;
     }
 
     private Map<String, Float> retrieveFieldsAndBoosts(RelevanceMatchQueryBuilder relevanceMatchQuery, SearchExecutionContext context) {

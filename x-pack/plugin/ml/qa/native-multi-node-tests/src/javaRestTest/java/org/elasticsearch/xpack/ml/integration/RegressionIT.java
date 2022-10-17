@@ -652,7 +652,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(
             Strings.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
             meanPredictionError,
-            lessThanOrEqualTo(20.0)
+            lessThanOrEqualTo(3.0)
         );
 
         assertProgressComplete(jobId);

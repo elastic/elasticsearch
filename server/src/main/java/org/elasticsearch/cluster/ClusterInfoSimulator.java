@@ -31,6 +31,13 @@ public class ClusterInfoSimulator {
         this.dataPath = new HashMap<>(clusterInfo.dataPath);
     }
 
+    /**
+     * This method updates disk usage to reflect shard relocations and new replica initialization.
+     * In case of a single data path both mostAvailableSpaceUsage and leastAvailableSpaceUsage are update to reflect the change.
+     * In case of multiple data path only mostAvailableSpaceUsage as it is used to allocate new shards.
+     * This assumes the worst case (all shards are placed on a single disk) and prevents node overflow.
+     * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
+     */
     public void simulate(ShardRouting shard) {
         assert shard.initializing();
 

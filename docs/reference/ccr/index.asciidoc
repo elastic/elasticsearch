@@ -322,7 +322,6 @@ currently replicate any of the following:
 * <<snapshots-register-repository,Snapshot repository settings>>
 * <<modules-cluster,Cluster settings>>
 * <<searchable-snapshots,Searchable snapshot>>
-* <<restore-index-data-stream,Restored indices>>
 
 If you want to replicate any of this data, you must replicate it to a remote
 cluster manually. 

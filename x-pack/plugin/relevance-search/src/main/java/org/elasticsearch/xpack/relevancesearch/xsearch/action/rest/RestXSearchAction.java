@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
 import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
+import org.elasticsearch.xpack.relevancesearch.xsearch.analytics.XSearchAnalyticsService;
 
 import java.io.IOException;
 import java.util.Collections;

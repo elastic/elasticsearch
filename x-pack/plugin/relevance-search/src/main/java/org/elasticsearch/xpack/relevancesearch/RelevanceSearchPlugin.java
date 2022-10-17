@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
 import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
-import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchAnalyticsService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchTransportAction;

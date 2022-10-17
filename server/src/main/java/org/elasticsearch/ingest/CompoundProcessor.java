@@ -152,7 +152,8 @@ public class CompoundProcessor implements Processor {
         innerExecute(0, ingestDocument, handler);
     }
 
-    void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+    void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
+        assert currentProcessor <= processorsWithMetrics.size();
         if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
             return;
@@ -187,10 +188,11 @@ public class CompoundProcessor implements Processor {
             currentProcessor++;
         }
 
-        if (currentProcessor >= processorsWithMetrics.size()) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
         } else {
-            final int finalCurrentProcessor = currentProcessor + 1;
+            final int finalCurrentProcessor = currentProcessor;
             final int nextProcessor = currentProcessor + 1;
             final long finalStartTimeInNanos = startTimeInNanos;
             final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
@@ -233,7 +235,7 @@ public class CompoundProcessor implements Processor {
                 } else {
                     finalMetric.postIngest(ingestTimeInNanos);
                 }
-                executeOnFailureOuter(currentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
+                executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
             }
         }
     }

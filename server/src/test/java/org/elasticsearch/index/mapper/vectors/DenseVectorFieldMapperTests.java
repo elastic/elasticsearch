@@ -533,6 +533,102 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("[dense_vector] fields cannot be indexed if they're within [nested] mappings"));
     }
 
+    public void testByteVectorIndexBoundaries() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("element_type", "byte")
+                    .field("dims", 3)
+                    .field("index", true)
+                    .field("similarity", VectorSimilarity.cosine)
+            )
+        );
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", new float[] { 128, 0, 0 })))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "byte element_type vectors only support integers between[-128, 127] but found [128.0] at index [0]; Preview of invalid vector: [128.0, 0.0, 0.0]"
+            )
+        );
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", new float[] { 0.0f, 0.0f, -129.0f })))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "byte element_type vectors only support integers between[-128, 127] but found [-129.0] at index [2]; Preview of invalid vector: [0.0, 0.0, -129.0]"
+            )
+        );
+
+    }
+
+    public void testByteVectorQueryBoundaries() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("element_type", "byte");
+            b.field("dims", 3);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "hnsw");
+            b.field("m", 3);
+            b.field("ef_construction", 10);
+            b.endObject();
+        }));
+
+        DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) mapperService.fieldType("field");
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 128, 0, 0 }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "byte element_type vectors only support integers between[-128, 127] but found [128.0] at index [0]; Preview of invalid vector: [128.0, 0.0, 0.0]"
+            )
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0f, -129.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "byte element_type vectors only support integers between[-128, 127] but found [-129.0] at index [2]; Preview of invalid vector: [0.0, 0.0, -129.0]"
+            )
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0.5f, 0.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "byte element_type vectors only support integers between[-128, 127] but found [0.5] at index [1]; Preview of invalid vector: [0.0, 0.5, 0.0]"
+            )
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, 0.0f, -0.25f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "byte element_type vectors only support integers between[-128, 127] but found [-0.25] at index [2]; Preview of invalid vector: [0.0, 0.0, -0.25]"
+            )
+        );
+    }
+
     public void testKnnVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);

@@ -52,7 +52,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -278,14 +277,11 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         assertTrue(blockIndexWrites(SOURCE_INDEX_NAME));
 
         logger.info(
-            String.format(
-                Locale.ROOT,
-                "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
-                testCluster.size(),
-                testCluster.masterName(),
-                testCluster.coordinatorName(),
-                testCluster.workerName()
-            )
+            "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
+            testCluster.size(),
+            testCluster.masterName(),
+            testCluster.coordinatorName(),
+            testCluster.workerName()
         );
 
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
@@ -323,14 +319,11 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
         final MockTransportService coordinator = testCluster.coordinatorMockTransportService();
         logger.info(
-            String.format(
-                Locale.ROOT,
-                "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
-                testCluster.size(),
-                testCluster.masterName(),
-                testCluster.coordinatorName(),
-                testCluster.workerName()
-            )
+            "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
+            testCluster.size(),
+            testCluster.masterName(),
+            testCluster.coordinatorName(),
+            testCluster.workerName()
         );
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
@@ -380,14 +373,11 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
         final MockTransportService master = testCluster.masterMockTransportService();
         logger.info(
-            String.format(
-                Locale.ROOT,
-                "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
-                testCluster.size(),
-                testCluster.masterName(),
-                testCluster.coordinatorName(),
-                testCluster.workerName()
-            )
+            "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
+            testCluster.size(),
+            testCluster.masterName(),
+            testCluster.coordinatorName(),
+            testCluster.workerName()
         );
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,

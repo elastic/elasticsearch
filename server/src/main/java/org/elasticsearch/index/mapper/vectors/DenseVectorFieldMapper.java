@@ -210,19 +210,31 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 for (int index = 0; index < vector.length; ++index) {
                     float value = vector[index];
-                    double floor = Math.floor(value);
 
-                    if (value - floor > 1e-4 || value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+                    if (value % 1.0f != 0.0f) {
                         errorBuilder = new StringBuilder(
-                            this
-                                + " element_type vectors only support integers between"
+                            "element_type ["
+                                + this
+                                + "] vectors only support non-decimal values "
+                                + "but found decimal value ["
+                                + value
+                                + "] at dim ["
+                                + index
+                                + "];"
+                        );
+                    }
+                    if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+                        errorBuilder = new StringBuilder(
+                            "element_type ["
+                                + this
+                                + "] vectors only support integers between "
                                 + "["
                                 + Byte.MIN_VALUE
                                 + ", "
                                 + Byte.MAX_VALUE
                                 + "] but found ["
                                 + value
-                                + "] at index ["
+                                + "] at dim ["
                                 + index
                                 + "];"
                         );

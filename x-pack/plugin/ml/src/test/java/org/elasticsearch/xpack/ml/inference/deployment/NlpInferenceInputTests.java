@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.nlp;
+package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
@@ -14,11 +14,12 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NlpTaskTests extends ESTestCase {
+public class NlpInferenceInputTests extends ESTestCase {
 
     public void testExtractInput_GivenValidField() {
         String fieldName = randomAlphaOfLength(7);
@@ -26,7 +27,7 @@ public class NlpTaskTests extends ESTestCase {
         doc.put(fieldName, "value");
         doc.put("some other field", "some_other_value");
 
-        String input = NlpTask.extractInput(new TrainedModelInput(Collections.singletonList(fieldName)), doc);
+        String input = NlpInferenceInput.fromDoc(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)));
 
         assertThat(input, equalTo("value"));
     }
@@ -38,7 +39,7 @@ public class NlpTaskTests extends ESTestCase {
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> NlpTask.extractInput(new TrainedModelInput(Collections.singletonList(fieldName)), doc)
+            () -> NlpInferenceInput.fromDoc(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)))
         );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -53,10 +54,16 @@ public class NlpTaskTests extends ESTestCase {
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> NlpTask.extractInput(new TrainedModelInput(Collections.singletonList(fieldName)), doc)
+            () -> NlpInferenceInput.fromDoc(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)))
         );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Input value [42] for field [" + fieldName + "] must be a string"));
+    }
+
+    public void testExtractInput_GivenSimpleText() {
+        var input = NlpInferenceInput.fromText("foobar");
+        assertTrue(input.isTextInput());
+        assertEquals("foobar", input.extractInput(new TrainedModelInput(List.of())));
     }
 }

@@ -15,13 +15,14 @@ import org.hamcrest.Matchers
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Type
 
-import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.stream.Collectors
 import java.util.stream.Stream
 
 import static org.hamcrest.MatcherAssert.assertThat
 
 class ClassScannerSpec extends Specification {
+    static final System.Logger logger = System.getLogger(ClassScannerSpec.class.getName())
     def "class and interface hierarchy is scanned"() {
         given:
         def reader = new ClassScanner(
@@ -31,6 +32,7 @@ class ClassScannerSpec extends Specification {
         }
         )
         Stream<ClassReader> classReaderStream = ofClassPath()
+        logger.log(System.Logger.Level.INFO, "classReaderStream size "+ofClassPath().collect(Collectors.toList()).size())
 
         when:
         reader.visit(classReaderStream);
@@ -58,12 +60,16 @@ class ClassScannerSpec extends Specification {
 
     static Stream<ClassReader> ofClassPath() throws IOException {
         String classpath = System.getProperty("java.class.path");
+        logger.log(System.Logger.Level.INFO, "classpath "+classpath);
         return ofClassPath(classpath);
     }
 
     static Stream<ClassReader> ofClassPath(String classpath) {
         if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
-            String[] pathelements = classpath.split(":");
+            def classpathSeparator = System.getProperty("path.separator")
+            logger.log(System.Logger.Level.INFO, "classpathSeparator "+classpathSeparator);
+
+            String[] pathelements = classpath.split(classpathSeparator);
             return ClassReaders.ofPaths(Arrays.stream(pathelements).map(Paths::get));
         }
         return Stream.empty();

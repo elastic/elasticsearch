@@ -23,7 +23,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -44,13 +44,14 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -63,12 +64,12 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -77,7 +78,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.function.Supplier;
+import java.util.List;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -547,7 +549,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String superfastRegexes[] = { ".*", "(foo|bar|.*)", "@" };
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
-            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
+            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof FieldExistsQuery);
         }
         String matchNoDocsRegexes[] = { "" };
         for (String regex : matchNoDocsRegexes) {
@@ -586,7 +588,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             "@&~(abc.+)",
             "aaa.+&.+bbb",
             "a*",
-            "...*.." };
+            "...*..",
+            "\\w",
+            "\\W",
+            "\\s",
+            "\\S",
+            "\\d",
+            "\\D" };
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
@@ -602,7 +610,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String suboptimalTests[][] = {
             // TODO short wildcards like a* OR b* aren't great so we just drop them.
             // Ideally we would attach to successors to create (acd OR bcd)
-            { "[ab]cd", "+(+cc_ +c__) +*:*" } };
+            { "[ab]cd", "+cc_ +c__" } };
         for (String[] test : suboptimalTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
@@ -626,7 +634,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             assertTrue(
                 pattern + " was not a pure match all query " + formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof DocValuesFieldExistsQuery
+                wildcardFieldQuery instanceof FieldExistsQuery
             );
         }
 
@@ -1074,11 +1082,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new SearchExecutionContext(
@@ -1204,4 +1209,78 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected boolean dedupAfterFetch() {
         return true;
     }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
+        return new WildcardSyntheticSourceSupport();
+    }
+
+    static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
+        private final boolean allIgnored = ignoreAbove != null && rarely();
+        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) {
+            if (randomBoolean()) {
+                Tuple<String, String> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> docValuesValues = new ArrayList<>();
+            List<String> outExtraValues = new ArrayList<>();
+            values.stream().map(Tuple::v2).forEach(v -> {
+                if (ignoreAbove != null && v.length() > ignoreAbove) {
+                    outExtraValues.add(v);
+                } else {
+                    docValuesValues.add(v);
+                }
+            });
+            List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
+            Collections.sort(outList);
+            outList.addAll(outExtraValues);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<String, String> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            int length = 5;
+            if (ignoreAbove != null && (allIgnored || randomBoolean())) {
+                length = ignoreAbove + 5;
+            }
+            String v = randomAlphaOfLength(length);
+            return Tuple.tuple(v, v);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "wildcard");
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            if (ignoreAbove != null) {
+                b.field("ignore_above", ignoreAbove);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of();
+        }
+    }
+
 }

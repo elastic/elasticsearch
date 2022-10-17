@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 
@@ -17,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.function.Predicate.not;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Helper functions for converting raw maps into documents and determining index mappings
@@ -74,7 +74,7 @@ public class DocumentConversionUtils {
         response.get().forEach((fieldName, capabilitiesMap) -> {
             // TODO: overwrites types, requires resolve if types are mixed
             capabilitiesMap.forEach((name, capability) -> {
-                logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
+                logger.trace(() -> format("Extracted type for [%s] : [%s]", fieldName, capability.getType()));
                 extractedTypes.put(fieldName, capability.getType());
             });
         });

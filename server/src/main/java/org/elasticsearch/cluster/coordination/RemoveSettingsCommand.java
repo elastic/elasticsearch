@@ -44,7 +44,7 @@ public class RemoveSettingsCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
+    protected void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
         UserException {
         final List<String> settingsToRemove = arguments.values(options);
         if (settingsToRemove.isEmpty()) {

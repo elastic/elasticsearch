@@ -79,7 +79,8 @@ There are several thread pools, but the important ones include:
 
 `force_merge`::
     For <<indices-forcemerge,force merge>> operations.
-    Thread pool type is `fixed` with a size of 1 and an unbounded queue size.
+    Thread pool type is `fixed` with a size of `max(1, (`<<node.processors,
+`# of allocated processors`>>`) / 8)` and an unbounded queue size.
 
 `management`::
     For cluster management.
@@ -176,7 +177,9 @@ thread_pool:
 The number of processors is automatically detected, and the thread pool settings
 are automatically set based on it. In some cases it can be useful to override
 the number of detected processors. This can be done by explicitly setting the
-`node.processors` setting.
+`node.processors` setting. This setting accepts floating point numbers, this
+can be useful in environments where the Elasticsearch nodes are configured
+to run with CPU limits, such as cpu shares or quota under `Cgroups`.
 
 [source,yaml]
 --------------------------------------------------

@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -30,7 +31,7 @@ public abstract class InternalMultiValueAggregation extends InternalAggregation 
     }
 
     @Override
-    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public final SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         throw new IllegalArgumentException("Metrics aggregations cannot have sub-aggregations (at [>" + head + "]");
     }
 }

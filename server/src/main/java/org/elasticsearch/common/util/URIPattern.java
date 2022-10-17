@@ -69,7 +69,7 @@ public class URIPattern {
         }
     }
 
-    private boolean match(String pattern, String value) {
+    private static boolean match(String pattern, String value) {
         if (value == null) {
             // If the pattern is empty or matches anything - it's a match
             if (pattern == null || Regex.isMatchAllPattern(pattern)) {

@@ -10,8 +10,9 @@ Executes another pipeline.
 .Pipeline Options
 [options="header"]
 |======
-| Name             | Required  | Default  | Description
-| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<template-snippets,template snippets>>.
+| Name                      | Required  | Default  | Description
+| `name`                    | yes       | -        | The name of the pipeline to execute. Supports <<template-snippets,template snippets>>.
+| `ignore_missing_pipeline` | no        | false    | Whether to ignore missing pipelines instead of failing.
 include::common-options.asciidoc[]
 |======
 

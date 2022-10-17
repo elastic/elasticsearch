@@ -245,7 +245,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             return builder.endObject();
         }
 
-        private boolean nonEmpty(String[] grantedFields) {
+        private static boolean nonEmpty(String[] grantedFields) {
             return grantedFields != null && grantedFields.length != 0;
         }
 

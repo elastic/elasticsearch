@@ -1,0 +1,6 @@
+pr: 89219
+summary: Adding a check to the master stability health API when there is no master
+  and the current node is not master eligible
+area: Health
+type: enhancement
+issues: []

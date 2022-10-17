@@ -33,6 +33,11 @@ To do this, configure the `thread_pool.force_merge.size` <<cluster-get-settings,
 
 IMPORTANT: This can have cascading performance impacts. 
 Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.
+
+Force merging will be performed by the nodes within the current phase of the index. A forcemerge in
+the `hot` phase will use hot nodes with potentially faster nodes, while impacting ingestion more. A
+forcemerge in the `warm` phase will use warm nodes and potentially take longer to perform, but
+without impacting ingestion in the `hot` tier.
 ****
 
 

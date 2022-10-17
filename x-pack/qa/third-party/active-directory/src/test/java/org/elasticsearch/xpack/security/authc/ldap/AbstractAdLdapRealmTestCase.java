@@ -25,7 +25,8 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
-import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -296,8 +297,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     private void authenticateUser(Client client, String username, int retryCount) {
         for (int i = 1; i <= retryCount; i++) {
             try {
-                final AuthenticateResponse response = new AuthenticateRequestBuilder(client).username(username)
-                    .execute()
+                final AuthenticateResponse response = client.execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
                     .actionGet(10, TimeUnit.SECONDS);
                 assertThat(response.authentication().getUser().principal(), is(username));
                 return;

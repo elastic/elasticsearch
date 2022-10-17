@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
@@ -63,7 +62,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             try {
                 client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("error cleaning up pipeline [{}]", pipeline), ex);
+                logger.warn(() -> "error cleaning up pipeline [" + pipeline + "]", ex);
             }
         }
         // Some of the tests have async side effects. We need to wait for these to complete before continuing
@@ -210,7 +209,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
     }
 
     private void putTrainedModelIngestPipeline(String pipelineId, String modelId) throws Exception {
-        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray("""
+        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray(formatted("""
             {
                 "processors": [
                   {
@@ -221,7 +220,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
                     }
                   }
                 ]
-              }""".formatted(modelId)), XContentType.JSON)).actionGet();
+              }""", modelId)), XContentType.JSON)).actionGet();
     }
 
 }

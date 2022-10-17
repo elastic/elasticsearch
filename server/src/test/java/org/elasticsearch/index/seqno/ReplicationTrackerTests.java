@@ -1033,7 +1033,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final AllocationId allocationId) {
         final String nodeId = nodeIdFromAllocationId(allocationId);
         if (tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)) == false) {
-            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.noop());
         }
     }
 
@@ -1153,7 +1153,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         IndexShardRoutingTable.Builder routingTableBuilder = new IndexShardRoutingTable.Builder(routingTable);
         for (ShardRouting replicaShard : routingTable.replicaShards()) {
             routingTableBuilder.removeShard(replicaShard);
-            routingTableBuilder.addShard(replicaShard.moveToStarted());
+            routingTableBuilder.addShard(replicaShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         }
         routingTable = routingTableBuilder.build();
         activeAllocationIds.addAll(initializingAllocationIds);
@@ -1167,7 +1167,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 equalTo(expectedLeaseIds)
             );
             // ... and any extra peer recovery retention leases are expired immediately since the shard is fully active
-            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.noop());
         });
 
         tracker.renewPeerRecoveryRetentionLeases();

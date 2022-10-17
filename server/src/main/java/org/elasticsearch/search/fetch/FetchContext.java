@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -23,7 +24,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -36,6 +37,7 @@ public class FetchContext {
 
     private final SearchContext searchContext;
     private final SearchLookup searchLookup;
+    private final SourceLoader sourceLoader;
 
     /**
      * Create a FetchContext based on a SearchContext
@@ -43,6 +45,7 @@ public class FetchContext {
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
         this.searchLookup = searchContext.getSearchExecutionContext().lookup();
+        this.sourceLoader = searchContext.newSourceLoader();
     }
 
     /**
@@ -204,20 +207,27 @@ public class FetchContext {
     }
 
     /**
+     * Loads source {@code _source} during a GET or {@code _search}.
+     */
+    public SourceLoader sourceLoader() {
+        return sourceLoader;
+    }
+
+    /**
      * For a hit document that's being processed, return the source lookup representing the
      * root document. This method is used to pass down the root source when processing this
      * document's nested inner hits.
      *
      * @param hitContext The context of the hit that's being processed.
      */
-    public SourceLookup getRootSourceLookup(FetchSubPhase.HitContext hitContext) {
+    public Source getRootSource(FetchSubPhase.HitContext hitContext) {
         // Usually the root source simply belongs to the hit we're processing. But if
         // there are multiple layers of inner hits and we're in a nested context, then
         // the root source is found on the inner hits context.
         if (searchContext instanceof InnerHitSubContext innerHitsContext && hitContext.hit().getNestedIdentity() != null) {
             return innerHitsContext.getRootLookup();
         } else {
-            return hitContext.sourceLookup();
+            return hitContext.source();
         }
     }
 }

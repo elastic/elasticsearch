@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResultHandler;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -58,7 +57,7 @@ public class Normalizer {
             try {
                 resultsHandler.process();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error reading normalizer results", new Object[] { jobId }), e);
+                LOGGER.error(() -> "[" + new Object[] { jobId } + "] Error reading normalizer results", e);
             }
         });
 
@@ -94,7 +93,7 @@ public class Normalizer {
             resultsHandlerFuture.get();
             mergeNormalizedScoresIntoResults(resultsHandler.getNormalizedResults(), results);
         } catch (ExecutionException e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Error processing normalizer results", new Object[] { jobId }), e);
+            LOGGER.error(() -> "[" + new Object[] { jobId } + "] Error processing normalizer results", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -105,12 +104,12 @@ public class Normalizer {
             process.writeRecord(
                 new String[] {
                     normalizable.getLevel().asString(),
-                    Strings.coalesceToEmpty(normalizable.getPartitionFieldName()),
-                    Strings.coalesceToEmpty(normalizable.getPartitionFieldValue()),
-                    Strings.coalesceToEmpty(normalizable.getPersonFieldName()),
-                    Strings.coalesceToEmpty(normalizable.getPersonFieldValue()),
-                    Strings.coalesceToEmpty(normalizable.getFunctionName()),
-                    Strings.coalesceToEmpty(normalizable.getValueFieldName()),
+                    Objects.requireNonNullElse(normalizable.getPartitionFieldName(), ""),
+                    Objects.requireNonNullElse(normalizable.getPartitionFieldValue(), ""),
+                    Objects.requireNonNullElse(normalizable.getPersonFieldName(), ""),
+                    Objects.requireNonNullElse(normalizable.getPersonFieldValue(), ""),
+                    Objects.requireNonNullElse(normalizable.getFunctionName(), ""),
+                    Objects.requireNonNullElse(normalizable.getValueFieldName(), ""),
                     Double.toString(normalizable.getProbability()),
                     Double.toString(normalizable.getNormalizedScore()) }
             );

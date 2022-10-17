@@ -1,5 +1,0 @@
-pr: 84697
-summary: Don't fail if there no symlink for AWS Web Identity Token
-area: Snapshot/Restore
-type: bug
-issues: []

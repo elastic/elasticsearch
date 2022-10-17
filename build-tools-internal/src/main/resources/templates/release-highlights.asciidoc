@@ -34,6 +34,8 @@ if (notableHighlights.isEmpty()) { %>
 [[${ highlight.anchor }]]
 === ${highlight.title}
 ${highlight.body.trim()}
+
+{es-pull}${highlight.pr}[#${highlight.pr}]
 <% } %>
 // end::notable-highlights[]
 <% } %>
@@ -42,4 +44,6 @@ ${highlight.body.trim()}
 [[${ highlight.anchor }]]
 === ${highlight.title}
 ${highlight.body.trim()}
+
+{es-pull}${highlight.pr}[#${highlight.pr}]
 <% } %>

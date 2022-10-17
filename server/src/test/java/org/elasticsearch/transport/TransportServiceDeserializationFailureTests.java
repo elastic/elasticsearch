@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -26,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -126,6 +128,11 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 @Override
                 public TaskId getParentTask() {
                     return TaskId.EMPTY_TASK_ID;
+                }
+
+                @Override
+                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                    return new CancellableTask(id, type, action, "", parentTaskId, headers);
                 }
             });
 

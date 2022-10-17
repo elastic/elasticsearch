@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.comparators.TermOrdValComparator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
@@ -73,7 +74,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
         final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
-            return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
+            return new TermOrdValComparator(numHits, null, sortMissingLast, reversed, false) {
 
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
@@ -94,11 +95,6 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     } else {
                         return new ReplaceMissing(selectedValues, missingBytes);
                     }
-                }
-
-                @Override
-                public void setScorer(Scorable scorer) {
-                    BytesRefFieldComparatorSource.this.setScorer(scorer);
                 }
 
             };

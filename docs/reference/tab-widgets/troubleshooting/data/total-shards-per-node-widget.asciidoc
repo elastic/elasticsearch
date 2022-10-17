@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Total shards per node">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-total-shards"
+            id="cloud-total-shards">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-total-shards"
+            id="self-managed-total-shards"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-total-shards"
+       aria-labelledby="cloud-total-shards">
+++++
+
+include::total-shards-per-node.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-total-shards"
+       aria-labelledby="self-managed-total-shards"
+       hidden="">
+++++
+
+include::total-shards-per-node.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

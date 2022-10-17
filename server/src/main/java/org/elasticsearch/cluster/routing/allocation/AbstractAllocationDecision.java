@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,7 +39,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
 
     protected AbstractAllocationDecision(StreamInput in) throws IOException {
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
-        nodeDecisions = in.readBoolean() ? Collections.unmodifiableList(in.readList(NodeAllocationResult::new)) : null;
+        nodeDecisions = in.readBoolean() ? in.readImmutableList(NodeAllocationResult::new) : null;
     }
 
     /**
@@ -117,7 +116,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
     /**
      * Sorts a list of node level decisions by the decision type, then by weight ranking, and finally by node id.
      */
-    public List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
+    public static List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
         return nodeDecisions.stream().sorted().toList();
     }
 
@@ -125,7 +124,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
      * Generates X-Content for the node-level decisions, creating the outer "node_decisions" object
      * in which they are serialized.
      */
-    public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
+    public static XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
 
         if (nodeDecisions != null && nodeDecisions.isEmpty() == false) {

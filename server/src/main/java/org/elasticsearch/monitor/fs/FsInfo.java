@@ -13,13 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -93,7 +93,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return new ByteSizeValue(available);
         }
 
-        private long addLong(long current, long other) {
+        private static long addLong(long current, long other) {
             if (current == -1 && other == -1) {
                 return 0;
             }
@@ -257,6 +257,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(previousSectorsWritten);
             out.writeLong(currentIOTime);
             out.writeLong(previousIOTime);
+        }
+
+        public String getDeviceName() {
+            return deviceName;
         }
 
         public long operations() {
@@ -461,10 +465,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(ioStats);
-        out.writeVInt(paths.length);
-        for (Path path : paths) {
-            path.writeTo(out);
-        }
+        out.writeArray(paths);
     }
 
     public Path getTotal() {
@@ -473,7 +474,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
     private Path total() {
         Path res = new Path();
-        Set<String> seenDevices = new HashSet<>(paths.length);
+        Set<String> seenDevices = Sets.newHashSetWithExpectedSize(paths.length);
         for (Path subPath : paths) {
             if (subPath.path != null) {
                 if (seenDevices.add(subPath.path) == false) {

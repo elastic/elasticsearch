@@ -76,7 +76,7 @@ generates a consistent id:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: cZZNs4NdV58ePSPI8-3SGXkBAAA}
+  - match: {items.0.index._id: cZZNs4NdV58ePSPIAAABeRnS7fM}
 
   - do:
       bulk:
@@ -85,7 +85,7 @@ generates a consistent id:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: cZZNs4NdV58ePSPI8-3SGXkBAAA}
+  - match: {items.0.index._id: cZZNs4NdV58ePSPIAAABeRnS7fM}
 
 ---
 index a new document on top of an old one:
@@ -124,7 +124,7 @@ index a new document on top of an old one:
               network:
                 tx: 111434595272
                 rx: 430605511
-  - match: {_id: cn4exTOUtxytuLkQZv7RGXkBAAA}
+  - match: {_id: cn4exTOUtxytuLkQAAABeRnR_mY}
 
   - do:
       search:
@@ -169,7 +169,7 @@ index a new document on top of an old one over bulk:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: {items.0.index._id: cn4exTOUtxytuLkQZv7RGXkBAAA}
+  - match: {items.0.index._id: cn4exTOUtxytuLkQAAABeRnR_mY}
 
   - do:
       search:
@@ -193,7 +193,7 @@ create operation on top of old document fails:
       reason: id generation changed in 8.2
 
   - do:
-      catch: "/\\[cn4exTOUtxytuLkQZv7RGXkBAAA\\]\\[\\{.+\\}\\@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
+      catch: "/\\[cn4exTOUtxytuLkQAAABeRnR_mY\\]\\[\\{.+\\}\\@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
       index:
         refresh: true
         index: test
@@ -222,7 +222,7 @@ create operation on top of old document fails over bulk:
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQZv7RGXkBAAA][{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
 
 ---
 ids query:
@@ -238,12 +238,12 @@ ids query:
             - field: k8s.pod.network.tx
           query:
             ids:
-              values: ["cn4exTOUtxytuLkQZv7RGXkBAAA", "cZZNs4NdV58ePSPIkwPSGXkBAAA"]
+              values: ["cn4exTOUtxytuLkQAAABeRnR_mY", "cZZNs4NdV58ePSPIAAABeRnSA5M"]
           sort: ["@timestamp"]
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "cn4exTOUtxytuLkQZv7RGXkBAAA"}
+  - match: {hits.hits.0._id: "cn4exTOUtxytuLkQAAABeRnR_mY"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
-  - match: {hits.hits.1._id: "cZZNs4NdV58ePSPIkwPSGXkBAAA"}
+  - match: {hits.hits.1._id: "cZZNs4NdV58ePSPIAAABeRnSA5M"}
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
 
 ---
@@ -255,9 +255,9 @@ get:
   - do:
       get:
         index:   test
-        id:      cZZNs4NdV58ePSPIkwPSGXkBAAA
+        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
   - match: {_index: test}
-  - match: {_id: cZZNs4NdV58ePSPIkwPSGXkBAAA}
+  - match: {_id: cZZNs4NdV58ePSPIAAABeRnSA5M}
   - match:
       _source:
         "@timestamp": "2021-04-28T18:51:04.467Z"
@@ -293,7 +293,7 @@ get with routing:
       catch: bad_request
       get:
         index:   test
-        id:      cZZNs4NdV58ePSPIkwPSGXkBAAA
+        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
         routing: routing
 
 ---
@@ -305,7 +305,7 @@ delete:
   - do:
       delete:
         index:   test
-        id:      cZZNs4NdV58ePSPIkwPSGXkBAAA
+        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
   - match: {result: deleted}
 
 ---
@@ -341,32 +341,10 @@ delete over _bulk:
 
   - do:
       bulk:
-        refresh: true
-        index: test
-        body:
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
-
-  - do:
-      bulk:
         index:   test
         body:
-          - '{"delete": {"_id": "cn4exTOUtxytuLkQBhTRGXkBAAA"}}'
-          - '{"delete": {"_id": "cZZNs4NdV58ePSPIkwPSGXkBAAA"}}'
+          - '{"delete": {"_id": "cn4exTOUtxytuLkQAAABeRnR_mY"}}'
+          - '{"delete": {"_id": "cZZNs4NdV58ePSPIAAABeRnSA5M"}}'
           - '{"delete": {"_id": "not found ++ not found"}}'
   - match: {items.0.delete.result: deleted}
   - match: {items.1.delete.result: deleted}
@@ -416,7 +394,7 @@ routing_path matches deep object:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": {"baz": {"uid": "uid1"}}}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: OcEOGaxBa0saxogMMxnRGXkBAAA}
+  - match: {items.0.index._id: OcEOGaxBa0saxogMAAABeRnRGTM}
 
 ---
 routing_path matches object:
@@ -457,4 +435,4 @@ routing_path matches object:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"uid": "uid1"}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: 8bgiqUyQKH6n8noAMxnRGXkBAAA}
+  - match: {items.0.index._id: 8bgiqUyQKH6n8noAAAABeRnRGTM}

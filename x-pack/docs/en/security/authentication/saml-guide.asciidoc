@@ -322,7 +322,29 @@ groups:: _(Recommended)_
     If you wish to use your IdP's concept of groups or roles as the basis for a
     user's {es} privileges, you should map them with this attribute.
     The `groups` are passed directly to your
-    <<saml-role-mapping, role mapping rules>>
+    <<saml-role-mapping, role mapping rules>>.
++
+[NOTE]
+====
+Some IdPs are configured to send the `groups` list as a comma-separated string, 
+but {es} can't parse this string into an array of groups. To map this SAML 
+attribute to the `attributes.groups` setting in the {es} realm, a cluster 
+security administrator can use a wildcard when
+<<saml-role-mapping,configuring role mappings>>. While flexible, wildcards are
+less accurate and can match on unwanted patterns. Instead, a cluster security 
+administrator can use a regular expression to create a role mapping rule that 
+matches only a single group. For example, the following regular expression
+matches only on the `elasticsearch-admins` group:
+
+[source,sh]
+----
+/^(.*,)?elasticsearch-admins(,.*)?$/
+----
+
+These regular expressions are based on Lucene’s
+{ref}/regexp-syntax.html[regular expression syntax], and can match more complex 
+patterns. All regular expressions must start and end with a forward slash.
+====
 
 name:: _(Optional)_ The user's full name.
 mail:: _(Optional)_ The user's email address.
@@ -705,10 +727,13 @@ PUT /_security/role_mapping/saml-finance
   "enabled": true,
   "rules": { "all": [
         { "field": { "realm.name": "saml1" } },
-        { "field": { "groups": "finance-team" } }
+        { "field": { "groups": "finance-team" } } <1>
   ] }
 }
 --------------------------------------------------
+<1> The `groups` attribute supports using wildcards (`*`). Refer to the
+<<security-api-put-role-mapping-example,create or update role mappings API>> for 
+more information.
 
 If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use

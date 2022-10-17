@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -47,7 +48,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
     );
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private NodeShutdownAllocationDecider decider = new NodeShutdownAllocationDecider();
+    private final NodeShutdownAllocationDecider decider = new NodeShutdownAllocationDecider();
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
         Arrays.asList(
             decider,
@@ -82,7 +83,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.RESTART
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
@@ -99,7 +100,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE)
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
@@ -113,10 +114,10 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.RESTART
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canRemain(shard, routingNode, allocation);
+        Decision decision = decider.canRemain(null, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(
             decision.getExplanation(),
@@ -130,15 +131,15 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE)
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canRemain(shard, routingNode, allocation);
+        Decision decision = decider.canRemain(null, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
     }
 
-    public void testCannotAutoExpandToRestartingNode() {
+    public void testCanAutoExpandToRestartingNode() {
         ClusterState state = prepareState(
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             SingleNodeShutdownMetadata.Type.RESTART
@@ -147,11 +148,37 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         allocation.debugDecision(true);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(
             decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is preparing to restart, auto-expansion waiting until it is complete")
+            equalTo("node [" + DATA_NODE.getId() + "] is preparing to restart, but will remain in the cluster")
         );
+    }
+
+    public void testCanAutoExpandToNodeIfNoNodesShuttingDown() {
+        ClusterState state = service.reroute(ClusterState.EMPTY_STATE, "initial state");
+
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        allocation.debugDecision(true);
+
+        Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), equalTo("no nodes are shutting down"));
+    }
+
+    public void testCanAutoExpandToNodeThatIsNotShuttingDown() {
+        ClusterState state = prepareState(
+            service.reroute(ClusterState.EMPTY_STATE, "initial state"),
+            randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE),
+            "other-node-id"
+        );
+
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        allocation.debugDecision(true);
+
+        Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), equalTo("this node is not shutting down"));
     }
 
     public void testCannotAutoExpandToRemovingNode() {
@@ -164,13 +191,17 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing for removal from the cluster"));
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
     }
 
     private ClusterState prepareState(ClusterState initialState, SingleNodeShutdownMetadata.Type shutdownType) {
+        return prepareState(initialState, shutdownType, DATA_NODE.getId());
+    }
+
+    private ClusterState prepareState(ClusterState initialState, SingleNodeShutdownMetadata.Type shutdownType, String nodeId) {
         final String targetNodeName = shutdownType == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         final SingleNodeShutdownMetadata nodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
-            .setNodeId(DATA_NODE.getId())
+            .setNodeId(nodeId)
             .setType(shutdownType)
             .setReason(this.getTestName())
             .setStartedAtMillis(1L)

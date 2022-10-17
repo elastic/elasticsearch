@@ -47,7 +47,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
+        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, BatchSummary tasksSummary) {
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
             ((TestExecutor<Object>) batchingKey).execute(updateTasks.stream().map(t -> t.task).toList());
             updateTasks.forEach(updateTask -> updateTask.listener.processed());

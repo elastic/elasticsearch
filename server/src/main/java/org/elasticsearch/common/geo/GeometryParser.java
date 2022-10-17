@@ -84,7 +84,7 @@ public final class GeometryParser {
             parser.nextToken(); // field name
             parser.nextToken(); // field value
             if (isPoint(value)) {
-                GeoPoint point = GeoUtils.parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
+                GeoPoint point = GeoUtils.parseGeoPoint(parser, ignoreZValue);
                 return new Point(point.lon(), point.lat());
             } else {
                 return parse(parser);
@@ -95,7 +95,7 @@ public final class GeometryParser {
         }
     }
 
-    private boolean isPoint(Object value) {
+    private static boolean isPoint(Object value) {
         // can we do this better?
         if (value instanceof Map<?, ?> map) {
             return map.containsKey("lat") && map.containsKey("lon");

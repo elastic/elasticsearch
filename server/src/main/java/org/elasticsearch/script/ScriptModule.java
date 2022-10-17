@@ -48,8 +48,11 @@ public class ScriptModule {
                 ScoreScript.CONTEXT,
                 NumberSortScript.CONTEXT,
                 StringSortScript.CONTEXT,
+                BytesRefSortScript.CONTEXT,
                 TermsSetQueryScript.CONTEXT,
                 UpdateScript.CONTEXT,
+                ReindexScript.CONTEXT,
+                UpdateByQueryScript.CONTEXT,
                 BucketAggregationScript.CONTEXT,
                 BucketAggregationSelectorScript.CONTEXT,
                 SignificantTermsHeuristicScoreScript.CONTEXT,
@@ -65,7 +68,8 @@ public class ScriptModule {
                 ScriptedMetricAggContexts.MapScript.CONTEXT,
                 ScriptedMetricAggContexts.CombineScript.CONTEXT,
                 ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-                IntervalFilterScript.CONTEXT
+                IntervalFilterScript.CONTEXT,
+                DoubleValuesScript.CONTEXT
             ),
             RUNTIME_FIELDS_CONTEXTS.stream()
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
@@ -108,7 +112,7 @@ public class ScriptModule {
     /**
      * Allow the script service to register any settings update handlers on the cluster settings
      */
-    public void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
+    public static void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

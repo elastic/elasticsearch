@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
@@ -57,16 +56,6 @@ public final class LinkedProviderBindingImpl<T> extends BindingImpl<T> implement
     @Override
     public BindingImpl<T> withScoping(Scoping scoping) {
         return new LinkedProviderBindingImpl<>(getSource(), getKey(), scoping, providerKey);
-    }
-
-    @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new LinkedProviderBindingImpl<>(getSource(), key, getScoping(), providerKey);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        getScoping().applyTo(binder.withSource(getSource()).bind(getKey()).toProvider(getProviderKey()));
     }
 
     @Override

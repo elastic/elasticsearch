@@ -556,10 +556,7 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
             out.writeTimeValue(throttledUntil);
-            out.writeVInt(sliceStatuses.size());
-            for (StatusOrException sliceStatus : sliceStatuses) {
-                out.writeOptionalWriteable(sliceStatus);
-            }
+            out.writeCollection(sliceStatuses, StreamOutput::writeOptionalWriteable);
         }
 
         @Override
@@ -851,14 +848,14 @@ public class BulkByScrollTask extends CancellableTask {
             }
         }
 
-        private int checkPositive(int value, String name) {
+        private static int checkPositive(int value, String name) {
             if (value < 0) {
                 throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
             }
             return value;
         }
 
-        private long checkPositive(long value, String name) {
+        private static long checkPositive(long value, String name) {
             if (value < 0) {
                 throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
             }

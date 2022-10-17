@@ -51,6 +51,13 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(ThreadPool.boundedBy(value, min, max), equalTo(value));
     }
 
+    public void testOneEighthAllocatedProcessors() {
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(1), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(4), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(8), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
+    }
+
     public void testAbsoluteTime() throws Exception {
         TestThreadPool threadPool = new TestThreadPool("test");
         try {
@@ -301,6 +308,23 @@ public class ThreadPoolTests extends ESTestCase {
         } finally {
             Loggers.removeAppender(logger, appender);
             appender.stop();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testForceMergeThreadPoolSize() {
+        final int allocatedProcessors = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            final int expectedSize = Math.max(1, allocatedProcessors / 8);
+            ThreadPool.Info info = threadPool.info(ThreadPool.Names.FORCE_MERGE);
+            assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
+            assertThat(info.getMin(), equalTo(expectedSize));
+            assertThat(info.getMax(), equalTo(expectedSize));
+        } finally {
             assertTrue(terminate(threadPool));
         }
     }

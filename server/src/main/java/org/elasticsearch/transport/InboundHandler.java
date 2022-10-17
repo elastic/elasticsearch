@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -26,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
@@ -215,8 +216,8 @@ public class InboundHandler {
                     sendErrorResponse(action, transportChannel, e);
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "could not send error response to handshake received on [{}] using wire format version [{}], closing channel",
+                        () -> format(
+                            "could not send error response to handshake received on [%s] using wire format version [%s], closing channel",
                             channel,
                             header.getVersion()
                         ),
@@ -272,36 +273,39 @@ public class InboundHandler {
                         }
                         final String executor = reg.getExecutor();
                         if (ThreadPool.Names.SAME.equals(executor)) {
-                            try {
-                                reg.processMessageReceived(request, transportChannel);
-                            } catch (Exception e) {
-                                sendErrorResponse(reg.getAction(), transportChannel, e);
+                            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                                try {
+                                    reg.processMessageReceived(request, transportChannel);
+                                } catch (Exception e) {
+                                    sendErrorResponse(reg.getAction(), transportChannel, e);
+                                }
                             }
                         } else {
                             boolean success = false;
                             request.incRef();
                             try {
-                                threadPool.executor(executor).execute(new AbstractRunnable() {
-                                    @Override
-                                    protected void doRun() throws Exception {
-                                        reg.processMessageReceived(request, transportChannel);
-                                    }
+                                threadPool.executor(executor)
+                                    .execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            reg.processMessageReceived(request, transportChannel);
+                                        }
 
-                                    @Override
-                                    public boolean isForceExecution() {
-                                        return reg.isForceExecution();
-                                    }
+                                        @Override
+                                        public boolean isForceExecution() {
+                                            return reg.isForceExecution();
+                                        }
 
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        sendErrorResponse(reg.getAction(), transportChannel, e);
-                                    }
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                                        }
 
-                                    @Override
-                                    public void onAfter() {
-                                        request.decRef();
-                                    }
-                                });
+                                        @Override
+                                        public void onAfter() {
+                                            request.decRef();
+                                        }
+                                    }));
                                 success = true;
                             } finally {
                                 if (success == false) {
@@ -324,7 +328,7 @@ public class InboundHandler {
             transportChannel.sendResponse(e);
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", actionName), inner);
+            logger.warn(() -> "Failed to send error message back to client for action [" + actionName + "]", inner);
         }
     }
 
@@ -338,11 +342,11 @@ public class InboundHandler {
             response = handler.read(stream);
             response.remoteAddress(remoteAddress);
         } catch (Exception e) {
-            final Exception serializationException = new TransportSerializationException(
+            final TransportException serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",
                 e
             );
-            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            logger.warn(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
             assert ignoreDeserializationErrors : e;
             handleException(handler, serializationException);
             return;
@@ -351,23 +355,20 @@ public class InboundHandler {
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleResponse(handler, response);
         } else {
-            boolean success = false;
-            try {
-                threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
-                success = true;
-            } finally {
-                if (success == false) {
-                    response.decRef();
+            threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+                @Override
+                protected void doRun() {
+                    doHandleResponse(handler, response);
                 }
-            }
+            });
         }
     }
 
-    private <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {
+    private static <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {
         try {
             handler.handleResponse(response);
         } catch (Exception e) {
-            handleException(handler, new ResponseHandlerFailureTransportException(e));
+            doHandleException(handler, new ResponseHandlerFailureTransportException(e));
         } finally {
             response.decRef();
         }
@@ -384,21 +385,33 @@ public class InboundHandler {
             );
             assert ignoreDeserializationErrors : error;
         }
-        handleException(handler, error);
+        handleException(
+            handler,
+            error instanceof RemoteTransportException rtx ? rtx : new RemoteTransportException(error.getMessage(), error)
+        );
     }
 
-    private void handleException(final TransportResponseHandler<?> handler, Throwable error) {
-        if ((error instanceof RemoteTransportException) == false) {
-            error = new RemoteTransportException(error.getMessage(), error);
+    private void handleException(final TransportResponseHandler<?> handler, TransportException transportException) {
+        final var executor = handler.executor();
+        if (ThreadPool.Names.SAME.equals(executor)) {
+            doHandleException(handler, transportException);
+        } else {
+            threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, transportException) {
+                @Override
+                protected void doRun() {
+                    doHandleException(handler, transportException);
+                }
+            });
         }
-        final RemoteTransportException rtx = (RemoteTransportException) error;
-        threadPool.executor(handler.executor()).execute(() -> {
-            try {
-                handler.handleException(rtx);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
-            }
-        });
+    }
+
+    private static void doHandleException(final TransportResponseHandler<?> handler, TransportException transportException) {
+        try {
+            handler.handleException(transportException);
+        } catch (Exception e) {
+            transportException.addSuppressed(e);
+            logger.error(() -> "failed to handle exception response [" + handler + "]", transportException);
+        }
     }
 
     private StreamInput namedWriteableStream(StreamInput delegate) {

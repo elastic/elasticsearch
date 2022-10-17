@@ -606,7 +606,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
             .setAnalysis(regression)
-            .setAnalyzedFields(new FetchSourceContext(true, null, new String[] { "field_1" }))
+            .setAnalyzedFields(FetchSourceContext.of(true, null, new String[] { "field_1" }))
             .build();
         putAnalytics(config);
 
@@ -763,7 +763,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, runtimeFields))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
-            .setAnalyzedFields(new FetchSourceContext(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
+            .setAnalyzedFields(FetchSourceContext.of(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
             .setAnalysis(
                 new Regression(
                     dependentVariableRuntimeField,
@@ -879,7 +879,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
-        String mapping = """
+        String mapping = formatted("""
             {
               "properties": {
                 "@timestamp": {
@@ -895,7 +895,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                   "type": "double"
                 }
               }
-            }""".formatted(NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD);
+            }""", NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD);
         if (dataStream) {
             try {
                 createDataStreamAndTemplate(sourceIndex, mapping);

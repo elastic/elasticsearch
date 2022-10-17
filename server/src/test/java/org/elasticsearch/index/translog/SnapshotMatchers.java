@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.elasticsearch.ElasticsearchException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -19,7 +16,9 @@ import org.hamcrest.TypeSafeMatcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class SnapshotMatchers {
     private SnapshotMatchers() {
@@ -193,7 +192,7 @@ public final class SnapshotMatchers {
         @Override
         protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
-                final LongSet seqNoList = new LongHashSet();
+                final Set<Long> seqNoList = new HashSet<>();
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
                     seqNoList.add(op.seqNo());

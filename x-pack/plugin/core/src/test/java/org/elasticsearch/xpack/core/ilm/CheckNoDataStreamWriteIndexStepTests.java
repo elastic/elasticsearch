@@ -12,10 +12,10 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -33,8 +33,8 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         Step.StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new CheckNotDataStreamWriteIndexStep(key, nextKey);
@@ -75,16 +75,13 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
-                    .build()
+                Metadata.builder().put(indexMetadata, true).put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).build()
             )
             .build();
 
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
-        CheckNotDataStreamWriteIndexStep.Info info = (CheckNotDataStreamWriteIndexStep.Info) result.getInfomationContext();
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
         assertThat(
             info.getMessage(),
             is(
@@ -124,7 +121,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
                 Metadata.builder()
                     .put(indexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .build()
             )
             .build();

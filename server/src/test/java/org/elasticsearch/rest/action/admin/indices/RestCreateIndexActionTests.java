@@ -147,7 +147,7 @@ public class RestCreateIndexActionTests extends ESTestCase {
             .withContent(new BytesArray(content), null)
             .build();
 
-        CreateIndexRequest createIndexRequest = action.prepareRequestV7(request);
+        CreateIndexRequest createIndexRequest = RestCreateIndexAction.prepareRequestV7(request);
         // some_type is replaced with _doc
         assertThat(createIndexRequest.mappings(), equalTo("""
             {"_doc":{"properties":{"field1":{"type":"text"}}}}"""));

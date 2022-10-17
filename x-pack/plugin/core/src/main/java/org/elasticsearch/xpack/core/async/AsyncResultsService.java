@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +20,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Service that is capable of retrieving and cleaning up AsyncTasks regardless of their state. It works with the TaskManager, if a task
@@ -91,10 +92,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                         RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
                         if (status != RestStatus.NOT_FOUND) {
                             logger.error(
-                                () -> new ParameterizedMessage(
-                                    "failed to update expiration time for async-search [{}]",
-                                    searchId.getEncoded()
-                                ),
+                                () -> format("failed to update expiration time for async-search [%s]", searchId.getEncoded()),
                                 exc
                             );
                             listener.onFailure(exc);

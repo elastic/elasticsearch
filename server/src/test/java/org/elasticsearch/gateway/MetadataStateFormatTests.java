@@ -279,8 +279,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         DummyState initialState = writeAndReadStateSuccessfully(format, path);
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            format.failOnMethods(
-                Format.FAIL_DELETE_TMP_FILE,
+            format.failOnRandomMethod(
                 Format.FAIL_CREATE_OUTPUT_FILE,
                 Format.FAIL_WRITE_TO_OUTPUT_FILE,
                 Format.FAIL_FSYNC_TMP_FILE,
@@ -303,6 +302,30 @@ public class MetadataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, path);
     }
 
+    public void testHandleExistingTmpFile() throws IOException {
+        Path path = createTempDir();
+        Format format = new Format("foo-");
+
+        DummyState initialState = writeAndReadStateSuccessfully(format, path);
+
+        format.failOnMethods(Format.FAIL_FSYNC_TMP_FILE, Format.FAIL_DELETE_TMP_FILE);
+        DummyState newState = new DummyState(
+            randomRealisticUnicodeOfCodepointLengthBetween(1, 100),
+            randomInt(),
+            randomLong(),
+            randomDouble(),
+            randomBoolean()
+        );
+        WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, path));
+        assertFalse(ex.isDirty());
+
+        format.noFailures();
+        assertEquals(initialState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
+        format.writeAndCleanup(newState, path);
+        assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
+        writeAndReadStateSuccessfully(format, path);
+    }
+
     public void testFailWriteAndReadAnyState() throws IOException {
         Path path = createTempDir();
         Format format = new Format("foo-");
@@ -312,7 +335,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         possibleStates.add(initialState);
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            format.failOnMethods(Format.FAIL_FSYNC_STATE_DIRECTORY);
+            format.failOnRandomMethod(Format.FAIL_FSYNC_STATE_DIRECTORY);
             DummyState newState = new DummyState(
                 randomRealisticUnicodeOfCodepointLengthBetween(1, 100),
                 randomInt(),
@@ -341,7 +364,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         DummyState initialState = writeAndReadStateSuccessfully(format, paths);
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            format.failOnMethods(Format.FAIL_OPEN_STATE_FILE_WHEN_COPYING);
+            format.failOnRandomMethod(Format.FAIL_OPEN_STATE_FILE_WHEN_COPYING);
             DummyState newState = new DummyState(
                 randomRealisticUnicodeOfCodepointLengthBetween(1, 100),
                 randomInt(),
@@ -433,7 +456,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         Path badPath = paths[paths.length - 1];
 
         format.failOnPaths(badPath.resolve(MetadataStateFormat.STATE_DIR_NAME));
-        format.failOnMethods(Format.FAIL_RENAME_TMP_FILE);
+        format.failOnRandomMethod(Format.FAIL_RENAME_TMP_FILE);
 
         DummyState newState = new DummyState(
             randomRealisticUnicodeOfCodepointLengthBetween(1, 100),
@@ -524,7 +547,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         final int badDirIndex = 1;
 
         format.failOnPaths(paths[badDirIndex].resolve(MetadataStateFormat.STATE_DIR_NAME));
-        format.failOnMethods(Format.FAIL_DELETE_TMP_FILE);
+        format.failOnRandomMethod(Format.FAIL_DELETE_TMP_FILE);
 
         // Ensure clean-up old files doesn't fail with one bad dir. We pretend we want to
         // keep a newer generation that doesn't exist (genId + 1).
@@ -546,6 +569,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         private enum FailureMode {
             NO_FAILURES,
             FAIL_ON_METHOD,
+            FAIL_MULTIPLE_METHODS,
             FAIL_RANDOMLY
         }
 
@@ -565,8 +589,8 @@ public class MetadataStateFormatTests extends ESTestCase {
         /**
          * Constructs a MetadataStateFormat object for storing/retrieving DummyState.
          * By default no I/O failures are injected.
-         * I/O failure behaviour can be controlled by {@link #noFailures()}, {@link #failOnMethods(String...)} and
-         * {@link #failRandomly()} method calls.
+         * I/O failure behaviour can be controlled by {@link #noFailures()}, {@link #failOnRandomMethod(String...)},
+         * {@link #failOnMethods(String...)} and {@link #failRandomly()} method calls.
          */
         Format(String prefix) {
             super(prefix);
@@ -587,8 +611,13 @@ public class MetadataStateFormatTests extends ESTestCase {
             this.failureMode = FailureMode.NO_FAILURES;
         }
 
-        public void failOnMethods(String... failureMethods) {
+        public void failOnRandomMethod(String... failureMethods) {
             this.failureMode = FailureMode.FAIL_ON_METHOD;
+            this.failureMethods = failureMethods;
+        }
+
+        public void failOnMethods(String... failureMethods) {
+            this.failureMode = FailureMode.FAIL_MULTIPLE_METHODS;
             this.failureMethods = failureMethods;
         }
 
@@ -615,7 +644,20 @@ public class MetadataStateFormatTests extends ESTestCase {
         @Override
         protected Directory newDirectory(Path dir) {
             MockDirectoryWrapper mock = newMockFSDirectory(dir);
-            if (failureMode == FailureMode.FAIL_ON_METHOD) {
+            if (failureMode == FailureMode.FAIL_MULTIPLE_METHODS) {
+                final Set<String> failMethods = Set.of(failureMethods);
+                MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+                    @Override
+                    public void eval(MockDirectoryWrapper directory) throws IOException {
+                        for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
+                            if (failMethods.contains(e.getMethodName())) {
+                                throwDirectoryExceptionCheckPaths(dir);
+                            }
+                        }
+                    }
+                };
+                mock.failOn(fail);
+            } else if (failureMode == FailureMode.FAIL_ON_METHOD) {
                 final String failMethod = randomFrom(failureMethods);
                 MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
                     @Override

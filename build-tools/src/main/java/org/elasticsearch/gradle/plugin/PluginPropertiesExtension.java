@@ -35,10 +35,6 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
-    private PluginType type = PluginType.ISOLATED;
-
-    private String javaOpts = "";
-
     /** Whether a license agreement must be accepted before this plugin can be installed. */
     private boolean isLicensed = false;
 
@@ -66,6 +62,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setName(String name) {
+        this.project.setProperty("archivesBaseName", name);
         this.name = name;
     }
 
@@ -82,6 +79,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setDescription(String description) {
+        project.setDescription(description);
         this.description = description;
     }
 
@@ -103,22 +101,6 @@ public class PluginPropertiesExtension {
 
     public void setHasNativeController(boolean hasNativeController) {
         this.hasNativeController = hasNativeController;
-    }
-
-    public PluginType getType() {
-        return type;
-    }
-
-    public void setType(PluginType type) {
-        this.type = type;
-    }
-
-    public String getJavaOpts() {
-        return javaOpts;
-    }
-
-    public void setJavaOpts(String javaOpts) {
-        this.javaOpts = javaOpts;
     }
 
     public boolean isLicensed() {

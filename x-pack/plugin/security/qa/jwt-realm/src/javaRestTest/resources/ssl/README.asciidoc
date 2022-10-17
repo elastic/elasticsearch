@@ -30,5 +30,17 @@ rmdir http
 
 [source,shell]
 -----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil cert --pem --name=pki --out=${PWD}/pki.zip --pass="pki-password" --days=3500 \
+    --ca-cert=${PWD}/ca.crt --ca-key=${PWD}/ca.key --ca-pass="ca-password"
+
+unzip pki.zip
+mv pki/pki.* ./
+
+rm pki.zip
+rmdir pki
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
 keytool -importcert -file ca.crt -keystore ca.p12 -storetype PKCS12 -storepass "password" -alias ca
 -----------------------------------------------------------------------------------------------------------

@@ -127,8 +127,7 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         BulkRequest bulkRequest = modifier.getBulkRequest();
         assertThat(bulkRequest, Matchers.sameInstance(originalBulkRequest));
-        ActionListener<BulkResponse> actionListener = ActionListener.wrap(() -> {});
-        assertThat(modifier.wrapActionListenerIfNeeded(1L, actionListener), instanceOf(ActionListener.MappedActionListener.class));
+        assertThat(modifier.wrapActionListenerIfNeeded(1L, ActionListener.noop()), instanceOf(ActionListener.MappedActionListener.class));
     }
 
     private static class CaptureActionListener implements ActionListener<BulkResponse> {

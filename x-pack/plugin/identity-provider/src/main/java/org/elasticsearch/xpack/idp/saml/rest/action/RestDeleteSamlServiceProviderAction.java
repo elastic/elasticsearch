@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.idp.saml.rest.action;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -55,7 +54,7 @@ public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
             @Override
             public RestResponse buildResponse(DeleteSamlServiceProviderResponse response, XContentBuilder builder) throws Exception {
                 response.toXContent(builder, restRequest);
-                return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND, builder);
+                return new RestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND, builder);
             }
         });
     }

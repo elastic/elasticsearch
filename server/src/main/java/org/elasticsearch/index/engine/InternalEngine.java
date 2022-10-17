@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,7 +28,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -57,12 +55,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -108,6 +107,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InternalEngine extends Engine {
 
@@ -187,6 +188,8 @@ public class InternalEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
+    private final LongSupplier relativeTimeInNanosSupplier;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -194,6 +197,7 @@ public class InternalEngine extends Engine {
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
+        this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -501,8 +505,8 @@ public class InternalEngine extends Engine {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
         logger.trace(
-            () -> new ParameterizedMessage(
-                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+            () -> format(
+                "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
                 opsRecovered,
                 translog.currentFileGeneration()
             )
@@ -600,7 +604,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadHistoryUUID(Map<String, String> commitData) {
+    private static String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -638,18 +642,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
-        @Override
-        public void onUse(Query query) {
-
-        }
-
-        @Override
-        public boolean shouldCache(Query query) {
-            return false;
-        }
-    };
-
     public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog
     public final AtomicLong translogInMemorySegmentsCount = new AtomicLong(); // number of times in-memory index needed to be created
 
@@ -675,7 +667,7 @@ public class InternalEngine extends Engine {
             ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
             config().getSimilarity(),
             null /*query cache disabled*/,
-            NEVER_CACHE_POLICY,
+            TrivialQueryCachingPolicy.NEVER,
             inMemoryReader
         );
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
@@ -1035,7 +1027,7 @@ public class InternalEngine extends Engine {
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
                 }
-                indexResult.setTook(System.nanoTime() - index.startTime());
+                indexResult.setTook(relativeTimeInNanosSupplier.getAsLong() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
             } finally {
@@ -1221,7 +1213,7 @@ public class InternalEngine extends Engine {
      * If we hit any failure while processing an indexing on a replica, we should treat that error as tragic and fail the engine.
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
-    private boolean treatDocumentFailureAsTragicError(Index index) {
+    private static boolean treatDocumentFailureAsTragicError(Index index) {
         // TODO: can we enable this check for all origins except primary on the leader?
         return index.origin() == Operation.Origin.REPLICA
             || index.origin() == Operation.Origin.PEER_RECOVERY
@@ -1906,7 +1898,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -1919,7 +1911,8 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
-                    return;
+                    logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
+                    return false;
                 }
                 logger.trace("waiting for in-flight flush to finish");
                 flushLock.lock();
@@ -1971,6 +1964,7 @@ public class InternalEngine extends Engine {
                 throw ex;
             } finally {
                 flushLock.unlock();
+                logger.trace("released flush lock");
             }
         }
         // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
@@ -1978,6 +1972,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
+        return true;
     }
 
     private void refreshLastCommittedSegmentInfos() {
@@ -2419,6 +2414,8 @@ public class InternalEngine extends Engine {
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
         iwc.setMergePolicy(mergePolicy);
+        // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
+        iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());

@@ -29,7 +29,6 @@ import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -306,17 +305,6 @@ public final class Errors {
         return errorInUserCode(cause, "Error injecting method, %s", cause);
     }
 
-    public Errors errorNotifyingTypeListener(TypeListenerBinding listener, TypeLiteral<?> type, Throwable cause) {
-        return errorInUserCode(
-            cause,
-            "Error notifying TypeListener %s (bound at %s) of %s.%n" + " Reason: %s",
-            listener.getListener(),
-            convert(listener.getSource()),
-            type,
-            cause
-        );
-    }
-
     public Errors errorInjectingConstructor(Throwable cause) {
         return errorInUserCode(cause, "Error injecting constructor, %s", cause);
     }
@@ -331,10 +319,6 @@ public final class Errors {
 
     public Errors errorNotifyingInjectionListener(InjectionListener<?> listener, TypeLiteral<?> type, RuntimeException cause) {
         return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n" + " Reason: %s", listener, type, cause);
-    }
-
-    public void exposedButNotBound(Key<?> key) {
-        addMessage("Could not expose() %s, it must be explicitly bound.", key);
     }
 
     public static Collection<Message> getMessagesFromThrowable(Throwable throwable) {
@@ -483,12 +467,7 @@ public final class Errors {
         }
 
         List<Message> result = new ArrayList<>(root.errors);
-        CollectionUtil.timSort(result, new Comparator<Message>() {
-            @Override
-            public int compare(Message a, Message b) {
-                return a.getSource().compareTo(b.getSource());
-            }
-        });
+        CollectionUtil.timSort(result, Comparator.comparing(Message::getSource));
 
         return unmodifiableList(result);
     }

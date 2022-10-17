@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -37,6 +36,8 @@ import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.util.Map;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
 
@@ -102,12 +103,12 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
                 new ValidationException().addValidationError(
-                    new ParameterizedMessage(
-                        "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
-                            + "Minimum required version is [{}]",
+                    format(
+                        "Transform configuration is too old [%s], use the upgrade API to fix your transform. "
+                            + "Minimum required version is [%s]",
                         config.getVersion(),
                         TransformDeprecations.MIN_TRANSFORM_VERSION
-                    ).getFormattedMessage()
+                    )
                 )
             );
             return;

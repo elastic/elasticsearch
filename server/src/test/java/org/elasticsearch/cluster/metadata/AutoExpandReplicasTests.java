@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -50,22 +49,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
             Settings.builder().put("index.auto_expand_replicas", "0-5").build()
         );
         assertEquals(0, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(5, autoExpandReplicas.maxReplicas());
         assertFalse(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
         assertEquals(0, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
         assertEquals(1, autoExpandReplicas.minReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
-
     }
 
     public void testInvalidValues() {
@@ -105,7 +100,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
     protected DiscoveryNode createNode(Version version, DiscoveryNodeRole... mustHaveRoles) {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
-        final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
+        final String id = formatted("node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);
     }
 
@@ -281,5 +276,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    public void testCalculateDesiredNumberOfReplicas() {
+        int lowerBound = between(0, 9);
+        int upperBound = between(lowerBound + 1, 10);
+        String settingValue = lowerBound + "-" + randomFrom(upperBound, "all");
+        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(
+            Settings.builder().put(SETTING_AUTO_EXPAND_REPLICAS, settingValue).build()
+        );
+        int max = autoExpandReplicas.maxReplicas();
+        int matchingNodes = between(0, max);
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(matchingNodes), equalTo(Math.max(lowerBound, matchingNodes - 1)));
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(max + 1), equalTo(max));
     }
 }

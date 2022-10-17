@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -35,11 +36,14 @@ public class HasPrivilegesRequestBuilder extends ActionRequestBuilder<HasPrivile
      * Set whether the user should be enabled or not
      */
     public HasPrivilegesRequestBuilder source(String username, BytesReference source, XContentType xContentType) throws IOException {
-        final RoleDescriptor role = RoleDescriptor.parsePrivilegesCheck(username + "/has_privileges", source, xContentType);
+        final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = RoleDescriptor.parsePrivilegesToCheck(
+            username + "/has_privileges",
+            true, // hard-coded for now, but it doesn't have to be
+            source,
+            xContentType
+        );
         request.username(username);
-        request.indexPrivileges(role.getIndicesPrivileges());
-        request.clusterPrivileges(role.getClusterPrivileges());
-        request.applicationPrivileges(role.getApplicationPrivileges());
+        request.privilegesToCheck(privilegesToCheck);
         return this;
     }
 }

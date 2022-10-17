@@ -15,19 +15,25 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -76,6 +82,10 @@ public class SecurityContext {
         }
     }
 
+    public AuthorizationEngine.AuthorizationInfo getAuthorizationInfoFromContext() {
+        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
+    }
+
     /**
      * Returns the "secondary authentication" (see {@link SecondaryAuthentication}) information,
      * or {@code null} if the current request does not have a secondary authentication context
@@ -93,6 +103,27 @@ public class SecurityContext {
         return threadContext;
     }
 
+    public void putIndicesAccessControl(@Nullable IndicesAccessControl indicesAccessControl) {
+        if (indicesAccessControl != null) {
+            if (indicesAccessControl.isGranted() == false) {
+                throw new IllegalStateException("Unexpected unauthorized access control :" + indicesAccessControl);
+            }
+            threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        }
+    }
+
+    public void copyIndicesAccessControlToReaderContext(ReaderContext readerContext) {
+        IndicesAccessControl indicesAccessControl = getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        assert indicesAccessControl != null : "thread context does not contain index access control";
+        readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+    }
+
+    public void copyIndicesAccessControlFromReaderContext(ReaderContext readerContext) {
+        IndicesAccessControl scrollIndicesAccessControl = readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
+        getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, scrollIndicesAccessControl);
+    }
+
     /**
      * Sets the user forcefully to the provided user. There must not be an existing user in the ThreadContext otherwise an exception
      * will be thrown. This method is package private for testing.
@@ -108,7 +139,7 @@ public class SecurityContext {
      */
     public void executeAsInternalUser(User internalUser, Version version, Consumer<StoredContext> consumer) {
         assert User.isInternal(internalUser);
-        final StoredContext original = threadContext.newStoredContext(true);
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setInternalUser(internalUser, version);
             consumer.accept(original);
@@ -128,7 +159,7 @@ public class SecurityContext {
      * returns, the original context is restored.
      */
     public <T> T executeWithAuthentication(Authentication authentication, Function<StoredContext, T> consumer) {
-        final StoredContext original = threadContext.newStoredContext(true);
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(authentication);
             return consumer.apply(original);
@@ -142,7 +173,7 @@ public class SecurityContext {
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
         // Preserve request headers other than authentication
         final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
-        final StoredContext original = threadContext.newStoredContext(true);
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(authentication.maybeRewriteForOlderVersion(version));

@@ -39,6 +39,10 @@ public class Regex {
         return str.equals("*");
     }
 
+    public static boolean isSuffixMatchPattern(String str) {
+        return str.length() > 1 && str.indexOf("*") == str.length() - 1;
+    }
+
     /** Return an {@link Automaton} that matches the given pattern. */
     public static Automaton simpleMatchToAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();
@@ -180,19 +184,6 @@ public class Regex {
     public static boolean simpleMatch(final List<String> patterns, final String str) {
         // #simpleMatch(String[], String) is likely to be inlined into this method
         return patterns != null && simpleMatch(patterns.toArray(Strings.EMPTY_ARRAY), str);
-    }
-
-    public static boolean simpleMatch(String[] patterns, String[] types) {
-        if (patterns != null && types != null) {
-            for (String type : types) {
-                for (String pattern : patterns) {
-                    if (simpleMatch(pattern, type)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     public static Pattern compile(String regex, String flags) {

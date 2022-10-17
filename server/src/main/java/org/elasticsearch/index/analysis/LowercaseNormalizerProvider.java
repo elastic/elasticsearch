@@ -20,7 +20,7 @@ public class LowercaseNormalizerProvider extends AbstractIndexAnalyzerProvider<L
     private final LowercaseNormalizer analyzer;
 
     public LowercaseNormalizerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.analyzer = new LowercaseNormalizer();
     }
 

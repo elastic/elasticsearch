@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -116,7 +117,6 @@ final class DefaultSearchContext extends SearchContext {
     private ParsedQuery postFilter;
     private Query aliasFilter;
     private int[] docIdsToLoad;
-    private int docsIdsToLoadSize;
     private SearchContextAggregations aggregations;
     private SearchHighlightContext highlight;
     private SuggestionSearchContext suggest;
@@ -685,14 +685,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadSize() {
-        return docsIdsToLoadSize;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }
 
@@ -758,5 +752,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return searchExecutionContext.newSourceLoader(request.isForceSyntheticSource());
     }
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
@@ -63,9 +64,9 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -83,6 +84,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -163,6 +165,11 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
+    /**
+     * {@link FieldType} for a random {@link IdFieldMapper} chosen at the start of the
+     * test.
+     */
+    protected FieldType idFieldType;
 
     protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -198,7 +205,7 @@ public abstract class EngineTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        CodecService codecService = new CodecService(null);
+        CodecService codecService = newCodecService();
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -232,6 +239,14 @@ public abstract class EngineTestCase extends ESTestCase {
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
         }
+        idFieldType = randomIdFieldType();
+    }
+
+    /**
+     * Chose a random {@link FieldType} from the list of all {@link IdFieldMapper}s.
+     */
+    public static FieldType randomIdFieldType() {
+        return randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE;
     }
 
     public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
@@ -244,7 +259,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -258,7 +273,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -272,7 +288,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -286,7 +302,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -300,7 +317,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -314,7 +331,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -356,13 +374,22 @@ public abstract class EngineTestCase extends ESTestCase {
         return new LuceneDocument();
     }
 
-    public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null);
-    }
-
-    public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
+    public static ParsedDocument createParsedDoc(String id, FieldType idFieldType, String routing) {
         return testParsedDocument(
             id,
+            idFieldType,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+            null,
+            false
+        );
+    }
+
+    public static ParsedDocument createParsedDoc(String id, FieldType idFieldType, String routing, boolean recoverySource) {
+        return testParsedDocument(
+            id,
+            idFieldType,
             routing,
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
@@ -371,32 +398,31 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
-    protected static ParsedDocument testParsedDocument(
+    protected ParsedDocument testParsedDocument(
         String id,
         String routing,
         LuceneDocument document,
         BytesReference source,
         Mapping mappingUpdate
     ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, false);
+        return testParsedDocument(id, idFieldType, routing, document, source, mappingUpdate, false);
     }
 
     protected static ParsedDocument testParsedDocument(
         String id,
+        FieldType idFieldType,
         String routing,
         LuceneDocument document,
         BytesReference source,
         Mapping mappingUpdate,
         boolean recoverySource
-    ) { // TODO try with TsdbIdFieldMapper
-        Field uidField = new Field("_id", Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+    ) {
+        Field idField = new Field("_id", Uid.encodeId(id), idFieldType);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(uidField);
+        document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         BytesRef ref = source.toBytesRef();
         if (recoverySource) {
             document.add(new StoredField(SourceFieldMapper.RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
@@ -810,7 +836,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             iwc.getAnalyzer(),
             iwc.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             eventListener,
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -824,7 +850,8 @@ public abstract class EngineTestCase extends ESTestCase {
             retentionLeasesSupplier,
             primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            System::nanoTime
         );
     }
 
@@ -846,7 +873,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -860,7 +887,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -958,6 +986,7 @@ public abstract class EngineTestCase extends ESTestCase {
         final int startWithSeqNo = 0;
         final String valuePrefix = (forReplica ? "r_" : "p_") + docId + "_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
+        FieldType idFieldType = randomIdFieldType();
         for (int i = 0; i < numOfOps; i++) {
             final Engine.Operation op;
             final long version = switch (versionType) {
@@ -968,7 +997,7 @@ public abstract class EngineTestCase extends ESTestCase {
             if (randomBoolean()) {
                 op = new Engine.Index(
                     id,
-                    testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null),
+                    testParsedDocument(docId, idFieldType, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null, false),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
@@ -1018,6 +1047,7 @@ public abstract class EngineTestCase extends ESTestCase {
         long seqNo = startingSeqNo;
         final int maxIdValue = randomInt(numOps * 2);
         final List<Engine.Operation> operations = new ArrayList<>(numOps);
+        FieldType idFieldType = includeNestedDocs ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : randomIdFieldType();
         CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory = nestedParsedDocFactory();
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(randomInt(maxIdValue));
@@ -1027,7 +1057,9 @@ public abstract class EngineTestCase extends ESTestCase {
             final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
             for (int copy = 0; copy < copies; copy++) {
-                final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
+                final ParsedDocument doc = isNestedDoc
+                    ? nestedParsedDocFactory.apply(id, nestedValues)
+                    : createParsedDoc(id, idFieldType, null);
                 switch (opType) {
                     case INDEX -> operations.add(
                         new Engine.Index(
@@ -1108,22 +1140,18 @@ public abstract class EngineTestCase extends ESTestCase {
             );
             if (op instanceof Engine.Index) {
                 Engine.IndexResult result = replicaEngine.index((Engine.Index) op);
-                // replicas don't really care to about creation status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return false for the created flag in favor of code simplicity
-                // as deleted or not. This check is just signal regression so a decision can be made if it's
-                // intentional
+                // Replicas don't really care about the creation status of documents. This allows us to ignore the case where a document was
+                // found in the live version maps in a delete state and return false for the created flag in favor of code simplicity as
+                // deleted or not. This check is just to signal a regression so a decision can be made if it's intentional.
                 assertThat(result.isCreated(), equalTo(firstOp));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
 
             } else {
                 Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
-                // Replicas don't really care to about found status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return true for the found flag in favor of code simplicity
-                // his check is just signal regression so a decision can be made if it's
-                // intentional
+                // Replicas don't really care about the "found" status of documents. This allows us to ignore the case where a document was
+                // found in the live version maps in a delete state and return true for the found flag in favor of code simplicity. This
+                // check is just to signal a regression so a decision can be made if it's intentional.
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -1327,7 +1355,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+                assertThat(luceneOp.source(), equalTo(translogOp.source()));
             }
         }
     }
@@ -1590,5 +1618,9 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         // hard fail - we can't get the lazybits
         throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
+    }
+
+    static CodecService newCodecService() {
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 }

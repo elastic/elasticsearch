@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
@@ -127,11 +126,7 @@ public class SoftDeletesPolicyTests extends ESTestCase {
         }
         final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
-        final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(
-            primaryTerm,
-            version,
-            Collections.unmodifiableCollection(new ArrayList<>(leases))
-        );
+        final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(primaryTerm, version, List.copyOf(leases));
         final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
         // set the local checkpoint of the safe commit to more than the policy dicated by the global checkpoint
         final long localCheckpointOfSafeCommit = randomLongBetween(1 + globalCheckpoint.get() - retentionOperations + 1, Long.MAX_VALUE);
@@ -159,11 +154,7 @@ public class SoftDeletesPolicyTests extends ESTestCase {
         }
         final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
-        final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(
-            primaryTerm,
-            version,
-            Collections.unmodifiableCollection(new ArrayList<>(leases))
-        );
+        final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(primaryTerm, version, List.copyOf(leases));
 
         final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
         policy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
@@ -192,11 +183,7 @@ public class SoftDeletesPolicyTests extends ESTestCase {
         );
         final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
-        final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(
-            primaryTerm,
-            version,
-            Collections.unmodifiableCollection(new ArrayList<>(leases))
-        );
+        final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(primaryTerm, version, List.copyOf(leases));
         final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
         policy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minimumRetainingSequenceNumber.getAsLong()));

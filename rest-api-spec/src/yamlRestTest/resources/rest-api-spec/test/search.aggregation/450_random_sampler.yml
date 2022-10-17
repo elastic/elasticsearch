@@ -208,7 +208,7 @@ setup:
           }
 
   - do:
-      catch: /\[random_sampler\] aggregation \[sampled\] does not support sampling \[cardinality\] aggregation \[unique\]/
+      catch: /\[random_sampler\] aggregation \[sampled\] does not support sampling \[sampler\] aggregation \[inner_sampler\]/
       search:
         index: data
         size: 0
@@ -219,7 +219,7 @@ setup:
                 "random_sampler": {
                   "probability": 0.1
                 },
-                "aggs": { "unique": {"cardinality": {"field": "product"}}}
+                "aggs": { "inner_sampler": {"sampler": {}}}
               }
             }
           }

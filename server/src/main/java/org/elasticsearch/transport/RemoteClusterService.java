@@ -24,8 +24,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -117,6 +117,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             Setting.Property.Dynamic,
             Setting.Property.NodeScope
         )
+    );
+
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+        "cluster.remote.",
+        "authorization",
+        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
     );
 
     private final boolean enabled;
@@ -248,15 +254,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
         CountDownLatch latch = new CountDownLatch(1);
-        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<Void>() {
+        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(Void o) {
-                logger.debug("connected to new remote cluster {}", clusterAlias);
+                logger.debug("connected to new remote cluster [{}]", clusterAlias);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("connection to new remote cluster {} failed", clusterAlias);
+                logger.debug(() -> "connection to new remote cluster [" + clusterAlias + "] failed", e);
             }
         }, latch::countDown));
 
@@ -265,7 +271,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             // are on the cluster state thread and our custom future implementation will throw an
             // assertion.
             if (latch.await(10, TimeUnit.SECONDS) == false) {
-                logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
+                logger.warn("failed to connect to new remote cluster [{}] within {}", clusterAlias, TimeValue.timeValueSeconds(10));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -349,7 +355,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } catch (TimeoutException ex) {
             logger.warn("failed to connect to remote clusters within {}", timeValue.toString());
         } catch (Exception e) {
-            throw new IllegalStateException("failed to connect to remote clusters", e);
+            logger.warn("failed to connect to remote clusters", e);
         }
     }
 

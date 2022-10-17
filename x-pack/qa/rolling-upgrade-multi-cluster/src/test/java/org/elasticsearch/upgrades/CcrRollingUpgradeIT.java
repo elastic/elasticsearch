@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -291,32 +290,23 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         createIndex(client, indexName, indexSettings.build());
     }
 
-    private static void createIndex(RestClient client, String name, Settings settings) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("""
-            {
-             "settings": %s
-            }""".formatted(Strings.toString(settings)));
-        client.performRequest(request);
-    }
-
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {"remote_cluster": "%s", "leader_index": "%s", "read_poll_timeout": "10ms"}
-            """.formatted(leaderCluster, leaderIndex));
+            """, leaderCluster, leaderIndex));
         assertOK(client.performRequest(request));
     }
 
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
               "leader_index_patterns": [ "%s" ],
               "remote_cluster": "%s",
               "follow_index_pattern": "copy-{{leader_index}}",
               "read_poll_timeout": "10ms"
-            }""".formatted(pattern, remoteCluster));
+            }""", pattern, remoteCluster));
         assertOK(client.performRequest(request));
     }
 

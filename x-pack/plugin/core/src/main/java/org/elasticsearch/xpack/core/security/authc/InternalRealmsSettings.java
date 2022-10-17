@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -38,9 +37,7 @@ public final class InternalRealmsSettings {
         set.addAll(SamlRealmSettings.getSettings());
         set.addAll(KerberosRealmSettings.getSettings());
         set.addAll(OpenIdConnectRealmSettings.getSettings());
-        if (XPackSettings.JWT_REALM_FEATURE_FLAG_ENABLED) {
-            set.addAll(JwtRealmSettings.getSettings());
-        }
+        set.addAll(JwtRealmSettings.getSettings());
         return Collections.unmodifiableSet(set);
     }
 }

@@ -1,0 +1,5 @@
+pr: 89224
+summary: User Profile - Detailed errors in `hasPrivileges` response
+area: Security
+type: enhancement
+issues: []

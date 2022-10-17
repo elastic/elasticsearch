@@ -13,7 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
@@ -110,12 +110,12 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (leaderRemoteClusterSeed != null) {
             logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity("""
+            request.setJsonEntity(formatted("""
                 {
                   "persistent": {
                     "cluster.remote.leader.seeds": "%s"
                   }
-                }""".formatted(leaderRemoteClusterSeed));
+                }""", leaderRemoteClusterSeed));
             assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
             if (followerClient != null) {
                 assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
@@ -130,12 +130,12 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (followerRemoteClusterSeed != null) {
             logger.info("Configuring follower remote cluster [{}]", followerRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity("""
+            request.setJsonEntity(formatted("""
                 {
                   "persistent": {
                     "cluster.remote.follower.seeds": "%s"
                   }
-                }""".formatted(followerRemoteClusterSeed));
+                }""", followerRemoteClusterSeed));
             assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
             assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
         } else {

@@ -41,7 +41,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     private String[] storedFields;
     private FetchSourceContext fetchSourceContext;
 
-    private AliasFilter filteringAlias = new AliasFilter(null, Strings.EMPTY_ARRAY);
+    private AliasFilter filteringAlias = AliasFilter.EMPTY;
 
     long nowInMillis;
 
@@ -62,9 +62,9 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = new AliasFilter(in);
+        filteringAlias = AliasFilter.readFrom(in);
         storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         nowInMillis = in.readVLong();
     }
 

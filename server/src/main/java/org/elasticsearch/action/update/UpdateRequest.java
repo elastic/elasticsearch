@@ -150,7 +150,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (in.readBoolean()) {
             doc = new IndexRequest(shardId, in);
         }
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest(shardId, in);
         }
@@ -442,7 +442,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
         String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[] { include };
         String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude };
-        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(context.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -460,7 +460,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(context.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -469,7 +469,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(boolean fetchSource) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        this.fetchSourceContext = new FetchSourceContext(fetchSource, context.includes(), context.excludes());
+        this.fetchSourceContext = FetchSourceContext.of(fetchSource, context.includes(), context.excludes());
         return this;
     }
 

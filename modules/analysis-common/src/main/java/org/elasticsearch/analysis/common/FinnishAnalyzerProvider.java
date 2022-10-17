@@ -21,7 +21,7 @@ public class FinnishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Finni
     private final FinnishAnalyzer analyzer;
 
     FinnishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new FinnishAnalyzer(
             Analysis.parseStopWords(env, settings, FinnishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

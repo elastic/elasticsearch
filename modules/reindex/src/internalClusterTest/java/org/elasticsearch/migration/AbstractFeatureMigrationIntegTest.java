@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,16 +41,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase {
 
     static final String VERSION_META_KEY = "version";
@@ -68,7 +70,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setIndexPattern(".ext-unman-*")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
@@ -77,7 +78,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setIndexPattern(".int-unman-*")
         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
@@ -88,8 +88,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAliasName(".internal-managed-alias")
         .setPrimaryIndex(INTERNAL_MANAGED_INDEX_NAME)
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, true))
+        .setSettings(createSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
+        .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
@@ -103,8 +103,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAliasName(".external-managed-alias")
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, false))
+        .setSettings(createSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
+        .setMappings(createMapping(true, false))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
@@ -114,24 +114,52 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
     static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
+    public static final SystemIndexDescriptor KIBANA_MOCK_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".kibana_*")
+        .setDescription("Kibana saved objects system index")
+        .setAliasName(".kibana")
+        .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(Collections.emptyList())
+        .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
+        .setPriorSystemIndexDescriptors(Collections.emptyList())
+        .setAllowsTemplates()
+        .build();
+
+    protected String masterAndDataNode;
+    protected String masterName;
+
     @Before
-    public void setupTestPlugin() {
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+    public void setup() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        masterName = internalCluster().startMasterOnlyNode();
+        masterAndDataNode = internalCluster().startNode();
+
+        TestPlugin testPlugin = getPlugin(TestPlugin.class);
+        testPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
+        testPlugin.postMigrationHook.set((state, metadata) -> {});
+    }
+
+    public <T extends Plugin> T getPlugin(Class<T> type) {
+        final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
+        return pluginsService.filterPlugins(type).stream().findFirst().get();
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
-        Assert.assertTrue(
+        assertThat(
             "the strategy used below to create index names for descriptors without a primary index name only works for simple patterns",
-            descriptor.getIndexPattern().endsWith("*")
+            descriptor.getIndexPattern(),
+            endsWith("*")
         );
-        String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
+        String indexName = descriptor.isAutomaticallyManaged()
+            ? descriptor.getPrimaryIndex()
+            : descriptor.getIndexPattern().replace("*", "old");
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+        if (descriptor.isAutomaticallyManaged() == false || SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
             // unmanaged
             createRequest.setSettings(
-                createSimpleSettings(
+                createSettings(
                     NEEDS_UPGRADE_VERSION,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
@@ -145,8 +173,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
                     .build()
             );
         }
-        if (descriptor.getMappings() == null) {
-            createRequest.setMapping(createSimpleMapping(false, descriptor.isInternal()));
+        if (descriptor.isAutomaticallyManaged() == false) {
+            createRequest.setMapping(createMapping(false, descriptor.isInternal()));
         }
         CreateIndexResponse response = createRequest.get();
         Assert.assertTrue(response.isShardsAcknowledged());
@@ -160,7 +188,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         Assert.assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
-    static Settings createSimpleSettings(Version creationVersion, int flagSettingValue) {
+    static Settings createSettings(Version creationVersion, int flagSettingValue) {
         return Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -169,7 +197,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             .build();
     }
 
-    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal) {
+    static String createMapping(boolean descriptorManaged, boolean descriptorInternal) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {
@@ -227,8 +255,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     }
 
     public static class TestPlugin extends Plugin implements SystemIndexPlugin {
-        public static final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
-        public static final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+        public final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
+        public final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
 
         public TestPlugin() {
 
@@ -246,7 +274,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED);
+            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED, KIBANA_MOCK_INDEX_DESCRIPTOR);
         }
 
         @Override

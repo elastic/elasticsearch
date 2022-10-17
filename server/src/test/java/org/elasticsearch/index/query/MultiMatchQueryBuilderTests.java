@@ -272,6 +272,25 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
     }
 
+    public void testSimpleFromJson() throws IOException {
+        String json = """
+            {
+              "multi_match" : {
+                "query" : "quick brown fox",
+                "fields" : [ "title^1.0", "title.original^1.0", "title.shingles^1.0" ]
+              }
+            }""";
+
+        MultiMatchQueryBuilder parsed = (MultiMatchQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "quick brown fox", parsed.value());
+        assertEquals(json, 3, parsed.fields().size());
+        assertEquals(json, Type.BEST_FIELDS, parsed.type());
+        assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, true, parsed.fuzzyTranspositions());
+    }
+
     public void testFromJson() throws IOException {
         String json = """
             {
@@ -279,15 +298,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "query" : "quick brown fox",
                 "fields" : [ "title^1.0", "title.original^1.0", "title.shingles^1.0" ],
                 "type" : "most_fields",
-                "operator" : "OR",
-                "slop" : 0,
-                "prefix_length" : 0,
-                "max_expansions" : 50,
-                "lenient" : false,
-                "zero_terms_query" : "NONE",
-                "auto_generate_synonyms_phrase_query" : true,
+                "operator" : "AND",
+                "slop" : 1,
+                "prefix_length" : 1,
+                "max_expansions" : 40,
+                "lenient" : true,
+                "zero_terms_query" : "ALL",
+                "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "boost" : 2.0
               }
             }""";
 
@@ -297,7 +316,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(json, "quick brown fox", parsed.value());
         assertEquals(json, 3, parsed.fields().size());
         assertEquals(json, MultiMatchQueryBuilder.Type.MOST_FIELDS, parsed.type());
-        assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, Operator.AND, parsed.operator());
         assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
@@ -310,7 +329,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             Type.PHRASE.parseField().getPreferredName(),
             Type.PHRASE_PREFIX.parseField().getPreferredName() };
         for (String type : notAllowedTypes) {
-            String json = """
+            String json = formatted("""
                 {
                   "multi_match": {
                     "query": "quick brown fox",
@@ -318,7 +337,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     "type": "%s",
                     "fuzziness": 1
                   }
-                }""".formatted(type);
+                }""", type);
 
             ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
             assertEquals("Fuzziness not allowed for type [" + type + "]", e.getMessage());

@@ -150,12 +150,12 @@ public class SimpleMgetIT extends ESIntegTestCase {
             if (i % 2 == 0) {
                 request.add(
                     new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i)).fetchSourceContext(
-                        new FetchSourceContext(true, new String[] { "included" }, new String[] { "*.hidden_field" })
+                        FetchSourceContext.of(true, new String[] { "included" }, new String[] { "*.hidden_field" })
                     )
                 );
             } else {
                 request.add(
-                    new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i)).fetchSourceContext(new FetchSourceContext(false))
+                    new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i)).fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 );
             }
         }

@@ -11,6 +11,8 @@ package org.elasticsearch.gradle.internal.test;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
+import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
@@ -29,7 +31,11 @@ import java.util.Map;
  * Configures the build to compile tests against Elasticsearch's test framework
  * and run REST tests. Use BuildPlugin if you want to build main code as well
  * as tests.
+ *
+ * @deprecated use {@link InternalClusterTestPlugin}, {@link InternalJavaRestTestPlugin} or
+ * {@link InternalYamlRestTestPlugin} instead.
  */
+@Deprecated
 public class StandaloneRestTestPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {

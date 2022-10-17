@@ -22,7 +22,7 @@ public final class CounterMetric {
     private final LongAdder counter = new LongAdder();
     private final AtomicLong assertingCounter = Assertions.ENABLED ? new AtomicLong() : null;
 
-    private boolean assertNonNegative(long n) {
+    private static boolean assertNonNegative(long n) {
         assert n >= 0 : "CounterMetric value must always be non-negative; got: " + n;
         return true;
     }

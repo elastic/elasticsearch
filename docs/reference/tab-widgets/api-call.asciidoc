@@ -48,9 +48,21 @@ include::api-call.asciidoc[tag=kibana-api-ex]
 To submit an example API request, run the following curl command in a new
 terminal session.
 
+. Copy the `http_ca.crt` security certificate from your Docker container to
+your local machine.
++
 [source,sh]
 ----
-curl -X GET http://localhost:9200/
+docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
+----
+
+. Open a new terminal and verify that you can connect to your {es} cluster by
+making an authenticated call, using the `http_ca.crt` file that you copied from
+your Docker container. Enter the password for the `elastic` user when prompted.
++
+[source,sh]
+----
+curl --cacert http_ca.crt -u elastic https://localhost:9200
 ----
 // NOTCONSOLE
 

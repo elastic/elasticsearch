@@ -1,6 +1,26 @@
 {
   "template": {
     "mappings": {
+      "dynamic_templates": [
+        {
+          "long_metrics": {
+            "match_mapping_type": "long",
+            "mapping": {
+              "type": "long",
+              "index": false
+            }
+          }
+        },
+        {
+          "double_metrics": {
+            "match_mapping_type": "double",
+            "mapping": {
+              "type": "float",
+              "index": false
+            }
+          }
+        }
+      ],
       "properties": {
         "data_stream": {
           "properties": {

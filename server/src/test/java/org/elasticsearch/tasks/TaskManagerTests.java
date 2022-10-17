@@ -10,7 +10,15 @@ package org.elasticsearch.tasks;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -20,14 +28,19 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TestTransportChannels;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,7 +58,11 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
@@ -75,7 +92,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingChannelTask() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -125,7 +142,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -184,7 +201,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testRemoveBansOnChannelDisconnects() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
         taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
@@ -230,6 +247,112 @@ public class TaskManagerTests extends ESTestCase {
         assertThat(taskManager.numberOfChannelPendingTaskTrackers(), equalTo(0));
     }
 
+    public void testTaskAccounting() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+
+        final Task task1 = taskManager.register("transport", "test", new CancellableRequest("thread 1"));
+        final Task task2 = taskManager.register("transport", "test", new CancellableRequest("thread 2"));
+
+        final MockConnection connection1 = new MockConnection();
+        final MockConnection connection2 = new MockConnection();
+
+        Releasable releasableConnection1 = taskManager.registerChildConnection(task1.getId(), connection1);
+        Releasable releasableConnection2 = taskManager.registerChildConnection(task2.getId(), connection2);
+        Releasable releasableConnection3 = taskManager.registerChildConnection(task1.getId(), connection1);
+
+        assertEquals(2, taskManager.childTasksPerConnection(task1.getId(), connection1).intValue());
+        assertEquals(1, taskManager.childTasksPerConnection(task2.getId(), connection2).intValue());
+
+        releasableConnection1.close();
+        assertEquals(1, taskManager.childTasksPerConnection(task1.getId(), connection1).intValue());
+
+        releasableConnection2.close();
+        assertNull(taskManager.childTasksPerConnection(task2.getId(), connection2));
+
+        releasableConnection3.close();
+        assertNull(taskManager.childTasksPerConnection(task1.getId(), connection1));
+    }
+
+    /**
+     * Check that registering a task also causes tracing to be started on that task.
+     */
+    public void testRegisterTaskStartsTracing() {
+        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+        });
+
+        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("testAction"), anyMap());
+    }
+
+    /**
+     * Check that unregistering a task also causes tracing to be stopped on that task.
+     */
+    public void testUnregisterTaskStopsTracing() {
+        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+        });
+
+        taskManager.unregister(task);
+
+        verify(mockTracer).stopTrace("task-" + task.getId());
+    }
+
+    /**
+     * Check that registering and executing a task also causes tracing to be started and stopped on that task.
+     */
+    public void testRegisterAndExecuteStartsAndStopsTracing() {
+        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.registerAndExecute(
+            "testType",
+            new TransportAction<ActionRequest, ActionResponse>("actionName", new ActionFilters(Set.of()), taskManager) {
+                @Override
+                protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                    listener.onResponse(new ActionResponse() {
+                        @Override
+                        public void writeTo(StreamOutput out) {}
+                    });
+                }
+            },
+            new ActionRequest() {
+                @Override
+                public ActionRequestValidationException validate() {
+                    return null;
+                }
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+            },
+            null,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
+    }
+
     static class CancellableRequest extends TransportRequest {
         private final String requestId;
 
@@ -265,4 +388,58 @@ public class TaskManagerTests extends ESTestCase {
             super.addCloseListener(listener);
         }
     }
+
+    public static final class MockConnection implements Transport.Connection {
+        @Override
+        public DiscoveryNode getNode() {
+            return null;
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws TransportException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {}
+
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {}
+
+        @Override
+        public boolean isClosed() {
+            return false;
+        }
+
+        @Override
+        public void close() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void onRemoved() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "shouldn't release a mock connection";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+    }
+
 }

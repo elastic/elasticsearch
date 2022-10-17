@@ -127,7 +127,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         DatabaseReaderLazyLoader lazyLoader = this.supplier.get();
         if (lazyLoader == null) {
-            tag(ingestDocument, databaseFile);
+            if (ignoreMissing == false) {
+                tag(ingestDocument, databaseFile);
+            }
             return ingestDocument;
         }
 
@@ -326,7 +328,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         if (response == null) {
             return Map.of();
         }
-        Integer asn = response.getAutonomousSystemNumber();
+        Long asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
 

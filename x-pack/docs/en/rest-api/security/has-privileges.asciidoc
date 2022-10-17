@@ -13,6 +13,8 @@ Determines whether the logged in user has a specified list of privileges.
 
 `GET /_security/user/_has_privileges`
 
+`POST /_security/user/_has_privileges`
+
 
 [[security-api-has-privileges-prereqs]]
 ==== {api-prereq-title}

@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -169,7 +168,7 @@ final class OutboundHandler {
         try {
             message = networkMessage.serialize(byteStreamOutput);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
+            logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
             wrappedListener.onFailure(e);
             throw e;
         }
@@ -200,15 +199,11 @@ final class OutboundHandler {
                 public void onFailure(Exception e) {
                     final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, rstOnClose);
                     if (closeConnectionExceptionLevel == Level.OFF) {
-                        logger.warn(new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                        logger.warn(() -> "send message failed [channel: " + channel + "]", e);
                     } else if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
                         logger.info("send message failed [channel: {}]: {}", channel, e.getMessage());
                     } else {
-                        logger.log(
-                            closeConnectionExceptionLevel,
-                            new ParameterizedMessage("send message failed [channel: {}]", channel),
-                            e
-                        );
+                        logger.log(closeConnectionExceptionLevel, () -> "send message failed [channel: " + channel + "]", e);
                     }
                     listener.onFailure(e);
                     maybeLogSlowMessage(false);

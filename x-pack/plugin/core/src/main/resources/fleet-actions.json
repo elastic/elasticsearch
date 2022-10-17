@@ -22,6 +22,12 @@
         "expiration": {
           "type": "date"
         },
+        "start_time": {
+          "type": "date"
+        },
+        "minimum_execution_duration": {
+          "type": "integer"
+        },
         "input_type": {
           "type": "keyword"
         },

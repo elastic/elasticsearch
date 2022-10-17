@@ -323,7 +323,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      * This method should not be called for this specific subclass of InternalHistogram, since there should not be
      * empty buckets when clustering.
     =    */
-    private double nextKey(double key) {
+    private static double nextKey(double key) {
         return key + 1;
     }
 
@@ -401,7 +401,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         return reducedBuckets;
     }
 
-    class BucketRange {
+    static class BucketRange {
         int startIdx;
         int endIdx;
 
@@ -538,7 +538,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      *
      * After this adjustment, A will contain more values than indicated and B will have less.
      */
-    private void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
+    private static void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
         for (int i = 1; i < buckets.size(); i++) {
             Bucket curBucket = buckets.get(i);
             Bucket prevBucket = buckets.get(i - 1);

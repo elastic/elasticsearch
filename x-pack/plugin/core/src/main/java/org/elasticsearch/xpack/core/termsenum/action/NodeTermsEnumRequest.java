@@ -12,6 +12,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -19,7 +20,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -74,7 +74,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nodeId = in.readString();
         int numShards = in.readVInt();
-        shardIds = new HashSet<>(numShards);
+        shardIds = Sets.newHashSetWithExpectedSize(numShards);
         for (int i = 0; i < numShards; i++) {
             shardIds.add(new ShardId(in));
         }

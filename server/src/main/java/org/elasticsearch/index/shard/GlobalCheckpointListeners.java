@@ -9,7 +9,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
@@ -28,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -218,10 +218,7 @@ public class GlobalCheckpointListeners implements Closeable {
             } catch (final Exception caught) {
                 if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "error notifying global checkpoint listener of updated global checkpoint [{}]",
-                            globalCheckpoint
-                        ),
+                        () -> format("error notifying global checkpoint listener of updated global checkpoint [%s]", globalCheckpoint),
                         caught
                     );
                 } else if (e instanceof IndexShardClosedException) {
@@ -233,7 +230,7 @@ public class GlobalCheckpointListeners implements Closeable {
         });
     }
 
-    private void assertNotification(final long globalCheckpoint, final Exception e) {
+    private static void assertNotification(final long globalCheckpoint, final Exception e) {
         if (Assertions.ENABLED) {
             assert globalCheckpoint >= UNASSIGNED_SEQ_NO : globalCheckpoint;
             if (globalCheckpoint != UNASSIGNED_SEQ_NO) {

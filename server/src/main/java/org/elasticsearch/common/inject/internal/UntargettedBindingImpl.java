@@ -16,22 +16,15 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.UntargettedBinding;
 
 public class UntargettedBindingImpl<T> extends BindingImpl<T> implements UntargettedBinding<T> {
 
     public UntargettedBindingImpl(Injector injector, Key<T> key, Object source) {
-        super(injector, key, source, new InternalFactory<T>() {
-            @Override
-            public T get(Errors errors, InternalContext context, Dependency<?> dependency) {
-                throw new AssertionError();
-            }
-        }, Scoping.UNSCOPED);
+        super(injector, key, source, (errors, context, dependency) -> { throw new AssertionError(); }, Scoping.UNSCOPED);
     }
 
     public UntargettedBindingImpl(Object source, Key<T> key, Scoping scoping) {
@@ -46,16 +39,6 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
     @Override
     public BindingImpl<T> withScoping(Scoping scoping) {
         return new UntargettedBindingImpl<>(getSource(), getKey(), scoping);
-    }
-
-    @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new UntargettedBindingImpl<>(getSource(), key, getScoping());
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        getScoping().applyTo(binder.withSource(getSource()).bind(getKey()));
     }
 
     @Override

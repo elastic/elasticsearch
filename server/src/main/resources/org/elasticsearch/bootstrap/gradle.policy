@@ -13,4 +13,7 @@ grant codeBase "file:${gradle.worker.jar}" {
 grant {
   // since the gradle test worker jar is on the test classpath, our tests should be able to read it
   permission java.io.FilePermission "${gradle.worker.jar}", "read";
+
+  permission java.lang.RuntimePermission "setFactory";
+
 };

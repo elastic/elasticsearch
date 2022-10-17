@@ -55,6 +55,31 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
+    public RolloverRequestBuilder addMinIndexAgeCondition(TimeValue age) {
+        this.request.addMinIndexAgeCondition(age);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinIndexDocsCondition(long docs) {
+        this.request.addMinIndexDocsCondition(docs);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinIndexSizeCondition(ByteSizeValue size) {
+        this.request.addMinIndexSizeCondition(size);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinPrimaryShardSizeCondition(ByteSizeValue size) {
+        this.request.addMinPrimaryShardSizeCondition(size);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinPrimaryShardDocsCondition(long docs) {
+        this.request.addMinPrimaryShardDocsCondition(docs);
+        return this;
+    }
+
     public RolloverRequestBuilder dryRun(boolean dryRun) {
         this.request.dryRun(dryRun);
         return this;

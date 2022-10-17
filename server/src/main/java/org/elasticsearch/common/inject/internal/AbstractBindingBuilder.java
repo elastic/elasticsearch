@@ -18,7 +18,6 @@ package org.elasticsearch.common.inject.internal;
 
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Scope;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 
@@ -38,13 +37,9 @@ public abstract class AbstractBindingBuilder<T> {
     public static final String SCOPE_ALREADY_SET = "Scope is set more than once.";
     public static final String BINDING_TO_NULL = "Binding to null instances is not allowed. "
         + "Use toProvider(Providers.of(null)) if this is your intended behaviour.";
-    public static final String CONSTANT_VALUE_ALREADY_SET = "Constant value is set more than once.";
-    public static final String ANNOTATION_ALREADY_SPECIFIED = "More than one annotation is specified for this binding.";
 
-    protected static final Key<?> NULL_KEY = Key.get(Void.class);
-
-    protected List<Element> elements;
-    protected int position;
+    protected final List<Element> elements;
+    protected final int position;
     protected final Binder binder;
     private BindingImpl<T> binding;
 
@@ -66,34 +61,10 @@ public abstract class AbstractBindingBuilder<T> {
         return binding;
     }
 
-    /**
-     * Sets the binding to a copy with the specified annotation on the bound key
-     */
-    protected BindingImpl<T> annotatedWithInternal(Class<? extends Annotation> annotationType) {
-        Objects.requireNonNull(annotationType, "annotationType");
-        checkNotAnnotated();
-        return setBinding(binding.withKey(Key.get(this.binding.getKey().getTypeLiteral(), annotationType)));
-    }
-
-    /**
-     * Sets the binding to a copy with the specified annotation on the bound key
-     */
-    protected BindingImpl<T> annotatedWithInternal(Annotation annotation) {
-        Objects.requireNonNull(annotation, "annotation");
-        checkNotAnnotated();
-        return setBinding(binding.withKey(Key.get(this.binding.getKey().getTypeLiteral(), annotation)));
-    }
-
     public void in(final Class<? extends Annotation> scopeAnnotation) {
         Objects.requireNonNull(scopeAnnotation, "scopeAnnotation");
         checkNotScoped();
         setBinding(getBinding().withScoping(Scoping.forAnnotation(scopeAnnotation)));
-    }
-
-    public void in(final Scope scope) {
-        Objects.requireNonNull(scope, "scope");
-        checkNotScoped();
-        setBinding(getBinding().withScoping(Scoping.forInstance(scope)));
     }
 
     public void asEagerSingleton() {
@@ -101,19 +72,9 @@ public abstract class AbstractBindingBuilder<T> {
         setBinding(getBinding().withScoping(Scoping.EAGER_SINGLETON));
     }
 
-    protected boolean keyTypeIsSet() {
-        return Void.class.equals(binding.getKey().getTypeLiteral().getType()) == false;
-    }
-
     protected void checkNotTargetted() {
         if ((binding instanceof UntargettedBindingImpl) == false) {
             binder.addError(IMPLEMENTATION_ALREADY_SET);
-        }
-    }
-
-    protected void checkNotAnnotated() {
-        if (binding.getKey().getAnnotationType() != null) {
-            binder.addError(ANNOTATION_ALREADY_SPECIFIED);
         }
     }
 

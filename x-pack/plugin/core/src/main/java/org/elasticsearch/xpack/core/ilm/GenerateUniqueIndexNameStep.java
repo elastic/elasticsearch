@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Nullable;
@@ -24,8 +23,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Generates a unique index name prefixing the original index name with the configured
@@ -73,15 +70,13 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
 
-        ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
-
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
-        Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
+        Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
         String policyName = indexMetadata.getLifecyclePolicyName();
         String generatedIndexName = generateValidIndexName(prefix, index.getName());
         ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
@@ -94,12 +89,13 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
             );
             throw validationException;
         }
-        lifecycleStateSetter.apply(generatedIndexName, newCustomData);
+        lifecycleStateSetter.apply(generatedIndexName, newLifecycleState);
 
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
-        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
-        return newClusterStateBuilder.build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+            clusterState,
+            indexMetadata.getIndex(),
+            newLifecycleState.build()
+        );
     }
 
     @Nullable

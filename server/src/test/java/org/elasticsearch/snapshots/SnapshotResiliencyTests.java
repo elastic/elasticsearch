@@ -99,7 +99,6 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
-import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -156,17 +155,19 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -175,6 +176,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -851,7 +853,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (partialSnapshot) {
                         // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+                        client().admin().indices().create(new CreateIndexRequest(index), ActionListener.noop());
                     }
                 }
 
@@ -1013,7 +1015,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin()
                                         .cluster()
-                                        .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+                                        .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.noop());
                                 }));
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.admin()
@@ -1027,7 +1029,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                                 true
                                             )
                                         ),
-                                        noopListener()
+                                        ActionListener.noop()
                                     )
                             );
                         } else {
@@ -1373,10 +1375,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         listener.whenComplete(onResponse, e -> { throw new AssertionError(e); });
     }
 
-    private static <T> ActionListener<T> noopListener() {
-        return ActionListener.wrap(() -> {});
-    }
-
     public NodeClient client() {
         // Select from sorted list of nodes
         final List<TestClusterNodes.TestClusterNode> nodes = testClusterNodes.nodes.values()
@@ -1627,7 +1625,21 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                            return new MockSinglePrioritizingExecutor(node.getName(), node.getId(), deterministicTaskQueue, threadPool);
+                            return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {
+                                @Override
+                                public void run() {
+                                    try (
+                                        var ignored = DeterministicTaskQueue.getLogContext('{' + node.getName() + "}{" + node.getId() + '}')
+                                    ) {
+                                        command.run();
+                                    }
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "TestClusterNode.ClusterApplierService[" + command + "]";
+                                }
+                            });
                         }
 
                         @Override
@@ -1816,7 +1828,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService,
                     indicesService,
                     recoverySettings,
-                    SourceOnlyRecoveryPlannerService.INSTANCE
+                    PeerOnlyRecoveryPlannerService.INSTANCE
                 );
 
                 final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
@@ -1889,7 +1901,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             threadPool,
                             environment,
                             scriptService,
-                            new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
+                            new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
                             Collections.emptyList(),
                             client
                         ),
@@ -1922,7 +1934,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new MetadataDeleteIndexService(settings, clusterService, allocationService),
                     new IndexMetadataVerifier(settings, namedXContentRegistry, mapperRegistry, indexScopedSettings, ScriptCompiler.NONE),
                     shardLimitValidator,
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    indicesService,
+                    mock(FileSettingsService.class)
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,
@@ -1964,7 +1978,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
-                    EmptySystemIndices.INSTANCE.getExecutorSelector()
+                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                    Tracer.NOOP
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(
@@ -2023,7 +2038,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         transportService,
                         clusterService,
                         repositoriesService,
-                        snapshotsService,
                         threadPool,
                         actionFilters,
                         indexNameExpressionResolver
@@ -2163,7 +2177,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     random(),
                     rerouteService,
                     ElectionStrategy.DEFAULT_INSTANCE,
-                    () -> new StatusInfo(HEALTHY, "healthy-info")
+                    () -> new StatusInfo(HEALTHY, "healthy-info"),
+                    new NoneCircuitBreakerService()
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

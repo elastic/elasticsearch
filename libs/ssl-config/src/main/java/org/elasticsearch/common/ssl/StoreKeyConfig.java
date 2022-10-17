@@ -190,7 +190,7 @@ public class StoreKeyConfig implements SslKeyConfig {
     /**
      * Verifies that the keystore contains at least 1 private key entry.
      */
-    private void checkKeyStore(KeyStore keyStore, Path path) throws KeyStoreException {
+    private static void checkKeyStore(KeyStore keyStore, Path path) throws KeyStoreException {
         Enumeration<String> aliases = keyStore.aliases();
         while (aliases.hasMoreElements()) {
             String alias = aliases.nextElement();

@@ -178,7 +178,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
             );
         }
         final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
-        return new ConstantScoreQuery(ft.geoShapeQuery(shape, fieldType.name(), strategy, relation, context));
+        return new ConstantScoreQuery(ft.geoShapeQuery(context, fieldType.name(), strategy, relation, shape));
     }
 
     @Override

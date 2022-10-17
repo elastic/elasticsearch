@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.analytics.movingPercentiles;
 
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,8 +23,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MovingPercentilesTests extends BasePipelineAggregationTestCase<MovingPercentilesPipelineAggregationBuilder> {
     @Override
@@ -68,9 +67,7 @@ public class MovingPercentilesTests extends BasePipelineAggregationTestCase<Movi
         assertThat(validate(new DateHistogramAggregationBuilder("name"), builder), nullValue());
         assertThat(validate(new AutoDateHistogramAggregationBuilder("name"), builder), nullValue());
 
-        // Mocked "test" agg, should fail validation
-        AggregationBuilder stubParent = mock(AggregationBuilder.class);
-        when(stubParent.getName()).thenReturn("name");
+        AggregationBuilder stubParent = new TermsAggregationBuilder("name");
         assertThat(
             validate(stubParent, builder),
             equalTo(

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BucketTests extends AbstractSerializingTestCase<Bucket> {
+public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
 
     private static final long MAX_BUCKET_SPAN_SEC = 100_000_000_000L;  // bucket span of > 3000 years should be enough for everyone
 

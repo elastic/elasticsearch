@@ -65,7 +65,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final String sizeKey = settingsKey(prefix, "size");
         this.sizeSetting = new Setting<>(
             sizeKey,
-            s -> Integer.toString(size),
+            Integer.toString(size),
             s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
             Setting.Property.NodeScope
         );

@@ -8,16 +8,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
@@ -30,11 +26,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -55,8 +54,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static GeoPoint[] singleValues, multiValues;
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid,
         unmappedCentroid;
-    protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
+    protected static Map<String, Integer> expectedDocCountsForGeoHash = null;
+    protected static Map<String, GeoPoint> expectedCentroidsForGeoHash = null;
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     @Override
@@ -85,8 +84,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
         numDocs = randomIntBetween(6, 20);
         numUniqueGeoPoints = randomIntBetween(1, numDocs);
-        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
-        expectedCentroidsForGeoHash = new ObjectObjectHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
+        expectedCentroidsForGeoHash = new HashMap<>(numDocs * 2);
 
         singleValues = new GeoPoint[numUniqueGeoPoints];
         for (int i = 0; i < singleValues.length; i++) {
@@ -287,5 +286,19 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         if (geoPoint.lon() < currentBound.lon()) {
             currentBound.resetLon(geoPoint.lon());
         }
+    }
+
+    protected void assertSameCentroid(SpatialPoint centroid, SpatialPoint expectedCentroid) {
+        String[] names = centroid.getClass() == GeoPoint.class ? new String[] { "longitude", "latitude" } : new String[] { "x", "y" };
+        assertThat(
+            "Mismatching value for '" + names[0] + "' field of centroid",
+            centroid.getX(),
+            closeTo(expectedCentroid.getX(), GEOHASH_TOLERANCE)
+        );
+        assertThat(
+            "Mismatching value for '" + names[1] + "' field of centroid",
+            centroid.getY(),
+            closeTo(expectedCentroid.getY(), GEOHASH_TOLERANCE)
+        );
     }
 }

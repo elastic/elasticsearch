@@ -211,7 +211,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         return builder;
     }
 
-    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
+    private static XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
 
         builder.startObject("unassigned_info");
         builder.field("reason", unassignedInfo.getReason());

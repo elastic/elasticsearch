@@ -101,7 +101,7 @@ import org.elasticsearch.core.SuppressForbidden;
  */
 
 public final class MergePolicyConfig {
-    private final EsTieredMergePolicy mergePolicy = new EsTieredMergePolicy();
+    private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
 

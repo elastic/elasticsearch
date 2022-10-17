@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
@@ -79,77 +81,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 )
             )
         );
-        clusterService = new ClusterService(settings, clusterSettings, tp);
-    }
-
-    public void testNumInferenceProcessors() throws Exception {
-        Metadata metadata = null;
-
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY);
-        processorFactory.accept(buildClusterState(metadata));
-
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
-        metadata = Metadata.builder().build();
-
-        processorFactory.accept(buildClusterState(metadata));
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
-
-        processorFactory.accept(buildClusterStateWithModelReferences("model1", "model2", "model3"));
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
-    }
-
-    public void testNumInferenceProcessorsRecursivelyDefined() throws Exception {
-        Metadata metadata = null;
-
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY);
-        processorFactory.accept(buildClusterState(metadata));
-
-        Map<String, PipelineConfiguration> configurations = new HashMap<>();
-        configurations.put(
-            "pipeline_with_model_top_level",
-            randomBoolean()
-                ? newConfigurationWithInferenceProcessor("top_level")
-                : newConfigurationWithForeachProcessorProcessor("top_level")
-        );
-        try (
-            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-                .map(Collections.singletonMap("processors", Collections.singletonList(Collections.singletonMap("set", new HashMap<>() {
-                    {
-                        put("field", "foo");
-                        put("value", "bar");
-                        put(
-                            "on_failure",
-                            Arrays.asList(inferenceProcessorForModel("second_level"), forEachProcessorWithInference("third_level"))
-                        );
-                    }
-                }))))
-        ) {
-            configurations.put(
-                "pipeline_with_model_nested",
-                new PipelineConfiguration("pipeline_with_model_nested", BytesReference.bytes(xContentBuilder), XContentType.JSON)
-            );
-        }
-
-        IngestMetadata ingestMetadata = new IngestMetadata(configurations);
-
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                    .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
-                    .localNodeId("_node_id")
-                    .masterNodeId("_node_id")
-            )
-            .build();
-
-        processorFactory.accept(cs);
-        assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
-    }
-
-    public void testNumInferenceWhenLevelExceedsMaxRecurions() {
-        assertThat(InferenceProcessor.Factory.numInferenceProcessors(InferenceProcessor.TYPE, Collections.emptyMap(), 100), equalTo(0));
+        clusterService = new ClusterService(settings, clusterSettings, tp, null);
     }
 
     public void testCreateProcessorWithTooManyExisting() throws Exception {
@@ -391,17 +323,21 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
     public void testParseFromMap() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY);
-        for (String name : List.of(
-            ClassificationConfig.NAME.getPreferredName(),
-            RegressionConfig.NAME.getPreferredName(),
-            FillMaskConfig.NAME,
-            NerConfig.NAME,
-            PassThroughConfig.NAME,
-            TextClassificationConfig.NAME,
-            TextEmbeddingConfig.NAME,
-            ZeroShotClassificationConfig.NAME
+        for (var nameAndMap : List.of(
+            Tuple.tuple(ClassificationConfig.NAME.getPreferredName(), Map.of()),
+            Tuple.tuple(RegressionConfig.NAME.getPreferredName(), Map.of()),
+            Tuple.tuple(FillMaskConfig.NAME, Map.of()),
+            Tuple.tuple(NerConfig.NAME, Map.of()),
+            Tuple.tuple(PassThroughConfig.NAME, Map.of()),
+            Tuple.tuple(TextClassificationConfig.NAME, Map.of()),
+            Tuple.tuple(TextEmbeddingConfig.NAME, Map.of()),
+            Tuple.tuple(ZeroShotClassificationConfig.NAME, Map.of()),
+            Tuple.tuple(QuestionAnsweringConfig.NAME, Map.of("question", "What is the answer to life, the universe and everything?"))
         )) {
-            assertThat(processorFactory.inferenceConfigUpdateFromMap(Map.of(name, Map.of())).getName(), equalTo(name));
+            assertThat(
+                processorFactory.inferenceConfigUpdateFromMap(Map.of(nameAndMap.v1(), nameAndMap.v2())).getName(),
+                equalTo(nameAndMap.v1())
+            );
         }
     }
 

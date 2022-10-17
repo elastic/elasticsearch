@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -299,7 +298,7 @@ public class RecoveriesCollection {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected error while monitoring recovery [{}]", recoveryId), e);
+            logger.error(() -> "unexpected error while monitoring recovery [" + recoveryId + "]", e);
         }
 
         @Override

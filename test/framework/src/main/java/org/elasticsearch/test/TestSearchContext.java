@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -463,12 +464,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadSize() {
-        return 0;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         return null;
     }
 
@@ -535,5 +531,10 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return searchExecutionContext.newSourceLoader(false);
     }
 }

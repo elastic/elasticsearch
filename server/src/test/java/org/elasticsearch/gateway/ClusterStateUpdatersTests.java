@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -90,7 +91,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
             })
         );
-        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null);
+        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null, (TaskManager) null);
         final Metadata.Builder builder = Metadata.builder();
         final Settings settings = Settings.builder().put("foo.old", randomAlphaOfLength(8)).build();
         applySettingsToBuilder.accept(builder, settings);

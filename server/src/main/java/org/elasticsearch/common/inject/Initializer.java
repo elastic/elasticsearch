@@ -61,7 +61,7 @@ class Initializer {
         Objects.requireNonNull(source);
 
         // short circuit if the object has no injections
-        if (instance == null || (injectionPoints.isEmpty() && injector.membersInjectorStore.hasTypeListeners() == false)) {
+        if (instance == null || (injectionPoints.isEmpty())) {
             return Initializables.of(instance);
         }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -94,7 +93,7 @@ public class IndicesStatsMonitoringDoc extends FilteredMonitoringDoc {
         builder.endObject();
     }
 
-    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+    public static final Set<String> XCONTENT_FILTERS = Set.of(
         "indices_stats._all.primaries.docs.count",
         "indices_stats._all.primaries.indexing.index_time_in_millis",
         "indices_stats._all.primaries.indexing.index_total",

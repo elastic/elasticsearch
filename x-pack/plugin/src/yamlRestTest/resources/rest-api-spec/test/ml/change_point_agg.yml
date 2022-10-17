@@ -184,7 +184,6 @@ setup:
 "Test change_point with too few buckets":
 
   - do:
-      catch: /not enough buckets to calculate change_point. Requires at least \[22\]/
       search:
         index: empty-store
         size: 0
@@ -211,3 +210,4 @@ setup:
               }
             }
           }
+  - is_true: aggregations.change_point.type.indeterminable

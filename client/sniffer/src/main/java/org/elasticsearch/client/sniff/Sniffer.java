@@ -147,7 +147,7 @@ public class Sniffer implements Closeable {
                 ScheduledTask previousTask = nextScheduledTask;
                 nextScheduledTask = new ScheduledTask(task, future);
                 assert initialized.get() == false || previousTask.task.isSkipped() || previousTask.task.hasStarted()
-                    : "task that we are replacing is neither " + "cancelled nor has it ever started";
+                    : "task that we are replacing is neither cancelled nor has it ever started";
             }
         }
 

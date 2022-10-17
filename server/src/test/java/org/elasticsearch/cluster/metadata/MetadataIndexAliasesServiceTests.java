@@ -26,9 +26,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -152,7 +152,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public void testMultipleIndices() {
         final var length = randomIntBetween(2, 8);
-        final var indices = new HashSet<String>(length);
+        final Set<String> indices = Sets.newHashSetWithExpectedSize(length);
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT).build();
         final var addActions = new ArrayList<AliasAction>(length);
         for (int i = 0; i < length; i++) {
@@ -164,7 +164,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertAliasesVersionIncreased(indices.toArray(new String[0]), before, afterAddingAliasesToAll);
 
         // now add some aliases randomly
-        final var randomIndices = new HashSet<String>(length);
+        final Set<String> randomIndices = Sets.newHashSetWithExpectedSize(length);
         final var randomAddActions = new ArrayList<AliasAction>(length);
         for (var index : indices) {
             if (randomBoolean()) {
@@ -584,11 +584,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex())))
-            )
+            .metadata(Metadata.builder().put(indexMetadata, true).put(newInstance(dataStreamName, singletonList(indexMetadata.getIndex()))))
             .build();
 
         IllegalArgumentException exception = expectThrows(

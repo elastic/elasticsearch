@@ -65,7 +65,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         builder.field(field);
         builder.startObject();
         sourceProvider.toXContent(builder, params);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }

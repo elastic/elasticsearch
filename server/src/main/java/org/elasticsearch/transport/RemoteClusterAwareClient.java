@@ -57,7 +57,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
             } catch (NoSuchRemoteClusterException e) {
                 if (ensureConnected == false) {
                     // trigger another connection attempt, but don't wait for it to complete
-                    remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(() -> {}));
+                    remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());
                 }
                 throw e;
             }

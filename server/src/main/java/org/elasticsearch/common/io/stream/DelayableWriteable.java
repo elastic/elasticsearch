@@ -91,7 +91,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(writeToBuffer(out.getVersion()).bytes());
+            out.writeWithSizePrefix(reference);
         }
 
         @Override
@@ -256,14 +256,5 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void close() throws IOException {}
-
-        @Override
-        public void reset() throws IOException {
-            size = 0;
-        }
-
-        public long length() {
-            return size;
-        }
     }
 }

@@ -30,11 +30,14 @@ final class ElasticServiceAccounts {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
+                        "search-*",
+                        ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",
                         "enterprise-search-*",
                         "logs-app_search.analytics-default",
+                        "logs-elastic_analytics.events-*",
                         "logs-enterprise_search.api-default",
                         "logs-enterprise_search.audit-default",
                         "logs-app_search.search_relevance_suggestions-default",

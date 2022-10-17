@@ -154,7 +154,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                     null
                 )
             )
-            .setAnalyzedFields(new FetchSourceContext(true, new String[] { TEXT_FIELD, NUMERICAL_FIELD }, new String[] {}))
+            .setAnalyzedFields(FetchSourceContext.of(true, new String[] { TEXT_FIELD, NUMERICAL_FIELD }, new String[] {}))
             .build();
         putAnalytics(config);
 
@@ -199,40 +199,41 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     }
 
     private static void createIndex(String index, boolean isDatastream) {
-        String mapping = """
-            {
-              "properties": {
-                "@timestamp": {
-                  "type": "date"
-                },
-                "%s": {
-                  "type": "boolean"
-                },
-                "%s": {
-                  "type": "double"
-                },
-                "%s": {
-                  "type": "unsigned_long"
-                },
-                "%s": {
-                  "type": "text"
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                }
-              }
-            }""".formatted(
+        String mapping = formatted(
+            """
+                {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "%s": {
+                      "type": "boolean"
+                    },
+                    "%s": {
+                      "type": "double"
+                    },
+                    "%s": {
+                      "type": "unsigned_long"
+                    },
+                    "%s": {
+                      "type": "text"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    }
+                  }
+                }""",
             BOOLEAN_FIELD,
             NUMERICAL_FIELD,
             DISCRETE_NUMERICAL_FIELD,

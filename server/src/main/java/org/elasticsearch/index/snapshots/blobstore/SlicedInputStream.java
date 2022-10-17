@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

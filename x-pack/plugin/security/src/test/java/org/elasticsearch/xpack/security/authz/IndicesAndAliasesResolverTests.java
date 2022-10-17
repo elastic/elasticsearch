@@ -88,7 +88,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -205,14 +204,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex1, true)
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
-            .put(
-                newInstance(
-                    dataStreamName,
-                    createTimestampField("@timestamp"),
-                    List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())
-                )
-            )
-            .put(newInstance(otherDataStreamName, createTimestampField("@timestamp"), List.of(dataStreamIndex3.getIndex())))
+            .put(newInstance(dataStreamName, List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
+            .put(newInstance(otherDataStreamName, List.of(dataStreamIndex3.getIndex())))
             .put(indexBuilder(securityIndexName).settings(settings))
             .build();
 
@@ -389,7 +382,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[] { "-index10", "-index20", "+index30" });
-        List<String> indices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
+        List<String> indices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
             .getLocal();
         String[] expectedIndices = new String[] { "-index10", "-index20", "+index30" };
         assertThat(indices, hasSize(expectedIndices.length));
@@ -401,7 +394,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(request.indices()).thenReturn(new String[] { "index*" });
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
+            () -> IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
         assertThat(
             exception,
@@ -426,7 +419,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
+            () -> IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
 
         assertThat(
@@ -623,6 +616,28 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+    }
+
+    public void testResolveWildcardsNoExpand() {
+        SearchRequest request = new SearchRequest("*", "-foofoo*");
+        // no wildcard expand and no ignore unavailable
+        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), false, false));
+        ResolvedIndices indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME));
+        String[] replacedIndices = new String[] { "*", "-foofoo*" };
+        assertThat(indices.getLocal(), containsInAnyOrder(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        // no wildcard expand but ignore unavailable
+        request = new SearchRequest("*", "-foofoo*");
+        request.indicesOptions(IndicesOptions.fromOptions(true, true, false, false));
+        indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME));
+        assertNoIndices(request, indices);
+        SearchRequest disallowNoIndicesRequest = new SearchRequest("*", "-foofoo*");
+        disallowNoIndicesRequest.indicesOptions(IndicesOptions.fromOptions(true, false, false, false));
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> resolveIndices(disallowNoIndicesRequest, buildAuthorizedIndices(user, SearchAction.NAME))
+        );
+        assertEquals("no such index [[*, -foofoo*]]", e.getMessage());
     }
 
     public void testResolveWildcardsExclusionsExpandWilcardsOpenStrict() {
@@ -1391,7 +1406,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.aliases("bar*");
         request.indices("*bar");
         resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME));
-        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     public void testResolveAliasesExclusionWildcardsGetAliasesRequest() {
@@ -1448,7 +1463,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME));
         assertThat(resolvedIndices.getLocal(), contains("non_existing"));
         assertThat(Arrays.asList(request.indices()), contains("non_existing"));
-        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     /**
@@ -2272,7 +2287,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final List<String> localIndices = resolvedIndices.getLocal();
         assertEquals(1, localIndices.size());
         assertEquals(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER, localIndices.iterator().next());
-        assertEquals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(request.indices()));
+        assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(request.indices()));
         assertEquals(0, resolvedIndices.getRemote().size());
     }
 

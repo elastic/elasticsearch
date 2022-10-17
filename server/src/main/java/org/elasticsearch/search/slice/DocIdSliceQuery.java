@@ -62,7 +62,7 @@ public final class DocIdSliceQuery extends SliceQuery {
                 return new ConstantScoreScorer(this, boost, scoreMode, iterator);
             }
 
-            private DocIdSetIterator createIterator(LeafReaderContext context, int sliceStart, int sliceEnd) {
+            private static DocIdSetIterator createIterator(LeafReaderContext context, int sliceStart, int sliceEnd) {
                 int leafStart = context.docBase;
                 int leafEnd = context.docBase + context.reader().maxDoc();
 

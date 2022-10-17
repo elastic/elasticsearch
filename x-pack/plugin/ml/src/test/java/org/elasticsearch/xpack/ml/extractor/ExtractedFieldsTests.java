@@ -119,7 +119,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         assertThat(airportField.getParentField(), equalTo("airport"));
     }
 
-    public void testApplyBooleanMapping() {
+    public void testApplyBooleanMapping_GivenDocValueField() {
         DocValueField aBool = new DocValueField("a_bool", Collections.singleton("boolean"));
 
         ExtractedField mapped = ExtractedFields.applyBooleanMapping(aBool);
@@ -132,8 +132,35 @@ public class ExtractedFieldsTests extends ESTestCase {
 
         assertThat(mapped.getName(), equalTo(aBool.getName()));
         assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
-        assertThat(mapped.supportsFromSource(), is(false));
-        expectThrows(UnsupportedOperationException.class, mapped::newFromSource);
+        assertThat(mapped.supportsFromSource(), is(aBool.supportsFromSource()));
+    }
+
+    public void testApplyBooleanMapping_GivenSourceField() {
+        SourceField aBool = new SourceField("a_bool", Collections.singleton("boolean"));
+
+        ExtractedField mapped = ExtractedFields.applyBooleanMapping(aBool);
+
+        SearchHit hitTrue = new SearchHitBuilder(42).setSource("{\"a_bool\": true}").build();
+        SearchHit hitFalse = new SearchHitBuilder(42).setSource("{\"a_bool\": false}").build();
+        SearchHit hitTrueArray = new SearchHitBuilder(42).setSource("{\"a_bool\": [\"true\", true]}").build();
+        SearchHit hitFalseArray = new SearchHitBuilder(42).setSource("{\"a_bool\": [\"false\", false]}").build();
+
+        assertThat(mapped.value(hitTrue), equalTo(new Integer[] { 1 }));
+        assertThat(mapped.value(hitFalse), equalTo(new Integer[] { 0 }));
+        assertThat(mapped.value(hitTrueArray), equalTo(new Integer[] { 1, 1 }));
+        assertThat(mapped.value(hitFalseArray), equalTo(new Integer[] { 0, 0 }));
+
+        assertThat(mapped.getName(), equalTo(aBool.getName()));
+        assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
+        assertThat(mapped.supportsFromSource(), is(aBool.supportsFromSource()));
+    }
+
+    public void testApplyBooleanMapping_GivenNonBooleanField() {
+        SourceField aBool = new SourceField("not_a_bool", Collections.singleton("integer"));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ExtractedFields.applyBooleanMapping(aBool));
+
+        assertThat(e.getMessage(), equalTo("cannot apply boolean mapping to field [not_a_bool]"));
     }
 
     public void testBuildGivenFieldWithoutMappings() {

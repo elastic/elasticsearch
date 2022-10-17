@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -27,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
 /**
@@ -45,6 +45,7 @@ public class SecuritySystemIndices {
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
+    public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
 
     private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
@@ -67,11 +68,7 @@ public class SecuritySystemIndices {
     }
 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
-        } else {
-            return List.of(mainDescriptor, tokenDescriptor);
-        }
+        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
     }
 
     public void init(Client client, ClusterService clusterService) {
@@ -121,7 +118,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private Settings getMainIndexSettings() {
+    private static Settings getMainIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -546,7 +543,7 @@ public class SecuritySystemIndices {
         }
     }
 
-    private SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
+    private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".security-tokens-[0-9]+*")
             .setPrimaryIndex(TOKENS_INDEX_CONCRETE_NAME)
@@ -572,7 +569,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private XContentBuilder getTokenIndexMappings() {
+    private static XContentBuilder getTokenIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -655,6 +652,8 @@ public class SecuritySystemIndices {
                                     builder.endObject();
 
                                     defineRealmDomain(builder, "realm_domain");
+
+                                    builder.startObject("authentication").field("type", "binary").endObject();
                                 }
                                 builder.endObject();
                             }
@@ -734,12 +733,29 @@ public class SecuritySystemIndices {
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
             .setVersionMetaKey(SECURITY_VERSION_STRING)
-            .setOrigin(SECURITY_ORIGIN)
+            .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN)
+            .setPriorSystemIndexDescriptors(
+                List.of(
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(".security-profile-[0-9]+*")
+                        .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
+                        .setDescription("Contains user profile documents")
+                        .setMappings(getProfileIndexMappings())
+                        .setSettings(getProfileIndexSettings())
+                        .setAliasName(SECURITY_PROFILE_ALIAS)
+                        .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
+                        .setVersionMetaKey(SECURITY_VERSION_STRING)
+                        .setOrigin(SECURITY_ORIGIN)
+                        .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+                        .build()
+                )
+            )
             .build();
     }
 
-    private Settings getProfileIndexSettings() {
+    private static Settings getProfileIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -831,10 +847,6 @@ public class SecuritySystemIndices {
                                     builder.startObject("full_name");
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
-
-                                    builder.startObject("active");
-                                    builder.field("type", "boolean");
-                                    builder.endObject();
                                 }
                                 builder.endObject();
                             }
@@ -846,7 +858,7 @@ public class SecuritySystemIndices {
                             builder.endObject();
 
                             // Searchable application specific data
-                            builder.startObject("access");
+                            builder.startObject("labels");
                             builder.field("type", "flattened");
                             builder.endObject();
 
@@ -872,7 +884,7 @@ public class SecuritySystemIndices {
         }
     }
 
-    private void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
+    private static void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
         builder.startObject(fieldName);
         {
             builder.field("type", "object");

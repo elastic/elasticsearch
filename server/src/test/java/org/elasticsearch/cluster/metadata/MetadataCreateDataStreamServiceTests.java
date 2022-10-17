@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -222,7 +221,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
-        DataStream existingDataStream = newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex()));
+        DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream), Map.of()).build())
             .build();
@@ -345,12 +344,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     private static SystemIndices getSystemIndices() {
-        Map<String, Feature> map = Map.of(
-            "system",
+        List<Feature> features = List.of(
             new Feature("systemFeature", "system feature description", List.of(), List.of(systemDataStreamDescriptor()))
         );
 
-        return new SystemIndices(map);
+        return new SystemIndices(features);
     }
 
     private static SystemDataStreamDescriptor systemDataStreamDescriptor() {

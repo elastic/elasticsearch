@@ -20,13 +20,8 @@ import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.spi.InjectionListener;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.util.List;
-import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Injects members of instances of a given type.
@@ -40,21 +35,12 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
     private final List<MembersInjector<? super T>> userMembersInjectors;
     private final List<InjectionListener<? super T>> injectionListeners;
 
-    MembersInjectorImpl(
-        InjectorImpl injector,
-        TypeLiteral<T> typeLiteral,
-        EncounterImpl<T> encounter,
-        List<SingleMemberInjector> memberInjectors
-    ) {
+    MembersInjectorImpl(InjectorImpl injector, TypeLiteral<T> typeLiteral, List<SingleMemberInjector> memberInjectors) {
         this.injector = injector;
         this.typeLiteral = typeLiteral;
         this.memberInjectors = memberInjectors;
-        this.userMembersInjectors = encounter.getMembersInjectors();
-        this.injectionListeners = encounter.getInjectionListeners();
-    }
-
-    public List<SingleMemberInjector> getMemberInjectors() {
-        return memberInjectors;
+        this.userMembersInjectors = List.of();
+        this.injectionListeners = List.of();
     }
 
     @Override
@@ -74,12 +60,9 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
             return;
         }
 
-        injector.callInContext(new ContextualCallable<Void>() {
-            @Override
-            public Void call(InternalContext context) throws ErrorsException {
-                injectMembers(instance, errors, context);
-                return null;
-            }
+        injector.callInContext((ContextualCallable<Void>) context -> {
+            injectMembers(instance, errors, context);
+            return null;
         });
 
         notifyListeners(instance, errors);
@@ -119,7 +102,4 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
         return "MembersInjector<" + typeLiteral + ">";
     }
 
-    public Set<InjectionPoint> getInjectionPoints() {
-        return unmodifiableSet(memberInjectors.stream().map(SingleMemberInjector::getInjectionPoint).collect(toSet()));
-    }
 }

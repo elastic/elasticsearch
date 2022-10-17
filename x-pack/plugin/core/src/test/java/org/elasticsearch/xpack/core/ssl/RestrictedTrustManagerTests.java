@@ -180,7 +180,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             trustManager.checkClientTrusted(chain, "ignore");
             Assert.fail("Certificate " + describe(chain) + " is trusted but shouldn't be");
         } catch (CertificateException e) {
-            assertThat(e.getMessage(), new TypeSafeMatcher<String>() {
+            assertThat(e.getMessage(), new TypeSafeMatcher<>() {
                 @Override
                 public void describeTo(Description description) {
                     description.appendText("matches pattern ").appendText(expectedError);
@@ -195,7 +195,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     }
 
     private String describe(X509Certificate[] cert) {
-        return Arrays.stream(cert).map(c -> c.getSubjectDN().getName()).collect(Collectors.joining(", "));
+        return Arrays.stream(cert).map(c -> c.getSubjectX500Principal().getName()).collect(Collectors.joining(", "));
     }
 
 }

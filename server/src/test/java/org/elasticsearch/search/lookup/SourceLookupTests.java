@@ -11,17 +11,17 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
@@ -34,20 +34,19 @@ public class SourceLookupTests extends ESTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             doc.add(new StringField("field", "value", Field.Store.YES));
+            doc.add(new StoredField("_source", new BytesRef("{\"field\": \"value\"}")));
             iw.addDocument(doc);
 
             try (IndexReader reader = iw.getReader()) {
                 LeafReaderContext readerContext = reader.leaves().get(0);
 
-                SourceLookup sourceLookup = new SourceLookup();
-                sourceLookup.setSegmentAndDocument(readerContext, 42);
-                sourceLookup.setSource(
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject())
-                );
+                SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
+                sourceLookup.setSegmentAndDocument(readerContext, 0);
+                sourceLookup.source();
                 assertNotNull(sourceLookup.internalSourceRef());
 
                 // Source should be preserved if we pass in the same reader and document
-                sourceLookup.setSegmentAndDocument(readerContext, 42);
+                sourceLookup.setSegmentAndDocument(readerContext, 0);
                 assertNotNull(sourceLookup.internalSourceRef());
 
                 // Check that the stored fields reader is not loaded eagerly

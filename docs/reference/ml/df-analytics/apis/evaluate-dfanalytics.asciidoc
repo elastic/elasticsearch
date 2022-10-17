@@ -213,6 +213,10 @@ belongs.
   `multiclass_confusion_matrix`:::
     (Optional, object) Multiclass confusion matrix.
 
+    `size`::::
+      (Optional, double) Specifies the size of the multiclass confusion matrix. 
+      Defaults to `10` which results in a matrix of size 10x10.
+
   `precision`:::
     (Optional, object) Precision of predictions (per-class and average).
 

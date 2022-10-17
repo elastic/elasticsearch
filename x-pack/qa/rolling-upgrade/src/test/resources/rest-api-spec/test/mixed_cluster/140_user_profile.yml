@@ -1,0 +1,32 @@
+---
+"Test User Profile feature will work in a mixed cluster":
+
+  - skip:
+      features: node_selector
+      version: " - 7.99.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/86373"
+
+  - do:
+      node_selector:
+        version: " 8.5.0 - "
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "test_user",
+            "password" : "x-pack-test-password"
+          }
+  - is_true: uid
+  - match: { "user.username" : "test_user" }
+  - set: { uid: profile_uid }
+
+  - do:
+      node_selector:
+        version: " 8.5.0 - "
+      security.get_user_profile:
+        uid: "$profile_uid"
+
+  - length: { profiles : 1 }
+  - set: { profiles.0 : profile }
+  - match: { $profile.uid : "$profile_uid" }
+  - match: { $profile.user.username : "test_user" }

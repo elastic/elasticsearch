@@ -13,14 +13,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the execution state data from one index to another, typically after a
@@ -73,7 +70,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
         // get target index
@@ -85,7 +82,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         if (targetIndexMetadata == null) {
             logger.warn(
                 "[{}] index [{}] unable to copy execution state to target index [{}] as target index does not exist",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName(),
                 targetIndexName
             );
@@ -94,20 +91,21 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             );
         }
 
-        String phase = targetNextStepKey.getPhase();
-        String action = targetNextStepKey.getAction();
-        String step = targetNextStepKey.getName();
+        String phase = targetNextStepKey.phase();
+        String action = targetNextStepKey.action();
+        String step = targetNextStepKey.name();
 
-        LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder(lifecycleState);
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
         // Override the phase, action, and step for the target next StepKey
-        relevantTargetCustomData.setPhase(phase);
-        relevantTargetCustomData.setAction(action);
-        relevantTargetCustomData.setStep(step);
+        newLifecycleState.setPhase(phase);
+        newLifecycleState.setAction(action);
+        newLifecycleState.setStep(step);
 
-        Metadata.Builder newMetadata = Metadata.builder(clusterState.getMetadata())
-            .put(IndexMetadata.builder(targetIndexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, relevantTargetCustomData.build().asMap()));
-
-        return ClusterState.builder(clusterState).metadata(newMetadata).build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+            clusterState,
+            targetIndexMetadata.getIndex(),
+            newLifecycleState.build()
+        );
     }
 
     @Override

@@ -3,6 +3,7 @@
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "beat": {
           "properties": {
@@ -734,13 +735,16 @@
                     "config": {
                       "properties": {
                         "running": {
-                          "type": "short"
+                          "type": "long"
                         },
                         "starts": {
-                          "type": "short"
+                          "type": "long"
                         },
                         "stops": {
-                          "type": "short"
+                          "type": "long"
+                        },
+                        "reloads": {
+                          "type": "long"
                         }
                       }
                     },
@@ -1786,6 +1790,10 @@
                               "path": "beat.stats.libbeat.config.stops"
                             }
                           }
+                        },
+                        "reloads": {
+                          "type": "alias",
+                          "path": "beat.stats.libbeat.config.reloads"
                         }
                       }
                     },
@@ -2237,6 +2245,7 @@
       }
     },
     "settings": {
+      "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },

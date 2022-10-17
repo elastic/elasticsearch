@@ -54,7 +54,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
             .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    private boolean includeTypeName(RestRequest request) {
+    private static boolean includeTypeName(RestRequest request) {
         boolean includeTypeName = false;
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {

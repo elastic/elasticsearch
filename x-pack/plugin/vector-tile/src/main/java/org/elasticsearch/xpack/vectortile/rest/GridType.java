@@ -42,8 +42,8 @@ enum GridType {
             throws IOException {
             final Rectangle r = gridAggregation.toRectangle(key);
             final InternalGeoCentroid centroid = bucket.getAggregations().get(RestVectorTileAction.CENTROID_AGG_NAME);
-            final double featureLon = Math.min(Math.max(centroid.centroid().lon(), r.getMinLon()), r.getMaxLon());
-            final double featureLat = Math.min(Math.max(centroid.centroid().lat(), r.getMinLat()), r.getMaxLat());
+            final double featureLon = Math.min(Math.max(centroid.centroid().getX(), r.getMinLon()), r.getMaxLon());
+            final double featureLat = Math.min(Math.max(centroid.centroid().getY(), r.getMinLat()), r.getMaxLat());
             return featureFactory.point(featureLon, featureLat);
         }
     };

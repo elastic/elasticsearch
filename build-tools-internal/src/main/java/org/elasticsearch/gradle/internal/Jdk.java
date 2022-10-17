@@ -23,9 +23,11 @@ import java.util.regex.Pattern;
 public class Jdk implements Buildable, Iterable<File> {
 
     private static final List<String> ALLOWED_ARCHITECTURES = List.of("aarch64", "x64");
-    private static final List<String> ALLOWED_VENDORS = List.of("adoptium", "openjdk");
+    private static final List<String> ALLOWED_VENDORS = List.of("adoptium", "openjdk", "zulu");
     private static final List<String> ALLOWED_PLATFORMS = List.of("darwin", "linux", "windows", "mac");
-    private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
+    private static final Pattern VERSION_PATTERN = Pattern.compile(
+        "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
+    );
     private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
 
     private final String name;
@@ -35,6 +37,7 @@ public class Jdk implements Buildable, Iterable<File> {
     private final Property<String> version;
     private final Property<String> platform;
     private final Property<String> architecture;
+    private final Property<String> distributionVersion;
     private String baseVersion;
     private String major;
     private String build;
@@ -47,6 +50,7 @@ public class Jdk implements Buildable, Iterable<File> {
         this.version = objectFactory.property(String.class);
         this.platform = objectFactory.property(String.class);
         this.architecture = objectFactory.property(String.class);
+        this.distributionVersion = objectFactory.property(String.class);
     }
 
     public String getName() {
@@ -100,6 +104,14 @@ public class Jdk implements Buildable, Iterable<File> {
             );
         }
         this.architecture.set(architecture);
+    }
+
+    public String getDistributionVersion() {
+        return distributionVersion.get();
+    }
+
+    public void setDistributionVersion(String distributionVersion) {
+        this.distributionVersion.set(distributionVersion);
     }
 
     public String getBaseVersion() {
@@ -177,6 +189,7 @@ public class Jdk implements Buildable, Iterable<File> {
         platform.finalizeValue();
         vendor.finalizeValue();
         architecture.finalizeValue();
+        distributionVersion.finalizeValue();
     }
 
     @Override

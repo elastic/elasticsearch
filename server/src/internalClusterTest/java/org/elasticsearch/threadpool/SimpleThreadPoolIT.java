@@ -80,7 +80,11 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             // ignore some shared threads we know that are created within the same VM, like the shared discovery one
             // or the ones that are occasionally come up from ESSingleNodeTestCase
             if (threadName.contains("[node_s_0]") // TODO: this can't possibly be right! single node and integ test are unrelated!
-                || threadName.contains("Keep-Alive-Timer")) {
+                || threadName.contains("Keep-Alive-Timer")
+                || threadName.contains("readiness-service")
+                || threadName.contains("JVMCI-native") // GraalVM Compiler Thread
+                || threadName.contains("file-settings-watcher")
+                || threadName.contains("FileSystemWatch")) { // FileSystemWatchService(Linux/Windows), FileSystemWatcher(BSD/AIX)
                 continue;
             }
             String nodePrefix = "("

@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.CharArrayReader;
 import java.io.IOException;
@@ -237,7 +237,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         }
     }
 
-    private double score(TermStats termStats, double errorScore, long dictionarySize) {
+    private static double score(TermStats termStats, double errorScore, long dictionarySize) {
         return errorScore * (((double) termStats.totalTermFreq + 1) / ((double) dictionarySize + 1));
     }
 

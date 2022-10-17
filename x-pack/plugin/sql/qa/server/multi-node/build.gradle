@@ -6,7 +6,7 @@ description = 'Run a subset of SQL tests against multiple nodes'
  * feel should need to be tested against more than one node.
  */
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   numberOfNodes = 2
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

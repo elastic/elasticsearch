@@ -24,6 +24,9 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -117,7 +120,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
 
-        if (numberOfNodes <= nodes.size()) {
+        if (numberOfNodes < nodes.size()) {
             throw new IllegalArgumentException(
                 "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + getNumberOfNodes()
             );
@@ -140,6 +143,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     isReleasedVersion
                 )
             );
+        }
+    }
+
+    public void setReadinessEnabled(boolean enabled) {
+        if (enabled) {
+            for (ElasticsearchNode node : nodes) {
+                node.setting("readiness.port", "0"); // ephemeral port
+            }
         }
     }
 
@@ -190,12 +201,22 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void plugin(TaskProvider<Zip> plugin) {
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
     public void plugin(String pluginProjectPath) {
         nodes.all(each -> each.plugin(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
+        nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(TaskProvider<Sync> module) {
         nodes.all(each -> each.module(module));
     }
 
@@ -417,7 +438,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(node -> node.requiresFeature(feature, from, until));
     }
 
-    private void writeUnicastHostsFiles() {
+    public void writeUnicastHostsFiles() {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {
             try {
@@ -444,6 +465,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     @Internal
+    public String getReadinessPortURI() {
+        waitForAllConditions();
+        return getFirstNode().getReadinessPortURI();
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
@@ -454,6 +482,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
+    }
+
+    @Override
+    @Internal
+    public List<String> getAllReadinessPortURI() {
+        waitForAllConditions();
+        return nodes.stream().flatMap(each -> each.getAllReadinessPortURI().stream()).collect(Collectors.toList());
     }
 
     public void waitForAllConditions() {

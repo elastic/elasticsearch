@@ -31,7 +31,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings_id");
-    public static ParseField ANALYTICS_COLLECTION_FIELD = new ParseField("analytics_collection");
+    public static final ParseField ANALYTICS_COLLECTION_FIELD = new ParseField("analytics_collection");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SearchEngine, Void> PARSER = new ConstructingObjectParser<>(

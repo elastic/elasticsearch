@@ -14,11 +14,11 @@ documents matching a filter
 vectors to a query vector
 
 The `dense_vector` type does not support aggregations or sorting.
-When <<dense-vector-params, `element_type`> is `byte`
+When <<dense-vector-params, `element_type`>> is `byte`
 <<query-dsl-script-score-query,`script_score`>> is not supported.
 
 You add a `dense_vector` field as an array of numeric values
-based on <<dense-vector-params, `element_type`> with
+based on <<dense-vector-params, `element_type`>> with
 `float` by default:
 
 [source,console]
@@ -148,11 +148,16 @@ distance) between the vectors. The document `_score` is computed as
 
 `dot_product`:::
 Computes the dot product of two vectors. This option provides an optimized way
-to perform cosine similarity. In order to use it when `element_type` is `float`,
-all vectors must be of unit length, including both document and query vectors.
-In order to use it when `element_type` is `byte`, all vectors must have the same
-length or results will not be accurate. The document `_score` is computed as
+to perform cosine similarity. The constraints and computed score are defined
+by `element_type`.
++
+When `element_type` is `float`, all vectors must be unit length, including both
+document and query vectors. The document `_score` is computed as
 `(1 + dot_product(query, vector)) / 2`.
++
+When `element_type` is `byte`, all vectors must have the same
+length including both document and query vectors or results will be inaccurate.
+The document `_score` is computed as `0.5 + dot_product(query, vector) / 32768`.
 
 `cosine`:::
 Computes the cosine similarity. Note that the most efficient way to perform

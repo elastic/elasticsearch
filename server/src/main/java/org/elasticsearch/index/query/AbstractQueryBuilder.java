@@ -51,7 +51,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static final float DEFAULT_BOOST = 1.0f;
     public static final ParseField NAME_FIELD = new ParseField("_name");
     public static final ParseField BOOST_FIELD = new ParseField("boost");
-    //We set the default value for tests that don't go through SearchModule
+    // We set the default value for tests that don't go through SearchModule
     private static int maxNestedDepth = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getDefault(Settings.EMPTY);
 
     protected String queryName;

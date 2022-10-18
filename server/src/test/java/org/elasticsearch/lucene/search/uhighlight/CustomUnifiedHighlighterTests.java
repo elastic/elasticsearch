@@ -477,7 +477,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 "Fun <b>fun</b> <b>fun</b> <b>fun</b> <b>fun</b>"
             )
         );
-        Integer randomOffset = between(1, 19);
+        Integer randomOffset = between(7, 19);
         String output = outputs.ceilingEntry(randomOffset).getValue();
         assertHighlightOneDoc(
             "text",

@@ -25,7 +25,7 @@ public class LimitedOffsetsEnum extends OffsetsEnum {
     @Override
     public boolean nextPosition() throws IOException {
         boolean next = delegate.nextPosition();
-        if (!next) {
+        if (next == false) {
             return next;
         }
         if (delegate.startOffset() > maxOffset) {

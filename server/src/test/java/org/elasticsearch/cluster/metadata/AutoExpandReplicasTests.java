@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -101,7 +100,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
     protected DiscoveryNode createNode(Version version, DiscoveryNodeRole... mustHaveRoles) {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
-        final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
+        final String id = formatted("node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);
     }
 

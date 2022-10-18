@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.explain;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -17,7 +17,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MemoryEstimationTests extends AbstractSerializingTestCase<MemoryEstimation> {
+public class MemoryEstimationTests extends AbstractXContentSerializingTestCase<MemoryEstimation> {
 
     public static MemoryEstimation createRandom() {
         return new MemoryEstimation(

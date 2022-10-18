@@ -27,7 +27,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -44,7 +43,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -67,6 +68,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,21 +93,23 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private final ClusterService clusterService;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
+    private final ThreadContext threadContext;
 
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
-        @Override
-        public ClusterState executeTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
-            return task.execute(clusterState);
-        }
+    private static final SimpleBatchedExecutor<RollupClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
+        new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Void> executeTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+                return Tuple.tuple(task.execute(clusterState), null);
+            }
 
-        @Override
-        public void taskSucceeded(RollupClusterStateUpdateTask task) {
-            task.listener.onResponse(AcknowledgedResponse.TRUE);
-        }
-    };
+            @Override
+            public void taskSucceeded(RollupClusterStateUpdateTask task, Void unused) {
+                task.listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
 
     @Inject
     public TransportRollupAction(
@@ -133,6 +138,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
+        this.threadContext = threadPool.getThreadContext();
     }
 
     @Override
@@ -143,8 +149,24 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ActionListener<AcknowledgedResponse> listener
     ) {
         String sourceIndexName = request.getSourceIndex();
-        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
+
+        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        if (indicesAccessControl != null) {
+            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
+            if (indexPermissions != null) {
+                boolean hasDocumentLevelPermissions = indexPermissions.getDocumentPermissions().hasDocumentLevelPermissions();
+                boolean hasFieldLevelSecurity = indexPermissions.getFieldPermissions().hasFieldLevelSecurity();
+                if (hasDocumentLevelPermissions || hasFieldLevelSecurity) {
+                    listener.onFailure(
+                        new ElasticsearchException(
+                            "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
+                        )
+                    );
+                }
+            }
+        }
         // Assert source index exists
+        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndexName));
             return;

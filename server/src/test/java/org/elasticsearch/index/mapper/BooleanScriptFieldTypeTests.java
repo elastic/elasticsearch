@@ -66,7 +66,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 BooleanScriptFieldType ft = simpleMappedFieldType();
                 BooleanScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -104,7 +104,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
@@ -120,7 +120,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
@@ -168,7 +168,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(3));
             }
         }
@@ -179,7 +179,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
                 assertThat(searcher.count(ft.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(1));
@@ -190,7 +190,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
                 assertThat(searcher.count(ft.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(1));
@@ -202,7 +202,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
                 assertThat(searcher.count(ft.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(1));
@@ -249,7 +249,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("true", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(0));
@@ -259,7 +259,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("false", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(null, mockContext())), equalTo(1));
@@ -279,7 +279,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(true, true), mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("true", "true"), mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(false, false), mockContext())), equalTo(0));
@@ -289,7 +289,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(false, false), mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("false", "false"), mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(singletonList(null), mockContext())), equalTo(1));
@@ -344,7 +344,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             }
             iw.addDocument(ctx.doc());
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
                 assertSameCount(
                     searcher,
                     source,

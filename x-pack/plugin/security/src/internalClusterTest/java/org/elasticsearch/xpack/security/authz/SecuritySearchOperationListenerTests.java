@@ -85,7 +85,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 .build(false);
             authentication.writeToContext(threadContext);
             IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
-            threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            when(indicesAccessControl.isGranted()).thenReturn(true);
+            new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             listener.onNewScrollContext(readerContext);

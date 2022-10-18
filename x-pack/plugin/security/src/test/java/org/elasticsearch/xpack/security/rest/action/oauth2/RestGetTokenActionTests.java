@@ -139,13 +139,13 @@ public class RestGetTokenActionTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        final String request = """
+        final String request = formatted("""
             {
               "grant_type": "password",
               "username": "user1",
               "password": "%s",
               "scope": "FULL"
-            }""".formatted(SecuritySettingsSourceField.TEST_PASSWORD);
+            }""", SecuritySettingsSourceField.TEST_PASSWORD);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, request)) {
             CreateTokenRequest createTokenRequest = RestGetTokenAction.PARSER.parse(parser, null);
             assertEquals("password", createTokenRequest.getGrantType());
@@ -157,12 +157,12 @@ public class RestGetTokenActionTests extends ESTestCase {
 
     public void testParserRefreshRequest() throws Exception {
         final String token = randomAlphaOfLengthBetween(4, 32);
-        final String request = """
+        final String request = formatted("""
             {
               "grant_type": "refresh_token",
               "refresh_token": "%s",
               "scope": "FULL"
-            }""".formatted(token);
+            }""", token);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, request)) {
             CreateTokenRequest createTokenRequest = RestGetTokenAction.PARSER.parse(parser, null);
             assertEquals("refresh_token", createTokenRequest.getGrantType());

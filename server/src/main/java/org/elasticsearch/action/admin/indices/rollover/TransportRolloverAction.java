@@ -296,12 +296,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest()
             );
-            final String sourceIndexName = rolloverNames.sourceName();
 
             // Re-evaluate the conditions, now with our final source index name
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditions().values(),
-                buildStats(currentState.metadata().index(sourceIndexName), rolloverTask.statsResponse())
+                buildStats(currentState.metadata().index(rolloverNames.sourceName()), rolloverTask.statsResponse())
             );
 
             if (rolloverRequest.areConditionsMet(postConditionResults)) {
@@ -325,11 +324,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
 
+                final var rolloverIndexName = rolloverResult.rolloverIndexName();
+                final var sourceIndexName = rolloverResult.sourceIndexName();
+
                 rolloverTaskContext.success(() -> {
                     // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
                     // active shards, as well as return the names of the indices that were rolled/created
                     activeShardsObserver.waitForActiveShards(
-                        new String[] { rolloverResult.rolloverIndexName() },
+                        new String[] { rolloverIndexName },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                         rolloverRequest.masterNodeTimeout(),
                         isShardsAcknowledged -> rolloverTask.listener()
@@ -338,8 +340,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     // Note that we use the actual rollover result for these, because even though we're single threaded,
                                     // it's possible for the rollover names generated before the actual rollover to be different due to
                                     // things like date resolution
-                                    rolloverResult.sourceIndexName(),
-                                    rolloverResult.rolloverIndexName(),
+                                    sourceIndexName,
+                                    rolloverIndexName,
                                     postConditionResults,
                                     false,
                                     true,

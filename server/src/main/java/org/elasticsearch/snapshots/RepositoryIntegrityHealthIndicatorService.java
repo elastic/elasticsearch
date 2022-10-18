@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -132,7 +133,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            List.of(new Diagnosis(CORRUPTED_REPOSITORY, corrupted))
+            List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corrupted))))
         );
     }
 

@@ -121,7 +121,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         sampleLines = null;
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         SortedMap<String, Object> fieldMappings = mappingsAndFieldStats.v1();
 

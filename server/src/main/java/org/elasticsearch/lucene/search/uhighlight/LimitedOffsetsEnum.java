@@ -10,7 +10,6 @@ package org.elasticsearch.lucene.search.uhighlight;
 
 import org.apache.lucene.search.uhighlight.OffsetsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 

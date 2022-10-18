@@ -1549,6 +1549,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
         }
     }
+
     public static NestedObjectMapper nestedObject(String path) {
         return new NestedObjectMapper.Builder(path, Version.CURRENT).build(MapperBuilderContext.ROOT);
     }

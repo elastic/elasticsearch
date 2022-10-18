@@ -7,7 +7,7 @@
 
 experimental[]
 
-Index downsampling is being developed to replace rollups. Refer to <<downsampling,Downsampling a time series data stream>> to learn more.
+IMPORTANT: Index downsampling is being developed to replace rollups. Refer to <<downsampling,Downsampling a time series data stream>> to learn more.
 
 Time-based data (documents that are predominantly identified by their timestamp) often have associated retention policies
 to manage data growth. For example, your system may be generating 500 documents every second. That will generate

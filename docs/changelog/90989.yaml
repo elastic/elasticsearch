@@ -1,0 +1,12 @@
+pr: 90989
+summary: Reject type parameter as part of metadata field definition
+area: Mapping
+type: deprecation
+issues:
+ - 35389
+deprecation:
+  title: Reject type parameter as part of metadata field definition
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

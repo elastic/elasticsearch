@@ -13,12 +13,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.NumericDocValuesExtractor;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -26,6 +29,7 @@ import org.elasticsearch.compute.operator.DoubleTransformerOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.RowOperator;
@@ -49,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -130,33 +135,78 @@ public class LocalExecutionPlanner {
             PhysicalOperation source = plan(aggregate.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
             Supplier<Operator> operatorFactory = null;
-            for (NamedExpression e : aggregate.aggregates()) {
-                if (e instanceof Alias alias && ((Alias) e).child()instanceof Avg avg) {
-                    BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avg.dataType().isRational()
-                        ? AggregatorFunction.doubleAvg
-                        : AggregatorFunction.longAvg;
-                    if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                        operatorFactory = () -> new AggregationOperator(
-                            List.of(
-                                new Aggregator(
-                                    aggregatorFunc,
-                                    AggregatorMode.INITIAL,
-                                    source.layout.get(Expressions.attribute(avg.field()).id())
+
+            if (aggregate.groupings().isEmpty()) {
+                // not grouping
+                for (NamedExpression e : aggregate.aggregates()) {
+                    if (e instanceof Alias alias && ((Alias) e).child()instanceof Avg avg) {
+                        BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avg.dataType().isRational()
+                            ? AggregatorFunction.doubleAvg
+                            : AggregatorFunction.longAvg;
+                        if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
+                            operatorFactory = () -> new AggregationOperator(
+                                List.of(
+                                    new Aggregator(
+                                        aggregatorFunc,
+                                        AggregatorMode.INITIAL,
+                                        source.layout.get(Expressions.attribute(avg.field()).id())
+                                    )
                                 )
-                            )
-                        );
-                        layout.put(alias.id(), 0);
-                    } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                        operatorFactory = () -> new AggregationOperator(
-                            List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id())))
-                        );
-                        layout.put(alias.id(), 0);
+                            );
+                            layout.put(alias.id(), 0);
+                        } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
+                            operatorFactory = () -> new AggregationOperator(
+                                // TODO: use intermediate name
+                                List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id())))
+                            );
+                            layout.put(alias.id(), 0);
+                        } else {
+                            throw new UnsupportedOperationException();
+                        }
                     } else {
                         throw new UnsupportedOperationException();
                     }
-                } else {
-                    throw new UnsupportedOperationException();
                 }
+            } else {
+                // grouping
+                AttributeSet groups = Expressions.references(aggregate.groupings());
+                if (groups.size() != 1) {
+                    throw new UnsupportedOperationException("just one group, for now");
+                }
+                Attribute grpAttrib = groups.iterator().next();
+                layout.put(grpAttrib.id(), 0);
+
+                for (NamedExpression e : aggregate.aggregates()) {
+                    if (e instanceof Alias alias && ((Alias) e).child()instanceof Avg avg) {
+                        BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> aggregatorFunc = GroupingAggregatorFunction.avg;
+                        if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
+                            operatorFactory = () -> new HashAggregationOperator(
+                                source.layout.get(grpAttrib.id()),
+                                List.of(
+                                    new GroupingAggregator(
+                                        aggregatorFunc,
+                                        AggregatorMode.INITIAL,
+                                        source.layout.get(Expressions.attribute(avg.field()).id())
+                                    )
+                                ),
+                                BigArrays.NON_RECYCLING_INSTANCE
+                            );
+                            layout.put(alias.id(), 1);  // <<<< TODO: this one looks suspicious
+                        } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
+                            operatorFactory = () -> new HashAggregationOperator(
+                                source.layout.get(grpAttrib.id()),
+                                List.of(new GroupingAggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
+                                BigArrays.NON_RECYCLING_INSTANCE
+                            );
+                            layout.put(alias.id(), 1);
+                        } else {
+                            throw new UnsupportedOperationException();
+                        }
+                    } else {
+                        throw new UnsupportedOperationException();
+                    }
+                }
+
             }
             if (operatorFactory != null) {
                 return new PhysicalOperation(operatorFactory, layout, source);
@@ -249,7 +299,7 @@ public class LocalExecutionPlanner {
         } else if (node instanceof OutputExec outputExec) {
             PhysicalOperation source = plan(outputExec.child(), context);
             if (outputExec.output().size() != source.layout.size()) {
-                throw new IllegalStateException();
+                throw new IllegalStateException("expected layout:" + outputExec.output() + ", source.layout:" + source.layout);
             }
             return new PhysicalOperation(
                 () -> new OutputOperator(

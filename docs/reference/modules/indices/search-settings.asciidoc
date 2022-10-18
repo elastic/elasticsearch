@@ -34,7 +34,7 @@ Requests that attempt to return more than this limit will return an error.
 
 [[indices-query-bool-max-nested-depth]]
 `indices.query.bool.max_nested_depth`::
-(<<static-cluster-setting,Static>>, integer) Maximum nested depth of bool queries. Defaults to `20`.
+(<<static-cluster-setting,Static>>, integer) Maximum nested depth of queries. Defaults to `30`.
 +
-This setting limits the nesting depth of bool queries. Deep nesting of boolean queries may lead to
-stack overflow.
+This setting limits the nesting depth of queries. Deep nesting of queries may lead to
+stack overflow errors.

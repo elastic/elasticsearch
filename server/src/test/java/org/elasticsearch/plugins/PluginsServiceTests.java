@@ -11,6 +11,7 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
@@ -46,10 +47,12 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -760,6 +763,67 @@ public class PluginsServiceTests extends ESTestCase {
                 "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
                     + "getElectionStrategies from plugin interface DiscoveryPlugin. This method will be removed in a future release."
             );
+        } finally {
+            closePluginLoaders(pluginService);
+        }
+    }
+
+    public void testStablePluginLoading() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("stable-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeStablePluginProperties(
+            plugin,
+            "description",
+            "description",
+            "name",
+            "stable-plugin",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version")
+        );
+
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            import java.util.Map;
+            import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+            import org.elasticsearch.plugin.api.NamedComponent;
+            import java.io.Reader;
+            @NamedComponent(name = "a_name")
+            public class A  implements CharFilterFactory {
+                 @Override
+                public Reader create(Reader reader) {
+                    return reader;
+                }
+            }
+            """)));
+        Path namedComponentFile = plugin.resolve("named_components.json");
+        Files.writeString(namedComponentFile, """
+            {
+              "org.elasticsearch.plugin.analysis.api.CharFilterFactory": {
+                "a_name": "p.A"
+              }
+            }
+            """);
+
+        var pluginService = newPluginsService(settings);
+        try {
+            Map<String, Plugin> stringPluginMap = pluginService.pluginMap();
+            assertThat(stringPluginMap.get("stable-plugin"), instanceOf(StablePluginPlaceHolder.class));
+
+            PluginsAndModules info = pluginService.info();
+            List<PluginRuntimeInfo> pluginInfos = info.getPluginInfos();
+            assertEquals(pluginInfos.size(), 1);
+            assertThat(pluginInfos.get(0).descriptor().getName(), equalTo("stable-plugin"));
+            assertThat(pluginInfos.get(0).descriptor().isStable(), is(true));
+
+            // TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
         } finally {
             closePluginLoaders(pluginService);
         }

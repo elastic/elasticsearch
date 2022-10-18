@@ -101,7 +101,7 @@ public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFe
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
             values.clear();
 
-            for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+            for (Object value : valueFetcher.fetchValues(sourceLookup, doc, Collections.emptyList())) {
                 assert value instanceof Map && ((Map<Object, Object>) value).get("coordinates") instanceof List;
                 List<Object> coordinates = ((Map<String, List<Object>>) value).get("coordinates");
                 assert coordinates.size() == 2 && coordinates.get(1) instanceof Number && coordinates.get(0) instanceof Number;

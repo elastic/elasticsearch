@@ -851,8 +851,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher searcher = newIndexSearcher(indexReader);
-                AggregationContext context = createAggregationContext(searcher, query, fieldTypes);
-                verify.accept(searcher, createAggregator(aggregationBuilder, context));
+                try (AggregationContext context = createAggregationContext(searcher, query, fieldTypes)) {
+                    verify.accept(searcher, createAggregator(aggregationBuilder, context));
+                }
             }
         }
     }

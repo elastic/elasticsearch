@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.SearchEngine;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -117,7 +118,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
 
         indexCreationService.set(new IndexCreationService(client, clusterService));
         xSearchRequestValidationService.set(new XSearchRequestValidationService(indexNameExpressionResolver, clusterService));
-        xSearchAnalyticsService.set(new XSearchAnalyticsService(clusterService));
+        xSearchAnalyticsService.set(new XSearchAnalyticsService(clusterService, new SearchEngine.SearchEngineAnalyticsBuilder()));
         RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client);
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();

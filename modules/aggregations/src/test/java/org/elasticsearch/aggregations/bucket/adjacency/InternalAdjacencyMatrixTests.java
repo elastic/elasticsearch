@@ -40,7 +40,7 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedAdjacencyMatrix.fromXContent(p, (String) c);
         return CollectionUtils.appendToCopy(
-            getDefaultNamedXContents(),
+            super.getNamedXContents(),
             new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(AdjacencyMatrixAggregationBuilder.NAME), parser)
         );
     }

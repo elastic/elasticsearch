@@ -70,7 +70,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c);
         return CollectionUtils.appendToCopy(
-            getDefaultNamedXContents(),
+            super.getNamedXContents(),
             new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(AutoDateHistogramAggregationBuilder.NAME), parser)
         );
     }

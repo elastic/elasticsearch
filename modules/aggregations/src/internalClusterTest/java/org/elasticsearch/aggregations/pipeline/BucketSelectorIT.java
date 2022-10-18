@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,7 +35,6 @@ import java.util.function.Function;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketSelector;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -570,7 +569,9 @@ public class BucketSelectorIT extends ESIntegTestCase {
                             .interval(1)
                             .extendedBounds(1L, 4L)
                             .minDocCount(0)
-                            .subAggregation(derivative("derivative", "_count").gapPolicy(GapPolicy.INSERT_ZEROS))
+                            .subAggregation(
+                                new DerivativePipelineAggregationBuilder("derivative", "_count").gapPolicy(GapPolicy.INSERT_ZEROS)
+                            )
                     )
             )
             .get();

@@ -66,7 +66,6 @@ public class CompoundProcessorTests extends ESTestCase {
         verify(relativeTimeProvider, times(2)).getAsLong();
         assertThat(processor.getInvokedCounter(), equalTo(1));
         assertStats(compoundProcessor, 1, 0, 1);
-
     }
 
     public void testSingleProcessorWithException() throws Exception {
@@ -82,7 +81,6 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(((ElasticsearchException) holder[0]).getRootCause().getMessage(), equalTo("error"));
         assertThat(processor.getInvokedCounter(), equalTo(1));
         assertStats(compoundProcessor, 1, 1, 0);
-
     }
 
     public void testIgnoreFailure() throws Exception {

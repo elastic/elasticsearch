@@ -51,8 +51,10 @@ public class EsqlActionIT extends ESIntegTestCase {
         );
         for (int i = 0; i < 10; i++) {
             client().prepareBulk()
-                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 42, "data_d", 1d, "count_d", 42d))
-                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 44, "data_d", 2d, "count_d", 44d))
+                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d))
+                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d))
+                .add(new IndexRequest("test").id("3" + i).source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d))
+                .add(new IndexRequest("test").id("4" + i).source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
@@ -66,34 +68,85 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testFromStats() {
-        EsqlQueryResponse results = run("from test | stats avg(count)");
+        testFromStatsImpl("from test | stats avg(count)", "avg(count)");
+    }
+
+    public void testFromStatsWithAlias() {
+        testFromStatsImpl("from test | stats f1 = avg(count)", "f1");
+    }
+
+    private void testFromStatsImpl(String command, String expectedFieldName) {
+        EsqlQueryResponse results = run(command);
         logger.info(results);
         Assert.assertEquals(1, results.columns().size());
         Assert.assertEquals(1, results.values().size());
-        assertEquals("avg(count)", results.columns().get(0).name());
+        assertEquals(expectedFieldName, results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
         assertEquals(1, results.values().get(0).size());
         assertEquals(43, (double) results.values().get(0).get(0), 1d);
     }
 
+    @AwaitsFix(bugUrl = "line 1:45: Unknown column [data]")
+    public void testFromStatsGroupingWithSort() {  // FIX ME
+        testFromStatsGroupingImpl("from test | stats avg(count) by data | sort data | limit 2", "avg(count)", "data");
+    }
+
+    public void testFromStatsGrouping() {
+        testFromStatsGroupingImpl("from test | stats avg(count) by data", "avg(count)", "data");
+    }
+
+    public void testFromStatsGroupingWithAliases() {
+        testFromStatsGroupingImpl("from test | eval g = data | stats f = avg(count) by g", "f", "g");
+    }
+
+    private void testFromStatsGroupingImpl(String command, String expectedFieldName, String expectedGroupName) {
+        EsqlQueryResponse results = run(command);
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+
+        // assert column metadata
+        ColumnInfo groupColumn = results.columns().get(0);
+        assertEquals(expectedGroupName, groupColumn.name());
+        assertEquals("long", groupColumn.type());
+        ColumnInfo valuesColumn = results.columns().get(1);
+        assertEquals(expectedFieldName, valuesColumn.name());
+        assertEquals("double", valuesColumn.type());
+
+        // assert column values
+        List<List<Object>> valueValues = results.values();
+        assertEquals(2, valueValues.size());
+        // This is loathsome, find a declarative way to assert the expected output.
+        if ((long) valueValues.get(0).get(0) == 1L) {
+            assertEquals(42, (double) valueValues.get(0).get(1), 1d);
+            assertEquals(2L, (long) valueValues.get(1).get(0));
+            assertEquals(44, (double) valueValues.get(1).get(1), 1d);
+        } else if ((long) valueValues.get(0).get(0) == 2L) {
+            assertEquals(42, (double) valueValues.get(1).get(1), 1d);
+            assertEquals(1L, (long) valueValues.get(1).get(0));
+            assertEquals(44, (double) valueValues.get(0).get(1), 1d);
+        } else {
+            fail("Unexpected group value: " + valueValues.get(0).get(0));
+        }
+    }
+
     public void testFrom() {
         EsqlQueryResponse results = run("from test");
         logger.info(results);
-        Assert.assertEquals(20, results.values().size());
+        Assert.assertEquals(40, results.values().size());
     }
 
     public void testFromSortLimit() {
         EsqlQueryResponse results = run("from test | sort count | limit 1");
         logger.info(results);
         Assert.assertEquals(1, results.values().size());
-        assertEquals(42, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("count", "long"))));
+        assertEquals(40, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("count", "long"))));
     }
 
     public void testFromEvalSortLimit() {
         EsqlQueryResponse results = run("from test | eval x = count + 7 | sort x | limit 1");
         logger.info(results);
         Assert.assertEquals(1, results.values().size());
-        assertEquals(49, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "long"))));
+        assertEquals(47, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "long"))));
     }
 
     public void testFromStatsEval() {

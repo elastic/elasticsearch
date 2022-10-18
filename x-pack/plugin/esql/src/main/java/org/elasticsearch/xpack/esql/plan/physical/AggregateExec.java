@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 @Experimental
 public class AggregateExec extends UnaryExec {
@@ -78,7 +79,7 @@ public class AggregateExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        return Stream.concat(Expressions.references(groupings()).stream(), Expressions.asAttributes(aggregates).stream()).toList();
     }
 
     @Override

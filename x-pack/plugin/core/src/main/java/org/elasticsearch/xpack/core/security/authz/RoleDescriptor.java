@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -567,9 +566,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private static IndicesPrivileges parseIndex(final String roleName, final XContentParser parser, final boolean allow2xFormat)
         throws IOException {
-        final Tuple<IndicesPrivileges, String[]> parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, false);
-        assert parsed.v2() == null : "indices privileges cannot have remote clusters";
-        return parsed.v1();
+        final IndicesPrivilegesWithOptionalRemoteClusters parsed = parseIndexWithOptionalRemoteClusters(
+            roleName,
+            parser,
+            allow2xFormat,
+            false
+        );
+        assert parsed.remoteClusters() == null : "indices privileges cannot have remote clusters";
+        return parsed.indicesPrivileges();
     }
 
     private static RoleDescriptor.RemoteIndicesPrivileges[] parseRemoteIndices(final String roleName, final XContentParser parser)
@@ -591,18 +595,20 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     private static RemoteIndicesPrivileges parseRemoteIndex(String roleName, XContentParser parser) throws IOException {
-        final Tuple<IndicesPrivileges, String[]> parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, false, true);
-        if (parsed.v2() == null) {
+        final IndicesPrivilegesWithOptionalRemoteClusters parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, false, true);
+        if (parsed.remoteClusters() == null) {
             throw new ElasticsearchParseException(
                 "failed to parse remote indices privileges for role [{}]. missing required [{}] field",
                 roleName,
                 Fields.REMOTE_CLUSTERS
             );
         }
-        return new RemoteIndicesPrivileges(parsed.v1(), parsed.v2());
+        return new RemoteIndicesPrivileges(parsed.indicesPrivileges(), parsed.remoteClusters());
     }
 
-    private static Tuple<IndicesPrivileges, String[]> parseIndexWithOptionalRemoteClusters(
+    private record IndicesPrivilegesWithOptionalRemoteClusters(IndicesPrivileges indicesPrivileges, String[] remoteClusters) {}
+
+    private static IndicesPrivilegesWithOptionalRemoteClusters parseIndexWithOptionalRemoteClusters(
         final String roleName,
         final XContentParser parser,
         final boolean allow2xFormat,
@@ -809,7 +815,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             );
         }
         checkIfExceptFieldsIsSubsetOfGrantedFields(roleName, grantedFields, deniedFields);
-        return new Tuple<>(
+        return new IndicesPrivilegesWithOptionalRemoteClusters(
             IndicesPrivileges.builder()
                 .indices(names)
                 .privileges(privileges)

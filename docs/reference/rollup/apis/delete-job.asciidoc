@@ -10,6 +10,8 @@ Deletes an existing {rollup-job}.
 
 experimental[]
 
+IMPORTANT: The <<indices-downsample-data-stream,Downsample index API>> is being developed to replace the {rollup-cap} API and should be used instead.
+
 [[rollup-delete-job-request]]
 ==== {api-request-title}
 

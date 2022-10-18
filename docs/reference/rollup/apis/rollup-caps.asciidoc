@@ -10,6 +10,8 @@ specific index or index pattern.
 
 experimental[]
 
+IMPORTANT: The <<indices-downsample-data-stream,Downsample index API>> is being developed to replace the {rollup-cap} API and should be used instead.
+
 [[rollup-get-rollup-caps-request]]
 ==== {api-request-title}
 

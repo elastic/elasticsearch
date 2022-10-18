@@ -7,6 +7,8 @@
 
 experimental[]
 
+IMPORTANT: The <<indices-downsample-data-stream,Downsample index API>> is being developed to replace the {rollup-cap} API and should be used instead.
+
 Most rollup endpoints have the following base:
 
 [source,js]

@@ -4,6 +4,8 @@
 
 experimental[]
 
+IMPORTANT: Index downsampling is being developed to replace rollups. Refer to <<downsampling,Downsampling a time series data stream>> to learn more.
+
 While we feel the Rollup function is extremely flexible, the nature of summarizing data means there will be some limitations. Once
 live data is thrown away, you will always lose some flexibility.
 

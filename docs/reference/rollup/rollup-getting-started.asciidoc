@@ -7,6 +7,8 @@
 
 experimental[]
 
+IMPORTANT: Index downsampling is being developed to replace rollups. Refer to <<downsampling,Downsampling a time series data stream>> to learn more.
+
 To use the Rollup feature, you need to create one or more "Rollup Jobs". These jobs run continuously in the background
 and rollup the index or indices that you specify, placing the rolled documents in a secondary index (also of your choosing).
 

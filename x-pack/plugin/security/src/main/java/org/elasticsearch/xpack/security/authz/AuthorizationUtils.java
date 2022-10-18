@@ -217,7 +217,8 @@ public final class AuthorizationUtils {
             return;
         }
 
-        if (childAction.startsWith(parentContext.getAction()) == false) {
+        final String parentAction = parentContext.getAction();
+        if (childAction.startsWith(parentAction) == false) {
             // Parent action is not a true parent.
             // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
             // or similar (e.g. search phases) as children, but not every action that is triggered
@@ -252,15 +253,13 @@ public final class AuthorizationUtils {
                 ParentIndexActionAuthorization.readFromThreadContext(threadContext)
             );
             if (existingParentAuthorization.isPresent()) {
-                if (existingParentAuthorization.get().action().equals(parentContext.getAction())
-                    || parentContext.getAction().startsWith(existingParentAuthorization.get().action())) {
+                if (existingParentAuthorization.get().action().equals(parentAction)
+                    || parentAction.startsWith(existingParentAuthorization.get().action())) {
                     // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
                     // Sending a child action to node1 would have already put parent authorization in the thread context.
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here
                     // since pre-authorization is already set in the context.
-                    logger.debug(
-                        "child action [" + childAction + "] of parent action [" + parentContext.getAction() + "] is already pre-authorized"
-                    );
+                    logger.debug("child action [" + childAction + "] of parent action [" + parentAction + "] is already pre-authorized");
                     return;
                 } else {
                     throw new AssertionError(
@@ -269,16 +268,13 @@ public final class AuthorizationUtils {
                             + "] found while attempting to pre-authorize child action ["
                             + childAction
                             + "] of parent ["
-                            + parentContext.getAction()
+                            + parentAction
                             + "]"
                     );
                 }
             } else {
-                logger.debug(
-                    "adding pre-authorization for child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]"
-                );
-                new ParentIndexActionAuthorization(version, parentContext.getAction(), parentContext.getIndicesAccessControl().isGranted())
-                    .writeToThreadContext(threadContext);
+                logger.debug("adding pre-authorization for child action [" + childAction + "] of parent action [" + parentAction + "]");
+                new ParentIndexActionAuthorization(version, parentAction).writeToThreadContext(threadContext);
             }
         } catch (Exception e) {
             logger.error("Failed to write authorization to thread context.", e);
@@ -286,7 +282,7 @@ public final class AuthorizationUtils {
                 "Failed to write pre-authorization for child action ["
                     + childAction
                     + "] of parent action ["
-                    + parentContext.getAction()
+                    + parentAction
                     + "] to the context"
             );
         }

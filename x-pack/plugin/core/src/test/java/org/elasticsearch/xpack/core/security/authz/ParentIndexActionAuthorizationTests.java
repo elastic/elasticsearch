@@ -45,8 +45,7 @@ public class ParentIndexActionAuthorizationTests extends ESTestCase {
 
     private static ParentIndexActionAuthorization createRandom() {
         String action = randomAlphaOfLengthBetween(5, 20);
-        boolean granted = randomBoolean();
         Version version = randomFrom(VersionUtils.allVersions());
-        return new ParentIndexActionAuthorization(version, action, granted);
+        return new ParentIndexActionAuthorization(version, action);
     }
 }

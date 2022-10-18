@@ -27,18 +27,17 @@ import java.util.Base64;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public record ParentIndexActionAuthorization(Version version, String action, boolean granted) implements Writeable, ToXContent {
+public record ParentIndexActionAuthorization(Version version, String action) implements Writeable, ToXContent {
 
     public static final String THREAD_CONTEXT_KEY = "_xpack_security_authorization";
 
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField ACTION = new ParseField("action");
-    private static final ParseField GRANTED = new ParseField("granted");
 
     private static final ConstructingObjectParser<ParentIndexActionAuthorization, String> PARSER = new ConstructingObjectParser<>(
         "authorization",
         true,
-        (a) -> new ParentIndexActionAuthorization((Version) a[0], (String) a[1], (boolean) a[2])
+        (a) -> new ParentIndexActionAuthorization((Version) a[0], (String) a[1])
     );
     static {
         PARSER.declareField(
@@ -48,8 +47,8 @@ public record ParentIndexActionAuthorization(Version version, String action, boo
             ObjectParser.ValueType.STRING
         );
         PARSER.declareString(constructorArg(), ACTION);
-        PARSER.declareBoolean(constructorArg(), GRANTED);
     }
+
     private static Version parseVersion(String version) {
         if (version == null || version.isBlank()) {
             throw new IllegalArgumentException(VERSION.getPreferredName() + " must not be empty");
@@ -67,22 +66,19 @@ public record ParentIndexActionAuthorization(Version version, String action, boo
     public static ParentIndexActionAuthorization readFrom(StreamInput in) throws IOException {
         Version version = Version.readVersion(in);
         String action = in.readString();
-        boolean granted = in.readBoolean();
-        return new ParentIndexActionAuthorization(version, action, granted);
+        return new ParentIndexActionAuthorization(version, action);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Version.writeVersion(version, out);
         out.writeString(action);
-        out.writeBoolean(granted);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(VERSION.getPreferredName(), version);
         builder.field(ACTION.getPreferredName(), action);
-        builder.field(GRANTED.getPreferredName(), granted);
         return builder;
     }
 

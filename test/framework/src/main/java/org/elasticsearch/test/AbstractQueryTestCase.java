@@ -99,6 +99,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         throw new UnsupportedOperationException();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90984")
     public void testMaxNestedDepth() throws IOException {
         QB query = null;
         try {

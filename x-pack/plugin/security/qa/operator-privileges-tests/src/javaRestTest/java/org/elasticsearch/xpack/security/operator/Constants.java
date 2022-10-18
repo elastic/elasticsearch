@@ -411,6 +411,7 @@ public class Constants {
         "indices:admin/search_engine/delete",
         "indices:admin/search_engine/get",
         "indices:admin/search_engine/put",
+        "indices:data/read/xsearch",
         "indices:admin/settings/update",
         "indices:admin/shards/search_shards",
         "indices:admin/template/delete",

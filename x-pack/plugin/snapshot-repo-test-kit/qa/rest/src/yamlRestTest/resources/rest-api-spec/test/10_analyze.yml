@@ -24,7 +24,7 @@ setup:
         body:
           type: fs
           settings:
-            max_snapshot_bytes_per_sec: "1mb"
+            max_snapshot_bytes_per_sec: "10kb"
             location: "test_repo_loc"
 
 ---
@@ -165,10 +165,10 @@ setup:
       catch: request
       snapshot.repository_analyze:
         repository: test_repo_slow
-        blob_count: 200
+        blob_count: 4000
         concurrency: 1
-        max_blob_size: 10mb
-        max_total_data_size: 2000mb
+        max_blob_size: 500kb
+        max_total_data_size: 2gb
         detailed: false
         human: false
         timeout: 1s

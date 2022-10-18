@@ -19,17 +19,9 @@ import java.util.Map;
 
 public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
 
-    private RelevanceSettingsService service;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        service = getInstanceFromNode(RelevanceSettingsService.class);
-    }
-
     public void testParseFields() throws Exception {
         Map<String, Object> rawSettings = Map.of("query_configuration", Map.of("fields", List.of("title^3", "description^2")));
-        RelevanceSettings settings = service.parseSettings(rawSettings);
+        RelevanceSettings settings = RelevanceSettingsService.parseSettings(rawSettings);
         Map<String, Float> expected = Map.of("title", 3f, "description", 2f);
         assertEquals(expected, settings.getQueryConfiguration().getFieldsAndBoosts());
     }
@@ -44,7 +36,7 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
                 Map.of("world_heritage_site", List.of(Map.of("type", "value", "operation", "multiply", "factor", "10", "value", "true")))
             )
         );
-        RelevanceSettings settings = service.parseSettings(rawSettings);
+        RelevanceSettings settings = RelevanceSettingsService.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<AbstractScriptScoreBoost>> expected = Collections.singletonMap(
@@ -64,7 +56,7 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
                 Map.of("visitors", List.of(Map.of("type", "functional", "operation", "add", "factor", 5, "function", "linear")))
             )
         );
-        RelevanceSettings settings = service.parseSettings(rawSettings);
+        RelevanceSettings settings = RelevanceSettingsService.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<AbstractScriptScoreBoost>> expected = Collections.singletonMap(
@@ -84,7 +76,7 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
                 Map.of("location", List.of(Map.of("type", "proximity", "center", "25.32, -80.93", "factor", 5, "function", "gaussian")))
             )
         );
-        RelevanceSettings settings = service.parseSettings(rawSettings);
+        RelevanceSettings settings = RelevanceSettingsService.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<AbstractScriptScoreBoost>> expected = Collections.singletonMap(
@@ -111,7 +103,7 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
                 )
             )
         );
-        RelevanceSettings settings = service.parseSettings(rawSettings);
+        RelevanceSettings settings = RelevanceSettingsService.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<AbstractScriptScoreBoost>> expected = Map.of(
@@ -141,7 +133,7 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
                 )
             )
         );
-        RelevanceSettings settings = service.parseSettings(rawSettings);
+        RelevanceSettings settings = RelevanceSettingsService.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<AbstractScriptScoreBoost>> expected = Map.of(

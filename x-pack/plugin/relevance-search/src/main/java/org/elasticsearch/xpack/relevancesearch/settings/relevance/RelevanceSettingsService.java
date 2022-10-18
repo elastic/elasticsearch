@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.relevancesearch.settings.relevance;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
 import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
 
@@ -47,7 +47,7 @@ public class RelevanceSettingsService extends AbstractSettingsService<RelevanceS
         }
     }
 
-    private static RelevanceSettings parseSettings(Map<String, Object> source) throws InvalidSettingsException {
+    static RelevanceSettings parseSettings(Map<String, Object> source) throws InvalidSettingsException {
 
         RelevanceSettings relevanceSettings = new RelevanceSettings();
         QueryConfiguration relevanceSettingsQueryConfiguration = new QueryConfiguration();

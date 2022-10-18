@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
@@ -23,9 +22,6 @@ import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
-import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
-import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -43,46 +39,6 @@ import java.util.List;
  */
 public class JwtValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtil.class);
-
-    private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
-        JOSEObjectType.JWT,
-        null
-    );
-
-    public static void validateType(final SignedJWT jwt) throws Exception {
-        final JOSEObjectType jwtHeaderType = jwt.getHeader().getType();
-        try {
-            JwtValidateUtil.JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
-        } catch (Exception e) {
-            throw new Exception("Invalid JWT type [" + jwtHeaderType + "].", e);
-        }
-    }
-
-    public static void validateIssuer(final SignedJWT jwt, String allowedIssuer) throws Exception {
-        final String issuer = jwt.getJWTClaimsSet().getIssuer();
-        if ((issuer == null) || (allowedIssuer.equals(issuer) == false)) {
-            throw new Exception("Rejected issuer [" + issuer + "]. Allowed [" + allowedIssuer + "]");
-        }
-    }
-
-    public static void validateAudiences(final SignedJWT jwt, List<String> allowedAudiences) throws Exception {
-        final List<String> audiences = jwt.getJWTClaimsSet().getAudience();
-        if ((audiences == null) || (allowedAudiences.stream().anyMatch(audiences::contains) == false)) {
-            final String audiencesString = (audiences == null) ? "null" : String.join(",", audiences);
-            throw new Exception("Rejected audiences [" + audiencesString + "]. Allowed [" + allowedAudiences + "]");
-        }
-    }
-
-    public static void validateSignatureAlgorithm(final SignedJWT jwt, final List<String> allowedAlgorithms) throws Exception {
-        final JWSAlgorithm algorithm = jwt.getHeader().getAlgorithm();
-        if ((algorithm == null) || (allowedAlgorithms.contains(algorithm.getName()) == false)) {
-            throw new Exception("Rejected algorithm [" + algorithm + "]. Allowed [" + String.join(",", allowedAlgorithms) + "]");
-        }
-    }
-
-    public static void validateAuthTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateAuthTime(jwt.getJWTClaimsSet().getDateClaim("auth_time"), now, allowedClockSkewSeconds);
-    }
 
     // package private, so this logic can be called from unit tests without constructing a SignedJWT
     static void validateAuthTime(final Date authTime, final Date now, final long allowedClockSkewSeconds) throws Exception {
@@ -111,10 +67,6 @@ public class JwtValidateUtil {
                     + "ms]."
             );
         }
-    }
-
-    public static void validateIssuedAtTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateIssuedAtTime(jwt.getJWTClaimsSet().getIssueTime(), now, allowedClockSkewSeconds);
     }
 
     // package private, so this logic can be called from unit tests without constructing a SignedJWT
@@ -146,10 +98,6 @@ public class JwtValidateUtil {
         }
     }
 
-    public static void validateNotBeforeTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateNotBeforeTime(jwt.getJWTClaimsSet().getNotBeforeTime(), now, allowedClockSkewSeconds);
-    }
-
     // package private, so this logic can be called from unit tests without constructing a SignedJWT
     static void validateNotBeforeTime(final Date nbf, final Date now, final long allowedClockSkewSeconds) throws Exception {
         if (nbf == null) {
@@ -177,10 +125,6 @@ public class JwtValidateUtil {
                     + "ms]."
             );
         }
-    }
-
-    public static void validateExpiredTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateExpiredTime(jwt.getJWTClaimsSet().getExpirationTime(), now, allowedClockSkewSeconds);
     }
 
     // package private, so this logic can be called from unit tests without constructing a SignedJWT

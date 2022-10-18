@@ -1,5 +1,19 @@
 # This test uses the simple text embedding model from
-# SemanticSearchIT to create the dense vectors
+# SemanticSearchIT.java to create the dense vectors. The
+# model creates random tensors seeded by the hash of
+# input string, we expect the same input to produce
+# the same output. However, not all platforms produce
+# the same random tensor for the same seed. The model
+# creates different tensors on different platforms and
+# OS's, therefore the top search hits will be different
+# on different platforms meaning the test cannot assert
+# on the top hits. SemanticSearchIT does not suffer
+# from this limitation as it dynamically creates the
+# embeddings and documents rather than using hard-coded
+# values. It is important to keep this test for the
+# language clients to snoop the response format but the
+# assertions can be skipped here because of the test
+# coverage in SemanticSearchIT
 
 setup:
   - skip:
@@ -110,10 +124,6 @@ setup:
 
 ---
 "Test semantic search":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/issues/90904"
-      version: "8.6.0 - "
-
   - do:
       ml.start_trained_model_deployment:
         model_id: text_embedding_model
@@ -132,7 +142,8 @@ setup:
             num_candidates: 10
   - gte: { inference_took: 0 }
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+    # See comment at the top of the file for the reason why
+    # the test cannot match on the text field
 
 ---
 "Knn field is not a vector":

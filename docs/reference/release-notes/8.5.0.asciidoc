@@ -175,6 +175,9 @@ Machine Learning::
 * Optimize frequent items transaction lookup {es-pull}89062[#89062]
 * Return 408 when start deployment api times out {es-pull}89612[#89612]
 * Skip renormalization after node shutdown API called {es-pull}89347[#89347]
+* Compute outlier feature influence via the Gateaux derivative to improve attribution for high dimension vectors {ml-pull}2256[#2256]
+* Improve classification and regression model train runtimes for data sets with many numeric features {ml-pull}2380[#2380], {ml-pull}2388[#2388], {ml-pull}2390[#2390], {ml-pull}2401[#2401]
+* Increase the limit on the maximum number of classes to 100 for training classification models {ml-pull}2395[#2395] (issue: {ml-issue}2246[#2246])
 
 Mapping::
 * Add `synthetic_source` support to `aggregate_metric_double` fields {es-pull}88909[#88909]

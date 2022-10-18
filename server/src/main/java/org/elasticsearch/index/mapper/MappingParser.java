@@ -117,8 +117,7 @@ public final class MappingParser {
                 MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext)
                     .build(MapperBuilderContext.ROOT);
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
-                fieldNodeMap.remove("type");
-                checkNoRemainingFields(fieldName, fieldNodeMap);
+                assert fieldNodeMap.isEmpty();
             }
         }
 

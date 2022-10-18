@@ -8,11 +8,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -99,7 +103,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         @Override
         public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = builderFunction.apply(parserContext);
-            builder.parse(name, parserContext, node);
+            builder.parseMetadataField(name, parserContext, node);
             return builder;
         }
 
@@ -127,6 +131,45 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         @Override
         public final MetadataFieldMapper build(MapperBuilderContext context) {
             return build();
+        }
+
+        public final void parseMetadataField(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
+            final Parameter<?>[] params = getParameters();
+            Map<String, Parameter<?>> paramsMap = Maps.newHashMapWithExpectedSize(params.length);
+            for (Parameter<?> param : params) {
+                paramsMap.put(param.name, param);
+            }
+            for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                final String propName = entry.getKey();
+                final Object propNode = entry.getValue();
+                Parameter<?> parameter = paramsMap.get(propName);
+                if (parameter == null) {
+                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                        // The parameter is unknown, but this mapping is from a dynamic template.
+                        // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
+                        deprecationLogger.warn(
+                            DeprecationCategory.API,
+                            propName,
+                            "Parameter [{}] is used in a dynamic template mapping and has no effect on metadata field [{}]. "
+                                + "Usage will result in an error in future major versions and should be removed.",
+                            propName,
+                            name
+                        );
+                        iterator.remove();
+                        continue;
+                    }
+                    if ("type".equals(propName) && parserContext.indexVersionCreated().before(Version.V_8_6_0)) {
+                        //silently ignore type: sadly we've been doing this for a long time
+                        iterator.remove();
+                        continue;
+                    }
+                    throw new MapperParsingException("unknown parameter [" + propName + "] on metadata field [" + name + "]");
+                }
+                parameter.parse(name, parserContext, propNode);
+                iterator.remove();
+            }
+            validate();
         }
 
         public abstract MetadataFieldMapper build();

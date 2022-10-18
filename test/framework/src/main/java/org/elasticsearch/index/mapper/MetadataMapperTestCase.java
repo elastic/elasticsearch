@@ -8,7 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,6 +27,8 @@ import static org.hamcrest.Matchers.containsString;
 public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract String fieldName();
+
+    protected abstract boolean isConfigurable();
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
@@ -91,5 +96,73 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             // run the update assertion
             updateCheck.check.accept(mapperService.documentMapper());
         }
+    }
+
+    public final void testUnsupportedParametersAreRejected() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        String[] unsupportedParameter = new String[]{"fields", "copy_to", "boost", "anything"};
+        MapperService mapperService = createMapperService(VersionUtils.randomIndexCompatibleVersion(random()),
+            mapping(xContentBuilder -> {}));
+        for (String parameter : unsupportedParameter) {
+            String mappingAsString = "{\n" +
+                "    \"_doc\" : {\n" +
+                "      \"" + fieldName() + "\" : {\n" +
+                "        \"" + parameter + "\" : \"anything\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "}";
+            MapperParsingException exception = expectThrows(MapperParsingException.class,
+                () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+            assertEquals("Failed to parse mapping: unknown parameter [" + parameter +"] on metadata field [" + fieldName() + "]",
+                exception.getMessage());
+        }
+    }
+
+    public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
+        assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
+        MapperService mapperService = createMapperService(VersionUtils.randomIndexCompatibleVersion(random()),
+            mapping(xContentBuilder -> {}));
+        String mappingAsString = "{\n" +
+            "    \"_doc\" : {\n" +
+            "      \"" + fieldName() + "\" : {\n" +
+            "      }\n" +
+            "    }\n" +
+            "}";
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+        assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
+    }
+
+    public void testTypeParameterIsAcceptedBefore_8_6_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        Version previousVersion = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        Version version = VersionUtils.randomVersionBetween(random(),
+            previousVersion.minimumIndexCompatibilityVersion(), previousVersion);
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        String mappingAsString = "{\n" +
+            "    \"_doc\" : {\n" +
+            "      \"" + fieldName() + "\" : {\n" +
+            "        \"type\" : \"any\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "}";
+        Mapping mapping = mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString));
+        assertNotNull(mapping);
+    }
+
+    public void testTypeParameterIsRejectedFrom_8_6_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_6_0, Version.CURRENT);
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        String mappingAsString = "{\n" +
+            "    \"_doc\" : {\n" +
+            "      \"" + fieldName() + "\" : {\n" +
+            "        \"type\" : \"any\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "}";
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+        assertEquals("Failed to parse mapping: unknown parameter [type] on metadata field [" + fieldName() + "]", exception.getMessage());
     }
 }

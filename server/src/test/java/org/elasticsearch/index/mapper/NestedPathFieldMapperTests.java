@@ -16,7 +16,20 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-public class NestedPathFieldMapperTests extends MapperServiceTestCase {
+public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return NestedPathFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));

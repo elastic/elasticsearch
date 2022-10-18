@@ -46,11 +46,14 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
 
 public final class TransportPutFollowAction extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
@@ -358,8 +361,22 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 // When following an older backing index it should be positioned before the newer backing indices.
                 // Currently the assumption is that the newest index (highest generation) is the write index.
                 // (just appending an older backing index to the list of backing indices would break that assumption)
-                // (string sorting works because of the naming backing index naming scheme)
-                backingIndices.sort(Index.COMPARE_BY_NAME);
+                // Not all backing indices follow the data stream backing indices naming convention (e.g. some might start with
+                // "restored-" if they're mounted indices, "shrink-" if they were shrunk, or miscellaneously named indices could be added
+                // to the data stream using the modify data stream API) so we use a comparator that partitions the non-standard backing
+                // indices at the beginning of the data stream (lower generations) and sorts them amongst themselves, and the rest of the
+                // indices (that contain `.ds-`) are sorted based on the original backing index name (ie. ignoring everything up to `.ds-`)
+                // The goal is to make sure the prefixed (usually read-only - shrink-, restored-, partial-) backing indices do not end
+                // up being the write index of the local data stream.
+
+                String partitionByBackingIndexBaseName = BACKING_INDEX_PREFIX + localDataStream.getName();
+                backingIndices.sort(
+                    Comparator.comparing((Index o) -> o.getName().contains(partitionByBackingIndexBaseName) ? 1 : -1)
+                        .thenComparing((Index o) -> {
+                            int backingPrefixPosition = o.getName().indexOf(BACKING_INDEX_PREFIX);
+                            return backingPrefixPosition > -1 ? o.getName().substring(backingPrefixPosition) : o.getName();
+                        })
+                );
             } else {
                 // edge case where the index was closed on the follower and was already in the datastream's index list
                 backingIndices = localDataStream.getIndices();

@@ -31,6 +31,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.greaterThan;
@@ -40,6 +42,8 @@ import static org.hamcrest.Matchers.greaterThan;
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class EsqlActionIT extends ESIntegTestCase {
 
+    long epoch = System.currentTimeMillis();
+
     @Before
     public void setupIndex() {
         ElasticsearchAssertions.assertAcked(
@@ -47,14 +51,16 @@ public class EsqlActionIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
+                .setMapping("time", "type=date")
                 .get()
         );
+        long timestamp = epoch;
         for (int i = 0; i < 10; i++) {
             client().prepareBulk()
-                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d))
-                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d))
-                .add(new IndexRequest("test").id("3" + i).source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d))
-                .add(new IndexRequest("test").id("4" + i).source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d))
+                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++))
+                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++))
+                .add(new IndexRequest("test").id("3" + i).source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++))
+                .add(new IndexRequest("test").id("4" + i).source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
@@ -127,6 +133,25 @@ public class EsqlActionIT extends ESIntegTestCase {
         } else {
             fail("Unexpected group value: " + valueValues.get(0).get(0));
         }
+    }
+
+    // Grouping where the groupby field is of a date type.
+    public void testFromStatsGroupingByDate() {
+        EsqlQueryResponse results = run("from test | stats avg(count) by time");
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+        Assert.assertEquals(40, results.values().size());
+
+        // assert column metadata
+        assertEquals("time", results.columns().get(0).name());
+        assertEquals("date", results.columns().get(0).type());
+        assertEquals("avg(count)", results.columns().get(1).name());
+        assertEquals("double", results.columns().get(1).type());
+
+        // assert column values
+        List<Long> expectedValues = LongStream.range(0, 40).map(i -> epoch + i).sorted().boxed().toList();
+        List<Long> actualValues = IntStream.range(0, 40).mapToLong(i -> (Long) results.values().get(i).get(0)).sorted().boxed().toList();
+        assertEquals(expectedValues, actualValues);
     }
 
     public void testFrom() {

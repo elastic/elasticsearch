@@ -31,7 +31,7 @@ subprojects {
     restResources {
       restApi {
         include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
-          'search', 'async_search', 'graph', '*_point_in_time'
+          'search', 'async_search', 'graph', '*_point_in_time', 'scripts_painless_execute'
       }
       restTests {
         includeCore '*'

@@ -313,6 +313,9 @@ public final class DocumentParser {
                     if (currentFieldName.isBlank()) {
                         throwFieldNameBlank(context, currentFieldName);
                     }
+                    if (currentFieldName.replace(".", "").length() == 0) {
+                        throwFieldNameOnlyDots();
+                    }
                     break;
                 case START_OBJECT:
                     parseObject(context, mapper, currentFieldName);
@@ -337,6 +340,10 @@ public final class DocumentParser {
         throw new MapperParsingException(
             "Field name cannot contain only whitespace: [" + context.path().pathAsText(currentFieldName) + "]"
         );
+    }
+
+    private static void throwFieldNameOnlyDots() {
+        throw new IllegalArgumentException("field name cannot contain only dots");
     }
 
     private static void throwEOF(ObjectMapper mapper, DocumentParserContext context) throws IOException {

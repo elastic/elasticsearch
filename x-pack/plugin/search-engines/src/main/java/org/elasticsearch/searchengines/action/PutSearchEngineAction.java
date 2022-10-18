@@ -90,10 +90,6 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             this.relevanceSettingsId = relevanceSettingsId;
         }
 
-        public boolean shouldRecordAnalytics() {
-            return Strings.hasText(analyticsCollection);
-        }
-
         public String getAnalyticsCollection() {
             return analyticsCollection;
         }

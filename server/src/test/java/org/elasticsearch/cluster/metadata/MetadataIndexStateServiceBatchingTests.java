@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88647")
 public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase {
 
     /*
@@ -73,7 +72,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareOpen("test-2", "test-3").execute();
 
         // check the queue for the open-indices tasks
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        assertThat(findPendingTasks(masterService, "open-indices"), hasSize(2));
 
         block1.run(); // release block
 
@@ -111,7 +110,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareClose("test-2", "test-3").execute();
 
         // check the queue for the first close tasks (the add-block-index-to-close tasks)
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        assertThat(findPendingTasks(masterService, "add-block-index-to-close"), hasSize(2));
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -120,7 +119,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block2.run(); // wait for block
 
         // wait for the queue to have the second close tasks (the close-indices tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertBusy(() -> assertThat(findPendingTasks(masterService, "close-indices"), hasSize(2)));
 
         block2.run(); // release block
 
@@ -165,7 +164,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-2", "test-3").execute();
 
         // check the queue for the first add-block tasks (the add-index-block tasks)
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        assertThat(findPendingTasks(masterService, "add-index-block-[write]"), hasSize(2));
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -174,7 +173,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block2.run(); // wait for block
 
         // wait for the queue to have the second add-block tasks (the finalize-index-block tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertBusy(() -> assertThat(findPendingTasks(masterService, "finalize-index-block-[write]"), hasSize(2)));
 
         block2.run(); // release block
 
@@ -226,6 +225,10 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             event.state().metadata().stream().filter(indexMetadata -> INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings())).count(),
             oneOf(0L, 3L)
         );
+    }
+
+    private static List<PendingClusterTask> findPendingTasks(MasterService masterService, String taskSourcePrefix) {
+        return masterService.pendingTasks().stream().filter(task -> task.getSource().string().startsWith(taskSourcePrefix)).toList();
     }
 
     /**

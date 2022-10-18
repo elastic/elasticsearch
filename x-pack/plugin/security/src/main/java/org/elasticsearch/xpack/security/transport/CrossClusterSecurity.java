@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -56,9 +55,6 @@ public class CrossClusterSecurity {
             return null;
         }
     }
-
-    // TODO Remove
-    public static final StringLiteralDeduplicator x = new StringLiteralDeduplicator();
 
     private void setApiKeys(final Map<String, String> newApiKeys) {
         final Collection<Map.Entry<String,String>> added = new ArrayList<>();

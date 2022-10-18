@@ -337,6 +337,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     errorBuilder = new StringBuilder(
                         "element_type [" + this + "] vectors do not support NaN values but found [" + value + "] at dim [" + index + "];"
                     );
+                    break;
                 }
 
                 if (Float.isInfinite(value)) {

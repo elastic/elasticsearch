@@ -50,7 +50,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static final ParseField NAME_FIELD = new ParseField("_name");
     public static final ParseField BOOST_FIELD = new ParseField("boost");
 
-    private static int maxNestedDepth = 20;
+    private static int maxNestedDepth;
 
     protected String queryName;
     protected float boost = DEFAULT_BOOST;
@@ -425,6 +425,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             throw new IllegalArgumentException("maxNestedDepth must be >= 1");
         }
         AbstractQueryBuilder.maxNestedDepth = maxNestedDepth;
+    }
+
+    public static int getMaxNestedDepth() {
+        return maxNestedDepth;
     }
 
     @Override

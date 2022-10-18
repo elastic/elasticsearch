@@ -561,7 +561,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage(),
             containsString("element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [2];")
         );
-
     }
 
     public void testByteVectorQueryBoundaries() throws IOException {
@@ -614,6 +613,77 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getMessage(),
             containsString("element_type [byte] vectors only support non-decimal values but found decimal value [-0.25] at dim [2];")
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];")
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors do not support infinite values but found [Infinity] at dim [0];")
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors do not support infinite values but found [-Infinity] at dim [1];")
+        );
+    }
+
+    public void testFloatVectorQueryBoundaries() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("element_type", "float");
+            b.field("dims", 3);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "hnsw");
+            b.field("m", 3);
+            b.field("ef_construction", 10);
+            b.endObject();
+        }));
+
+        DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) mapperService.fieldType("field");
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];")
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [float] vectors do not support infinite values but found [Infinity] at dim [0];")
+        );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [float] vectors do not support infinite values but found [-Infinity] at dim [1];")
         );
     }
 

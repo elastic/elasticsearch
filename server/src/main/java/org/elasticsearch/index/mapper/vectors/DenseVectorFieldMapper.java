@@ -206,6 +206,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             void checkVectorBounds(float[] vector) {
+                checkNanAndInfinite(vector);
+
                 StringBuilder errorBuilder = null;
 
                 for (int index = 0; index < vector.length; ++index) {
@@ -221,6 +223,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                 + index
                                 + "];"
                         );
+                        break;
                     }
 
                     if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -287,7 +290,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             void checkVectorBounds(float[] vector) {
-                // nothing to check
+                checkNanAndInfinite(vector);
             }
 
             @Override
@@ -323,6 +326,43 @@ public class DenseVectorFieldMapper extends FieldMapper {
         abstract void checkVectorBounds(float[] vector);
 
         abstract void checkVectorMagnitude(VectorSimilarity similarity, float[] vector, float squaredMagnitude);
+
+        void checkNanAndInfinite(float[] vector) {
+            StringBuilder errorBuilder = null;
+
+            for (int index = 0; index < vector.length; ++index) {
+                float value = vector[index];
+
+                if (Float.isNaN(value)) {
+                    errorBuilder = new StringBuilder(
+                        "element_type ["
+                            + this
+                            + "] vectors do not support NaN values but found ["
+                            + value
+                            + "] at dim ["
+                            + index
+                            + "];"
+                    );
+                }
+
+                if (Float.isInfinite(value)) {
+                    errorBuilder = new StringBuilder(
+                        "element_type ["
+                            + this
+                            + "] vectors do not support infinite values but found ["
+                            + value
+                            + "] at dim ["
+                            + index
+                            + "];"
+                    );
+                    break;
+                }
+            }
+
+            if (errorBuilder != null) {
+                throw new IllegalArgumentException(appendErrorElements(errorBuilder, vector).toString());
+            }
+        }
 
         StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {
             // Include the first five elements of the invalid vector in the error message

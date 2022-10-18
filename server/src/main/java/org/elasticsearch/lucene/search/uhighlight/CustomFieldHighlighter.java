@@ -109,9 +109,8 @@ class CustomFieldHighlighter extends FieldHighlighter {
     @Override
     protected Passage[] highlightOffsetsEnums(OffsetsEnum off) throws IOException {
 
-        OffsetsEnum wrapOff = off;
         if (queryMaxAnalyzedOffset != null) {
-            wrapOff = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset);
+            off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset);
         }
 
         final int contentLength = this.breakIterator.getText().getEndIndex();
@@ -154,7 +153,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
             BytesRef term = off.getTerm();// a reference; safe to refer to
             assert term != null;
             passage.addMatch(start, end, term, off.freq());
-        } while (wrapOff.nextPosition());
+        } while (off.nextPosition());
         maybeAddPassage(passageQueue, passageScorer, passage, contentLength);
 
         Passage[] passages = passageQueue.toArray(new Passage[passageQueue.size()]);

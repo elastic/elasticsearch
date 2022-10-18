@@ -16,9 +16,9 @@ import java.io.IOException;
 
 public class LimitedOffsetsEnum extends OffsetsEnum {
     private final OffsetsEnum delegate;
-    private final Integer maxOffset;
+    private final int maxOffset;
 
-    public LimitedOffsetsEnum(OffsetsEnum delegate, @Nullable Integer maxOffset) {
+    public LimitedOffsetsEnum(OffsetsEnum delegate, int maxOffset) {
         this.delegate = delegate;
         this.maxOffset = maxOffset;
     }
@@ -29,7 +29,7 @@ public class LimitedOffsetsEnum extends OffsetsEnum {
         if (!next) {
             return next;
         }
-        if (maxOffset != null && delegate.startOffset() > maxOffset) {
+        if (delegate.startOffset() > maxOffset) {
             return false;
         }
         return next;

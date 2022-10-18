@@ -451,7 +451,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             Locale.ROOT,
             BreakIterator.getSentenceInstance(Locale.ROOT),
             0,
-            // OLD Strategy would Response： "Testing <b>Fun</b> Testing <b>Fun</b>"
             new String[] { "Testing <b>Fun</b> Testing Fun" },
             29,
             10,

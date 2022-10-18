@@ -21,6 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
@@ -922,7 +923,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.singletonList(new AnalyticsPlugin());
+        return List.of(new AnalyticsPlugin(), new AggregationsPlugin());
     }
 
     private DateFieldMapper.DateFieldType dateFieldType(String name) {

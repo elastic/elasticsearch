@@ -94,6 +94,7 @@ public class XSearchAnalyticsService {
             .toList();
     }
 
+    // TODO - Only allow a single engine in an _xsearch request.
     private Collection<SearchEngine> getEnginesForRequest(XSearchAction.Request request) {
         Map<String, SearchEngine> engines = clusterService.state().metadata().searchEngines();
         return Arrays.stream(request.indices()).filter(engines::containsKey).map(engines::get).toList();

@@ -42,6 +42,7 @@ public class XSearchAnalyticsService {
         this.clusterService = clusterService;
     }
 
+    // TODO - Record events about the response as well
     public void recordEvent(XSearchAction.Request request, NodeClient client) {
         Collection<SearchEngine> engines = getEnginesForRequest(request);
         Collection<String> dataStreams = getDataStreamsForEngines(engines);

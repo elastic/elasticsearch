@@ -18,4 +18,23 @@ restResources {
   restApi {
     include '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk'
   }
+  restTests {
+    // Pulls in all aggregation tests from core AND the forwards v7's core for forwards compatibility
+    includeCore 'search.aggregation'
+  }
+}
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
+  task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
+
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+}
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

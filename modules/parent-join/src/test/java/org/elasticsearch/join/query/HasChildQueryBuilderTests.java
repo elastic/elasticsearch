@@ -155,6 +155,11 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected HasChildQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new HasChildQueryBuilder("type", queryBuilder, ScoreMode.None);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(LateParsingQuery.class));
         LateParsingQuery lpq = (LateParsingQuery) query;

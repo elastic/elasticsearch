@@ -215,20 +215,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         errorBuilder = new StringBuilder(
                             "element_type ["
                                 + this
-                                + "] vectors only support non-decimal values "
-                                + "but found decimal value ["
+                                + "] vectors only support non-decimal values but found decimal value ["
                                 + value
                                 + "] at dim ["
                                 + index
                                 + "];"
                         );
                     }
+
                     if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
                         errorBuilder = new StringBuilder(
                             "element_type ["
                                 + this
-                                + "] vectors only support integers between "
-                                + "["
+                                + "] vectors only support integers between ["
                                 + Byte.MIN_VALUE
                                 + ", "
                                 + Byte.MAX_VALUE

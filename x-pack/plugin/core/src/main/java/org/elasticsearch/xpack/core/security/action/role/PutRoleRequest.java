@@ -214,11 +214,13 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (out.getVersion().onOrAfter(RoleDescriptor.REMOTE_INDICES_VERSION)) {
             out.writeCollection(remoteIndicesPrivileges);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
-                "versions of Elasticsearch before 8.6.0 can't handle remote indices privileges and attempted to send to ["
+                "versions of Elasticsearch before ["
+                    + RoleDescriptor.REMOTE_INDICES_VERSION
+                    + "] can't handle remote indices privileges and attempted to send to ["
                     + out.getVersion()
                     + "]"
             );

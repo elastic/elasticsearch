@@ -54,6 +54,7 @@ import java.util.Objects;
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static final String ROLE_TYPE = "role";
+    public static final Version REMOTE_INDICES_VERSION = Version.V_8_6_0;
 
     private final String name;
     private final String[] clusterPrivileges;
@@ -166,7 +167,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (in.getVersion().onOrAfter(REMOTE_INDICES_VERSION)) {
             this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
@@ -337,11 +338,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (out.getVersion().onOrAfter(REMOTE_INDICES_VERSION)) {
             out.writeArray(remoteIndicesPrivileges);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
-                "versions of Elasticsearch before 8.6.0 can't handle remote indices privileges and attempted to send to ["
+                "versions of Elasticsearch before ["
+                    + REMOTE_INDICES_VERSION
+                    + "] can't handle remote indices privileges and attempted to send to ["
                     + out.getVersion()
                     + "]"
             );

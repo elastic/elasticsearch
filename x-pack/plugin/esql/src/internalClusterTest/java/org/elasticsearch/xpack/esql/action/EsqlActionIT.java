@@ -51,8 +51,8 @@ public class EsqlActionIT extends ESIntegTestCase {
         );
         for (int i = 0; i < 10; i++) {
             client().prepareBulk()
-                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 42))
-                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 44))
+                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 42, "data_d", 1d, "count_d", 42d))
+                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 44, "data_d", 2d, "count_d", 44d))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
@@ -102,6 +102,17 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(1, results.values().size());
         assertEquals(2, results.values().get(0).size());
         assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
+    }
+
+    public void testFromEvalStats() {
+        EsqlQueryResponse results = run("from test | eval ratio = data_d / count_d | stats avg(ratio)");
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals("avg(ratio)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals(1, results.values().get(0).size());
+        assertEquals(0.96d, (double) results.values().get(0).get(0), 0.01d);
     }
 
     public void testFromStatsEvalWithPragma() {

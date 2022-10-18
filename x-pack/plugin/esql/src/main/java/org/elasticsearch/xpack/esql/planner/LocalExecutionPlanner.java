@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.NumericDocValuesExtractor;
 import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.DoubleTransformerOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -50,9 +52,11 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -228,6 +232,18 @@ public class LocalExecutionPlanner {
                     layout,
                     op
                 );
+                if (attr.dataType().isRational()) {
+                    layout = new HashMap<>(layout);
+                    int channel = layout.get(attr.id());
+                    layout.put(new NameId(), channel);
+                    layout.remove(attr.id());
+                    layout.put(attr.id(), layout.size());
+                    op = new PhysicalOperation(
+                        () -> new DoubleTransformerOperator(channel, NumericUtils::sortableLongToDouble),
+                        layout,
+                        op
+                    );
+                }
             }
             return op;
         } else if (node instanceof OutputExec outputExec) {
@@ -329,6 +345,14 @@ public class LocalExecutionPlanner {
                 return (page, pos) -> ((Number) e1.computeRow(page, pos)).doubleValue() + ((Number) e2.computeRow(page, pos)).doubleValue();
             } else {
                 return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() + ((Number) e2.computeRow(page, pos)).longValue();
+            }
+        } else if (exp instanceof Div div) {
+            ExpressionEvaluator e1 = toEvaluator(div.left(), layout);
+            ExpressionEvaluator e2 = toEvaluator(div.right(), layout);
+            if (div.dataType().isRational()) {
+                return (page, pos) -> ((Number) e1.computeRow(page, pos)).doubleValue() / ((Number) e2.computeRow(page, pos)).doubleValue();
+            } else {
+                return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() / ((Number) e2.computeRow(page, pos)).longValue();
             }
         } else if (exp instanceof Attribute attr) {
             int channel = layout.get(attr.id());

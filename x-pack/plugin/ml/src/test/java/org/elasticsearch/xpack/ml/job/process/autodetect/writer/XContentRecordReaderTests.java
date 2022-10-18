@@ -213,11 +213,11 @@ public class XContentRecordReaderTests extends ESTestCase {
     public void testRead_givenControlCharacterInData() throws Exception {
         char controlChar = '\u0002';
 
-        String data = """
+        String data = formatted("""
             {"a":10, "%s" : 5, "b":20, "c":30}
             {"b":21, "a":11, "c":31}
             {"c":32, "b":22, "a":12}
-            """.formatted(controlChar);
+            """, controlChar);
 
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();

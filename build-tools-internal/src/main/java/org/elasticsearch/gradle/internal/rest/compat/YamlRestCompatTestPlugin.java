@@ -58,7 +58,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_API_PATH = Path.of("rest-api-spec/api");
     private static final Path RELATIVE_TEST_PATH = Path.of("rest-api-spec/test");
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
-    private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
+    private static final Path RELATIVE_REST_CORE = Path.of("rest-api-spec");
+    private static final Path RELATIVE_REST_XPACK = Path.of("x-pack/plugin");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
     private static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
     private static final String SOURCE_SET_NAME = "yamlRestTestV" + COMPATIBLE_VERSION + "Compat";
@@ -142,12 +143,20 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
                 task.setCoreConfigToFileTree(
                     config -> fileOperations.fileTree(
-                        config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                        config.getSingleFile()
+                            .toPath()
+                            .resolve(RELATIVE_REST_CORE)
+                            .resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                            .resolve(RELATIVE_TEST_PATH)
                     )
                 );
                 task.setXpackConfigToFileTree(
                     config -> fileOperations.fileTree(
-                        config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                        config.getSingleFile()
+                            .toPath()
+                            .resolve(RELATIVE_REST_XPACK)
+                            .resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                            .resolve(RELATIVE_TEST_PATH)
                     )
                 );
                 task.setAdditionalConfigToFileTree(

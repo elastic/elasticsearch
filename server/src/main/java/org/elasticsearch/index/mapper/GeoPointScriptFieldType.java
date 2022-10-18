@@ -29,7 +29,7 @@ import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
@@ -197,8 +197,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
-                script.runForDoc(lookup.docId());
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                script.runForDoc(doc);
                 if (script.count() == 0) {
                     return List.of();
                 }

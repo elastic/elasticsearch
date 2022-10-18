@@ -86,7 +86,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testIgnoreFailure() throws Exception {
-        TestProcessor processor1 = new TestProcessor(new RuntimeException("error"));
+        TestProcessor processor1 = getTestProcessor(null, randomBoolean(), true);
         TestProcessor processor2 = new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue("field", "value"); });
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);

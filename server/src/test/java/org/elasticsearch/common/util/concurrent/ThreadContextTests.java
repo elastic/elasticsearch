@@ -716,7 +716,7 @@ public class ThreadContextTests extends ESTestCase {
             headers.forEach(header -> threadContext.putHeader(header, randomAsciiLettersOfLengthBetween(1, 10)));
 
             Set<Tuple<String, String>> additionalHeaders = IntStream.range(0, randomInt(10))
-                .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10), randomAsciiLettersOfLengthBetween(1, 10)))
+                .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10) + i, randomAsciiLettersOfLengthBetween(1, 10)))
                 .collect(Collectors.toSet());
             additionalHeaders.forEach(t -> threadContext.putHeader(t.v1(), t.v2()));
             Set<String> requestHeaders = threadContext.getHeaders().keySet();

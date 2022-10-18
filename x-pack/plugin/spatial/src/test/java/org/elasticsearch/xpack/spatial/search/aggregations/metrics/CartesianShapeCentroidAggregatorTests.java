@@ -211,7 +211,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
     }
 
     private double tolerance(double expected, long count) {
-        double tolerance = Math.abs(expected / 1e6);
+        double tolerance = Math.abs(expected / 1e5);
         // Very large numbers have more floating point error, also increasing with count
         return tolerance > 1e25 ? tolerance * count : tolerance;
     }

@@ -65,9 +65,7 @@ public class CrossClusterSecurityTests extends ESTestCase {
         assumeThat(TcpTransport.isUntrustedRemoteClusterEnabled(), is(true));
         final String clusterNameA = "action"; // fake cluster name, appears in debug logs as Changed or Added with trace details
         final String clusterNameB = "clusterB";
-        final Settings initialSettings = Settings.builder()
-            .put("cluster.remote." + clusterNameA + ".authorization", "initialize")
-            .build();
+        final Settings initialSettings = Settings.builder().put("cluster.remote." + clusterNameA + ".authorization", "initialize").build();
 
         this.clusterService = ClusterServiceUtils.createClusterService(this.threadPool);
         SecurityContext securityContext = spy(new SecurityContext(initialSettings, this.threadPool.getThreadContext()));

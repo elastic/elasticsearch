@@ -57,11 +57,11 @@ public class CrossClusterSecurity {
     }
 
     private void setApiKeys(final Map<String, String> newApiKeys) {
-        final Collection<Map.Entry<String,String>> added = new ArrayList<>();
-        final Collection<Map.Entry<String,String>> removed = new ArrayList<>();
-        final Collection<Map.Entry<String,String>> changed = new ArrayList<>();
-        final Collection<Map.Entry<String,String>> unchanged = new ArrayList<>();
-        for (final Map.Entry<String,String> newEntry : newApiKeys.entrySet()) {
+        final Collection<Map.Entry<String, String>> added = new ArrayList<>();
+        final Collection<Map.Entry<String, String>> removed = new ArrayList<>();
+        final Collection<Map.Entry<String, String>> changed = new ArrayList<>();
+        final Collection<Map.Entry<String, String>> unchanged = new ArrayList<>();
+        for (final Map.Entry<String, String> newEntry : newApiKeys.entrySet()) {
             if (this.apiKeys.containsKey(newEntry.getKey()) == false) {
                 added.add(newEntry);
             } else if (Objects.equals(newEntry.getValue(), this.apiKeys.get(newEntry.getKey()))) {
@@ -70,12 +70,13 @@ public class CrossClusterSecurity {
                 changed.add(newEntry);
             }
         }
-        for (final Map.Entry<String,String> oldEntry : this.apiKeys.entrySet()) {
+        for (final Map.Entry<String, String> oldEntry : this.apiKeys.entrySet()) {
             if (newApiKeys.containsKey(oldEntry.getKey()) == false) {
                 removed.add(oldEntry);
             }
         }
-        LOGGER.info("\nNew: {}\nOld: {}\nChanged: {}\nAdded: {}\nRemoved: {}\nUnchanged: {}",
+        LOGGER.info(
+            "\nNew: {}\nOld: {}\nChanged: {}\nAdded: {}\nRemoved: {}\nUnchanged: {}",
             toStringCsv(newApiKeys.entrySet()),
             toStringCsv(this.apiKeys.entrySet()),
             toStringCsv(changed),

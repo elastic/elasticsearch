@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -133,6 +134,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return build();
         }
 
+        private static final Set<String> UNSUPPORTED_PARAMETERS_8_6_0 = Set.of("type", "fields", "copy_to", "boost");
+
         public final void parseMetadataField(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             final Parameter<?>[] params = getParameters();
             Map<String, Parameter<?>> paramsMap = Maps.newHashMapWithExpectedSize(params.length);
@@ -145,22 +148,17 @@ public abstract class MetadataFieldMapper extends FieldMapper {
                 final Object propNode = entry.getValue();
                 Parameter<?> parameter = paramsMap.get(propName);
                 if (parameter == null) {
-                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                        // The parameter is unknown, but this mapping is from a dynamic template.
-                        // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
-                        deprecationLogger.warn(
-                            DeprecationCategory.API,
-                            propName,
-                            "Parameter [{}] is used in a dynamic template mapping and has no effect on metadata field [{}]. "
-                                + "Usage will result in an error in future major versions and should be removed.",
-                            propName,
-                            name
-                        );
-                        iterator.remove();
-                        continue;
-                    }
-                    if ("type".equals(propName) && parserContext.indexVersionCreated().before(Version.V_8_6_0)) {
-                        //silently ignore type: sadly we've been doing this for a long time
+                    if (UNSUPPORTED_PARAMETERS_8_6_0.contains(propName)) {
+                        if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_6_0)) {
+                            //silently ignore type, and a few other parameters: sadly we've been doing this for a long time
+                            deprecationLogger.warn(
+                                DeprecationCategory.API,
+                                propName,
+                                "Parameter [{}] has no effect on metadata field [{}] and will be removed in future",
+                                propName,
+                                name
+                            );
+                        }
                         iterator.remove();
                         continue;
                     }

@@ -72,6 +72,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testUpdates() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
         for (String param : checker.conflictChecks.keySet()) {
@@ -100,22 +101,19 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testUnsupportedParametersAreRejected() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        String[] unsupportedParameter = new String[]{"fields", "copy_to", "boost", "anything"};
         MapperService mapperService = createMapperService(VersionUtils.randomIndexCompatibleVersion(random()),
             mapping(xContentBuilder -> {}));
-        for (String parameter : unsupportedParameter) {
-            String mappingAsString = "{\n" +
-                "    \"_doc\" : {\n" +
-                "      \"" + fieldName() + "\" : {\n" +
-                "        \"" + parameter + "\" : \"anything\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "}";
-            MapperParsingException exception = expectThrows(MapperParsingException.class,
-                () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
-            assertEquals("Failed to parse mapping: unknown parameter [" + parameter +"] on metadata field [" + fieldName() + "]",
-                exception.getMessage());
-        }
+        String mappingAsString = "{\n" +
+            "    \"_doc\" : {\n" +
+            "      \"" + fieldName() + "\" : {\n" +
+            "        \"anything\" : \"anything\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "}";
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+        assertEquals("Failed to parse mapping: unknown parameter [anything] on metadata field [" + fieldName() + "]",
+            exception.getMessage());
     }
 
     public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
@@ -133,36 +131,42 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
     }
 
-    public void testTypeParameterIsAcceptedBefore_8_6_0() throws IOException {
+    public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         Version previousVersion = VersionUtils.getPreviousVersion(Version.V_8_6_0);
         Version version = VersionUtils.randomVersionBetween(random(),
             previousVersion.minimumIndexCompatibilityVersion(), previousVersion);
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
-        String mappingAsString = "{\n" +
-            "    \"_doc\" : {\n" +
-            "      \"" + fieldName() + "\" : {\n" +
-            "        \"type\" : \"any\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "}";
-        Mapping mapping = mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString));
-        assertNotNull(mapping);
+        //these parameters were previously silently ignored, they will still be ignored in existing indices
+        String[] unsupportedParameters = new String[]{"fields", "copy_to", "boost", "type"};
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n" +
+                "    \"_doc\" : {\n" +
+                "      \"" + fieldName() + "\" : {\n" +
+                "        \"" + param + "\" : \"any\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "}";
+            assertNotNull(mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+        }
     }
 
-    public void testTypeParameterIsRejectedFrom_8_6_0() throws IOException {
+    public void testTypeAndFriendsAreDeprecatedFrom_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_6_0, Version.CURRENT);
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
-        String mappingAsString = "{\n" +
-            "    \"_doc\" : {\n" +
-            "      \"" + fieldName() + "\" : {\n" +
-            "        \"type\" : \"any\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "}";
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
-        assertEquals("Failed to parse mapping: unknown parameter [type] on metadata field [" + fieldName() + "]", exception.getMessage());
+        //these parameters were previously silently ignored, they are now deprecated in new indices
+        String[] unsupportedParameters = new String[]{"fields", "copy_to", "boost", "type"};
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n" +
+                "    \"_doc\" : {\n" +
+                "      \"" + fieldName() + "\" : {\n" +
+                "        \"" + param + "\" : \"any\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "}";
+            assertNotNull(mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+            assertWarnings("Parameter [" + param + "] has no effect on metadata field [" + fieldName() + "] and will be removed in future");
+        }
     }
 }

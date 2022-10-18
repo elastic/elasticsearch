@@ -9,15 +9,15 @@ package org.elasticsearch.searchengines.analytics;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.logging.LogManager;
@@ -26,6 +26,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 public class SearchEngineAnalyticsBuilder {
 
@@ -59,31 +62,45 @@ public class SearchEngineAnalyticsBuilder {
     }
 
     private static void createDataStream(String dataStreamName, Client client) {
+
         upsertDataStreamTemplate(dataStreamName, client);
+
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info("Created DataStream " + dataStreamName);
+
+                logger.info("Data stream [{}] created to log analytics for engine", dataStreamName);
             }
 
             @Override
             public void onFailure(Exception e) {
-                throw new ElasticsearchException("Failed to create DataStream " + dataStreamName, e);
+                logger.error("Could not create data stream [{}], analytics will not be recorded for this engine", dataStreamName, e);
             }
         });
 
     }
 
     private static void upsertDataStreamTemplate(String dataStreamName, Client client) {
+
         String templateName = dataStreamName + "_template";
         String[] componentTemplateNames = createComponentTemplates(dataStreamName, client);
-        ActionRequest templateRequest = client.admin()
-            .indices()
-            .preparePutTemplate(templateName)
-            .setSource(buildTemplateRequest(dataStreamName, componentTemplateNames))
-            .request();
-        client.execute(PutIndexTemplateAction.INSTANCE, templateRequest, new ActionListener<>() {
+
+        // TODO - where do you set "data_stream" in this request?
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(dataStreamName + "*"),
+            null,
+            Arrays.asList(componentTemplateNames),
+            500L,
+            1L,
+            Map.of("description", "Template for " + dataStreamName + " analytics time series data")
+        );
+
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName);
+        request.create(true);
+        request.indexTemplate(template);
+
+        client.execute(PutComposableIndexTemplateAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 // No action required
@@ -91,16 +108,18 @@ public class SearchEngineAnalyticsBuilder {
 
             @Override
             public void onFailure(Exception e) {
-                throw new ElasticsearchException("template error for DataStream " + dataStreamName, e);
+                logger.error("could not create template", dataStreamName, e);
             }
         });
     }
 
+    // TODO org.elasticsearch.ElasticsearchParseException: unknown key [data_stream] in the template
     private static XContentBuilder buildTemplateRequest(String dataStreamName, String[] componentTemplateNames) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE)) {
             builder.startObject();
             builder.field("index_patterns", new String[] { dataStreamName + "*" });
-            builder.startObject("data_stream"); // TODO - this is not recognized when executing command
+            builder.field("data_stream");
+            builder.startObject();
             builder.endObject();
             builder.field("composed_of", componentTemplateNames);
             builder.field("priority", 500);
@@ -111,7 +130,7 @@ public class SearchEngineAnalyticsBuilder {
 
             return builder;
         } catch (IOException e) {
-            throw new ElasticsearchException("template error for data stream " + dataStreamName, e);
+            throw new ElasticsearchException("error building template request", e);
         }
     }
 
@@ -134,23 +153,21 @@ public class SearchEngineAnalyticsBuilder {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new ElasticsearchException("component template error for data stream " + dataStreamName, e);
+                    logger.error("error creating component template", e);
                 }
             });
 
         } catch (IOException e) {
-            throw new ElasticsearchException("Error creating component template", e);
+            logger.error("error creating component template", e);
         }
 
         return new String[] { mappingComponentTemplateName };
     }
 
-    // TODO - replace this with XContentBuilder
+    // TODO - replace this with XContentBuilder or something else more structured
     private static String componentTemplateJson() {
         return """
             {
-              "template": {
-                "mappings": {
                   "properties": {
                     "@timestamp": {
                       "type": "date",
@@ -161,20 +178,11 @@ public class SearchEngineAnalyticsBuilder {
                     }
                   }
                 }
-              },
-              "_meta": {
-                "description": "Mappings for @timestamp and query fields"
-              }
-            }
             """;
     }
 
     private static XContentBuilder buildMappingComponentTemplateRequest() {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE)) {
-            builder.startObject();
-            builder.field("template");
-            builder.startObject();
-            builder.field("mappings");
             builder.startObject();
             builder.field("properties");
             builder.startObject();
@@ -189,10 +197,10 @@ public class SearchEngineAnalyticsBuilder {
             builder.endObject();
             builder.endObject();
             builder.endObject();
-            builder.endObject();
-            return builder.endObject();
+
+            return builder;
         } catch (IOException e) {
-            throw new ElasticsearchException("template error", e);
+            throw new ElasticsearchException("could not build xcontent for component template mappings", e);
         }
     }
 }

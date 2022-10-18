@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -21,6 +22,11 @@ public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected String fieldName() {
         return NestedPathFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isSupportedOn(Version version) {
+        return version.onOrAfter(Version.V_8_0_0);
     }
 
     @Override

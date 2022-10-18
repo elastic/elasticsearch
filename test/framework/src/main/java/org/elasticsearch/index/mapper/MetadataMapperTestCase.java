@@ -30,6 +30,10 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract boolean isConfigurable();
 
+    protected boolean isSupportedOn(Version version) {
+        return true;
+    }
+
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
     private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
@@ -101,10 +105,9 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testUnsupportedParametersAreRejected() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        MapperService mapperService = createMapperService(
-            VersionUtils.randomIndexCompatibleVersion(random()),
-            mapping(xContentBuilder -> {})
-        );
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n"
             + "    \"_doc\" : {\n"
             + "      \""
@@ -126,10 +129,9 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
         assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
-        MapperService mapperService = createMapperService(
-            VersionUtils.randomIndexCompatibleVersion(random()),
-            mapping(xContentBuilder -> {})
-        );
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
@@ -142,6 +144,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         Version previousVersion = VersionUtils.getPreviousVersion(Version.V_8_6_0);
         Version version = VersionUtils.randomVersionBetween(random(), previousVersion.minimumIndexCompatibilityVersion(), previousVersion);
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they will still be ignored in existing indices
         String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
@@ -164,6 +167,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
     public void testTypeAndFriendsAreDeprecatedFrom_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_6_0, Version.CURRENT);
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they are now deprecated in new indices
         String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };

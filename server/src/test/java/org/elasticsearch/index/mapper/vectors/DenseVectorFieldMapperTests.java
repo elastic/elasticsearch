@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
@@ -23,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.vectors.XLucene94HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -448,7 +448,27 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("[dense_vector] fields cannot be indexed if they're within [nested] mappings"));
     }
 
-    public void testKnnVectorsFormat() throws IOException {
+    public void testDefaultKnnVectorsFormat() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 4);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+        }));
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        Codec codec = codecService.codec("default");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(knnVectorsFormat, instanceOf(XLucene94HnswVectorsFormat.class));
+        String expectedString = "Lucene94HnswVectorsFormat(name=Lucene94HnswVectorsFormat, maxConn="
+            + DEFAULT_MAX_CONN
+            + ", beamWidth="
+            + DEFAULT_BEAM_WIDTH
+            + ")";
+        assertEquals(expectedString, knnVectorsFormat.toString());
+    }
+
+    public void testCustomKnnVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
@@ -466,7 +486,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        assertThat(knnVectorsFormat, instanceOf(Lucene94HnswVectorsFormat.class));
+        assertThat(knnVectorsFormat, instanceOf(XLucene94HnswVectorsFormat.class));
         String expectedString = "Lucene94HnswVectorsFormat(name=Lucene94HnswVectorsFormat, maxConn="
             + m
             + ", beamWidth="

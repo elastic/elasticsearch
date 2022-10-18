@@ -1751,6 +1751,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+        request.setJsonEntity("""
+            {
+              "indices": "*,-.ent-search",
+              "ignore_unavailable": true
+            }
+            """);
 
         final Response response = restClient.performRequest(request);
         assertThat(

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.relevancesearch.settings.relevance;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
 import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
 
@@ -22,6 +23,7 @@ public class RelevanceSettingsService extends AbstractSettingsService<RelevanceS
 
     public static final String RELEVANCE_SETTINGS_PREFIX = "relevance_settings-";
 
+    @Inject
     public RelevanceSettingsService(final Client client) {
         super(client);
     }
@@ -63,6 +65,12 @@ public class RelevanceSettingsService extends AbstractSettingsService<RelevanceS
             throw new InvalidSettingsException("[relevance_match] fields not specified in relevance settings. Source: " + source);
         }
         relevanceSettingsQueryConfiguration.parseFieldsAndBoosts(fields);
+
+        @SuppressWarnings("unchecked")
+        final Map<String, List<Map<String, Object>>> scriptScores = (Map<String, List<Map<String, Object>>>) queryConfiguration.get(
+            "boosts"
+        );
+        relevanceSettingsQueryConfiguration.parseScriptScores(scriptScores);
 
         relevanceSettings.setQueryConfiguration(relevanceSettingsQueryConfiguration);
 

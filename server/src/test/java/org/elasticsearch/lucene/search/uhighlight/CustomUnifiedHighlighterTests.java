@@ -37,11 +37,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.BreakIterator;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -85,6 +86,34 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         int maxAnalyzedOffset,
         Integer queryMaxAnalyzedOffset
     ) throws Exception {
+        assertHighlightOneDoc(
+            fieldName,
+            inputs,
+            analyzer,
+            query,
+            locale,
+            breakIterator,
+            noMatchSize,
+            expectedPassages,
+            maxAnalyzedOffset,
+            queryMaxAnalyzedOffset,
+            UnifiedHighlighter.OffsetSource.ANALYSIS
+        );
+    }
+
+    private void assertHighlightOneDoc(
+        String fieldName,
+        String[] inputs,
+        Analyzer analyzer,
+        Query query,
+        Locale locale,
+        BreakIterator breakIterator,
+        int noMatchSize,
+        String[] expectedPassages,
+        int maxAnalyzedOffset,
+        Integer queryMaxAnalyzedOffset,
+        UnifiedHighlighter.OffsetSource offsetSource
+    ) throws Exception {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
             iwc.setMergePolicy(newTieredMergePolicy(random()));
@@ -108,7 +137,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     searcher,
                     analyzer,
-                    UnifiedHighlighter.OffsetSource.ANALYSIS,
+                    offsetSource,
                     new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
                     locale,
                     breakIterator,
@@ -397,63 +426,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         );
     }
 
-    private void assertHighlightOneDoc(
-        String fieldName,
-        String[] inputs,
-        Analyzer analyzer,
-        Query query,
-        Locale locale,
-        BreakIterator breakIterator,
-        int noMatchSize,
-        String[] expectedPassages,
-        int maxAnalyzedOffset,
-        Integer queryMaxAnalyzedOffset,
-        UnifiedHighlighter.OffsetSource offsetSource
-    ) throws Exception {
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
-            iwc.setMergePolicy(newTieredMergePolicy(random()));
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
-            FieldType ft = new FieldType(TextField.TYPE_STORED);
-            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-            ft.freeze();
-            Document doc = new Document();
-            for (String input : inputs) {
-                Field field = new Field(fieldName, "", ft);
-                field.setStringValue(input);
-                doc.add(field);
-            }
-            iw.addDocument(doc);
-            try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
-                iw.close();
-                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-                assertThat(topDocs.totalHits.value, equalTo(1L));
-                String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
-                CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    wrapAnalyzer(analyzer,queryMaxAnalyzedOffset),
-                    offsetSource,
-                    new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
-                    locale,
-                    breakIterator,
-                    "index",
-                    "text",
-                    query,
-                    noMatchSize,
-                    expectedPassages.length,
-                    name -> "text".equals(name),
-                    maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset
-                );
-                final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-                assertEquals(snippets.length, expectedPassages.length);
-                for (int i = 0; i < snippets.length; i++) {
-                    assertEquals(snippets[i].getText(), expectedPassages[i]);
-                }
-            }
-        }
-    }
     public void testExceedMaxAnalyzedOffsetWithRepeatedWords() throws Exception {
 
         TermQuery query = new TermQuery(new Term("text", "Fun"));
@@ -487,11 +459,39 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         );
     }
 
-
-    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
-        if (maxAnalyzedOffset != null) {
-            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
-        }
-        return analyzer;
+    public void testExceedMaxAnalyzedOffsetRandomOffset() throws Exception {
+        TermQuery query = new TermQuery(new Term("text", "fun"));
+        Analyzer analyzer = new WhitespaceAnalyzer();
+        UnifiedHighlighter.OffsetSource offsetSource = randomBoolean()
+            ? UnifiedHighlighter.OffsetSource.ANALYSIS
+            : UnifiedHighlighter.OffsetSource.POSTINGS;
+        final String[] inputs = { "Fun fun fun fun fun" };
+        TreeMap<Integer, String> outputs = new TreeMap<>(
+            Map.of(
+                7,
+                "Fun <b>fun</b> fun fun fun",
+                11,
+                "Fun <b>fun</b> <b>fun</b> fun fun",
+                15,
+                "Fun <b>fun</b> <b>fun</b> <b>fun</b> fun",
+                19,
+                "Fun <b>fun</b> <b>fun</b> <b>fun</b> <b>fun</b>"
+            )
+        );
+        Integer randomOffset = between(1, 19);
+        String output = outputs.ceilingEntry(randomOffset).getValue();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            analyzer,
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            new String[] { output },
+            47,
+            randomOffset,
+            offsetSource
+        );
     }
 }

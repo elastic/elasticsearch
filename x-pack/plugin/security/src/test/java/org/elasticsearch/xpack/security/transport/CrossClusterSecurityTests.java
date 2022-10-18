@@ -31,7 +31,10 @@ import org.junit.After;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -58,19 +61,18 @@ public class CrossClusterSecurityTests extends ESTestCase {
         }
     }
 
-    public void testSendAsync() {
+    public void testRemoteClusterApiKeyChanges() {
         assumeThat(TcpTransport.isUntrustedRemoteClusterEnabled(), is(true));
-        final Settings fixedSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final String clusterNameAction = "action"; // fake cluster name, appears in debug logs as Changed or Added with trace details
+        final String clusterNameA = "action"; // fake cluster name, appears in debug logs as Changed or Added with trace details
         final String clusterNameB = "clusterB";
         final Settings initialSettings = Settings.builder()
-            .put(fixedSettings)
-            .put("cluster.remote." + clusterNameAction + ".authorization", "initialize")
+            .put("cluster.remote." + clusterNameA + ".authorization", "initialize")
             .build();
 
         this.clusterService = ClusterServiceUtils.createClusterService(this.threadPool);
         SecurityContext securityContext = spy(new SecurityContext(initialSettings, this.threadPool.getThreadContext()));
 
+        CrossClusterSecurity crossClusterSecurity = new CrossClusterSecurity(initialSettings, this.clusterService.getClusterSettings());
         new SecurityServerTransportInterceptor(
             initialSettings,
             this.threadPool,
@@ -79,35 +81,42 @@ public class CrossClusterSecurityTests extends ESTestCase {
             mock(SSLService.class),
             securityContext,
             new DestructiveOperations(initialSettings, this.clusterService.getClusterSettings()),
-            new CrossClusterSecurity(initialSettings, this.clusterService.getClusterSettings())
+            crossClusterSecurity
         );
+        assertThat(crossClusterSecurity.getApiKey(clusterNameA), is(equalTo("initialize")));
+        assertThat(crossClusterSecurity.getApiKey(clusterNameB), is(nullValue()));
         final DiscoveryNode masterNodeA = this.clusterService.state().nodes().getMasterNode();
 
         // Add clusterB authorization setting
+        final String clusterBapiKey1 = randomApiKey();
         final Settings newSettingsAddClusterB = Settings.builder()
-            .put(fixedSettings)
-            .put("cluster.remote." + clusterNameAction + ".authorization", "addB")
-            .put("cluster.remote." + clusterNameB + ".authorization", randomApiKey())
+            .put("cluster.remote." + clusterNameA + ".authorization", "addB")
+            .put("cluster.remote." + clusterNameB + ".authorization", clusterBapiKey1)
             .build();
-        final ClusterState newClusterState1 = createClusterState(clusterNameAction, masterNodeA, newSettingsAddClusterB);
+        final ClusterState newClusterState1 = createClusterState(clusterNameA, masterNodeA, newSettingsAddClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState1);
+        assertThat(crossClusterSecurity.getApiKey(clusterNameA), is(equalTo("addB")));
+        assertThat(crossClusterSecurity.getApiKey(clusterNameB), is(equalTo(clusterBapiKey1)));
 
         // Change clusterB authorization setting
+        final String clusterBapiKey2 = randomApiKey();
         final Settings newSettingsUpdateClusterB = Settings.builder()
-            .put(fixedSettings)
-            .put("cluster.remote." + clusterNameAction + ".authorization", "editB")
-            .put("cluster.remote." + clusterNameB + ".authorization", randomApiKey())
+            .put("cluster.remote." + clusterNameA + ".authorization", "editB")
+            .put("cluster.remote." + clusterNameB + ".authorization", clusterBapiKey2)
             .build();
-        final ClusterState newClusterState2 = createClusterState(clusterNameAction, masterNodeA, newSettingsUpdateClusterB);
+        final ClusterState newClusterState2 = createClusterState(clusterNameA, masterNodeA, newSettingsUpdateClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState2);
+        assertThat(crossClusterSecurity.getApiKey(clusterNameA), is(equalTo("editB")));
+        assertThat(crossClusterSecurity.getApiKey(clusterNameB), is(equalTo(clusterBapiKey2)));
 
         // Remove clusterB authorization setting
         final Settings newSettingsOmitClusterB = Settings.builder()
-            .put(fixedSettings)
-            .put("cluster.remote." + clusterNameAction + ".authorization", "omitB")
+            .put("cluster.remote." + clusterNameA + ".authorization", "omitB")
             .build();
-        final ClusterState newClusterState3 = createClusterState(clusterNameAction, masterNodeA, newSettingsOmitClusterB);
+        final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettingsOmitClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState3);
+        assertThat(crossClusterSecurity.getApiKey(clusterNameA), is(equalTo("omitB")));
+        assertThat(crossClusterSecurity.getApiKey(clusterNameB), is(emptyString()));
     }
 
     private static ClusterState createClusterState(final String clusterName, final DiscoveryNode masterNode, final Settings newSettings) {

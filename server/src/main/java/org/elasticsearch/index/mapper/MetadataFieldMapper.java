@@ -150,7 +150,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
                 if (parameter == null) {
                     if (UNSUPPORTED_PARAMETERS_8_6_0.contains(propName)) {
                         if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_6_0)) {
-                            //silently ignore type, and a few other parameters: sadly we've been doing this for a long time
+                            // silently ignore type, and a few other parameters: sadly we've been doing this for a long time
                             deprecationLogger.warn(
                                 DeprecationCategory.API,
                                 propName,

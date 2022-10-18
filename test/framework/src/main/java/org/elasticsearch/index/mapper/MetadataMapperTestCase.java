@@ -101,52 +101,62 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testUnsupportedParametersAreRejected() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        MapperService mapperService = createMapperService(VersionUtils.randomIndexCompatibleVersion(random()),
-            mapping(xContentBuilder -> {}));
-        String mappingAsString = "{\n" +
-            "    \"_doc\" : {\n" +
-            "      \"" + fieldName() + "\" : {\n" +
-            "        \"anything\" : \"anything\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "}";
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
-        assertEquals("Failed to parse mapping: unknown parameter [anything] on metadata field [" + fieldName() + "]",
-            exception.getMessage());
+        MapperService mapperService = createMapperService(
+            VersionUtils.randomIndexCompatibleVersion(random()),
+            mapping(xContentBuilder -> {})
+        );
+        String mappingAsString = "{\n"
+            + "    \"_doc\" : {\n"
+            + "      \""
+            + fieldName()
+            + "\" : {\n"
+            + "        \"anything\" : \"anything\"\n"
+            + "      }\n"
+            + "    }\n"
+            + "}";
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString))
+        );
+        assertEquals(
+            "Failed to parse mapping: unknown parameter [anything] on metadata field [" + fieldName() + "]",
+            exception.getMessage()
+        );
     }
 
     public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
         assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
-        MapperService mapperService = createMapperService(VersionUtils.randomIndexCompatibleVersion(random()),
-            mapping(xContentBuilder -> {}));
-        String mappingAsString = "{\n" +
-            "    \"_doc\" : {\n" +
-            "      \"" + fieldName() + "\" : {\n" +
-            "      }\n" +
-            "    }\n" +
-            "}";
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+        MapperService mapperService = createMapperService(
+            VersionUtils.randomIndexCompatibleVersion(random()),
+            mapping(xContentBuilder -> {})
+        );
+        String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString))
+        );
         assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
     }
 
     public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         Version previousVersion = VersionUtils.getPreviousVersion(Version.V_8_6_0);
-        Version version = VersionUtils.randomVersionBetween(random(),
-            previousVersion.minimumIndexCompatibilityVersion(), previousVersion);
+        Version version = VersionUtils.randomVersionBetween(random(), previousVersion.minimumIndexCompatibilityVersion(), previousVersion);
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
-        //these parameters were previously silently ignored, they will still be ignored in existing indices
-        String[] unsupportedParameters = new String[]{"fields", "copy_to", "boost", "type"};
+        // these parameters were previously silently ignored, they will still be ignored in existing indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
         for (String param : unsupportedParameters) {
-            String mappingAsString = "{\n" +
-                "    \"_doc\" : {\n" +
-                "      \"" + fieldName() + "\" : {\n" +
-                "        \"" + param + "\" : \"any\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "}";
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
             assertNotNull(mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
         }
     }
@@ -155,16 +165,20 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_6_0, Version.CURRENT);
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
-        //these parameters were previously silently ignored, they are now deprecated in new indices
-        String[] unsupportedParameters = new String[]{"fields", "copy_to", "boost", "type"};
+        // these parameters were previously silently ignored, they are now deprecated in new indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
         for (String param : unsupportedParameters) {
-            String mappingAsString = "{\n" +
-                "    \"_doc\" : {\n" +
-                "      \"" + fieldName() + "\" : {\n" +
-                "        \"" + param + "\" : \"any\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "}";
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
             assertNotNull(mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
             assertWarnings("Parameter [" + param + "] has no effect on metadata field [" + fieldName() + "] and will be removed in future");
         }

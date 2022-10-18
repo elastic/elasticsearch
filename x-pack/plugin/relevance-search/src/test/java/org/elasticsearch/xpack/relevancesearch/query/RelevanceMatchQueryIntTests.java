@@ -14,7 +14,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
-import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
 
 import java.util.Collection;
@@ -43,7 +44,8 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
         relevanceMatchQueryBuilder = new RelevanceMatchQueryBuilder();
         relevanceMatchQueryBuilder.setQueryRewriter(getInstanceFromNode(RelevanceMatchQueryRewriter.class));
 
-        createIndex(DOCUMENTS_INDEX);
+        // We need to ensure the .ent-search index has been created, as the plugin might not have initialized it yet
+        IndexCreationService.ensureInternalIndex(client());
     }
 
     public void testTextFieldsWithoutSettings() {
@@ -79,7 +81,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
     public void testFieldSettings() {
         final String settingsId = "test-settings";
         indexDocument(
-            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            AbstractSettingsService.ENT_SEARCH_INDEX,
             RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
             Map.of("query_configuration", Map.of("fields", List.of("textField")))
         );
@@ -104,13 +106,15 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
     }
 
     public void testCurationWithPinnedAndHiddenDocs() {
-        final String curationId = "test-curation";
+        final String curationId = "test-curation-pinned-and-hidden";
         final String query = "hit";
 
         indexDocument(
-            CurationsService.ENT_SEARCH_INDEX,
-            CurationsService.CURATIONS_SETTINGS_PREFIX + curationId,
+            AbstractSettingsService.ENT_SEARCH_INDEX,
+            "curations-" + curationId + "_00001",
             Map.of(
+                "group_name",
+                curationId,
                 "conditions",
                 List.of(Map.of("context", "query", "value", query)),
                 "pinned_document_ids",
@@ -133,13 +137,15 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
     }
 
     public void testCurationWithExcludedDocs() {
-        final String curationId = "test-curation";
+        final String curationId = "test-curation-excluded";
         final String query = "hit";
 
         indexDocument(
-            CurationsService.ENT_SEARCH_INDEX,
-            CurationsService.CURATIONS_SETTINGS_PREFIX + curationId,
+            AbstractSettingsService.ENT_SEARCH_INDEX,
+            "curations-" + curationId + "_00001",
             Map.of(
+                "group_name",
+                curationId,
                 "conditions",
                 List.of(Map.of("context", "query", "value", query)),
                 "excluded_document_ids",
@@ -160,13 +166,56 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
     }
 
     public void testCurationWithPinnedDocs() {
-        final String curationId = "test-curation";
+        final String curationId = "test-curation-pinned";
         final String query = "hit";
 
         indexDocument(
-            CurationsService.ENT_SEARCH_INDEX,
-            CurationsService.CURATIONS_SETTINGS_PREFIX + curationId,
+            AbstractSettingsService.ENT_SEARCH_INDEX,
+            "curations-" + curationId + "_00001",
             Map.of(
+                "group_name",
+                curationId,
+                "conditions",
+                List.of(Map.of("context", "query", "value", query)),
+                "pinned_document_ids",
+                List.of(Map.of("_id", "3", "_index", DOCUMENTS_INDEX))
+            )
+        );
+
+        indexDocument(DOCUMENTS_INDEX, "1", Map.of("textField", "text example hit"));
+        indexDocument(DOCUMENTS_INDEX, "2", Map.of("textField", "text another example hit"));
+        indexDocument(DOCUMENTS_INDEX, "3", Map.of("textField", "this should not have score"));
+
+        relevanceMatchQueryBuilder.setQuery(query);
+        relevanceMatchQueryBuilder.setCurationsSettingsId(curationId);
+        SearchResponse response = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder).get();
+
+        assertHitCount(response, 3);
+        assertSearchHits(response, "3", "1", "2");
+    }
+
+    public void testCurationGroup() {
+        final String curationId = "test-curation-pinned";
+        final String query = "hit";
+
+        indexDocument(
+            AbstractSettingsService.ENT_SEARCH_INDEX,
+            "curations-" + curationId + "_00001",
+            Map.of(
+                "group_name",
+                curationId,
+                "conditions",
+                List.of(Map.of("context", "query", "value", "a different query")),
+                "pinned_document_ids",
+                List.of(Map.of("_id", "3", "_index", DOCUMENTS_INDEX))
+            )
+        );
+        indexDocument(
+            AbstractSettingsService.ENT_SEARCH_INDEX,
+            "curations-" + curationId + "_00002",
+            Map.of(
+                "group_name",
+                curationId,
                 "conditions",
                 List.of(Map.of("context", "query", "value", query)),
                 "pinned_document_ids",
@@ -189,7 +238,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
     public void testFieldSettingsWithBoosts() {
         final String settingsId = "test-settings-with-boosts";
         indexDocument(
-            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            AbstractSettingsService.ENT_SEARCH_INDEX,
             RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
             Map.of("query_configuration", Map.of("fields", List.of("textField^2.5", "anotherTextField^3")))
         );
@@ -222,6 +271,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
         relevanceMatchQueryBuilder.setQuery("text example");
         final String relevanceSettingsId = "non-existing-settings";
         relevanceMatchQueryBuilder.setRelevanceSettingsId(relevanceSettingsId);
+        indexDocument(DOCUMENTS_INDEX, "1", Map.of("textField", "test example"));
 
         final SearchRequestBuilder searchRequestBuilder = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder);
 

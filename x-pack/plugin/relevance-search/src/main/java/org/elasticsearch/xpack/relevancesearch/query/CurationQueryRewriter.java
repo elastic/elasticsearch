@@ -14,10 +14,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationSettings;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsGroup;
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
-class CurationQueryRewriter extends AbstractQueryRewriter<CurationSettings> {
+import java.util.Optional;
+
+class CurationQueryRewriter extends AbstractQueryRewriter<CurationsGroup> {
     CurationQueryRewriter(ClusterService clusterService, CurationsService settingsService) {
         super(clusterService, settingsService);
     }
@@ -39,12 +42,18 @@ class CurationQueryRewriter extends AbstractQueryRewriter<CurationSettings> {
         RelevanceMatchQueryBuilder relevanceMatchQuery,
         SearchExecutionContext context
     ) {
-        CurationSettings curationSettings = getSettings(relevanceMatchQuery, context);
+        CurationsGroup curationGroup = getSettings(relevanceMatchQuery, context);
 
-        if (curationSettings == null || curationSettings.conditions().stream().noneMatch(c -> c.match(relevanceMatchQuery))) {
+        if (curationGroup == null) {
             return baseQuery;
         }
 
+        final Optional<CurationSettings> optionalCurationSettings = curationGroup.findMatching(relevanceMatchQuery);
+        if (optionalCurationSettings.isEmpty()) {
+            return baseQuery;
+        }
+
+        final CurationSettings curationSettings = optionalCurationSettings.get();
         return applyExcludedDocs(applyPinnedDocs(baseQuery, curationSettings), curationSettings);
     }
 

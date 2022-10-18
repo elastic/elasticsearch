@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,7 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests.randomMeta;
 
-public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<LifecyclePolicyMetadata> {
+public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTestCase<LifecyclePolicyMetadata> {
 
     private String lifecycleName;
 

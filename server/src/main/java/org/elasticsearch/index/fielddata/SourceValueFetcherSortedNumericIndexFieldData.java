@@ -111,7 +111,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
             values.clear();
 
-            for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+            for (Object value : valueFetcher.fetchValues(sourceLookup, doc, Collections.emptyList())) {
                 assert value instanceof Number;
                 values.add(((Number) value).longValue());
             }

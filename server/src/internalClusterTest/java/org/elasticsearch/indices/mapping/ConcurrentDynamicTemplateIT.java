@@ -28,7 +28,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = """
+        final String mapping = formatted("""
             {
               "dynamic_templates": [
                 {
@@ -42,7 +42,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
                   }
                 }
               ]
-            }""".formatted(fieldName);
+            }""", fieldName);
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 

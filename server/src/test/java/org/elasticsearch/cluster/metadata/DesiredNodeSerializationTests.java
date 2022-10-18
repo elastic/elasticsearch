@@ -12,12 +12,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<DesiredNode> {
+public class DesiredNodeSerializationTests extends AbstractXContentSerializingTestCase<DesiredNode> {
     @Override
     protected DesiredNode doParseInstance(XContentParser parser) throws IOException {
         return DesiredNode.fromXContent(parser);

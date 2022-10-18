@@ -783,14 +783,15 @@ public class SearchModuleTests extends ESTestCase {
 
     public void testDefaultMaxNestedDepth() {
         new SearchModule(Settings.EMPTY, emptyList());
-        assertEquals(SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY).intValue(),
-            AbstractQueryBuilder.getMaxNestedDepth());
+        assertEquals(
+            SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY).intValue(),
+            AbstractQueryBuilder.getMaxNestedDepth()
+        );
     }
 
     public void testCustomMaxNestedDepth() {
         int customValue = randomIntBetween(1, 100);
-        Settings settings = Settings.builder().put(
-            SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING.getKey(), customValue).build();
+        Settings settings = Settings.builder().put(SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING.getKey(), customValue).build();
         new SearchModule(settings, emptyList());
         assertEquals(customValue, AbstractQueryBuilder.getMaxNestedDepth());
     }

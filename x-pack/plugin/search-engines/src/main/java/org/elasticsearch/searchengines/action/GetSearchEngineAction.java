@@ -113,8 +113,10 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
 
         public static final ParseField NAME_FIELD = new ParseField("name");
         public static final ParseField INDICES_FIELD = new ParseField("indices");
-        public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings");
+        public static final ParseField RELEVANCE_SETTINGS_FIELD = new ParseField("relevance_settings");
+
         public static final ParseField ANALYTICS_COLLECTION_FIELD = new ParseField("analytics_collection");
+        public static final ParseField CURATIONS_FIELD = new ParseField("relevance_settings");
 
         private final List<SearchEngine> searchEngines;
 
@@ -166,9 +168,14 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
                 builder.endArray();
                 builder.endObject();
 
-                if (searchEngine.getRelevanceSettingsId() != null) {
-                    builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), searchEngine.getRelevanceSettingsId());
+                if (searchEngine.getRelevanceSettings() != null) {
+                    builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), searchEngine.getRelevanceSettings());
                 }
+
+                if (searchEngine.getCurations() != null) {
+                    builder.field(CURATIONS_FIELD.getPreferredName(), searchEngine.getCurations());
+                }
+
                 if (searchEngine.shouldRecordAnalytics()) {
                     builder.field(ANALYTICS_COLLECTION_FIELD.getPreferredName(), searchEngine.getAnalyticsCollection());
                 }

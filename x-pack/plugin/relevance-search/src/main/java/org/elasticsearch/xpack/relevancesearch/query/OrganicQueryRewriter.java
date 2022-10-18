@@ -50,7 +50,7 @@ class OrganicQueryRewriter extends AbstractQueryRewriter<RelevanceSettings> {
 
     @Override
     protected String getSettingsId(SearchEngine searchEngine) {
-        return searchEngine.getRelevanceSettingsId();
+        return searchEngine.getRelevanceSettings();
     }
 
     @Override

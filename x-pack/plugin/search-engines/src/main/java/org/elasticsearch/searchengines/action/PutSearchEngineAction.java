@@ -47,7 +47,9 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
         private String[] indices;
 
-        private String relevanceSettingsId;
+        private String relevanceSettings;
+
+        private String curations;
 
         private String analyticsCollection;
 
@@ -63,31 +65,42 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
                 }
                 return indices;
             }, new ParseField("indices"), ObjectParser.ValueType.OBJECT_ARRAY);
-            PARSER.declareString(Request::setRelevanceSettingsId, new ParseField("relevance_settings"));
+            PARSER.declareString(Request::setRelevanceSettings, new ParseField("relevance_settings"));
             PARSER.declareString(Request::setAnalyticsCollection, new ParseField("analytics_collection"));
+            PARSER.declareString(Request::setCurations, new ParseField("curations"));
+
         }
 
         public Request(String name) {
-            this(name, new String[0], null, null);
+            this(name, new String[0], null, null, null);
         }
 
-        public Request(String name, String[] indices, String relevanceSettingsId, String analyticsCollection) {
+        public Request(String name, String[] indices, String relevanceSettings, String curations, String analyticsCollection) {
             this.name = name;
             this.indices = indices;
-            this.relevanceSettingsId = relevanceSettingsId;
             this.analyticsCollection = analyticsCollection;
+            this.relevanceSettings = relevanceSettings;
+            this.curations = curations;
         }
 
         public String getName() {
             return name;
         }
 
-        public String getRelevanceSettingsId() {
-            return relevanceSettingsId;
+        public String getRelevanceSettings() {
+            return relevanceSettings;
         }
 
-        public void setRelevanceSettingsId(String relevanceSettingsId) {
-            this.relevanceSettingsId = relevanceSettingsId;
+        public void setRelevanceSettings(String relevanceSettings) {
+            this.relevanceSettings = relevanceSettings;
+        }
+
+        public String getCurations() {
+            return curations;
+        }
+
+        public void setCurations(String curations) {
+            this.curations = curations;
         }
 
         public String getAnalyticsCollection() {
@@ -127,8 +140,9 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.name = in.readString();
             this.indices = in.readStringArray();
-            this.relevanceSettingsId = in.readString();
-            this.analyticsCollection = in.readOptionalString();
+            this.relevanceSettings = in.readString();
+            this.curations = in.readString();
+            this.analyticsCollection = in.readString();
         }
 
         @Override
@@ -136,7 +150,8 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(name);
             out.writeStringArray(indices);
-            out.writeString(relevanceSettingsId);
+            out.writeString(relevanceSettings);
+            out.writeString(curations);
             out.writeOptionalString(analyticsCollection);
         }
 
@@ -147,12 +162,14 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             Request request = (Request) o;
             return name.equals(request.name)
                 && Arrays.equals(indices, request.indices)
+                && relevanceSettings.equals(request.relevanceSettings)
+                && curations.equals(request.curations)
                 && analyticsCollection.equals(request.getAnalyticsCollection());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, indices);
+            return Objects.hash(name, indices, relevanceSettings, curations, analyticsCollection);
         }
 
         @Override

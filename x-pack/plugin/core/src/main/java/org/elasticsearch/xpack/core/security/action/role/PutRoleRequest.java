@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -59,7 +58,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (in.getVersion().onOrAfter(RoleDescriptor.REMOTE_INDICES_VERSION)) {
             remoteIndicesPrivileges = in.readList(RoleDescriptor.RemoteIndicesPrivileges::new);
         }
     }

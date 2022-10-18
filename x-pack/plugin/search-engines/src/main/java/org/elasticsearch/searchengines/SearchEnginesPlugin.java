@@ -65,7 +65,7 @@ public class SearchEnginesPlugin extends Plugin implements ActionPlugin {
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        var searchEngineMetadataService = new SearchEngineMetadataService(clusterService);
+        var searchEngineMetadataService = new SearchEngineMetadataService(clusterService, client);
         return List.of(searchEngineMetadataService);
     }
 

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -22,15 +23,25 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.searchengines.action.DeleteSearchEngineAction;
 import org.elasticsearch.searchengines.action.PutSearchEngineAction;
+import org.elasticsearch.searchengines.analytics.SearchEngineAnalyticsBuilder;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class SearchEngineMetadataService {
 
+    private static final Logger logger = LogManager.getLogger(SearchEngineMetadataService.class);
+
     private final ClusterService clusterService;
+    private final Client client;
 
     /**
      * Cluster state task executor for ingest pipeline operations
@@ -76,17 +87,27 @@ public class SearchEngineMetadataService {
         }
     }
 
-    public SearchEngineMetadataService(ClusterService clusterService) {
+    public SearchEngineMetadataService(ClusterService clusterService, Client client) {
         this.clusterService = clusterService;
+        this.client = client;
     }
 
     public void putSearchEngine(PutSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
-            "put-search-engine-" + request.getName(),
-            new PutSearchEngineClusterStateUpdateTask(listener, request),
-            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
-            TASK_EXECUTOR
-        );
+        try {
+            if (request.shouldRecordAnalytics()) {
+                SearchEngineAnalyticsBuilder.ensureDataStreamExists(request.getAnalyticsCollection(), client);
+            }
+        } catch (Exception e) {
+            logger.error("Error setting up analytics for engine " + request.getName(), e);
+        } finally {
+            clusterService.submitStateUpdateTask(
+                "put-search-engine-" + request.getName(),
+                new PutSearchEngineClusterStateUpdateTask(listener, request),
+                ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+                TASK_EXECUTOR
+            );
+        }
+
     }
 
     public void deleteSearchEngine(DeleteSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {

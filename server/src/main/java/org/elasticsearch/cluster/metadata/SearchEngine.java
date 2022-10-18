@@ -84,11 +84,6 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         this.isSystem = isSystem;
         this.relevanceSettingsId = relevanceSettingsId;
         this.analyticsCollection = analyticsCollection;
-
-        if (shouldRecordAnalytics()) {
-            SearchEngineAnalyticsBuilder.ensureDataStreamExists(analyticsCollection);
-        }
-
     }
 
     public SearchEngine(StreamInput in) throws IOException {

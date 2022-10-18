@@ -38,11 +38,8 @@ public class XSearchAnalyticsService {
 
     private final ClusterService clusterService;
 
-    private final SearchEngine.SearchEngineAnalyticsBuilder builder;
-
-    public XSearchAnalyticsService(ClusterService clusterService, SearchEngine.SearchEngineAnalyticsBuilder builder) {
+    public XSearchAnalyticsService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.builder = builder;
     }
 
     // TODO - Record events about the response as well
@@ -53,14 +50,13 @@ public class XSearchAnalyticsService {
     }
 
     private void recordEvent(String dataStream, XSearchAction.Request request, NodeClient client) {
-        builder.ensureDataStreamExists(dataStream, client);
         try (XContentBuilder builder = buildEvent(request)) {
             if (builder != null) {
                 IndexRequest indexRequest = client.prepareIndex(dataStream)
                     .setSource(buildEvent(request))
                     .request()
                     .opType(DocWriteRequest.OpType.CREATE);
-                client.execute(IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
+                client.execute(IndexAction.INSTANCE, indexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         // No action required

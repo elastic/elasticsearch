@@ -11,6 +11,7 @@ module org.elasticsearch.searchengines {
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.searchengines.action to org.elasticsearch.server;
 }

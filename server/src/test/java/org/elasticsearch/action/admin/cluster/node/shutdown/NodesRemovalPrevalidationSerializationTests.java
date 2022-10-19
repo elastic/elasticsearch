@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalP
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
-public class NodesRemovalPrevalidationSerializationTests extends AbstractSerializingTestCase<NodesRemovalPrevalidation> {
+public class NodesRemovalPrevalidationSerializationTests extends AbstractXContentSerializingTestCase<NodesRemovalPrevalidation> {
 
     @Override
     protected NodesRemovalPrevalidation doParseInstance(XContentParser parser) throws IOException {

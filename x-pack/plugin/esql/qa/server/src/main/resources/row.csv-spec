@@ -8,7 +8,7 @@ a:integer
 multipleFields
 row a = 1, b = 10, c = 100;
 
-a | b  | c
+a:integer | b:integer  | c:integer
 1 | 10 | 100
 ;
 
@@ -17,4 +17,11 @@ row 100, 10, c = 1;
 
 100:integer | 10:integer | c:integer
 100 | 10 | 1
+;
+
+evalRow
+row a = 1, b = 2 | eval c = a + b;
+
+a:integer | b:integer | c:integer
+1 | 2 | 3
 ;

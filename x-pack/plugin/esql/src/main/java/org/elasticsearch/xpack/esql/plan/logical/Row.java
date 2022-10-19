@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -33,9 +33,7 @@ public class Row extends LeafPlan {
 
     @Override
     public List<Attribute> output() {
-        return fields.stream()
-            .<Attribute>map(f -> new ReferenceAttribute(f.source(), f.name(), f.dataType(), null, f.nullable(), f.id(), f.synthetic()))
-            .toList();
+        return Expressions.asAttributes(fields);
     }
 
     @Override

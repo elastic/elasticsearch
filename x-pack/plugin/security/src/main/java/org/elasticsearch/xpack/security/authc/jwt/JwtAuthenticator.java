@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.text.ParseException;
+import java.time.Clock;
 import java.util.List;
 
 public class JwtAuthenticator implements Releasable {
@@ -37,14 +38,15 @@ public class JwtAuthenticator implements Releasable {
     ) {
         this.realmConfig = realmConfig;
         final TimeValue allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
+        final Clock clock = Clock.systemUTC();
         jwtClaimValidators = List.of(
             new JwtHeaderValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
             new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
-            new JwtTimeClaimValidator("iat", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, false),
-            new JwtTimeClaimValidator("exp", allowedClockSkew, JwtTimeClaimValidator.Relationship.AFTER_NOW, false),
-            new JwtTimeClaimValidator("nbf", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, true),
-            new JwtTimeClaimValidator("auth_time", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, true)
+            new JwtTimeClaimValidator(clock, "iat", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, false),
+            new JwtTimeClaimValidator(clock, "exp", allowedClockSkew, JwtTimeClaimValidator.Relationship.AFTER_NOW, false),
+            new JwtTimeClaimValidator(clock, "nbf", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, true),
+            new JwtTimeClaimValidator(clock, "auth_time", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, true)
         );
 
         jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(realmConfig, sslService, reloadNotifier);

@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
 
 import java.text.ParseException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 
@@ -23,17 +24,19 @@ public class JwtTimeClaimValidator implements JwtClaimValidator {
         AFTER_NOW;
     }
 
-    public JwtTimeClaimValidator(String claimName, TimeValue allowedClockSkew, Relationship relationship, boolean allowNull) {
+    private final Clock clock;
+    private final String claimName;
+    private final long allowedClockSkewSeconds;
+    private final Relationship relationship;
+    private final boolean allowNull;
+
+    public JwtTimeClaimValidator(Clock clock, String claimName, TimeValue allowedClockSkew, Relationship relationship, boolean allowNull) {
+        this.clock = clock;
         this.claimName = claimName;
         this.allowedClockSkewSeconds = allowedClockSkew.seconds();
         this.relationship = relationship;
         this.allowNull = allowNull;
     }
-
-    private final String claimName;
-    private final long allowedClockSkewSeconds;
-    private final Relationship relationship;
-    private final boolean allowNull;
 
     @Override
     public void validate(SignedJWT jwt) {
@@ -54,7 +57,7 @@ public class JwtTimeClaimValidator implements JwtClaimValidator {
 
         final Instant claimInstant = claimValue.toInstant();
         // TODO: pass in clock
-        final Instant now = Instant.now();
+        final Instant now = clock.instant();
 
         switch (relationship) {
             case BEFORE_NOW:

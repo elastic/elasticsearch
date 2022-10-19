@@ -31,6 +31,14 @@ public class ClusterInfoSimulator {
         this.dataPath = new HashMap<>(clusterInfo.dataPath);
     }
 
+    /**
+     * This method updates disk usage to reflect shard relocations and new replica initialization.
+     * In case of a single data path both mostAvailableSpaceUsage and leastAvailableSpaceUsage are update to reflect the change.
+     * In case of multiple data path only mostAvailableSpaceUsage as it is used in calculation in
+     * {@link org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider} for allocating new shards.
+     * This assumes the worst case (all shards are placed on a single most used disk) and prevents node overflow.
+     * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
+     */
     public void simulate(ShardRouting shard) {
         assert shard.initializing();
 
@@ -38,11 +46,11 @@ public class ClusterInfoSimulator {
         if (size != null && size > 0) {
             if (shard.relocatingNodeId() != null) {
                 // relocation
-                modifyDiskUsage(shard.relocatingNodeId(), getShardPath(shard.relocatingNodeId(), mostAvailableSpaceUsage), size);
-                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), leastAvailableSpaceUsage), -size);
+                modifyDiskUsage(shard.relocatingNodeId(), size);
+                modifyDiskUsage(shard.currentNodeId(), -size);
             } else {
                 // new shard
-                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), leastAvailableSpaceUsage), -size);
+                modifyDiskUsage(shard.currentNodeId(), -size);
                 shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
             }
         }
@@ -61,12 +69,13 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private String getShardPath(String nodeId, Map<String, DiskUsage> defaultSpaceUsage) {
-        var diskUsage = defaultSpaceUsage.get(nodeId);
-        return diskUsage != null ? diskUsage.getPath() : null;
-    }
+    private void modifyDiskUsage(String nodeId, long delta) {
+        var diskUsage = mostAvailableSpaceUsage.get(nodeId);
+        if (diskUsage == null) {
+            return;
+        }
+        var path = diskUsage.getPath();
 
-    private void modifyDiskUsage(String nodeId, String path, long delta) {
         var leastUsage = leastAvailableSpaceUsage.get(nodeId);
         if (leastUsage != null && Objects.equals(leastUsage.getPath(), path)) {
             // ensure new value is within bounds

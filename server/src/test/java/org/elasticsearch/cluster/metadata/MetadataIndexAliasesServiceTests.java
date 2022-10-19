@@ -299,13 +299,13 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         ClusterState after = service.applyAliasActions(
             before,
-            Arrays.asList(new AliasAction.Add("test", "alias", null, null, null, false, null))
+            List.of(new AliasAction.Add("test", "alias", null, null, null, false, null))
         );
         assertFalse(after.metadata().index("test").getAliases().get("alias").writeIndex());
         assertNull(after.metadata().getIndicesLookup().get("alias").getWriteIndex());
         assertAliasesVersionIncreased("test", before, after);
 
-        after = service.applyAliasActions(before, Arrays.asList(new AliasAction.Add("test", "alias", null, null, null, null, null)));
+        after = service.applyAliasActions(before, List.of(new AliasAction.Add("test", "alias", null, null, null, null, null)));
         assertNull(after.metadata().index("test").getAliases().get("alias").writeIndex());
         assertThat(
             after.metadata().index(after.metadata().getIndicesLookup().get("alias").getWriteIndex()),
@@ -313,7 +313,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         );
         assertAliasesVersionIncreased("test", before, after);
 
-        after = service.applyAliasActions(before, Arrays.asList(new AliasAction.Add("test", "alias", null, null, null, true, null)));
+        after = service.applyAliasActions(before, List.of(new AliasAction.Add("test", "alias", null, null, null, true, null)));
         assertTrue(after.metadata().index("test").getAliases().get("alias").writeIndex());
         assertThat(
             after.metadata().index(after.metadata().getIndicesLookup().get("alias").getWriteIndex()),
@@ -336,10 +336,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
             .build();
 
-        ClusterState after = service.applyAliasActions(
-            before,
-            Arrays.asList(new AliasAction.Add("test", "alias", null, null, null, null, null))
-        );
+        ClusterState after = service.applyAliasActions(before, List.of(new AliasAction.Add("test", "alias", null, null, null, null, null)));
         assertNull(after.metadata().index("test").getAliases().get("alias").writeIndex());
         assertThat(
             after.metadata().index(after.metadata().getIndicesLookup().get("alias").getWriteIndex()),
@@ -350,7 +347,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         Exception exception = expectThrows(
             IllegalStateException.class,
-            () -> service.applyAliasActions(before, Arrays.asList(new AliasAction.Add("test", "alias", null, null, null, true, null)))
+            () -> service.applyAliasActions(before, List.of(new AliasAction.Add("test", "alias", null, null, null, true, null)))
         );
         assertThat(exception.getMessage(), startsWith("alias [alias] has more than one write index ["));
     }
@@ -409,7 +406,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         ClusterState after = service.applyAliasActions(
             before,
-            Arrays.asList(new AliasAction.Add("test3", "alias", null, null, null, true, null))
+            List.of(new AliasAction.Add("test3", "alias", null, null, null, true, null))
         );
         assertTrue(after.metadata().index("test3").getAliases().get("alias").writeIndex());
         assertThat(

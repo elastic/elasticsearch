@@ -31,7 +31,6 @@ import org.elasticsearch.searchengines.analytics.SearchEngineAnalyticsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -138,7 +137,7 @@ public class SearchEngineMetadataService {
                 }
             }
             if (missingIndices.size() > 0) {
-                throw new IndexNotFoundException(Strings.join(missingIndices, ','));
+                throw new IndexNotFoundException(String.join(",", missingIndices));
             }
         }
 
@@ -178,7 +177,7 @@ public class SearchEngineMetadataService {
         @Override
         public SearchEngineMetadata execute(SearchEngineMetadata currentMetadata, ClusterState state) {
             if (request.getResolved() == null || request.getResolved().isEmpty()) {
-                throw new SearchEngineNotFoundException(Strings.join(Arrays.asList(request.getNames()), ','));
+                throw new SearchEngineNotFoundException(String.join(",", request.getNames()));
             }
 
             Map<String, SearchEngine> searchEngines = new HashMap<>(currentMetadata.searchEngines());

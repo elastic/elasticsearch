@@ -65,7 +65,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         return new AggregationsPlugin();
     }
 
-    // TODO: the base test class should be able to get this from the search plugin? (^)
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c);

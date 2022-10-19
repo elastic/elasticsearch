@@ -249,7 +249,6 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/write/reindex":
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":
-            case "indices:data/read/semantic_search":
                 if (request instanceof BulkShardRequest) {
                     return false;
                 }

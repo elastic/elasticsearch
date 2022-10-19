@@ -88,7 +88,8 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
 
     private SearchRequestBuilder buildSearch(Client client, TextEmbeddingResults inferenceResults, SemanticSearchAction.Request request) {
         var searchBuilder = client.prepareSearch();
-        searchBuilder.setIndices(request.getIndices());
+        searchBuilder.setIndices(request.indices());
+        searchBuilder.setIndicesOptions(request.indicesOptions());
         if (request.getRouting() != null) {
             searchBuilder.setRouting(request.getRouting());
         }

@@ -11,8 +11,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +54,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         super(name, SemanticSearchAction.Response::new);
     }
 
-    public static class Request extends ActionRequest implements CompositeIndicesRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name and update docs when changed
 
@@ -110,7 +112,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             return builder.build();
         }
 
-        private final String[] indices;
+        private String[] indices;
         private final String routing;
         private final String queryString;
         private final String modelId;
@@ -193,8 +195,24 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             out.writeOptionalWriteable(storedFields);
         }
 
-        public String[] getIndices() {
+        @Override
+        public String[] indices() {
             return indices;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return SearchRequest.DEFAULT_INDICES_OPTIONS;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            Objects.requireNonNull(indices, "indices must not be null");
+            for (String index : indices) {
+                Objects.requireNonNull(index, "index must not be null");
+            }
+            this.indices = indices;
+            return this;
         }
 
         public String getRouting() {

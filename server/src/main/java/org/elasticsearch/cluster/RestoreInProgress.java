@@ -132,12 +132,16 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             List<String> indices,
             Map<ShardId, ShardRestoreStatus> shards
         ) {
-            this.uuid = Objects.requireNonNull(uuid);
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
-            this.quiet = quiet;
+            this.quiet = Objects.requireNonNull(quiet);
             this.indices = Objects.requireNonNull(indices);
-            this.shards = shards != null ? Map.copyOf(shards) : Map.of();
+            if (shards == null) {
+                this.shards = Map.of();
+            } else {
+                this.shards = shards;
+            }
+            this.uuid = Objects.requireNonNull(uuid);
         }
     }
 

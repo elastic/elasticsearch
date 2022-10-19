@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -53,7 +54,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(" with assigned roles [%s]".formatted(Strings.collectionToCommaDelimitedString(assignedRoleNames)))
+            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
         );
     }
 
@@ -73,7 +74,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(" with assigned roles [%s]".formatted(Strings.collectionToCommaDelimitedString(assignedRoleNames)))
+            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
         );
     }
 
@@ -104,7 +105,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(" with assigned roles [%s]".formatted(Strings.collectionToCommaDelimitedString(assignedRoleNames)))
+            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
         );
     }
 
@@ -129,7 +130,8 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             assertThat(
                 rolesDescription,
                 equalTo(
-                    " with effective roles [] (assigned roles [%s] were not found)".formatted(
+                    formatted(
+                        " with effective roles [] (assigned roles [%s] were not found)",
                         Strings.collectionToCommaDelimitedString(assignedRoleNames.stream().sorted().toList())
                     )
                 )
@@ -162,7 +164,8 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         assertThat(
             rolesDescription,
             equalTo(
-                " with effective roles [%s]".formatted(
+                formatted(
+                    " with effective roles [%s]",
                     Strings.collectionToCommaDelimitedString(effectiveRoleNames.stream().sorted().toList())
                 )
             )
@@ -196,7 +199,9 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         assertThat(
             rolesDescription,
             equalTo(
-                " with effective roles [%s] (assigned roles [%s] were not found)".formatted(
+                String.format(
+                    Locale.ROOT,
+                    " with effective roles [%s] (assigned roles [%s] were not found)",
                     Strings.collectionToCommaDelimitedString(effectiveRoleNames.stream().sorted().toList()),
                     Strings.collectionToCommaDelimitedString(unfoundedRoleNames.stream().sorted().toList())
                 )

@@ -47,7 +47,6 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -69,9 +68,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName;
 
 /**
  * This indicator reports health for shards.
@@ -122,10 +124,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
         return createIndicator(
             status.getStatus(),
-            status.getSummary(),
+            status.getSymptom(),
             status.getDetails(explain),
             status.getImpacts(),
-            status.getUserActions(explain)
+            status.getDiagnosis(explain)
         );
     }
 
@@ -787,7 +789,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        public String getSummary() {
+        public String getSymptom() {
             var builder = new StringBuilder("This cluster has ");
             if (primaries.unassigned > 0
                 || primaries.unassigned_new > 0
@@ -796,11 +798,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
-                        createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
-                        createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
+                        createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
+                        createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
+                        createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {
@@ -854,7 +856,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
                     primaries.indicesWithUnavailableShards.size(),
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(primaries.indicesWithUnavailableShards, clusterMetadata)
+                    getTruncatedIndices(primaries.indicesWithUnavailableShards, clusterMetadata)
                 );
                 impacts.add(
                     new HealthIndicatorImpact(
@@ -879,7 +881,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Searches might be slower than usual. Fewer redundant copies of the data exist on %d %s [%s].",
                     indicesWithUnavailableReplicasOnly.size(),
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
+                    getTruncatedIndices(indicesWithUnavailableReplicasOnly, clusterMetadata)
                 );
                 impacts.add(
                     new HealthIndicatorImpact(NAME, REPLICA_UNASSIGNED_IMPACT_ID, 2, impactDescription, List.of(ImpactArea.SEARCH))
@@ -889,11 +891,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         /**
-         * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
+         * Returns the diagnosis for unassigned primary and replica shards.
          * @param explain true if user actions should be generated, false if they should be omitted.
          * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
          */
-        public List<Diagnosis> getUserActions(boolean explain) {
+        public List<Diagnosis> getDiagnosis(boolean explain) {
             if (explain) {
                 Map<Diagnosis.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
                 replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
@@ -912,7 +914,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                e.getValue().stream().sorted(byPriorityThenByName(clusterMetadata)).collect(Collectors.toList())
+                                List.of(
+                                    new Diagnosis.Resource(
+                                        INDEX,
+                                        e.getValue()
+                                            .stream()
+                                            .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                            .collect(Collectors.toList())
+                                    )
+                                )
                             )
                         )
                         .collect(Collectors.toList());
@@ -921,31 +931,5 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 return Collections.emptyList();
             }
         }
-    }
-
-    private static String getTruncatedIndicesString(Set<String> indices, Metadata clusterMetadata) {
-        final int maxIndices = 10;
-        String truncatedIndicesString = indices.stream()
-            .sorted(byPriorityThenByName(clusterMetadata))
-            .limit(maxIndices)
-            .collect(joining(", "));
-        if (maxIndices < indices.size()) {
-            truncatedIndicesString = truncatedIndicesString + ", ...";
-        }
-        return truncatedIndicesString;
-    }
-
-    /**
-     * Sorts index names by their priority first, then alphabetically by name. If the priority cannot be determined for an index then
-     * a priority of -1 is used to sort it behind other index names.
-     * @param clusterMetadata Used to look up index priority.
-     * @return Comparator instance
-     */
-    private static Comparator<String> byPriorityThenByName(Metadata clusterMetadata) {
-        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
-        return Comparator.comparingInt((String indexName) -> {
-            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
-            return indexMetadata == null ? -1 : indexMetadata.priority();
-        }).reversed().thenComparing(Comparator.naturalOrder());
     }
 }

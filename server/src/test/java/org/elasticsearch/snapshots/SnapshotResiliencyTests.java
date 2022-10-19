@@ -177,6 +177,7 @@ import org.elasticsearch.search.usage.QueriesUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1978,7 +1979,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
-                    EmptySystemIndices.INSTANCE.getExecutorSelector()
+                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                    Tracer.NOOP
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 QueriesUsageService queriesUsageService = new QueriesUsageService();

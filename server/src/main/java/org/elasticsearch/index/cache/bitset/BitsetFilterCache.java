@@ -288,7 +288,7 @@ public final class BitsetFilterCache
                                     );
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService().logger().warn(() -> "failed to load " + "bitset for [" + filterToWarm + "]", e);
+                            indexShard.warmerService().logger().warn(() -> "failed to load bitset for [" + filterToWarm + "]", e);
                         } finally {
                             latch.countDown();
                         }

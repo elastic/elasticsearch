@@ -41,33 +41,34 @@ public class JwtTimeClaimValidator implements JwtClaimValidator {
         try {
             claimValue = jwt.getJWTClaimsSet().getDateClaim(claimName);
         } catch (ParseException e) {
-            throw new ElasticsearchSecurityException("fail", e);
+            throw new ElasticsearchSecurityException("date parsing failed: claim [" + claimName + "]", e);
         }
 
         if (claimValue == null) {
             if (allowNull) {
                 return;
             } else {
-                throw new ElasticsearchSecurityException("validation failed: null");
+                throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] does not exist");
             }
         }
 
         final Instant claimInstant = claimValue.toInstant();
+        // TODO: pass in clock
         final Instant now = Instant.now();
 
         switch (relationship) {
             case BEFORE_NOW:
                 if (false == claimInstant.isBefore(now.plusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException("validation failed: before");
+                    throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] must be before now");
                 }
                 break;
             case AFTER_NOW:
                 if (false == claimInstant.isAfter(now.minusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException("validation failed: after");
+                    throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] must be after now");
                 }
                 break;
             default:
-                throw new IllegalStateException("unknown relationship");
+                throw new IllegalStateException("unknown date claim relationship");
         }
     }
 }

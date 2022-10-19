@@ -12,6 +12,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.text.ParseException;
@@ -24,13 +25,13 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
     private final boolean singleValuedClaim;
     private final StringMatcher claimValueMatcher;
 
-    public JwtStringClaimValidator(String claimName, List<String> candidateClaimValues, boolean singleValuedClaim) {
+    public JwtStringClaimValidator(String claimName, List<String> allowedClaimValues, boolean singleValuedClaim) {
         this.claimName = claimName;
         this.singleValuedClaim = singleValuedClaim;
-        if (candidateClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
-            throw new ElasticsearchException("invalid candidate claim values, cannot use wildcard or regex");
+        if (allowedClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
+            throw new ElasticsearchException("invalid allowed claim values, cannot use wildcard or regex");
         }
-        this.claimValueMatcher = StringMatcher.of(candidateClaimValues);
+        this.claimValueMatcher = StringMatcher.of(allowedClaimValues);
     }
 
     @Override
@@ -39,14 +40,20 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
         try {
             claimValues = getStringClaimValues(jwt.getJWTClaimsSet());
         } catch (ParseException e) {
-            throw new ElasticsearchSecurityException("failed to parse", e);
+            throw new ElasticsearchSecurityException("string parsing failed: claim [" + claimName + "]", e);
         }
         if (claimValues == null) {
-            throw new ElasticsearchSecurityException("validation failed: claim does not exist");
+            throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] does not exist");
         }
 
         if (false == claimValues.stream().anyMatch(claimValueMatcher)) {
-            throw new ElasticsearchSecurityException("validation failed: claim value does not match");
+            throw new ElasticsearchSecurityException(
+                "validation failed: claim ["
+                    + claimName
+                    + "] value ["
+                    + Strings.collectionToCommaDelimitedString(claimValues)
+                    + "] do not match"
+            );
         }
     }
 

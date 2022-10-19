@@ -113,8 +113,8 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
 
         public static final ParseField NAME_FIELD = new ParseField("name");
         public static final ParseField INDICES_FIELD = new ParseField("indices");
-
         public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings");
+        public static final ParseField ANALYTICS_COLLECTION_FIELD = new ParseField("analytics_collection");
 
         private final List<SearchEngine> searchEngines;
 
@@ -168,6 +168,9 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
 
                 if (searchEngine.getRelevanceSettingsId() != null) {
                     builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), searchEngine.getRelevanceSettingsId());
+                }
+                if (searchEngine.shouldRecordAnalytics()) {
+                    builder.field(ANALYTICS_COLLECTION_FIELD.getPreferredName(), searchEngine.getAnalyticsCollection());
                 }
             }
             builder.endObject();

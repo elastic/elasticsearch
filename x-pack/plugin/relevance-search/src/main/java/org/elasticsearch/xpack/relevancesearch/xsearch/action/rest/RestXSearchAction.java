@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch.action.rest;
 
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
@@ -68,24 +66,18 @@ public class RestXSearchAction extends BaseRestHandler {
         xSearchRequestValidationService.validateRequest(xsearchRequest);
 
         RelevanceMatchQueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, xsearchRequest.getQuery());
-        return channel -> doXSearch(index, xsearchRequest.explain(), queryBuilder, client, channel);
+
+        return channel -> performRequest(index, xsearchRequest, queryBuilder, client, channel);
     }
 
-    private static void doXSearch(
+    private void performRequest(
         String index,
-        boolean explain,
+        XSearchAction.Request xsearchRequest,
         RelevanceMatchQueryBuilder queryBuilder,
         NodeClient client,
         RestChannel channel
     ) {
-        SearchRequest searchRequest = client.prepareSearch(index)
-            .setQuery(queryBuilder)
-            .setSize(1000)
-            .setFetchSource(true)
-            .setExplain(explain)
-            .request();
-
-        client.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+        client.execute(XSearchAction.INSTANCE, xsearchRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override

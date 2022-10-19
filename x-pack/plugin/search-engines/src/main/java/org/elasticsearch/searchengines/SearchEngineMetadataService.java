@@ -136,7 +136,14 @@ public class SearchEngineMetadataService {
                 indices.add(state.getMetadata().index(indexName).getIndex());
             }
 
-            SearchEngine searchEngine = new SearchEngine(request.getName(), indices, false, false, request.getRelevanceSettingsId());
+            SearchEngine searchEngine = new SearchEngine(
+                request.getName(),
+                indices,
+                false,
+                false,
+                request.getRelevanceSettingsId(),
+                request.getAnalyticsCollection()
+            );
             searchEngines.put(request.getName(), searchEngine);
 
             return new SearchEngineMetadata(searchEngines);

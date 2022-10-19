@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationS
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchTransportAction;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.rest.RestXSearchAction;
+import org.elasticsearch.xpack.relevancesearch.xsearch.analytics.XSearchAnalyticsService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -63,6 +64,8 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
     private final SetOnce<IndexCreationService> indexCreationService = new SetOnce<>();
 
     private final SetOnce<XSearchRequestValidationService> xSearchRequestValidationService = new SetOnce<>();
+
+    private final SetOnce<XSearchAnalyticsService> xSearchAnalyticsService = new SetOnce<>();
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -112,6 +115,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
 
         indexCreationService.set(new IndexCreationService(client, clusterService));
         xSearchRequestValidationService.set(new XSearchRequestValidationService(indexNameExpressionResolver, clusterService));
+        xSearchAnalyticsService.set(new XSearchAnalyticsService(clusterService));
         RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client);
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
@@ -120,6 +124,11 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
             new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver)
         );
 
-        return List.of(relevanceMatchQueryRewriter.get(), indexCreationService.get(), xSearchRequestValidationService.get());
+        return List.of(
+            relevanceMatchQueryRewriter.get(),
+            indexCreationService.get(),
+            xSearchRequestValidationService.get(),
+            xSearchAnalyticsService.get()
+        );
     }
 }

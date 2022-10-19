@@ -99,7 +99,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         throw new UnsupportedOperationException();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90984")
     public void testMaxNestedDepth() throws IOException {
         QB query = null;
         try {
@@ -107,13 +106,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         } catch (UnsupportedOperationException e) {
             assumeNoException("Runs only for queries that support nesting", e);
         }
-        int maxDepth;
-        if (frequently()) {
-            maxDepth = randomIntBetween(3, 5);
-            AbstractQueryBuilder.setMaxNestedDepth(maxDepth);
-        } else {
-            maxDepth = INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
-        }
+        int maxDepth = randomIntBetween(3, 5);
+        AbstractQueryBuilder.setMaxNestedDepth(maxDepth);
         try {
             for (int i = 1; i < maxDepth - 1; i++) {
                 query = createQueryWithInnerQuery(query);

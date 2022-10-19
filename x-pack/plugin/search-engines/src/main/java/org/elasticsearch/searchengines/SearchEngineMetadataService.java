@@ -7,7 +7,6 @@
 
 package org.elasticsearch.searchengines;
 
-import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.SearchEngine;
 import org.elasticsearch.cluster.metadata.SearchEngineMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -94,7 +94,7 @@ public class SearchEngineMetadataService {
 
     public void putSearchEngine(PutSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         try {
-            if (request.shouldRecordAnalytics()) {
+            if (Strings.hasText(request.getAnalyticsCollection())) {
                 SearchEngineAnalyticsBuilder.ensureDataStreamExists(request.getAnalyticsCollection(), client);
             }
         } catch (Exception e) {
@@ -112,7 +112,7 @@ public class SearchEngineMetadataService {
 
     public void deleteSearchEngine(DeleteSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
-            "delete-search-engine-" + Strings.join(Arrays.asList(request.getNames()), ','),
+            "delete-search-engine-" + String.join("", request.getNames()),
             new DeleteSearchEngineClusterStateUpdateTask(listener, request),
             ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
             TASK_EXECUTOR

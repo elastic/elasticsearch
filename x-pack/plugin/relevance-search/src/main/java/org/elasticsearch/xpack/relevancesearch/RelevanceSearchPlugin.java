@@ -78,7 +78,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(
-            new RestXSearchAction(relevanceMatchQueryRewriter.get(), xSearchRequestValidationService.get(), xSearchAnalyticsService.get())
+            new RestXSearchAction(relevanceMatchQueryRewriter.get(), xSearchRequestValidationService.get())
         );
     }
 

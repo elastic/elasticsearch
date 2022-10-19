@@ -68,7 +68,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testRow() {
-        int value = randomIntBetween(0, Integer.MAX_VALUE);
+        long value = randomLongBetween(0, Long.MAX_VALUE);
         EsqlQueryResponse response = run("row" + value);
         assertEquals(List.of(List.of(value)), response.values());
     }

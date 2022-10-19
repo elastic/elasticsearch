@@ -27,6 +27,16 @@ public final class ConstantIntBlock extends Block {
     }
 
     @Override
+    public long getLong(int position) {
+        return getInt(position);  // Widening primitive conversions, no loss of precision
+    }
+
+    @Override
+    public double getDouble(int position) {
+        return getInt(position);  // Widening primitive conversions, no loss of precision
+    }
+
+    @Override
     public Object getObject(int position) {
         return getInt(position);
     }

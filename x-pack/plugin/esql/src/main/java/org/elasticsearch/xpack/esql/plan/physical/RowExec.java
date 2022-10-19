@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -30,7 +30,7 @@ public class RowExec extends LeafExec {
 
     @Override
     public List<Attribute> output() {
-        return fields.stream().<Attribute>map(f -> new ReferenceAttribute(f.source(), f.name(), f.dataType())).toList();
+        return Expressions.asAttributes(fields);
     }
 
     @Override

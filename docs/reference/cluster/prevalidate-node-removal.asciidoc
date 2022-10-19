@@ -29,6 +29,8 @@ Note that only one of the query parameters (`names`, `ids`, or `external_ids`) m
 
 The result of the prevalidation is expressed as either `YES`, `NO`, or `UNKNOWN`.
 
+Note that if the prevalidation result for a set of nodes returns `YES`, this does not mean that all those nodes could be successfully removed at once, but rather removal of each individual node would potentially be successful. The actual node removal could be handled via the <<node-lifecycle-api,Node lifecycle API>>.
+
 [[prevalidate-node-removal-api-query-params]]
 ==== {api-query-parms-title}
 

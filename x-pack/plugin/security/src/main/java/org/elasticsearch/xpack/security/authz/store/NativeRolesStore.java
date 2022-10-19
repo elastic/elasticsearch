@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -81,7 +80,6 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  */
 public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
-    public static final Version VERSION_REMOTE_INDICES = Version.V_8_6_0;
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
     private final Settings settings;
@@ -223,15 +221,18 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
-        } else if (role.hasRemoteIndicesPrivileges() && clusterService.state().nodes().getMinNodeVersion().before(VERSION_REMOTE_INDICES)) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "all nodes must have version [" + VERSION_REMOTE_INDICES + "] or higher to support remote indices privileges"
-                )
-            );
-        } else {
-            innerPutRole(request, role, listener);
-        }
+        } else if (role.hasRemoteIndicesPrivileges()
+            && clusterService.state().nodes().getMinNodeVersion().before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "all nodes must have version ["
+                            + RoleDescriptor.VERSION_REMOTE_INDICES
+                            + "] or higher to support remote indices privileges"
+                    )
+                );
+            } else {
+                innerPutRole(request, role, listener);
+            }
     }
 
     // pkg-private for testing

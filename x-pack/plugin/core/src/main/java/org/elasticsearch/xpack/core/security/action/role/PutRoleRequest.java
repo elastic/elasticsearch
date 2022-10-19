@@ -58,7 +58,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
-        if (in.getVersion().onOrAfter(RoleDescriptor.REMOTE_INDICES_VERSION)) {
+        if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             remoteIndicesPrivileges = in.readList(RoleDescriptor.RemoteIndicesPrivileges::new);
         }
     }
@@ -213,12 +213,12 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
-        if (out.getVersion().onOrAfter(RoleDescriptor.REMOTE_INDICES_VERSION)) {
+        if (out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             out.writeCollection(remoteIndicesPrivileges);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + RoleDescriptor.REMOTE_INDICES_VERSION
+                    + RoleDescriptor.VERSION_REMOTE_INDICES
                     + "] can't handle remote indices privileges and attempted to send to ["
                     + out.getVersion()
                     + "]"

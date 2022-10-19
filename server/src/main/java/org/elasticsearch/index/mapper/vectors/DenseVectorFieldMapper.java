@@ -21,6 +21,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -124,7 +125,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexOptions.requiresParameter(indexed);
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
 
-            this.elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT32, (n, c, o) -> {
+            this.elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {
                 ElementType elementType = namesToElementType.get((String) o);
                 if (elementType == null) {
                     throw new MapperParsingException(
@@ -133,7 +134,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 return elementType;
             }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString).addValidator(e -> {
-                if (e == ElementType.INT8 && indexed.getValue() == false) {
+                if (e == ElementType.BYTE && indexed.getValue() == false) {
                     throw new IllegalArgumentException("index must be [true] when element_type is [" + e + "]");
                 }
             });
@@ -171,7 +172,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     enum ElementType {
 
-        INT8(1) {
+        BYTE(1) {
 
             @Override
             public String toString() {
@@ -180,14 +181,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
-                byte[] bytes = new byte[vector.length];
-
-                int index = 0;
-                while (index < vector.length) {
-                    bytes[index] = (byte) vector[index++];
-                }
-
-                return new KnnVectorField(name, new BytesRef(bytes), function);
+                return new KnnVectorField(name, VectorUtil.toBytesRef(vector), function);
             }
 
             @Override
@@ -265,7 +259,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         },
 
-        FLOAT32(4) {
+        FLOAT(4) {
 
             @Override
             public String toString() {
@@ -377,10 +371,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     static final Map<String, ElementType> namesToElementType = Map.of(
-        ElementType.INT8.toString(),
-        ElementType.INT8,
-        ElementType.FLOAT32.toString(),
-        ElementType.FLOAT32
+        ElementType.BYTE.toString(),
+        ElementType.BYTE,
+        ElementType.FLOAT.toString(),
+        ElementType.FLOAT
     );
 
     enum VectorSimilarity {
@@ -633,7 +627,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
         // ensure byte vectors are always indexed
         // (should be caught during mapping creation)
-        assert elementType != ElementType.INT8;
+        assert elementType != ElementType.BYTE;
 
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays

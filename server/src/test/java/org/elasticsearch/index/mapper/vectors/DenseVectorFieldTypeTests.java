@@ -33,7 +33,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         return new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.FLOAT32,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             5,
             indexed,
             VectorSimilarity.cosine,
@@ -45,7 +45,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         return new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.INT8,
+            DenseVectorFieldMapper.ElementType.BYTE,
             5,
             true,
             VectorSimilarity.cosine,
@@ -109,7 +109,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.FLOAT32,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             false,
             VectorSimilarity.cosine,
@@ -124,7 +124,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.FLOAT32,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
             VectorSimilarity.dot_product,
@@ -136,7 +136,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.FLOAT32,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
             VectorSimilarity.cosine,
@@ -150,7 +150,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.INT8,
+            DenseVectorFieldMapper.ElementType.BYTE,
             3,
             false,
             VectorSimilarity.cosine,
@@ -165,7 +165,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.INT8,
+            DenseVectorFieldMapper.ElementType.BYTE,
             3,
             true,
             VectorSimilarity.cosine,

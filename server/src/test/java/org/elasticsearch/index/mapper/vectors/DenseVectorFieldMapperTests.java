@@ -55,15 +55,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     private final boolean indexOptionsSet;
 
     public DenseVectorFieldMapperTests() {
-        this.elementType = randomFrom(ElementType.INT8, ElementType.FLOAT32);
-        this.indexed = elementType == ElementType.INT8 || randomBoolean();
+        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT);
+        this.indexed = elementType == ElementType.BYTE || randomBoolean();
         this.indexOptionsSet = this.indexed && randomBoolean();
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "dense_vector").field("dims", 4);
-        if (elementType != ElementType.FLOAT32) {
+        if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
         if (indexed) {
@@ -80,7 +80,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return elementType == ElementType.INT8 ? List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1) : List.of(0.5, 0.5, 0.5, 0.5);
+        return elementType == ElementType.BYTE ? List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1) : List.of(0.5, 0.5, 0.5, 0.5);
     }
 
     @Override
@@ -725,8 +725,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(5, 1000);
-        private final ElementType elementType = randomFrom(ElementType.INT8, ElementType.FLOAT32);
-        private final boolean indexed = elementType == ElementType.INT8 || randomBoolean();
+        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT);
+        private final boolean indexed = elementType == ElementType.BYTE || randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
 
         @Override
@@ -736,13 +736,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }
 
         private float randomValue() {
-            return elementType == ElementType.INT8 ? ESTestCase.randomByte() : ESTestCase.randomFloat();
+            return elementType == ElementType.BYTE ? ESTestCase.randomByte() : ESTestCase.randomFloat();
         }
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "dense_vector");
             b.field("dims", dims);
-            if (elementType == ElementType.INT8 || randomBoolean()) {
+            if (elementType == ElementType.BYTE || randomBoolean()) {
                 b.field("element_type", elementType.toString());
             }
             if (indexed) {

@@ -14,6 +14,9 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.util.List;
 
+/**
+ * Base class for aggregator unit tests that reside in aggregations module.
+ */
 public abstract class AggregationTestCase extends AggregatorTestCase {
 
     @Override

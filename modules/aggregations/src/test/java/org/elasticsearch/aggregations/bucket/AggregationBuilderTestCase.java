@@ -16,6 +16,11 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Base class for aggregation builders unit tests that reside in aggregation module.
+ *
+ * @param <AB> Aggregation builder type
+ */
 public abstract class AggregationBuilderTestCase<AB extends AbstractAggregationBuilder<AB>> extends BaseAggregationTestCase<AB> {
 
     @Override

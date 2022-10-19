@@ -14,6 +14,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Base class for java integration tests that test aggregations that reside aggregations module.
+ */
 public abstract class AggregationIntegTestCase extends ESIntegTestCase {
 
     @Override

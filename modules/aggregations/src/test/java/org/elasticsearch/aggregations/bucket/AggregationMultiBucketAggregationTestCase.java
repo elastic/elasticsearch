@@ -22,6 +22,11 @@ import org.elasticsearch.xcontent.ParseField;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Base class for unit testing multi bucket aggregation's bucket implementations that reside in aggregations module.
+ *
+ * @param <T> The bucket type
+ */
 public abstract class AggregationMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation> extends
     InternalMultiBucketAggregationTestCase<T> {
 

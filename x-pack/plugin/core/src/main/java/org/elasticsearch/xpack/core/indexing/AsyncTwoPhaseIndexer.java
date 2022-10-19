@@ -418,20 +418,17 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
-        onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
+        finishWithFailure(exc);
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
-        onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
+        finishWithFailure(exc);
     }
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
-        finishAndSetState();
-        afterFinishOrFailure();
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private IndexerState finishAndSetState() {

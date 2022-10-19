@@ -92,17 +92,17 @@ public class ClusterStatsNodesTests extends ESTestCase {
             long failedCount = statValues[1];
             long current = statValues[2];
             long timeInMillis = statValues[3];
-            processorStatsString.append("""
+            processorStatsString.append(formatted("""
                 "%s":{"count":%s,"failed":%s,"current":%s,"time_in_millis":%s}\
-                """.formatted(entry.getKey(), count, failedCount, current, timeInMillis));
+                """, entry.getKey(), count, failedCount, current, timeInMillis));
             if (iter.hasNext()) {
                 processorStatsString.append(",");
             }
         }
         processorStatsString.append("}");
-        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo("""
+        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo(formatted("""
             {"ingest":{"number_of_pipelines":%s,"processor_stats":%s}}\
-            """.formatted(stats.pipelineCount, processorStatsString)));
+            """, stats.pipelineCount, processorStatsString)));
     }
 
     public void testIndexPressureStats() throws Exception {

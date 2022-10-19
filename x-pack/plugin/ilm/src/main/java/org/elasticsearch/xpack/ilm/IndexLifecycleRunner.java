@@ -69,7 +69,7 @@ class IndexLifecycleRunner {
                             state = task.execute(state);
                         }
                         taskContext.success(
-                            new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, batchExecutionContext.initialState())
+                            publishedState -> task.clusterStateProcessed(batchExecutionContext.initialState(), publishedState)
                         );
                     } catch (Exception e) {
                         taskContext.onFailure(e);
@@ -142,16 +142,16 @@ class IndexLifecycleRunner {
         }
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();
-        final long ageMillis = now - lifecycleDate;
-        final TimeValue age;
-        if (ageMillis >= 0) {
-            age = new TimeValue(ageMillis);
-        } else if (ageMillis == Long.MIN_VALUE) {
-            age = new TimeValue(Long.MAX_VALUE);
-        } else {
-            age = new TimeValue(-ageMillis);
-        }
         if (logger.isTraceEnabled()) {
+            final long ageMillis = now - lifecycleDate;
+            final TimeValue age;
+            if (ageMillis >= 0) {
+                age = new TimeValue(ageMillis);
+            } else if (ageMillis == Long.MIN_VALUE) {
+                age = new TimeValue(Long.MAX_VALUE);
+            } else {
+                age = new TimeValue(-ageMillis);
+            }
             logger.trace(
                 "[{}] checking for index age to be at least [{}] before performing actions in "
                     + "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}{}/{}s]",
@@ -220,12 +220,12 @@ class IndexLifecycleRunner {
                 logger.debug(
                     "[{}] stopping in the current phase ({}) as there are no more steps in the policy",
                     index,
-                    currentStep.getKey().getPhase()
+                    currentStep.getKey().phase()
                 );
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().phase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof AsyncWaitStep) {
@@ -431,12 +431,12 @@ class IndexLifecycleRunner {
                 logger.debug(
                     "[{}] stopping in the current phase ({}) as there are no more steps in the policy",
                     index,
-                    currentStep.getKey().getPhase()
+                    currentStep.getKey().phase()
                 );
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().phase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
@@ -690,7 +690,7 @@ class IndexLifecycleRunner {
 
         @Override
         protected void handleFailure(Exception e) {
-            logger.error(() -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().getName(), index), e);
+            logger.error(() -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().name(), index), e);
         }
 
         @Override

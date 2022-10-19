@@ -15,14 +15,13 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -31,12 +30,16 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -197,26 +200,19 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean forceSyntheticSource
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-
-        Engine.GetResult get = indexShard.get(
-            new Engine.Get(realtime, realtime, id).version(version)
-                .versionType(versionType)
-                .setIfSeqNo(ifSeqNo)
-                .setIfPrimaryTerm(ifPrimaryTerm)
-        );
-        if (get.exists() == false) {
-            get.close();
-        }
-
-        if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
-        }
-
-        try {
+        try (
+            Engine.GetResult get = indexShard.get(
+                new Engine.Get(realtime, realtime, id).version(version)
+                    .versionType(versionType)
+                    .setIfSeqNo(ifSeqNo)
+                    .setIfPrimaryTerm(ifPrimaryTerm)
+            )
+        ) {
+            if (get.exists() == false) {
+                return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
+            }
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetFetch(id, gFields, fetchSourceContext, get, forceSyntheticSource);
-        } finally {
-            get.close();
         }
     }
 
@@ -245,34 +241,42 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
-        BytesReference source = null;
+        BytesReference source;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext);
-        if (fieldVisitor != null) {
-            try {
-                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get id [" + id + "]", e);
-            }
-            SourceLoader loader = forceSyntheticSource
-                ? new SourceLoader.Synthetic(mappingLookup.getMapping())
-                : mappingLookup.newSourceLoader();
-            source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId }).source(fieldVisitor, docIdAndVersion.docId);
+        SourceLoader loader = forceSyntheticSource
+            ? new SourceLoader.Synthetic(mappingLookup.getMapping())
+            : mappingLookup.newSourceLoader();
+        StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
+        LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
+        try {
+            leafStoredFieldLoader.advanceTo(docIdAndVersion.docId);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to get id [" + id + "]", e);
+        }
 
-            // put stored fields into result objects
-            if (fieldVisitor.fields().isEmpty() == false) {
-                fieldVisitor.postProcess(mapperService::fieldType);
-                documentFields = new HashMap<>();
-                metadataFields = new HashMap<>();
-                for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    if (mapperService.isMetadataField(entry.getKey())) {
-                        metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    } else {
-                        documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    }
+        // put stored fields into result objects
+        if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
+            Set<String> needed = new HashSet<>();
+            if (storedFields != null) {
+                Collections.addAll(needed, storedFields);
+            }
+            needed.add(RoutingFieldMapper.NAME); // we always return _routing if we see it, even if you don't ask for it.....
+            documentFields = new HashMap<>();
+            metadataFields = new HashMap<>();
+            for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
+                if (false == needed.contains(entry.getKey())) {
+                    continue;
+                }
+                List<Object> values = FetchPhase.processStoredField(mapperService::fieldType, entry.getKey(), entry.getValue());
+                if (mapperService.isMetadataField(entry.getKey())) {
+                    metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
+                } else {
+                    documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
                 }
             }
         }
+        source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+            .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
         if (source != null) {
             // apply request-level source filtering
@@ -301,11 +305,18 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {
-        if (fields == null || fields.length == 0) {
-            return fetchSourceContext.fetchSource() ? new FieldsVisitor(true) : null;
+    private static StoredFieldLoader buildStoredFieldLoader(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {
+        Set<String> fieldsToLoad = new HashSet<>();
+        if (fields != null && fields.length > 0) {
+            Collections.addAll(fieldsToLoad, fields);
         }
-
-        return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource());
+        if (fetchSourceContext.fetchSource()) {
+            fieldsToLoad.addAll(loader.requiredStoredFields());
+        } else {
+            if (fieldsToLoad.isEmpty()) {
+                return StoredFieldLoader.empty();
+            }
+        }
+        return StoredFieldLoader.create(fetchSourceContext.fetchSource(), fieldsToLoad);
     }
 }

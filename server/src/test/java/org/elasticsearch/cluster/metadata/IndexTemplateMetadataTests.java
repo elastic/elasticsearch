@@ -31,7 +31,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
 
     public void testIndexTemplateMetadataXContentRoundTrip() throws Exception {
 
-        String template = """
+        String template = formatted("""
             {
               "index_patterns": [ ".test-*" ],
               "order": 1000,
@@ -48,7 +48,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            }""", randomAlphaOfLength(10), randomAlphaOfLength(10));
 
         BytesReference templateBytes = new BytesArray(template);
         final IndexTemplateMetadata indexTemplateMetadata;
@@ -112,7 +112,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
         });
         assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
 
-        final String templateWithEmptyPattern = """
+        final String templateWithEmptyPattern = formatted("""
             {
               "index_patterns": [],
               "order": 1000,
@@ -129,7 +129,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            }""", randomAlphaOfLength(10), randomAlphaOfLength(10));
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -145,7 +145,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
             assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
         }
 
-        final String templateWithoutPattern = """
+        final String templateWithoutPattern = formatted("""
             {
               "order": 1000,
               "settings": {
@@ -164,7 +164,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            }""", randomAlphaOfLength(10), randomAlphaOfLength(10));
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,

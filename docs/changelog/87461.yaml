@@ -1,6 +1,0 @@
-pr: 87461
-summary: 'Return action denied error when user with insufficient privileges (`manage_own_api_key`) attempts a grant API key request'
-area: Authorization
-type: enhancement
-issues:
- - 87438

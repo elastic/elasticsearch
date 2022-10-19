@@ -627,13 +627,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     }
 
     /**
-     * Number of failed shards; a value of {@code 0} will be returned if there were no
-     * failed shards, or if {@link #state()} returns {@code null}.
+     * Number of failed shards.
      *
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards - successfulShards;
+        return shardFailures.size();
     }
 
     /**

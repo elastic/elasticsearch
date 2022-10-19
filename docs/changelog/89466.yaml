@@ -1,0 +1,5 @@
+pr: 89466
+summary: "Synthetic _source: support `ignore_above`"
+area: "TSDB"
+type: feature
+issues: []

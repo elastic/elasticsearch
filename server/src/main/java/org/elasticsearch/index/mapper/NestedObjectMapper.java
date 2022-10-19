@@ -49,7 +49,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
         @Override
         public NestedObjectMapper build(MapperBuilderContext context) {
-            return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(false, context), this);
+            return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(context.createChildContext(name)), this);
         }
     }
 
@@ -170,7 +170,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperBuilderContext mapperBuilderContext) {
+    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperBuilderContext parentBuilderContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non nested mapping [" + mergeWith.name() + "] with a nested mapping");
         }
@@ -191,7 +191,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
         }
-        toMerge.doMerge(mergeWithObject, reason, mapperBuilderContext);
+        toMerge.doMerge(mergeWithObject, reason, parentBuilderContext);
         return toMerge;
     }
 

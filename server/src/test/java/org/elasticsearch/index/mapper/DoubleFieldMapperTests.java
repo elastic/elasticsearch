@@ -124,7 +124,7 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new NumberSyntheticSourceSupport(Number::doubleValue);
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed);
     }
 }

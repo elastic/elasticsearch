@@ -12,10 +12,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -487,6 +489,87 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             "resource_not_found_exception",
             "no API key owned by requesting user found for ID [" + apiKeyId + "]",
             errorDetails.get(apiKeyId)
+        );
+    }
+
+    public void testGetPrivilegesForApiKeyWorksIfItDoesNotHaveAssignedPrivileges() throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        if (randomBoolean()) {
+            createApiKeyRequest.setJsonEntity("""
+                { "name": "k1" }""");
+        } else {
+            createApiKeyRequest.setJsonEntity("""
+                {
+                  "name": "k1",
+                  "role_descriptors": { }
+                }""");
+        }
+        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        assertOK(createApiKeyResponse);
+
+        final Request getPrivilegesRequest = new Request("GET", "_security/user/_privileges");
+        getPrivilegesRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + responseAsMap(createApiKeyResponse).get("encoded"))
+        );
+        final Response getPrivilegesResponse = client().performRequest(getPrivilegesRequest);
+        assertOK(getPrivilegesResponse);
+
+        assertThat(responseAsMap(getPrivilegesResponse), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "cluster": [
+                "all"
+              ],
+              "global": [],
+              "indices": [
+                {
+                  "names": [
+                    "*"
+                  ],
+                  "privileges": [
+                    "all"
+                  ],
+                  "allow_restricted_indices": true
+                }
+              ],
+              "applications": [
+                {
+                  "application": "*",
+                  "privileges": [
+                    "*"
+                  ],
+                  "resources": [
+                    "*"
+                  ]
+                }
+              ],
+              "run_as": [
+                "*"
+              ]
+            }""", false)));
+    }
+
+    public void testGetPrivilegesForApiKeyThrows400IfItHasAssignedPrivileges() throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "k1",
+              "role_descriptors": { "a": { "cluster": ["monitor"] } }
+            }""");
+        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        assertOK(createApiKeyResponse);
+
+        final Request getPrivilegesRequest = new Request("GET", "_security/user/_privileges");
+        getPrivilegesRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + responseAsMap(createApiKeyResponse).get("encoded"))
+        );
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getPrivilegesRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Cannot retrieve privileges for API keys with assigned role descriptors. "
+                    + "Please use the Get API key information API https://ela.st/es-api-get-api-key"
+            )
         );
     }
 

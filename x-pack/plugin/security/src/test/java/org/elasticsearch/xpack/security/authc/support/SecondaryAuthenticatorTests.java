@@ -239,7 +239,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
         consumer.accept(ActionListener.wrap(result -> {
-            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            listenerContext.set(securityContext.getThreadContext().newStoredContext());
             future.onResponse(result);
         }, e -> future.onFailure(e)));
 
@@ -282,7 +282,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
         consumer.accept(ActionListener.wrap(future::onResponse, e -> {
-            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            listenerContext.set(securityContext.getThreadContext().newStoredContext());
             future.onFailure(e);
         }));
 

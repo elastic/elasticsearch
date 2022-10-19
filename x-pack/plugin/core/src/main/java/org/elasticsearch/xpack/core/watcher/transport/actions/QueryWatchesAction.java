@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> {
@@ -69,7 +69,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
         static {
             PARSER.declareInt(optionalConstructorArg(), FROM_FIELD);
             PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
-            PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseInnerQueryBuilder(p), QUERY_FIELD);
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseTopLevelQuery(p), QUERY_FIELD);
             PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {
                 String fieldName = null;
                 FieldSortBuilder result = null;

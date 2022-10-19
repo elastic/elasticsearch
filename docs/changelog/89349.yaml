@@ -1,0 +1,5 @@
+pr: 89349
+summary: Add source fallback support for unsigned long mapped type
+area: Mapping
+type: enhancement
+issues: []

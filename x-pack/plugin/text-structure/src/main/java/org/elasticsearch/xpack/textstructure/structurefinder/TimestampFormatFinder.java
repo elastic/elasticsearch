@@ -295,6 +295,9 @@ public final class TimestampFormatFinder {
      */
     static final List<CandidateTimestampFormat> ORDERED_CANDIDATE_FORMATS_ECS_V1;
     static {
+        // From libs/grok/src/main/resources/patterns/ecs-v1/java
+        // TOMCAT_DATESTAMP (?:%{CATALINA8_DATESTAMP})|(?:%{CATALINA7_DATESTAMP})|(?:%{TOMCATLEGACY_DATESTAMP})
+
         List<CandidateTimestampFormat> items = new ArrayList<>();
         // CATALINA8_DATESTAMP %{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}
         // Where SECOND is defined as (?:(?:[0-5]?[0-9]|60)(?:[:.,][0-9]+)?)
@@ -325,11 +328,30 @@ public final class TimestampFormatFinder {
                 3
             )
         );
+        // From libs/grok/src/main/resources/patterns/ecs-v1/java
+        // TOMCATLEGACY_DATESTAMP %{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND}(?: %{ISO8601_TIMEZONE})?
+        // This is effectively a renaming of TOMCAT_DATESTAMP defined in libs/grok/src/main/resources/patterns/legacy/java
+        items.add(
+            new CandidateTimestampFormat(
+                example -> CandidateTimestampFormat.iso8601LikeFormatFromExample(example, " ", " "),
+                "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
+                "\\b20\\d{2}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9} (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
+                "TOMCATLEGACY_DATESTAMP",
+                "1111 11 11 11 11 11 111",
+                0,
+                13
+            )
+        );
+
         items.addAll(
             ORDERED_CANDIDATE_FORMATS.stream()
-                .filter(p -> "CATALINA_DATESTAMP".equals(p.outputGrokPatternName) == false)
+                .filter(
+                    p -> (("CATALINA_DATESTAMP".equals(p.outputGrokPatternName) == false)
+                        && ("TOMCAT_DATESTAMP".equals(p.outputGrokPatternName) == false))
+                )
                 .collect(Collectors.toList())
         );
+
         ORDERED_CANDIDATE_FORMATS_ECS_V1 = Collections.unmodifiableList(items);
     }
 

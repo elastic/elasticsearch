@@ -129,12 +129,14 @@ public final class TransformScheduler {
     }
 
     private boolean processScheduledTasksInternal() {
-        if (scheduledTasks.isEmpty()) {
+        TransformScheduledTask scheduledTask = scheduledTasks.first();
+
+        if (scheduledTask == null) {
             // There are no scheduled tasks, hence, nothing to do
             return false;
         }
         long currentTimeMillis = clock.millis();
-        TransformScheduledTask scheduledTask = scheduledTasks.first();
+
         // Check if the task is eligible for processing
         if (currentTimeMillis < scheduledTask.getNextScheduledTimeMillis()) {
             // It is too early to process this task.

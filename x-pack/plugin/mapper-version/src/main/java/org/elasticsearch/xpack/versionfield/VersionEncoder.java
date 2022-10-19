@@ -11,7 +11,6 @@ import org.apache.commons.codec.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 
-import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
 /**
@@ -142,7 +141,7 @@ class VersionEncoder {
         return mainVersionComponents;
     }
 
-    public static String decodeVersion(BytesRef version) {
+    public static BytesRef decodeVersion(BytesRef version) {
         int inputPos = version.offset;
         int resultPos = 0;
         byte[] result = new byte[version.length];
@@ -159,7 +158,7 @@ class VersionEncoder {
             }
             inputPos++;
         }
-        return new String(result, 0, resultPos, StandardCharsets.UTF_8);
+        return new BytesRef(result, 0, resultPos);
     }
 
     static boolean legalVersionString(VersionParts versionParts) {

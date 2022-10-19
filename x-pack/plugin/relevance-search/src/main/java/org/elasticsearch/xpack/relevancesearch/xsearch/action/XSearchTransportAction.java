@@ -54,7 +54,12 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
         String[] indices = request.indices();
         QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
         // TODO at some point size should be part of the request
-        SearchRequest searchRequest = client.prepareSearch(indices).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
+        SearchRequest searchRequest = client.prepareSearch(indices)
+            .setQuery(queryBuilder)
+            .setSize(1000)
+            .setFetchSource(true)
+            .setExplain(request.explain())
+            .request();
 
         client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
             try {

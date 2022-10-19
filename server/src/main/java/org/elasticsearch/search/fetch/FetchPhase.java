@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
@@ -43,7 +43,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,7 +78,7 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        if (context.docIdsToLoadSize() == 0) {
+        if (context.docIdsToLoad() == null || context.docIdsToLoad().length == 0) {
             // no individual hits to process, so we shortcut
             SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
             context.fetchResult().shardResult(hits, null);
@@ -101,102 +100,68 @@ public class FetchPhase {
     }
 
     private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
-        DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
-        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-            docs[index] = new DocIdToIndex(context.docIdsToLoad()[index], index);
-        }
-        // make sure that we iterate in doc id order
-        Arrays.sort(docs);
 
         SourceLoader sourceLoader = context.newSourceLoader();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        StoredFieldLoader storedFieldLoader = createStoredFieldLoader(context, sourceLoader, storedToRequestedFields);
-        storedFieldLoader = profiler.storedFields(storedFieldLoader);
+        StoredFieldLoader storedFieldLoader = profiler.storedFields(
+            createStoredFieldLoader(context, sourceLoader, storedToRequestedFields)
+        );
 
         FetchContext fetchContext = new FetchContext(context);
-
-        SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
-        List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
-        LeafNestedDocuments leafNestedDocuments = null;
-        SourceLoader.Leaf leafSourceLoader = null;
-        int leafIndex = -1;
-        LeafReaderContext leafReaderContext = null;
-        int endReaderIdx = -1;
-        LeafStoredFieldLoader leafStoredFieldLoader = null;
-        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-            if (context.isCancelled()) {
-                throw new TaskCancelledException("cancelled");
+        FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
+
+            LeafReaderContext ctx;
+            LeafNestedDocuments leafNestedDocuments;
+            LeafStoredFieldLoader leafStoredFieldLoader;
+            SourceLoader.Leaf leafSourceLoader;
+
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
+                profiler.startNextReader();
+                this.ctx = ctx;
+                this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
+                this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
+                this.leafSourceLoader = fetchContext.sourceLoader().leaf(ctx.reader(), docsInLeaf);
+                for (FetchSubPhaseProcessor processor : processors) {
+                    processor.setNextReader(ctx);
+                }
+                profiler.stopNextReader();
             }
-            int docId = docs[index].docId;
-            try {
-                if (index >= endReaderIdx) {
-                    profiler.startNextReader();
-                    try {
-                        leafIndex++;
-                        leafIndex = ReaderUtil.subIndex(docId, leaves.subList(leafIndex, leaves.size())) + leafIndex;
-                        leafReaderContext = context.searcher().getIndexReader().leaves().get(leafIndex);
-                        endReaderIdx = endReaderIdx(context, leafReaderContext, index, docs);
-                        int[] docIdsInLeaf = docIdsInLeaf(index, endReaderIdx, docs, leafReaderContext.docBase);
-                        leafStoredFieldLoader = storedFieldLoader.getLoader(leafReaderContext, docIdsInLeaf);
-                        leafSourceLoader = fetchContext.sourceLoader().leaf(leafReaderContext.reader(), docIdsInLeaf);
-                        for (FetchSubPhaseProcessor processor : processors) {
-                            processor.setNextReader(leafReaderContext);
-                        }
-                        leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(leafReaderContext);
-                    } finally {
-                        profiler.stopNextReader();
-                    }
+
+            @Override
+            protected SearchHit nextDoc(int doc) throws IOException {
+                if (context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
                 }
                 HitContext hit = prepareHitContext(
                     context,
                     profiler,
                     leafNestedDocuments,
                     leafStoredFieldLoader,
-                    docId,
+                    doc,
                     storedToRequestedFields,
-                    leafReaderContext,
+                    ctx,
                     leafSourceLoader
                 );
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
-                hits[docs[index].index] = hit.hit();
-            } catch (Exception e) {
-                throw new FetchPhaseExecutionException(context.shardTarget(), "Error running fetch phase for doc [" + docId + "]", e);
+                return hit.hit();
             }
-        }
+        };
+
+        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), context.docIdsToLoad());
+
         if (context.isCancelled()) {
             throw new TaskCancelledException("cancelled");
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();
         return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
-    }
-
-    private int endReaderIdx(SearchContext context, LeafReaderContext currentReaderContext, int index, DocIdToIndex[] docs) {
-        int firstInNextReader = currentReaderContext.docBase + currentReaderContext.reader().maxDoc();
-        int i = index + 1;
-        while (i < context.docIdsToLoadSize()) {
-            if (docs[i].docId >= firstInNextReader) {
-                return i;
-            }
-            i++;
-        }
-        return i;
-    }
-
-    private int[] docIdsInLeaf(int index, int endReaderIdx, DocIdToIndex[] docs, int docBase) {
-        int[] result = new int[endReaderIdx - index];
-        int d = 0;
-        for (int i = index; i < endReaderIdx; i++) {
-            assert docs[i].docId >= docBase;
-            result[d++] = docs[i].docId - docBase;
-        }
-        return result;
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -211,21 +176,6 @@ public class FetchPhase {
             return processors;
         } catch (Exception e) {
             throw new FetchPhaseExecutionException(target, "Error building fetch sub-phases", e);
-        }
-    }
-
-    static class DocIdToIndex implements Comparable<DocIdToIndex> {
-        final int docId;
-        final int index;
-
-        DocIdToIndex(int docId, int index) {
-            this.docId = docId;
-            this.index = index;
-        }
-
-        @Override
-        public int compareTo(DocIdToIndex o) {
-            return Integer.compare(docId, o.docId);
         }
     }
 
@@ -324,7 +274,7 @@ public class FetchPhase {
      * Resets the provided {@link HitContext} with information on the current
      * document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.
-     *   - Loading the document source and setting it on {@link HitContext#sourceLookup()}. This
+     *   - Loading the document source and setting it on {@link HitContext#source()}. This
      *     allows fetch subphases that use the hit context to access the preloaded source.
      */
     private static HitContext prepareNonNestedHitContext(
@@ -370,7 +320,7 @@ public class FetchPhase {
                 // Store the loaded source on the hit context so that fetch subphases can access it.
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
                 SourceLookup.BytesSourceProvider sourceBytes = new SourceLookup.BytesSourceProvider(source);
-                hitContext.sourceLookup().setSourceProvider(sourceBytes);
+                hitContext.setSourceLookup(new SourceLookup(sourceBytes));
 
                 SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                 scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -385,7 +335,7 @@ public class FetchPhase {
      * nested document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.
      *   - Loading the document source, filtering it based on the nested document ID, then
-     *     setting it on {@link HitContext#sourceLookup()}. This allows fetch subphases that
+     *     setting it on {@link HitContext#source()}. This allows fetch subphases that
      *     use the hit context to access the preloaded source.
      */
     @SuppressWarnings("unchecked")
@@ -411,7 +361,7 @@ public class FetchPhase {
             rootId = innerHitsContext.getRootId();
 
             if (needSource) {
-                SourceLookup rootLookup = innerHitsContext.getRootLookup();
+                Source rootLookup = innerHitsContext.getRootLookup();
                 rootSourceAsMap = rootLookup.source();
                 rootSourceContentType = rootLookup.sourceContentType();
             }
@@ -472,7 +422,7 @@ public class FetchPhase {
                 }
             }
 
-            hitContext.sourceLookup().setSourceProvider(new SourceLookup.MapSourceProvider(nestedSourceAsMap, rootSourceContentType));
+            hitContext.setSourceLookup(new SourceLookup(new SourceLookup.MapSourceProvider(nestedSourceAsMap, rootSourceContentType)));
         }
         return hitContext;
     }
@@ -513,14 +463,6 @@ public class FetchPhase {
                 }
             }
         }
-    }
-
-    /**
-     * Returns <code>true</code> if the provided <code>docs</code> are
-     * stored sequentially (Dn = Dn-1 + 1).
-     */
-    static boolean hasSequentialDocs(DocIdToIndex[] docs) {
-        return docs.length > 0 && docs[docs.length - 1].docId - docs[0].docId == docs.length - 1;
     }
 
     interface Profiler {

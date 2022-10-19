@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,5 +71,10 @@ abstract class NlpInferenceResults implements InferenceResults {
     @Override
     public int hashCode() {
         return Objects.hash(isTruncated);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

@@ -233,6 +233,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getCurrentAllocations).sum();
     }
 
+    public int totalTargetAllocations() {
+        return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -292,7 +296,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
     public static class Builder {
         private final Map<String, RoutingInfo> nodeRoutingTable;
-        private final StartTrainedModelDeploymentAction.TaskParams taskParams;
+        private StartTrainedModelDeploymentAction.TaskParams taskParams;
         private AssignmentState assignmentState;
         private String reason;
         private Instant startTime;
@@ -423,6 +427,18 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
                 return this;
             }
             reason = null;
+            return this;
+        }
+
+        public Builder setNumberOfAllocations(int numberOfAllocations) {
+            this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(
+                taskParams.getModelId(),
+                taskParams.getModelBytes(),
+                taskParams.getThreadsPerAllocation(),
+                numberOfAllocations,
+                taskParams.getQueueCapacity(),
+                taskParams.getCacheSize().orElse(null)
+            );
             return this;
         }
 

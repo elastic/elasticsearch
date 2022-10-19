@@ -277,7 +277,7 @@ public class TermVectorsService {
                 if (values.containsKey(field) == false) {
                     SourceValueFetcher valueFetcher = SourceValueFetcher.toString(mappingLookup.sourcePaths(field));
                     List<Object> ignoredValues = new ArrayList<>();
-                    List<Object> v = valueFetcher.fetchValues(sourceLookup, ignoredValues);
+                    List<Object> v = valueFetcher.fetchValues(sourceLookup, -1, ignoredValues);
                     if (v.isEmpty() == false) {
                         values.put(field, v);
                     }

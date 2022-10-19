@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -778,5 +779,20 @@ public class SearchModuleTests extends ESTestCase {
         assertThat(compatEntry, hasSize(REST_COMPATIBLE_QUERIES.length + 1));// +1 because of registered in the test
         assertTrue(RestApiVersion.minimumSupported().matches(compatEntry.get(0).restApiCompatibility));
         assertFalse(RestApiVersion.current().matches(compatEntry.get(0).restApiCompatibility));
+    }
+
+    public void testDefaultMaxNestedDepth() {
+        new SearchModule(Settings.EMPTY, emptyList());
+        assertEquals(
+            SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY).intValue(),
+            AbstractQueryBuilder.getMaxNestedDepth()
+        );
+    }
+
+    public void testCustomMaxNestedDepth() {
+        int customValue = randomIntBetween(1, 100);
+        Settings settings = Settings.builder().put(SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING.getKey(), customValue).build();
+        new SearchModule(settings, emptyList());
+        assertEquals(customValue, AbstractQueryBuilder.getMaxNestedDepth());
     }
 }

@@ -11,13 +11,13 @@ package org.elasticsearch.example.customsigheuristic;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleHeuristicWireTests extends AbstractSerializingTestCase<SimpleHeuristic> {
+public class SimpleHeuristicWireTests extends AbstractXContentSerializingTestCase<SimpleHeuristic> {
     @Override
     protected SimpleHeuristic doParseInstance(XContentParser parser) throws IOException {
         /* Because Heuristics are XContent "fragments" we need to throw away

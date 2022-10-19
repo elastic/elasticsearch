@@ -110,6 +110,8 @@ public final class EngineConfig {
 
     private final TranslogConfig translogConfig;
 
+    private final LongSupplier relativeTimeInNanosSupplier;
+
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
@@ -136,7 +138,8 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Comparator<LeafReader> leafSorter
+        Comparator<LeafReader> leafSorter,
+        LongSupplier relativeTimeInNanosSupplier
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -176,6 +179,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = primaryTermSupplier;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.leafSorter = leafSorter;
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
     }
 
     /**
@@ -373,5 +377,9 @@ public final class EngineConfig {
     @Nullable
     public Comparator<LeafReader> getLeafSorter() {
         return leafSorter;
+    }
+
+    public LongSupplier getRelativeTimeInNanosSupplier() {
+        return relativeTimeInNanosSupplier;
     }
 }

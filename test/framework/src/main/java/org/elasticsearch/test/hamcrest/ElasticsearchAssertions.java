@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -130,7 +130,7 @@ public class ElasticsearchAssertions {
      * @param replicatedBroadcastResponse the response that should only contain failed shard responses
      *
      * */
-    public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
+    public static void assertBlocked(BaseBroadcastResponse replicatedBroadcastResponse) {
         assertThat(
             "all shard requests should have failed",
             replicatedBroadcastResponse.getFailedShards(),
@@ -200,7 +200,7 @@ public class ElasticsearchAssertions {
         return true;
     }
 
-    public static String formatShardStatus(BroadcastResponse response) {
+    public static String formatShardStatus(BaseBroadcastResponse response) {
         StringBuilder msg = new StringBuilder();
         msg.append(" Total shards: ")
             .append(response.getTotalShards())
@@ -347,7 +347,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertNoFailures(BroadcastResponse response) {
+    public static void assertNoFailures(BaseBroadcastResponse response) {
         if (response.getFailedShards() != 0) {
             final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
 
@@ -359,7 +359,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertAllSuccessful(BroadcastResponse response) {
+    public static void assertAllSuccessful(BaseBroadcastResponse response) {
         assertNoFailures(response);
         assertThat("Expected all shards successful", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
     }

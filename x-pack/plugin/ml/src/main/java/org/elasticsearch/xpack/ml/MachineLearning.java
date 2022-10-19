@@ -160,6 +160,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartActio
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -177,6 +178,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
@@ -259,6 +261,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartA
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportSemanticSearchAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
@@ -276,6 +279,7 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAssignmentStateAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
@@ -410,8 +414,10 @@ import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelVocabularyAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestSemanticSearchAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestUpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -1306,10 +1312,12 @@ public class MachineLearning extends Plugin
             new RestStartTrainedModelDeploymentAction(),
             new RestStopTrainedModelDeploymentAction(),
             new RestInferTrainedModelDeploymentAction(),
+            new RestUpdateTrainedModelDeploymentAction(),
             new RestPutTrainedModelDefinitionPartAction(),
             new RestPutTrainedModelVocabularyAction(),
             new RestInferTrainedModelAction(),
             new RestClearDeploymentCacheAction(),
+            new RestSemanticSearchAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1404,6 +1412,7 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(StartTrainedModelDeploymentAction.INSTANCE, TransportStartTrainedModelDeploymentAction.class),
             new ActionHandler<>(StopTrainedModelDeploymentAction.INSTANCE, TransportStopTrainedModelDeploymentAction.class),
             new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
+            new ActionHandler<>(UpdateTrainedModelDeploymentAction.INSTANCE, TransportUpdateTrainedModelDeploymentAction.class),
             new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class),
             new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
             new ActionHandler<>(CreateTrainedModelAssignmentAction.INSTANCE, TransportCreateTrainedModelAssignmentAction.class),
@@ -1415,6 +1424,7 @@ public class MachineLearning extends Plugin
                 TransportUpdateTrainedModelAssignmentStateAction.class
             ),
             new ActionHandler<>(ClearDeploymentCacheAction.INSTANCE, TransportClearDeploymentCacheAction.class),
+            new ActionHandler<>(SemanticSearchAction.INSTANCE, TransportSemanticSearchAction.class),
             usageAction,
             infoAction
         );

@@ -27,8 +27,7 @@ class CurationQueryRewriter extends AbstractQueryRewriter<CurationsGroup> {
 
     @Override
     protected String getSettingsId(SearchEngine searchEngine) {
-        // TODO: add curation to engine.
-        return null;
+        return searchEngine.getCurations();
     }
 
     @Override

@@ -30,7 +30,8 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     public static final ParseField INDICES_FIELD = new ParseField("index");
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
-    public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings_id");
+    public static final ParseField RELEVANCE_SETTINGS_FIELD = new ParseField("relevance_settings");
+    public static final ParseField CURATIONS_FIELD = new ParseField("curations");
     public static final ParseField ANALYTICS_COLLECTION_FIELD = new ParseField("analytics_collection");
 
     @SuppressWarnings("unchecked")
@@ -42,7 +43,8 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
             (boolean) args[2],
             (boolean) args[3],
             (String) args[4],
-            (String) args[5]
+            (String) args[5],
+            (String) args[6]
         )
     );
 
@@ -51,7 +53,9 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RELEVANCE_SETTINGS_ID_FIELD);
+
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RELEVANCE_SETTINGS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CURATIONS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ANALYTICS_COLLECTION_FIELD);
     }
 
@@ -67,7 +71,9 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     private final List<Index> indices;
     private final boolean isHidden;
     private final boolean isSystem;
-    private final String relevanceSettingsId;
+    private final String relevanceSettings;
+
+    private final String curations;
     private final String analyticsCollection;
 
     public SearchEngine(
@@ -75,14 +81,16 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         List<Index> indices,
         boolean isHidden,
         boolean isSystem,
-        String relevanceSettingsId,
+        String relevanceSettings,
+        String curations,
         String analyticsCollection
     ) {
         this.name = name;
         this.indices = indices;
         this.isHidden = isHidden;
         this.isSystem = isSystem;
-        this.relevanceSettingsId = relevanceSettingsId;
+        this.relevanceSettings = relevanceSettings;
+        this.curations = curations;
         this.analyticsCollection = analyticsCollection;
     }
 
@@ -92,8 +100,9 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
             in.readList(Index::new),
             in.readBoolean(),
             in.readBoolean(),
-            in.readOptionalString(),
-            in.readOptionalString()
+            in.readString(),
+            in.readString(),
+            in.readString()
         );
     }
 
@@ -113,8 +122,12 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         return isSystem;
     }
 
-    public String getRelevanceSettingsId() {
-        return relevanceSettingsId;
+    public String getRelevanceSettings() {
+        return relevanceSettings;
+    }
+
+    public String getCurations() {
+        return curations;
     }
 
     public boolean shouldRecordAnalytics() {
@@ -129,11 +142,14 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
-        builder.field(HIDDEN_FIELD.getPreferredName(), isHidden);
-        builder.field(SYSTEM_FIELD.getPreferredName(), isSystem);
-        builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), relevanceSettingsId);
-        builder.field(ANALYTICS_COLLECTION_FIELD.getPreferredName(), analyticsCollection);
+        {
+            builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
+            builder.field(HIDDEN_FIELD.getPreferredName(), isHidden);
+            builder.field(SYSTEM_FIELD.getPreferredName(), isSystem);
+            builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), relevanceSettings);
+            builder.field(CURATIONS_FIELD.getPreferredName(), curations);
+            builder.field(ANALYTICS_COLLECTION_FIELD.getPreferredName(), analyticsCollection);
+        }
         builder.endObject();
         return builder;
     }
@@ -144,8 +160,9 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         out.writeList(indices);
         out.writeBoolean(isHidden);
         out.writeBoolean(isSystem);
-        out.writeOptionalString(relevanceSettingsId);
-        out.writeOptionalString(analyticsCollection);
+        out.writeString(relevanceSettings);
+        out.writeString(curations);
+        out.writeString(analyticsCollection);
     }
 
     @Override
@@ -157,12 +174,13 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
             && indices.equals(that.indices)
             && Objects.equals(isHidden, that.isHidden)
             && Objects.equals(isSystem, that.isSystem)
-            && relevanceSettingsId.equals(that.relevanceSettingsId)
+            && relevanceSettings.equals(that.relevanceSettings)
+            && curations.equals(that.curations)
             && analyticsCollection.equals(that.analyticsCollection);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, indices, isHidden, isSystem, relevanceSettingsId, analyticsCollection);
+        return Objects.hash(name, indices, isHidden, isSystem, relevanceSettings, curations, analyticsCollection);
     }
 }

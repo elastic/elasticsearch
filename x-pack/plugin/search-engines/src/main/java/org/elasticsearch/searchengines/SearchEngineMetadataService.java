@@ -141,7 +141,8 @@ public class SearchEngineMetadataService {
                 indices,
                 false,
                 false,
-                request.getRelevanceSettingsId(),
+                request.getRelevanceSettings(),
+                request.getCurations(),
                 request.getAnalyticsCollection()
             );
             searchEngines.put(request.getName(), searchEngine);

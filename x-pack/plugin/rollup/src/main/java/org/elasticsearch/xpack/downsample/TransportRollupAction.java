@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -26,8 +27,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -42,7 +43,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -65,7 +68,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,25 +93,23 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private final ClusterService clusterService;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
+    private final ThreadContext threadContext;
 
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = batchExecutionContext -> {
-        ClusterState state = batchExecutionContext.initialState();
-        for (final var taskContext : batchExecutionContext.taskContexts()) {
-            try {
-                final var task = taskContext.getTask();
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    state = task.execute(state);
-                }
-                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
-            } catch (Exception e) {
-                taskContext.onFailure(e);
+    private static final SimpleBatchedExecutor<RollupClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
+        new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Void> executeTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+                return Tuple.tuple(task.execute(clusterState), null);
             }
-        }
-        return state;
-    };
+
+            @Override
+            public void taskSucceeded(RollupClusterStateUpdateTask task, Void unused) {
+                task.listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
 
     @Inject
     public TransportRollupAction(
@@ -136,6 +138,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
+        this.threadContext = threadPool.getThreadContext();
     }
 
     @Override
@@ -146,8 +149,24 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ActionListener<AcknowledgedResponse> listener
     ) {
         String sourceIndexName = request.getSourceIndex();
-        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
+
+        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        if (indicesAccessControl != null) {
+            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
+            if (indexPermissions != null) {
+                boolean hasDocumentLevelPermissions = indexPermissions.getDocumentPermissions().hasDocumentLevelPermissions();
+                boolean hasFieldLevelSecurity = indexPermissions.getFieldPermissions().hasFieldLevelSecurity();
+                if (hasDocumentLevelPermissions || hasFieldLevelSecurity) {
+                    listener.onFailure(
+                        new ElasticsearchException(
+                            "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
+                        )
+                    );
+                }
+            }
+        }
         // Assert source index exists
+        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndexName));
             return;
@@ -231,7 +250,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
             });
 
-            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (dimensionFields.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
@@ -480,7 +499,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
         MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
         assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
-        RollupActionRequestValidationException e = new RollupActionRequestValidationException();
+        ActionRequestValidationException e = new ActionRequestValidationException();
 
         Map<String, String> meta = timestampFieldType.meta();
         if (meta.isEmpty() == false) {
@@ -495,7 +514,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     e.addValidationError(
                         "Source index is a downsampled index. Downsampling interval ["
                             + targetIndexInterval
-                            + "] must be greater than the the source index interval ["
+                            + "] must be greater than the source index interval ["
                             + sourceIndexInterval
                             + "]"
                     );
@@ -594,32 +613,33 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        /*
+         * When creating the rollup index, we copy the index.number_of_shards from source index,
+         * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
+         * Also, we set the index.refresh_interval to -1.
+         * We will set the correct number of replicas and refresh the index later.
+         *
+         * We should note that there is a risk of losing a node during the rollup process. In this
+         * case rollup will fail.
+         */
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED);
+        if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
+            builder.put(
+                MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
+                sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            );
+        }
+
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
             "rollup",
             rollupIndexName,
             rollupIndexName
-        ).settings(
-            /*
-             * When creating the rollup index, we copy the index.number_of_shards from source index,
-             * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
-             * Also, we set the index.refresh_interval to -1.
-             * We will set the correct number of replicas and refresh the index later.
-             *
-             * We should note that there is a risk of losing a node during the rollup process. In this
-             * case rollup will fail.
-             */
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
-                .put(
-                    MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-                    sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
-                )
-                .build()
-        ).mappings(mapping);
+        ).settings(builder.build()).mappings(mapping);
         clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

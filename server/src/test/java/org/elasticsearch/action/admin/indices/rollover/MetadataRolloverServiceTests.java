@@ -45,7 +45,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -276,7 +275,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(
             MetadataRolloverService.generateRolloverIndexName(indexEndingInNumbers),
-            equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1))
+            equalTo(indexPrefix + "-" + formatted("%06d", num + 1))
         );
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-1"), equalTo("index-name-000002"));
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-2"), equalTo("index-name-000003"));

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -53,6 +54,8 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private volatile Scheduler.Cancellable cancellable;
     private final Semaphore maintenanceLock = new Semaphore(1);
 
+    private final SetOnce<LifecycleListener> beforeStopListener = new SetOnce<>();
+
     EnrichPolicyMaintenanceService(
         Settings settings,
         Client client,
@@ -76,12 +79,10 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         if (cancellable == null || cancellable.isCancelled()) {
             isMaster = true;
             scheduleNext();
-            clusterService.addLifecycleListener(new LifecycleListener() {
-                @Override
-                public void beforeStop() {
-                    offMaster();
-                }
-            });
+            // Only set the lifecycle listener if it hasn't already been set.
+            if (beforeStopListener.trySet(new StopMaintenanceOnLifecycleStop())) {
+                clusterService.addLifecycleListener(beforeStopListener.get());
+            }
         }
     }
 
@@ -93,7 +94,18 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         }
     }
 
-    private void scheduleNext() {
+    /**
+     * Lifecycle listener that halts the maintenance service when node is shutting down.
+     */
+    private class StopMaintenanceOnLifecycleStop extends LifecycleListener {
+        @Override
+        public void beforeStop() {
+            offMaster();
+        }
+    }
+
+    // Visible for testing
+    protected void scheduleNext() {
         if (isMaster) {
             try {
                 TimeValue waitTime = EnrichPlugin.ENRICH_CLEANUP_PERIOD.get(settings);

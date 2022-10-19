@@ -74,7 +74,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
     @Override
     @SuppressWarnings("unchecked")
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        String query = """
+        String query = formatted("""
             {
               "aggs": {
                 "event": {
@@ -95,7 +95,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
               },
               "sort": ["event"]
             }
-            """.formatted(termsField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "", metricField);
+            """, termsField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "", metricField);
 
         var searchResponseSource = entityAsMap(
             search(CONTINUOUS_EVENTS_SOURCE_INDEX, query, Map.of("allow_partial_search_results", "false", "size", "0"))

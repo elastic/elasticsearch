@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -65,6 +66,9 @@ class TransformFailureHandler {
             handleScriptException(scriptException, unattended);
         } else if (unwrappedException instanceof BulkIndexingException bulkIndexingException) {
             handleBulkIndexingException(bulkIndexingException, unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof ClusterBlockException clusterBlockException) {
+            // gh#89802 always retry for a cluster block exception, because a cluster block should be temporary.
+            retry(clusterBlockException, clusterBlockException.getDetailedMessage(), unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
             handleElasticsearchException(elasticsearchException, unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof IllegalArgumentException illegalArgumentException) {

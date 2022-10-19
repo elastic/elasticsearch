@@ -167,7 +167,8 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, aggregationBuilder, longFieldType)
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, longFieldType).withQuery(query)
                 );
                 verify.accept(rareTerms);
             }

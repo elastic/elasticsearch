@@ -402,7 +402,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testPreventCreateTimeInjection() {
-        String pivotTransform = """
+        String pivotTransform = formatted("""
             {
               "create_time": %s,
               "source": {
@@ -427,7 +427,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                   }
                 }
               }
-            }""".formatted(Instant.now().toEpochMilli());
+            }""", Instant.now().toEpochMilli());
 
         expectThrows(IllegalArgumentException.class, () -> createTransformConfigFromString(pivotTransform, "test_createTime_injection"));
     }
@@ -565,7 +565,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdate() throws IOException {
-        String pivotTransform = """
+        String pivotTransform = formatted("""
             {
               "id": "body_id",
               "source": {
@@ -592,7 +592,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 "max_page_search_size": 111
               },
               "version": "%s"
-            }""".formatted(Version.V_7_6_0.toString());
+            }""", Version.V_7_6_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -608,7 +608,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdateAlignCheckpoints() throws IOException {
-        String pivotTransform = """
+        String pivotTransform = formatted("""
             {
               "id": "body_id",
               "source": {
@@ -634,7 +634,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 }
               },
               "version": "%s"
-            }""".formatted(Version.V_7_12_0.toString());
+            }""", Version.V_7_12_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -652,7 +652,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdateMaxPageSizeSearchConflicting() throws IOException {
-        String pivotTransform = """
+        String pivotTransform = formatted("""
             {
               "id": "body_id",
               "source": {
@@ -682,7 +682,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 "max_page_search_size": 555
               },
               "version": "%s"
-            }""".formatted(Version.V_7_5_0.toString());
+            }""", Version.V_7_5_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -695,7 +695,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForBWCOfDateNormalization() throws IOException {
-        String pivotTransform = """
+        String pivotTransform = formatted("""
             {
               "id": "body_id",
               "source": {
@@ -721,7 +721,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 }
               },
               "version": "%s"
-            }""".formatted(Version.V_7_6_0.toString());
+            }""", Version.V_7_6_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -822,7 +822,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testGroupByStayInOrder() throws IOException {
-        String json = """
+        String json = formatted("""
             {
               "id": "%s",
               "source": {
@@ -858,7 +858,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                   }
                 }
               }
-            }""".formatted(transformId);
+            }""", transformId);
         TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
         List<String> originalGroups = new ArrayList<>(transformConfig.getPivotConfig().getGroupConfig().getGroups().keySet());
         assertThat(originalGroups, contains("time", "alert", "id"));
@@ -958,7 +958,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testSerializingMetadataPreservesOrder() throws IOException {
-        String json = """
+        String json = formatted("""
             {
               "id": "%s",
               "_meta": {
@@ -991,7 +991,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                   }
                 }
               }
-            }""".formatted(transformId);
+            }""", transformId);
 
         // Read TransformConfig from JSON and verify that metadata keys are in the same order as in JSON
         TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);

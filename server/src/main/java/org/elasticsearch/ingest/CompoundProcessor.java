@@ -196,7 +196,7 @@ public class CompoundProcessor implements Processor {
 
         final int finalCurrentProcessor = currentProcessor;
         final int nextProcessor = currentProcessor + 1;
-        final long finalStartTimeInNanos = relativeTimeProvider.getAsLong();
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
         final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
         final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
         final IngestDocument finalIngestDocument = ingestDocument;
@@ -215,7 +215,7 @@ public class CompoundProcessor implements Processor {
                     logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
                     assert false : "A listener was unexpectedly called more than once";
                 } else {
-                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
+                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
                     finalMetric.postIngest(ingestTimeInNanos);
                     postIngestHasBeenCalled.set(true);
                     if (e != null) {
@@ -230,7 +230,7 @@ public class CompoundProcessor implements Processor {
                 }
             });
         } catch (Exception e) {
-            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
             if (postIngestHasBeenCalled.get()) {
                 logger.warn("Preventing postIngest from being called more than once", new RuntimeException());
                 assert false : "Attempt to call postIngest more than once";

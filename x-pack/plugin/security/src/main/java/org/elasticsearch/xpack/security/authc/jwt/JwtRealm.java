@@ -361,8 +361,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public void usageStats(final ActionListener<Map<String, Object>> listener) {
         ensureInitialized();
-        usageStats(ActionListener.wrap(stats -> {
-            stats.put("jwt.cache", Collections.singletonMap("size", jwtCache == null ? -1 : jwtCache.count()));
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("jwt.cache", Collections.singletonMap("size", isCacheEnabled() ? jwtCache.count() : -1));
             listener.onResponse(stats);
         }, listener::onFailure));
     }

@@ -104,4 +104,9 @@ public class JwtAuthenticator implements Releasable {
         jwtSignatureValidator.close();
     }
 
+    // Package private for testing
+    JwtSignatureValidator.DelegatingJwtSignatureValidator getJwtSignatureValidator() {
+        assert jwtSignatureValidator instanceof JwtSignatureValidator.DelegatingJwtSignatureValidator;
+        return (JwtSignatureValidator.DelegatingJwtSignatureValidator) jwtSignatureValidator;
+    }
 }

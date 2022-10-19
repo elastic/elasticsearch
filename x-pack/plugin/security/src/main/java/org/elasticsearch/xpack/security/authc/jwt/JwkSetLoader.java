@@ -191,8 +191,6 @@ public class JwkSetLoader implements Releasable {
         }
     }
 
-    private static final ContentAndJwksAlgs EMPTY_CONTENT_AND_JWKS_ALGS = new ContentAndJwksAlgs(null, new JwksAlgs(List.of(), List.of()));
-
     // Original PKC JWKSet(for comparison during refresh), and filtered JWKs and Algs
     record ContentAndJwksAlgs(byte[] sha256, JwksAlgs jwksAlgs) {
         ContentAndJwksAlgs {

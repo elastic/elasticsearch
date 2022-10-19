@@ -20,6 +20,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -174,6 +175,24 @@ public interface JwtSignatureValidator extends Releasable {
         @Override
         public boolean hasUsableJwksAlgs() {
             return hmacJwtSignatureValidator.hasUsableJwksAlgs() || pkcJwtSignatureValidator.hasUsableJwksAlgs();
+        }
+
+        // Package private for testing only
+        Tuple<JwkSetLoader.JwksAlgs, JwkSetLoader.JwksAlgs> getAllJwksAlgs() {
+            final JwkSetLoader.JwksAlgs jwksAlgsHmac;
+            if (hmacJwtSignatureValidator == FAILING_JWT_SIGNATURE_VALIDATOR) {
+                jwksAlgsHmac = new JwkSetLoader.JwksAlgs(List.of(), List.of());
+            } else {
+                jwksAlgsHmac = ((HmacJwtSignatureValidator) hmacJwtSignatureValidator).jwksAlgs;
+            }
+
+            final JwkSetLoader.JwksAlgs jwksAlgsPkc;
+            if (pkcJwtSignatureValidator == FAILING_JWT_SIGNATURE_VALIDATOR) {
+                jwksAlgsPkc = new JwkSetLoader.JwksAlgs(List.of(), List.of());
+            } else {
+                jwksAlgsPkc = ((PkcJwtSignatureValidator) pkcJwtSignatureValidator).jwkSetLoader.getContentAndJwksAlgs().jwksAlgs();
+            }
+            return new Tuple<>(jwksAlgsHmac, jwksAlgsPkc);
         }
     }
 

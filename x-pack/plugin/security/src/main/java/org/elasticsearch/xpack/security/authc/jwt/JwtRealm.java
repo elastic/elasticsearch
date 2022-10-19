@@ -57,15 +57,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final Cache<BytesArray, ExpiringUser> jwtCache;
     private final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
     private final JwtRealmsService jwtRealmsService;
-    final UserRoleMapper userRoleMapper;
-    final Boolean populateUserMetadata;
-    final ClaimParser claimParserPrincipal;
-    final ClaimParser claimParserGroups;
-    final ClaimParser claimParserDn;
-    final ClaimParser claimParserMail;
-    final ClaimParser claimParserName;
-    final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
-    final SecureString clientAuthenticationSharedSecret;
+    private final UserRoleMapper userRoleMapper;
+    private final Boolean populateUserMetadata;
+    private final ClaimParser claimParserPrincipal;
+    private final ClaimParser claimParserGroups;
+    private final ClaimParser claimParserDn;
+    private final ClaimParser claimParserMail;
+    private final ClaimParser claimParserName;
+    private final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
+    private final SecureString clientAuthenticationSharedSecret;
     private final JwtAuthenticator jwtAuthenticator;
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
@@ -232,6 +232,16 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         if (delegatedAuthorizationSupport == null) {
             throw new IllegalStateException("Realm has not been initialized");
         }
+    }
+
+    // Package private for testing
+    RealmConfig getConfig() {
+        return config;
+    }
+
+    // Package private for testing
+    JwtAuthenticator getJwtAuthenticator() {
+        return jwtAuthenticator;
     }
 
     private User tryAuthenticateWithCache(final String tokenPrincipal, final BytesArray jwtCacheKey) {

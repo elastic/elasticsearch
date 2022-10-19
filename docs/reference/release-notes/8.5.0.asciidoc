@@ -28,9 +28,15 @@ Aggregations::
 Authorization::
 * Remove magic string for the empty Role {es-pull}89766[#89766]
 
+CCR::
+* [CCR] Data streams: order follower backing indices by original name {es-pull}90850[#90850] (issue: {es-issue}90820[#90820])
+
 Cluster Coordination::
 * Capture deprecation warnings in batched master tasks {es-pull}85525[#85525] (issue: {es-issue}85506[#85506])
 * Check circuit breaker before sending join request {es-pull}89318[#89318] (issue: {es-issue}85003[#85003])
+
+Distributed::
+* Fork `TransportClusterStateAction` to MANAGEMENT {es-pull}90996[#90996]
 
 Engine::
 * fix "path.conf'" typo in Security.java {es-pull}89248[#89248] (issue: {es-issue}89327[#89327])
@@ -47,32 +53,58 @@ Graph::
 Health::
 * Disk indicator change details {es-pull}90189[#90189]
 * Fix disk indicator impacts and diagnosis {es-pull}90262[#90262]
+* Fix the details calculation of the disk indicator {es-pull}90869[#90869]
+* Report impact and diagnosis data nodes w/o disk space and no blocked indices {es-pull}90772[#90772] (issue: {es-issue}90442[#90442])
 * Update min version for health node reporting to 8.5 {es-pull}90365[#90365] (issue: {es-issue}90359[#90359])
 
 Indices APIs::
+* Avoid capturing per-task `RolloverResult` {es-pull}90626[#90626] (issue: {es-issue}90620[#90620])
 * Fix shard splitting for `nested` {es-pull}89351[#89351] (issue: {es-issue}88109[#88109])
 
 Infra/Core::
 * Fix `allow_no_indices` request option in special cases {es-pull}89622[#89622]
 * Fix repeated error save loops in File Settings Service {es-pull}90271[#90271] (issue: {es-issue}90222[#90222])
+* Fix date rounding for date math parsing {es-pull}90458[#90458] (issue: {es-issue}90187[#90187])
+* Fix disabling APM tracing for `CancellableTask` in `TrainedModelAssignmentNodeService` {es-pull}90972[#90972] (issue: {es-issue}89850[#89850])
 * Support camel case dates on 7.x indices {es-pull}88914[#88914] (issue: {es-issue}84199[#84199])
 
+Infra/Scripting::
+* Fix true/false accumulation bug in boolean source fallback {es-pull}90895[#90895]
+
+Ingest Node::
+* Set the enrich maintenance cluster lifecycle listener only once {es-pull}90486[#90486]
+
 Machine Learning::
+* Require correct tier processors when multiple AZs are present {es-pull}90903[#90903]
 * Return 408 instead of 500 when open/start APIs time out {es-pull}89775[#89775] (issue: {es-issue}89585[#89585])
 
 Mapping::
 * Fix duplication bug for source fallback in numeric types {es-pull}89352[#89352]
 * Include runtime fields in total fields count {es-pull}89251[#89251] (issue: {es-issue}88265[#88265])
-* Fix `aggregate_metric_double` multi-values exception {es-pull}90290[#90290]
+* Fix `aggregate_metric_double` multi values exception {es-pull}90290[#90290]
+* Validate field names when subobjects are disabled {es-pull}90950[#90950]
+
+Monitoring::
+* Add fields to fix logstash cgroup graphs {es-pull}90493[#90493]
+
+Network::
+* Fix `RecyclerBytesStreamOutput` allocating unlimited heap for some capacities {es-pull}90632[#90632]
+
+Recovery::
+* Fix overcounting recovered bytes after network disconnect {es-pull}90477[#90477] (issue: {es-issue}90441[#90441])
 
 Search::
 * Add support for predefined char class regexp on wildcard fields {es-pull}90064[#90064]
 * Deduplicate fetching doc-values fields {es-pull}89094[#89094]
+* Don't shortcut the total hit count for text fields {es-pull}90341[#90341] (issue: {es-issue}89760[#89760])
 * Safeguard `RegExp` use against `StackOverflowError` {es-pull}84624[#84624] (issue: {es-issue}82923[#82923])
+* Use MB rather than GB to calculate max boolean clauses {es-pull}90309[#90309] (issue: {es-issue}86136[#86136])
 
 Snapshot/Restore::
 * Fix incorrect failed shards count in APIs for current snapshots {es-pull}89534[#89534]
 * Fix over-allocation of mounted indices on a cold/frozen node {es-pull}86331[#86331]
+* Fix quadratic complexity in `SnapshotStatus` serialization {es-pull}90795[#90795]
+* Fork building snapshot status response off of transport thread {es-pull}90651[#90651]
 * Make sure listener is resolved when file queue is cleared {es-pull}89929[#89929]
 * Re-registering corrupt repository unblocks it {es-pull}89719[#89719] (issue: {es-issue}89130[#89130])
 * Reject unknown request body fields in Mount API {es-pull}88987[#88987] (issue: {es-issue}75982[#75982])
@@ -83,12 +115,17 @@ TSDS::
 * Synthetic _source: fix `scaled_float` rounding {es-pull}88916[#88916] (issue: {es-issue}88854[#88854])
 
 Transform::
+* Don't fail a transform on a ClusterBlockException, this may be due to ILM closing an index {es-pull}90396[#90396] (issue: {es-issue}89802[#89802])
 * Fix NPE in transform scheduling {es-pull}90347[#90347] (issues: {es-issue}90356[#90356], {es-issue}88203[#88203], {es-issue}90301[#90301], {es-issue}90255[#90255])
 * Improve error handling in state persistence {es-pull}88910[#88910] (issue: {es-issue}88905[#88905])
 * Return 408 instead of 500 when start api times out {es-pull}89774[#89774]
 
 Vector Search::
 * Fix bug for kNN with filtered aliases {es-pull}89621[#89621]
+
+Watcher::
+* Allowing `xpack.notification.email.account.domain_allowlist` to be set dynamically {es-pull}90426[#90426] (issue: {es-issue}89913[#89913])
+* Handling timeout exceptions on watcher startup {es-pull}90421[#90421] (issue: {es-issue}44981[#44981])
 
 [[deprecation-8.5.0]]
 [float]
@@ -142,6 +179,7 @@ Infra/Core::
 * Operator/autoscaling {es-pull}89708[#89708]
 * Operator/role mapping {es-pull}89667[#89667]
 * Operator/slm policy {es-pull}89567[#89567]
+* Retry file watch registration {es-pull}90537[#90537] (issue: {es-issue}89500[#89500])
 
 Infra/Node Lifecycle::
 * Distinguish no shutdowns case in `NodeShutdownAllocationDecider` {es-pull}89851[#89851] (issue: {es-issue}89823[#89823])
@@ -167,12 +205,14 @@ License::
 * License check for user profile collaboration feature {es-pull}89990[#89990]
 
 Machine Learning::
+* Add measure of non cache hit inference count {es-pull}90464[#90464]
 * Add new `text_similarity` nlp task {es-pull}88439[#88439]
 * Add new trained model deployment cache clear API {es-pull}89074[#89074]
 * Add processor autoscaling decider {es-pull}89645[#89645]
 * Distribute trained model allocations across availability zones {es-pull}89822[#89822]
 * Frequent Items: use a bitset for deduplication {es-pull}88943[#88943]
 * Optimize frequent items transaction lookup {es-pull}89062[#89062]
+* Release native inference functionality as beta {es-pull}90418[#90418]
 * Return 408 when start deployment api times out {es-pull}89612[#89612]
 * Skip renormalization after node shutdown API called {es-pull}89347[#89347]
 * Compute outlier feature influence via the Gateaux derivative to improve attribution for high dimension vectors {ml-pull}2256[#2256]
@@ -278,5 +318,8 @@ Infra/Scripting::
 
 Client::
 * Upgrade Apache Commons Logging to 1.2 {es-pull}85745[#85745] (issue: {es-issue}40305[#40305])
+
+Packaging::
+* Upgrade bundled JDK to Java 19 {es-pull}90571[#90571]
 
 

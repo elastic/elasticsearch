@@ -10,6 +10,7 @@ package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -59,7 +60,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return List.of(CustomScriptPlugin.class, AggregationsPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

@@ -379,7 +379,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
                 logger.debug("Invalidated JWT cache for realm [{}]", name());
             } catch (Exception e) {
-                logger.warn("Exception invalidating JWT cache for realm [{}]", name(), e);
+                // TODO: We should let the error bubble up instead of swallowing it
+                logger.warn("Exception invalidating JWT cache for realm [" + name() + "]", e);
             }
         }
     }

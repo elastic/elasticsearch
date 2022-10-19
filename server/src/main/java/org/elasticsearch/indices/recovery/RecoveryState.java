@@ -24,7 +24,6 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -1129,15 +1128,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public synchronized String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-                builder.startObject();
-                toXContent(builder, EMPTY_PARAMS);
-                builder.endObject();
-                return Strings.toString(builder);
-            } catch (IOException e) {
-                return "{ \"error\" : \"" + e.getMessage() + "\"}";
-            }
+            return Strings.toString(this);
         }
 
         public synchronized FileDetail getFileDetails(String dest) {

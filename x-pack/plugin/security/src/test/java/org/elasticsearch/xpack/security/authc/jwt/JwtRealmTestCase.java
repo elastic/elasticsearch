@@ -488,6 +488,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                     try {
                         candidateJwtRealm.authenticate(jwtAuthenticationToken, authenticateFuture);
                         final AuthenticationResult<User> authenticationResult = authenticateFuture.actionGet();
+                        LOGGER.info("Authentication result with realm [{}]: [{}]", candidateJwtRealm.name(), authenticationResult);
                         final Exception authenticationResultException = authenticationResult.getException();
                         final String realmResult = "  realms=["
                             + jwtRealmsList.size()

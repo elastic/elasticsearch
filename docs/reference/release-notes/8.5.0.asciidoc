@@ -81,7 +81,7 @@ Machine Learning::
 Mapping::
 * Fix duplication bug for source fallback in numeric types {es-pull}89352[#89352]
 * Include runtime fields in total fields count {es-pull}89251[#89251] (issue: {es-issue}88265[#88265])
-* Fix `aggregate_metric_double` multi values exception {es-pull}90290[#90290]
+* Fix `aggregate_metric_double` multi-values exception {es-pull}90290[#90290]
 * Validate field names when subobjects are disabled {es-pull}90950[#90950]
 
 Monitoring::

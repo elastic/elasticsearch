@@ -68,6 +68,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -123,10 +124,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
         return createIndicator(
             status.getStatus(),
-            status.getSummary(),
+            status.getSymptom(),
             status.getDetails(explain),
             status.getImpacts(),
-            status.getUserActions(explain)
+            status.getDiagnosis(explain)
         );
     }
 
@@ -788,7 +789,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        public String getSummary() {
+        public String getSymptom() {
             var builder = new StringBuilder("This cluster has ");
             if (primaries.unassigned > 0
                 || primaries.unassigned_new > 0
@@ -797,11 +798,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
-                        createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
-                        createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
+                        createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
+                        createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
+                        createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {
@@ -890,11 +891,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         /**
-         * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
+         * Returns the diagnosis for unassigned primary and replica shards.
          * @param explain true if user actions should be generated, false if they should be omitted.
          * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
          */
-        public List<Diagnosis> getUserActions(boolean explain) {
+        public List<Diagnosis> getDiagnosis(boolean explain) {
             if (explain) {
                 Map<Diagnosis.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
                 replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
@@ -913,10 +914,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                e.getValue()
-                                    .stream()
-                                    .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
-                                    .collect(Collectors.toList())
+                                List.of(
+                                    new Diagnosis.Resource(
+                                        INDEX,
+                                        e.getValue()
+                                            .stream()
+                                            .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                            .collect(Collectors.toList())
+                                    )
+                                )
                             )
                         )
                         .collect(Collectors.toList());

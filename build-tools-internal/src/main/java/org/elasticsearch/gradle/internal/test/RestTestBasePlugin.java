@@ -28,8 +28,8 @@ import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
 
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
 public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";

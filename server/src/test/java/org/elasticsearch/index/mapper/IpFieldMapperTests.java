@@ -301,81 +301,87 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport() {
-            private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
-            private final boolean ignoreMalformed = rarely();
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new IpSyntheticSourceSupport(ignoreMalformed);
+    }
 
-            @Override
-            public SyntheticSourceExample example(int maxValues) {
-                if (randomBoolean()) {
-                    Tuple<Object, Object> v = generateValue();
-                    if (v.v2()instanceof InetAddress a) {
-                        return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
-                    }
-                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+    private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
+        private final boolean ignoreMalformed;
+
+        private IpSyntheticSourceSupport(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) {
+            if (randomBoolean()) {
+                Tuple<Object, Object> v = generateValue();
+                if (v.v2()instanceof InetAddress a) {
+                    return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
                 }
-                List<Tuple<Object, Object>> values = randomList(1, maxValues, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                List<Object> outList = values.stream()
-                    .filter(v -> v.v2() instanceof InetAddress)
-                    .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
-                    .collect(Collectors.toSet())
-                    .stream()
-                    .sorted()
-                    .map(v -> InetAddressPoint.decode(v.bytes))
-                    .map(NetworkAddress::format)
-                    .collect(Collectors.toCollection(ArrayList::new));
-                values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(v -> v.v2()).forEach(outList::add);
-                Object out = outList.size() == 1 ? outList.get(0) : outList;
-                return new SyntheticSourceExample(in, out, this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
+            List<Tuple<Object, Object>> values = randomList(1, maxValues, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Object> outList = values.stream()
+                .filter(v -> v.v2() instanceof InetAddress)
+                .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
+                .collect(Collectors.toSet())
+                .stream()
+                .sorted()
+                .map(v -> InetAddressPoint.decode(v.bytes))
+                .map(NetworkAddress::format)
+                .collect(Collectors.toCollection(ArrayList::new));
+            values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(v -> v.v2()).forEach(outList::add);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
 
-            private Tuple<Object, Object> generateValue() {
-                if (ignoreMalformed && randomBoolean()) {
-                    List<Supplier<Object>> choices = List.of(
-                        () -> randomAlphaOfLength(3),
-                        ESTestCase::randomInt,
-                        ESTestCase::randomLong,
-                        ESTestCase::randomFloat,
-                        ESTestCase::randomDouble
-                    );
-                    Object v = randomFrom(choices).get();
-                    return Tuple.tuple(v, v);
-                }
-                if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, nullValue);
-                }
-                InetAddress addr = randomIp(randomBoolean());
-                return Tuple.tuple(NetworkAddress.format(addr), addr);
-            }
-
-            private void mapping(XContentBuilder b) throws IOException {
-                b.field("type", "ip");
-                if (nullValue != null) {
-                    b.field("null_value", NetworkAddress.format(nullValue));
-                }
-                if (rarely()) {
-                    b.field("index", false);
-                }
-                if (rarely()) {
-                    b.field("store", false);
-                }
-                if (ignoreMalformed) {
-                    b.field("ignore_malformed", true);
-                }
-            }
-
-            @Override
-            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "ip").field("doc_values", false)
-                    )
+        private Tuple<Object, Object> generateValue() {
+            if (ignoreMalformed && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(
+                    () -> randomAlphaOfLength(3),
+                    ESTestCase::randomInt,
+                    ESTestCase::randomLong,
+                    ESTestCase::randomFloat,
+                    ESTestCase::randomDouble
                 );
+                Object v = randomFrom(choices).get();
+                return Tuple.tuple(v, v);
             }
-        };
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            InetAddress addr = randomIp(randomBoolean());
+            return Tuple.tuple(NetworkAddress.format(addr), addr);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "ip");
+            if (nullValue != null) {
+                b.field("null_value", NetworkAddress.format(nullValue));
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+            if (ignoreMalformed) {
+                b.field("ignore_malformed", true);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> b.field("type", "ip").field("doc_values", false)
+                )
+            );
+        }
     }
 
     protected IngestScriptSupport ingestScriptSupport() {

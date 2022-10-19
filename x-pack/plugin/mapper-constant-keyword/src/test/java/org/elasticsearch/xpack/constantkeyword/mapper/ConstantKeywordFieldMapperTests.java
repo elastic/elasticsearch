@@ -212,7 +212,8 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("constant_keyword doesn't support ignore_malformed", ignoreMalformed);
         String value = randomUnicodeOfLength(5);
         return new SyntheticSourceSupport() {
             @Override

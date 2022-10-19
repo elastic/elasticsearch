@@ -274,13 +274,16 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             getInstanceFromRandomNode(ProfileService.class).activateProfile(authentication, future);
             existingUid = future.actionGet().uid();
             assertThat(existingUid, endsWith("_0"));
-            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + existingUid).setDoc("""
-                {
-                  "user_profile": {
-                    "user": { "username": "%s" }
-                  }
-                }
-                """.formatted("not-" + username), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
+            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + existingUid)
+                .setDoc(formatted("""
+                    {
+                      "user_profile": {
+                        "user": { "username": "%s" }
+                      }
+                    }
+                    """, "not-" + username), XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .request();
             client().update(updateRequest).actionGet();
             logger.info("manually creating a collision document: [{}]", existingUid);
         } else {
@@ -354,13 +357,13 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             }
             final String newUsername = i == otherRacUserIndex ? OTHER_RAC_USER_NAME : "some-other-name-" + randomAlphaOfLength(8);
             // Manually update the username to create hash collision
-            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + currentUid).setDoc("""
+            final UpdateRequest updateRequest = client().prepareUpdate(SECURITY_PROFILE_ALIAS, "profile_" + currentUid).setDoc(formatted("""
                 {
                   "user_profile": {
                     "user": { "username": "%s" }
                   }
                 }
-                """.formatted(newUsername), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
+                """, newUsername), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
             client().update(updateRequest).actionGet();
             if (newUsername.equals(OTHER_RAC_USER_NAME)) {
                 // The manually updated profile document can still be activated by the other rac user

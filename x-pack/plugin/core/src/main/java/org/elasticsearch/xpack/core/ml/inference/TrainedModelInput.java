@@ -35,7 +35,7 @@ public class TrainedModelInput implements ToXContentObject, Writeable {
     }
 
     public TrainedModelInput(StreamInput in) throws IOException {
-        this.fieldNames = Collections.unmodifiableList(in.readStringList());
+        this.fieldNames = in.readImmutableList(StreamInput::readString);
     }
 
     @SuppressWarnings("unchecked")

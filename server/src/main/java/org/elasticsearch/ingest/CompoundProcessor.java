@@ -162,15 +162,14 @@ public class CompoundProcessor implements Processor {
         Tuple<Processor, IngestMetric> processorWithMetric;
         Processor processor;
         IngestMetric metric;
-        long startTimeInNanos = 0;
         // iteratively execute any sync processors
         while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();
             metric = processorWithMetric.v2();
-            startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
 
+            final long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 ingestDocument = processor.execute(ingestDocument);
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;

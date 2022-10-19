@@ -40,7 +40,10 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.NEEDS_SOURCE;   // TODO maybe enforce lazy loading here?
+                // If script fields need source then they will load it via SearchLookup,
+                // which has its own lazy loading config that kicks in if not overridden
+                // by other sub phases that require source
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override

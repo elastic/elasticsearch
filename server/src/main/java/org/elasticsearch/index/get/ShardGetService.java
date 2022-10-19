@@ -269,7 +269,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     continue;
                 }
                 MappedFieldType ft = mapperService.fieldType(entry.getKey());
-                List<Object> values = FetchPhase.processStoredField(mapperService::fieldType, entry.getKey(), entry.getValue());
+                if (ft == null) {
+                    continue;
+                }
+                List<Object> values = entry.getValue().stream().map(ft::valueForDisplay).toList();
                 if (mapperService.isMetadataField(entry.getKey())) {
                     metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
                 } else {

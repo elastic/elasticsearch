@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -28,9 +27,9 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
     public JwtStringClaimValidator(String claimName, List<String> allowedClaimValues, boolean singleValuedClaim) {
         this.claimName = claimName;
         this.singleValuedClaim = singleValuedClaim;
-        if (allowedClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
-            throw new ElasticsearchException("invalid allowed claim values, cannot use wildcard or regex");
-        }
+//        if (allowedClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
+//            throw new ElasticsearchException("invalid allowed claim values, cannot use wildcard or regex");
+//        }
         this.claimValueMatcher = StringMatcher.of(allowedClaimValues);
     }
 

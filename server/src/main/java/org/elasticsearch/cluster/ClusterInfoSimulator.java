@@ -46,11 +46,11 @@ public class ClusterInfoSimulator {
         if (size != null && size > 0) {
             if (shard.relocatingNodeId() != null) {
                 // relocation
-                modifyDiskUsage(shard.relocatingNodeId(), getShardPath(shard.relocatingNodeId(), mostAvailableSpaceUsage), size);
-                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), mostAvailableSpaceUsage), -size);
+                modifyDiskUsage(shard.relocatingNodeId(), size);
+                modifyDiskUsage(shard.currentNodeId(), -size);
             } else {
                 // new shard
-                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), mostAvailableSpaceUsage), -size);
+                modifyDiskUsage(shard.currentNodeId(), -size);
                 shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
             }
         }
@@ -69,12 +69,13 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private String getShardPath(String nodeId, Map<String, DiskUsage> defaultSpaceUsage) {
-        var diskUsage = defaultSpaceUsage.get(nodeId);
-        return diskUsage != null ? diskUsage.getPath() : null;
-    }
+    private void modifyDiskUsage(String nodeId, long delta) {
+        var diskUsage = mostAvailableSpaceUsage.get(nodeId);
+        if (diskUsage == null) {
+            return;
+        }
+        var path = diskUsage.getPath();
 
-    private void modifyDiskUsage(String nodeId, String path, long delta) {
         var leastUsage = leastAvailableSpaceUsage.get(nodeId);
         if (leastUsage != null && Objects.equals(leastUsage.getPath(), path)) {
             // ensure new value is within bounds

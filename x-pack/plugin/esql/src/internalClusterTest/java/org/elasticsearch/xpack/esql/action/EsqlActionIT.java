@@ -73,15 +73,15 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(List.of(List.of(value)), response.values());
     }
 
-    public void testFromStats() {
-        testFromStatsImpl("from test | stats avg(count)", "avg(count)");
+    public void testFromStatsAvg() {
+        testFromStatsAvgImpl("from test | stats avg(count)", "avg(count)");
     }
 
-    public void testFromStatsWithAlias() {
-        testFromStatsImpl("from test | stats f1 = avg(count)", "f1");
+    public void testFromStatsAvgWithAlias() {
+        testFromStatsAvgImpl("from test | stats f1 = avg(count)", "f1");
     }
 
-    private void testFromStatsImpl(String command, String expectedFieldName) {
+    private void testFromStatsAvgImpl(String command, String expectedFieldName) {
         EsqlQueryResponse results = run(command);
         logger.info(results);
         Assert.assertEquals(1, results.columns().size());
@@ -92,20 +92,39 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(43, (double) results.values().get(0).get(0), 1d);
     }
 
+    public void testFromStatsCount() {
+        testFromStatsCountImpl("from test | stats count(data)", "count(data)");
+    }
+
+    public void testFromStatsCountWithAlias() {
+        testFromStatsCountImpl("from test | stats dataCount = count(data)", "dataCount");
+    }
+
+    public void testFromStatsCountImpl(String command, String expectedFieldName) {
+        EsqlQueryResponse results = run(command);
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals(expectedFieldName, results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        assertEquals(1, results.values().get(0).size());
+        assertEquals(40L, results.values().get(0).get(0));
+    }
+
     @AwaitsFix(bugUrl = "line 1:45: Unknown column [data]")
-    public void testFromStatsGroupingWithSort() {  // FIX ME
-        testFromStatsGroupingImpl("from test | stats avg(count) by data | sort data | limit 2", "avg(count)", "data");
+    public void testFromStatsGroupingAvgWithSort() {  // FIX ME
+        testFromStatsGroupingAvgImpl("from test | stats avg(count) by data | sort data | limit 2", "avg(count)", "data");
     }
 
-    public void testFromStatsGrouping() {
-        testFromStatsGroupingImpl("from test | stats avg(count) by data", "avg(count)", "data");
+    public void testFromStatsGroupingAvg() {
+        testFromStatsGroupingAvgImpl("from test | stats avg(count) by data", "avg(count)", "data");
     }
 
-    public void testFromStatsGroupingWithAliases() {
-        testFromStatsGroupingImpl("from test | eval g = data | stats f = avg(count) by g", "f", "g");
+    public void testFromStatsGroupingAvgWithAliases() {
+        testFromStatsGroupingAvgImpl("from test | eval g = data | stats f = avg(count) by g", "f", "g");
     }
 
-    private void testFromStatsGroupingImpl(String command, String expectedFieldName, String expectedGroupName) {
+    private void testFromStatsGroupingAvgImpl(String command, String expectedFieldName, String expectedGroupName) {
         EsqlQueryResponse results = run(command);
         logger.info(results);
         Assert.assertEquals(2, results.columns().size());
@@ -130,6 +149,44 @@ public class EsqlActionIT extends ESIntegTestCase {
             assertEquals(42, (double) valueValues.get(1).get(1), 1d);
             assertEquals(1L, (long) valueValues.get(1).get(0));
             assertEquals(44, (double) valueValues.get(0).get(1), 1d);
+        } else {
+            fail("Unexpected group value: " + valueValues.get(0).get(0));
+        }
+    }
+
+    public void testFromStatsGroupingCount() {
+        testFromStatsGroupingCountImpl("from test | stats count(count) by data", "count(count)", "data");
+    }
+
+    public void testFromStatsGroupingCountWithAliases() {
+        testFromStatsGroupingCountImpl("from test | eval grp = data | stats total = count(count) by grp", "total", "grp");
+    }
+
+    private void testFromStatsGroupingCountImpl(String command, String expectedFieldName, String expectedGroupName) {
+        EsqlQueryResponse results = run(command);
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+
+        // assert column metadata
+        ColumnInfo groupColumn = results.columns().get(0);
+        assertEquals(expectedGroupName, groupColumn.name());
+        assertEquals("long", groupColumn.type());
+        ColumnInfo valuesColumn = results.columns().get(1);
+        assertEquals(expectedFieldName, valuesColumn.name());
+        assertEquals("long", valuesColumn.type());
+
+        // assert column values
+        List<List<Object>> valueValues = results.values();
+        assertEquals(2, valueValues.size());
+        // This is loathsome, find a declarative way to assert the expected output.
+        if ((long) valueValues.get(0).get(0) == 1L) {
+            assertEquals(20L, valueValues.get(0).get(1));
+            assertEquals(2L, valueValues.get(1).get(0));
+            assertEquals(20L, valueValues.get(1).get(1));
+        } else if ((long) valueValues.get(0).get(0) == 2L) {
+            assertEquals(20L, valueValues.get(1).get(1));
+            assertEquals(1L, valueValues.get(1).get(0));
+            assertEquals(20L, valueValues.get(0).get(1));
         } else {
             fail("Unexpected group value: " + valueValues.get(0).get(0));
         }

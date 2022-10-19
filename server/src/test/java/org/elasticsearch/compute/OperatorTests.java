@@ -494,7 +494,8 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INITIAL, 1),
                         new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INITIAL, 1),
                         new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.INITIAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INITIAL, 1)
+                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INITIAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 1)
                     ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
@@ -504,7 +505,8 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 1),
                         new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2),
                         new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.INTERMEDIATE, 3),
-                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INTERMEDIATE, 4)
+                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INTERMEDIATE, 4),
+                        new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 5)
                     ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
@@ -514,7 +516,8 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.FINAL, 1),
                         new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.FINAL, 2),
                         new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.FINAL, 3),
-                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.FINAL, 4)
+                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.FINAL, 4),
+                        new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 5)
                     ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
@@ -530,7 +533,7 @@ public class OperatorTests extends ESTestCase {
         driver.run();
         assertEquals(1, pageCount.get());
         assertEquals(cardinality, rowCount.get());
-        assertEquals(5, lastPage.get().getBlockCount());
+        assertEquals(6, lastPage.get().getBlockCount());
 
         final Block groupIdBlock = lastPage.get().getBlock(0);
         assertEquals(cardinality, groupIdBlock.getPositionCount());
@@ -567,6 +570,13 @@ public class OperatorTests extends ESTestCase {
             .collect(toMap(i -> initialGroupId + i, i -> (double) IntStream.range(i * 100, (i * 100) + 100).sum()));
         var actualSumValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, sumValuesBlock::getDouble));
         assertEquals(expectedSumValues, actualSumValues);
+
+        // assert count
+        final Block countValuesBlock = lastPage.get().getBlock(5);
+        assertEquals(cardinality, countValuesBlock.getPositionCount());
+        var expectedCountValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 100L));
+        var actualCountValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, countValuesBlock::getLong));
+        assertEquals(expectedCountValues, actualCountValues);
     }
 
     // Tests grouping avg aggregations with multiple intermediate partial blocks.

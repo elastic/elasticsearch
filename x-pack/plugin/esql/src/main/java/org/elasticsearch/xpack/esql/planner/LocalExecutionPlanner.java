@@ -41,6 +41,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 
@@ -139,17 +141,23 @@ public class LocalExecutionPlanner {
             if (aggregate.groupings().isEmpty()) {
                 // not grouping
                 for (NamedExpression e : aggregate.aggregates()) {
-                    if (e instanceof Alias alias && ((Alias) e).child()instanceof Avg avg) {
-                        BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avg.dataType().isRational()
-                            ? AggregatorFunction.doubleAvg
-                            : AggregatorFunction.longAvg;
+                    if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
+                        BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc;
+                        if (aggregateFunction instanceof Avg avg) {
+                            aggregatorFunc = avg.dataType().isRational() ? AggregatorFunction.doubleAvg : AggregatorFunction.longAvg;
+                        } else if (aggregateFunction instanceof Count) {
+                            aggregatorFunc = AggregatorFunction.count;
+                        } else {
+                            throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
+                        }
+
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = () -> new AggregationOperator(
                                 List.of(
                                     new Aggregator(
                                         aggregatorFunc,
                                         AggregatorMode.INITIAL,
-                                        source.layout.get(Expressions.attribute(avg.field()).id())
+                                        source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
                                 )
                             );
@@ -177,8 +185,16 @@ public class LocalExecutionPlanner {
                 layout.put(grpAttrib.id(), 0);
 
                 for (NamedExpression e : aggregate.aggregates()) {
-                    if (e instanceof Alias alias && ((Alias) e).child()instanceof Avg avg) {
-                        BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> aggregatorFunc = GroupingAggregatorFunction.avg;
+                    if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
+                        BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> aggregatorFunc;
+                        if (aggregateFunction instanceof Avg) {
+                            aggregatorFunc = GroupingAggregatorFunction.avg;
+                        } else if (aggregateFunction instanceof Count) {
+                            aggregatorFunc = GroupingAggregatorFunction.count;
+                        } else {
+                            throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
+                        }
+
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = () -> new HashAggregationOperator(
                                 source.layout.get(grpAttrib.id()),
@@ -186,7 +202,7 @@ public class LocalExecutionPlanner {
                                     new GroupingAggregator(
                                         aggregatorFunc,
                                         AggregatorMode.INITIAL,
-                                        source.layout.get(Expressions.attribute(avg.field()).id())
+                                        source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
                                 ),
                                 BigArrays.NON_RECYCLING_INSTANCE

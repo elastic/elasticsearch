@@ -31,7 +31,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.SecureString;
 
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -39,122 +38,6 @@ import java.util.List;
  */
 public class JwtValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtil.class);
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateAuthTime(final Date authTime, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (authTime == null) {
-            return; // optional
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid negative allowedClockSkewSeconds [" + allowedClockSkewSeconds + "].");
-        }
-        // skewSec=0 auth_time=3:00:00.000 now=2:59:59.999 --> fail
-        // skewSec=0 auth_time=3:00:00.000 now=3:00:00.000 --> pass
-        // skewSec=1 auth_time=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from auth_time)
-        if ((authTime.getTime() - (allowedClockSkewSeconds * 1000L)) > now.getTime()) {
-            throw new Exception(
-                "Invalid auth_time ["
-                    + authTime.getTime()
-                    + "ms/"
-                    + authTime
-                    + "] > now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateIssuedAtTime(final Date iat, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (iat == null) {
-            throw new Exception("Invalid iat [null].");
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid negative allowedClockSkewSeconds [" + allowedClockSkewSeconds + "].");
-        }
-        // skewSec=0 iat=3:00:00.000 now=2:59:59.999 --> fail
-        // skewSec=0 iat=3:00:00.000 now=3:00:00.000 --> pass
-        // skewSec=1 iat=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from iat)
-        if ((iat.getTime() - (allowedClockSkewSeconds * 1000L)) > now.getTime()) {
-            throw new Exception(
-                "Invalid iat ["
-                    + iat.getTime()
-                    + "ms/"
-                    + iat
-                    + "] > now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateNotBeforeTime(final Date nbf, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (nbf == null) {
-            return; // optional
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid negative allowedClockSkewSeconds [" + allowedClockSkewSeconds + "].");
-        }
-        // skewSec=0 nbf=3:00:00.000 now=2:59:59.999 --> fail
-        // skewSec=0 nbf=3:00:00.000 now=3:00:00.000 --> pass
-        // skewSec=1 nbf=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from nbf)
-        if ((nbf.getTime() - (allowedClockSkewSeconds * 1000L)) > now.getTime()) {
-            throw new Exception(
-                "Invalid nbf ["
-                    + nbf.getTime()
-                    + "ms/"
-                    + nbf
-                    + "] > now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateExpiredTime(final Date exp, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (exp == null) {
-            throw new Exception("Invalid exp [null].");
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid allowedClockSkewSeconds [" + allowedClockSkewSeconds + "] < 0.");
-        }
-        // skewSec=0 now=2:59:59.999 exp=3:00:00.000 --> pass
-        // skewSec=0 now=3:00:00.000 exp=3:00:00.000 --> fail
-        // skewSec=1 now=3:00:00.000 exp=3:00:00.000 --> pass (subtract skew from now)
-        if (now.getTime() - (allowedClockSkewSeconds * 1000L) >= exp.getTime()) {
-            throw new Exception(
-                "Invalid exp ["
-                    + exp.getTime()
-                    + "ms/"
-                    + exp
-                    + "] < now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
 
     /**
      * Look through each JWK in the JWKSet to see if they can validate the Signed JWT signature.

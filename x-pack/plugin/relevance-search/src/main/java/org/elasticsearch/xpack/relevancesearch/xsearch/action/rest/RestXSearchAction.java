@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch.action.rest;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
 import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
-import org.elasticsearch.xpack.relevancesearch.xsearch.analytics.XSearchAnalyticsService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,18 +34,15 @@ public class RestXSearchAction extends BaseRestHandler {
 
     private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
     private final XSearchRequestValidationService xSearchRequestValidationService;
-    private final XSearchAnalyticsService xSearchAnalyticsService;
 
     @Inject
     public RestXSearchAction(
         RelevanceMatchQueryRewriter relevanceMatchQueryRewriter,
-        XSearchRequestValidationService xSearchRequestValidationService,
-        XSearchAnalyticsService xSearchAnalyticsService
+        XSearchRequestValidationService xSearchRequestValidationService
     ) {
         super();
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
         this.xSearchRequestValidationService = xSearchRequestValidationService;
-        this.xSearchAnalyticsService = xSearchAnalyticsService;
     }
 
     @Override
@@ -82,25 +77,7 @@ public class RestXSearchAction extends BaseRestHandler {
         NodeClient client,
         RestChannel channel
     ) {
-        doXSearch(index, xsearchRequest.explain(), queryBuilder, client, channel);
-        xSearchAnalyticsService.recordEvent(xsearchRequest, client);
-    }
-
-    private static void doXSearch(
-        String index,
-        boolean explain,
-        RelevanceMatchQueryBuilder queryBuilder,
-        NodeClient client,
-        RestChannel channel
-    ) {
-        SearchRequest searchRequest = client.prepareSearch(index)
-            .setQuery(queryBuilder)
-            .setSize(1000)
-            .setFetchSource(true)
-            .setExplain(explain)
-            .request();
-
-        client.search(searchRequest, new RestStatusToXContentListener<>(channel));
+        client.execute(XSearchAction.INSTANCE, xsearchRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override

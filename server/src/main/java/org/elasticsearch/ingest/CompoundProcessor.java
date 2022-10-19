@@ -194,6 +194,7 @@ public class CompoundProcessor implements Processor {
             return;
         }
 
+        // n.b. read 'final' on these variable names as hungarian notation -- we need final variables because of the lambda
         final int finalCurrentProcessor = currentProcessor;
         final int nextProcessor = currentProcessor + 1;
         final long startTimeInNanos = relativeTimeProvider.getAsLong();

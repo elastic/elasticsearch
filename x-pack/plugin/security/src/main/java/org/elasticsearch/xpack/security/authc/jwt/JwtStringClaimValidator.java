@@ -27,9 +27,9 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
     public JwtStringClaimValidator(String claimName, List<String> allowedClaimValues, boolean singleValuedClaim) {
         this.claimName = claimName;
         this.singleValuedClaim = singleValuedClaim;
-//        if (allowedClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
-//            throw new ElasticsearchException("invalid allowed claim values, cannot use wildcard or regex");
-//        }
+        // if (allowedClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
+        // throw new ElasticsearchException("invalid allowed claim values, cannot use wildcard or regex");
+        // }
         this.claimValueMatcher = StringMatcher.of(allowedClaimValues);
     }
 

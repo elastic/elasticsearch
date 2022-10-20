@@ -157,7 +157,9 @@ document and query vectors. The document `_score` is computed as
 +
 When `element_type` is `byte`, all vectors must have the same
 length including both document and query vectors or results will be inaccurate.
-The document `_score` is computed as `0.5 + dot_product(query, vector) / 32768`.
+The document `_score` is computed as
+`0.5 + dot_product(query, vector) / (32768 * dims)`
+where `dims` is the number of dimensions per vector.
 
 `cosine`:::
 Computes the cosine similarity. Note that the most efficient way to perform

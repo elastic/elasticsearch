@@ -36,7 +36,7 @@ Cluster Coordination::
 * Check circuit breaker before sending join request {es-pull}89318[#89318] (issue: {es-issue}85003[#85003])
 
 Distributed::
-* Fork `TransportClusterStateAction` to MANAGEMENT {es-pull}90996[#90996]
+* Fork `TransportClusterStateAction` to `MANAGEMENT` thread pool {es-pull}90996[#90996]
 
 Engine::
 * fix "path.conf'" typo in Security.java {es-pull}89248[#89248] (issue: {es-issue}89327[#89327])

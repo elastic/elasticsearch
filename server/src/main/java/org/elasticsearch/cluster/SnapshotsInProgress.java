@@ -833,7 +833,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
             final Version version = Version.readVersion(in);
-            final List<String> dataStreams = in.readList(StreamInput::readString);
+            final List<String> dataStreams = in.readImmutableStringList();
             final SnapshotId source = in.readOptionalWriteable(SnapshotId::new);
             final Map<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableMap(
                 RepositoryShardId::readFrom,

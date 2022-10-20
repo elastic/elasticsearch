@@ -26,7 +26,7 @@ final class DoubleState implements AggregatorState<DoubleState> {
         this(0);
     }
 
-    DoubleState(long value) {
+    DoubleState(double value) {
         this.doubleValue = value;
         this.serializer = new DoubleStateSerializer();
     }

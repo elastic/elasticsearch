@@ -669,6 +669,39 @@ public class OperatorTests extends ESTestCase {
         testGroupingIntermediateOperators(GroupingAggregatorFunction.sum, expectedValueGenerator);
     }
 
+    public void testMaxOperatorsNegative() {
+        AtomicInteger pageCount = new AtomicInteger();
+        AtomicInteger rowCount = new AtomicInteger();
+        AtomicReference<Page> lastPage = new AtomicReference<>();
+
+        var rawValues = LongStream.rangeClosed(randomIntBetween(-100, -51), -50).boxed().collect(toList());
+        // shuffling provides a basic level of randomness to otherwise quite boring data
+        Collections.shuffle(rawValues, random());
+        var source = new SequenceLongBlockSourceOperator(rawValues);
+
+        Driver driver = new Driver(
+            List.of(
+                source,
+                new AggregationOperator(List.of(new Aggregator(AggregatorFunction.max, AggregatorMode.INITIAL, 0))),
+                new AggregationOperator(List.of(new Aggregator(AggregatorFunction.max, AggregatorMode.INTERMEDIATE, 0))),
+                new AggregationOperator(List.of(new Aggregator(AggregatorFunction.max, AggregatorMode.FINAL, 0))),
+                new PageConsumerOperator(page -> {
+                    logger.info("New page: {}", page);
+                    pageCount.incrementAndGet();
+                    rowCount.addAndGet(page.getPositionCount());
+                    lastPage.set(page);
+                })
+            ),
+            () -> {}
+        );
+        driver.run();
+        assertEquals(1, pageCount.get());
+        assertEquals(1, lastPage.get().getBlockCount());
+        assertEquals(1, rowCount.get());
+        // assert max
+        assertEquals(-50, lastPage.get().getBlock(0).getDouble(0), 0.0);
+    }
+
     // Tests grouping aggregations with multiple intermediate partial blocks.
     private void testGroupingIntermediateOperators(
         BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> aggFunction,

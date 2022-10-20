@@ -73,7 +73,7 @@ public class IndexAbstractionResolver {
                 if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName) && isDateMathVisible(dateMathName, indicesOptions, metadata)) {
+                } else if (availableIndexAbstractions.contains(dateMathName)) {
                     if (minus) {
                         finalIndices.remove(dateMathName);
                     } else {
@@ -182,10 +182,6 @@ public class IndexAbstractionResolver {
             return true;
         }
         return false;
-    }
-
-    public static boolean isDateMathVisible(String index, IndicesOptions indicesOptions, Metadata metadata) {
-        return true;
     }
 
     private static boolean isSystemIndexVisible(IndexNameExpressionResolver resolver, IndexAbstraction indexAbstraction) {

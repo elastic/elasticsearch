@@ -220,7 +220,7 @@ public class AuthorizationService {
     ) {
 
         final AuthorizationContext enclosingContext = AuthorizationUtils.extractAuthorizationContext(threadContext, action);
-        final ParentIndexActionAuthorization parentAuthorization = extractParentAuthorization(threadContext, action);
+        final ParentIndexActionAuthorization parentAuthorization = AuthorizationUtils.extractParentAuthorization(threadContext);
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
@@ -274,26 +274,6 @@ public class AuthorizationService {
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
         }
-    }
-
-    private static ParentIndexActionAuthorization extractParentAuthorization(ThreadContext threadContext, String childAction) {
-        final ParentIndexActionAuthorization parentAuthorization;
-        try {
-            parentAuthorization = ParentIndexActionAuthorization.readFromThreadContext(threadContext);
-        } catch (Exception e) {
-            logger.debug("Failed to read parent authorization from context. Falling back to do full authorization.", e);
-            return null;
-        }
-        if (parentAuthorization == null) {
-            // No parent authorization
-            return null;
-        }
-
-        if (childAction.startsWith(parentAuthorization.action()) == false) {
-            return null;
-        }
-
-        return parentAuthorization;
     }
 
     private String requireAuditId(Authentication authentication, String action, TransportRequest originalRequest) {

@@ -337,6 +337,16 @@ public final class AuthorizationUtils {
         return new AuthorizationEngine.AuthorizationContext(originatingAction, authorizationInfo, parentAccessControl);
     }
 
+    @Nullable
+    public static ParentIndexActionAuthorization extractParentAuthorization(ThreadContext threadContext) {
+        try {
+            return ParentIndexActionAuthorization.readFromThreadContext(threadContext);
+        } catch (Exception e) {
+            logger.debug("Failed to read parent authorization from context. Falling back to do full authorization.", e);
+            return null;
+        }
+    }
+
     private static ElasticsearchSecurityException internalError(String message) {
         // When running with assertions enabled (testing) kill the node so that there is a hard failure in CI
         assert false : message;

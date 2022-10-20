@@ -445,8 +445,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             try {
                 final BytesReference source = getResponse.getSourceInternal();
                 // reserve twice memory of the source length: one for the internal XContent parser and one for the response
-                final int reservedBytes = source.length() * 2;
-                circuitBreaker.addEstimateBytesAndMaybeBreak(source.length() * 2L, "decode async response");
+                final long reservedBytes = source.length() * 2L;
+                circuitBreaker.addEstimateBytesAndMaybeBreak(reservedBytes, "decode async response");
                 listener = ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-reservedBytes));
                 resp = parseResponseFromIndex(asyncExecutionId, source, restoreResponseHeaders, checkAuthentication);
             } catch (Exception e) {

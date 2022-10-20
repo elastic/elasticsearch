@@ -176,6 +176,20 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.length);
     }
 
+    public void testBlankFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.field("", "value")));
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("");
+        assertEquals(0, fields.length);
+    }
+
+    public void testDotOnlyFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.field(".", "value")));
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("");
+        assertEquals(0, fields.length);
+    }
+
     public void testMalformedJson() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 

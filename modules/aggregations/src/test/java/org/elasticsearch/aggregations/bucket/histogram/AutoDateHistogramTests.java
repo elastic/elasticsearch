@@ -8,20 +8,9 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.aggregations.AggregationsPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.aggregations.bucket.AggregationBuilderTestCase;
 
-import java.util.Collection;
-import java.util.List;
-
-public class AutoDateHistogramTests extends BaseAggregationTestCase<AutoDateHistogramAggregationBuilder> {
-
-    // TODO: maybe add base class that overwrites getPlugins(...) for all tests that will be added to this module.
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(AggregationsPlugin.class);
-    }
+public class AutoDateHistogramTests extends AggregationBuilderTestCase<AutoDateHistogramAggregationBuilder> {
 
     @Override
     protected AutoDateHistogramAggregationBuilder createTestAggregatorBuilder() {

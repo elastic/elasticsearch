@@ -185,10 +185,6 @@ public class IndexAbstractionResolver {
     }
 
     public static boolean isDateMathVisible(String index, IndicesOptions indicesOptions, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
-        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS || indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            return indexAbstraction.isHidden() == false || indicesOptions.expandWildcardsHidden();
-        }
         return true;
     }
 

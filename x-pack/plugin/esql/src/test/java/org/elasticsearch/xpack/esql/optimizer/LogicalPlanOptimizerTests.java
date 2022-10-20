@@ -31,7 +31,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testMultipleCombineLimits() throws Exception {
         var numberOfLimits = randomIntBetween(3, 10);
         var minimum = randomIntBetween(10, 99);
-        var limitWithMinimum = randomIntBetween(0, numberOfLimits);
+        var limitWithMinimum = randomIntBetween(0, numberOfLimits - 1);
 
         var plan = emptySource();
         for (int i = 0; i < numberOfLimits; i++) {

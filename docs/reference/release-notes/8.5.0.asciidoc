@@ -39,7 +39,7 @@ Distributed::
 * Fork `TransportClusterStateAction` to `MANAGEMENT` thread pool {es-pull}90996[#90996]
 
 Engine::
-* fix "path.conf'" typo in Security.java {es-pull}89248[#89248] (issue: {es-issue}89327[#89327])
+* Fix `"path.conf'"` typo in `Security.java` {es-pull}89248[#89248] (issue: {es-issue}89327[#89327])
 
 Geo::
 * Buffer H3Polygon2D bounding boxes to avoid edge precision issues {es-pull}89196[#89196] (issues: {es-issue}89868[#89868], {es-issue}87391[#87391])

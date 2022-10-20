@@ -74,7 +74,7 @@ public class IndexAbstractionResolver {
                     // continue
                     indexAbstraction = dateMathName;
                 } else if (availableIndexAbstractions.contains(dateMathName)
-                    && isDateMathVisible(indexAbstraction, dateMathName, indicesOptions, metadata, indexNameExpressionResolver)) {
+                    && isDateMathVisible(indexAbstraction, dateMathName, indicesOptions, metadata)) {
                         if (minus) {
                             finalIndices.remove(dateMathName);
                         } else {
@@ -185,13 +185,7 @@ public class IndexAbstractionResolver {
         return false;
     }
 
-    public static boolean isDateMathVisible(
-        String expression,
-        String index,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        IndexNameExpressionResolver resolver
-    ) {
+    public static boolean isDateMathVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
         boolean isVisible = indexAbstraction.isHidden() == false
             || indicesOptions.expandWildcardsHidden()
@@ -202,11 +196,7 @@ public class IndexAbstractionResolver {
             return isVisible && indicesOptions.ignoreAliases() == false;
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            if (indexAbstraction.isSystem()) {
-                return isSystemIndexVisible(resolver, indexAbstraction);
-            } else {
-                return isVisible;
-            }
+            return isVisible;
         }
         return true;
     }

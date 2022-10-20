@@ -26,7 +26,7 @@ Aggregations::
 * Check parent circuit breaker when allocating an empty bucket {es-pull}89568[#89568] (issue: {es-issue}80789[#80789])
 
 Authorization::
-* Remove magic string for the empty Role {es-pull}89766[#89766]
+* Remove magic string for the `"__empty"` role {es-pull}89766[#89766]
 
 CCR::
 * Order follower backing indices for data streams by original name {es-pull}90850[#90850] (issue: {es-issue}90820[#90820])

@@ -152,7 +152,8 @@ public class CompoundProcessor implements Processor {
         innerExecute(0, ingestDocument, handler);
     }
 
-    void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+    void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
+        assert currentProcessor <= processorsWithMetrics.size();
         if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
             return;
@@ -187,54 +188,56 @@ public class CompoundProcessor implements Processor {
             currentProcessor++;
         }
 
-        if (currentProcessor >= processorsWithMetrics.size()) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
-        } else {
-            final int finalCurrentProcessor = currentProcessor + 1;
-            final int nextProcessor = currentProcessor + 1;
-            final long finalStartTimeInNanos = startTimeInNanos;
-            final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
-            final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
-            final IngestDocument finalIngestDocument = ingestDocument;
-            /*
-             * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
-             * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
-             * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
-             * is only executed once.
-             */
-            final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
-            finalMetric.preIngest();
-            final AtomicBoolean postIngestHasBeenCalled = new AtomicBoolean(false);
-            try {
-                finalProcessor.execute(ingestDocument, (result, e) -> {
-                    if (listenerHasBeenCalled.getAndSet(true)) {
-                        logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
-                        assert false : "A listener was unexpectedly called more than once";
+            return;
+        }
+
+        final int finalCurrentProcessor = currentProcessor;
+        final int nextProcessor = currentProcessor + 1;
+        final long finalStartTimeInNanos = startTimeInNanos;
+        final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
+        final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
+        final IngestDocument finalIngestDocument = ingestDocument;
+        /*
+         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
+         * that in all processors and all the code that they call. If the listener is called more than once it causes problems
+         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
+         * is only executed once.
+         */
+        final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
+        finalMetric.preIngest();
+        final AtomicBoolean postIngestHasBeenCalled = new AtomicBoolean(false);
+        try {
+            finalProcessor.execute(ingestDocument, (result, e) -> {
+                if (listenerHasBeenCalled.getAndSet(true)) {
+                    logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                    assert false : "A listener was unexpectedly called more than once";
+                } else {
+                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
+                    finalMetric.postIngest(ingestTimeInNanos);
+                    postIngestHasBeenCalled.set(true);
+                    if (e != null) {
+                        executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
                     } else {
-                        long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
-                        finalMetric.postIngest(ingestTimeInNanos);
-                        postIngestHasBeenCalled.set(true);
-                        if (e != null) {
-                            executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
+                        if (result != null) {
+                            innerExecute(nextProcessor, result, handler);
                         } else {
-                            if (result != null) {
-                                innerExecute(nextProcessor, result, handler);
-                            } else {
-                                handler.accept(null, null);
-                            }
+                            handler.accept(null, null);
                         }
                     }
-                });
-            } catch (Exception e) {
-                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-                if (postIngestHasBeenCalled.get()) {
-                    logger.warn("Preventing postIngest from being called more than once", new RuntimeException());
-                    assert false : "Attempt to call postIngest more than once";
-                } else {
-                    finalMetric.postIngest(ingestTimeInNanos);
                 }
-                executeOnFailureOuter(currentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
+            });
+        } catch (Exception e) {
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            if (postIngestHasBeenCalled.get()) {
+                logger.warn("Preventing postIngest from being called more than once", new RuntimeException());
+                assert false : "Attempt to call postIngest more than once";
+            } else {
+                finalMetric.postIngest(ingestTimeInNanos);
             }
+            executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
         }
     }
 

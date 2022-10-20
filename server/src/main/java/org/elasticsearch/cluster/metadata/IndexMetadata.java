@@ -2043,6 +2043,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             if (indexWriteLoad != null && indexWriteLoad.numberOfShards() != numberOfShards) {
+                assert false;
                 throw new IllegalArgumentException(
                     "The number of write load shards ["
                         + indexWriteLoad.numberOfShards()

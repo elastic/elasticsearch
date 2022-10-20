@@ -492,18 +492,6 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(idxMeta2.getLifecyclePolicyName(), equalTo("some_policy"));
     }
 
-    public void testBuildRejectsDifferentShardsWriteLoadCount() {
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.builder("myindex").settings(indexSettings).indexWriteLoad(IndexWriteLoad.builder(2).build()).build()
-        );
-    }
-
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

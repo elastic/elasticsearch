@@ -193,11 +193,9 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver
     ) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
-        if (indexAbstraction == null) {
-            throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
-        }
-        final boolean isHidden = indexAbstraction.isHidden();
-        boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
+        boolean isVisible = indexAbstraction.isHidden() == false
+            || indicesOptions.expandWildcardsHidden()
+            || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // complicated to support those options with aliases pointing to multiple indices...
@@ -210,10 +208,6 @@ public class IndexAbstractionResolver {
                 return isVisible;
             }
         }
-        assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
-        // date math to explicitly reference the index
-        assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
         return true;
     }
 

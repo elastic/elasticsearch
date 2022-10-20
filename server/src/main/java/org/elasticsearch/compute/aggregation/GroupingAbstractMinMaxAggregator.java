@@ -15,19 +15,19 @@ import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
-abstract class AbstractGroupingMinMaxAggregator implements GroupingAggregatorFunction {
+abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFunction {
 
     private final DoubleArrayState state;
     private final int channel;
 
-    protected AbstractGroupingMinMaxAggregator(int channel, DoubleArrayState state) {
+    protected GroupingAbstractMinMaxAggregator(int channel, DoubleArrayState state) {
         this.channel = channel;
         this.state = state;
     }
 
     protected abstract double operator(double v1, double v2);
 
-    protected abstract double boundaryValue();
+    protected abstract double initialDefaultValue();
 
     @Override
     public void addRawInput(Block groupIdBlock, Page page) {
@@ -37,7 +37,7 @@ abstract class AbstractGroupingMinMaxAggregator implements GroupingAggregatorFun
         int len = valuesBlock.getPositionCount();
         for (int i = 0; i < len; i++) {
             int groupId = (int) groupIdBlock.getLong(i);
-            s.set(operator(s.getOrDefault(groupId, boundaryValue()), valuesBlock.getDouble(i)), groupId);
+            s.set(operator(s.getOrDefault(groupId, initialDefaultValue()), valuesBlock.getDouble(i)), groupId);
         }
     }
 
@@ -47,14 +47,13 @@ abstract class AbstractGroupingMinMaxAggregator implements GroupingAggregatorFun
         if (block instanceof AggregatorStateBlock) {
             @SuppressWarnings("unchecked")
             AggregatorStateBlock<DoubleArrayState> blobBlock = (AggregatorStateBlock<DoubleArrayState>) block;
-            DoubleArrayState tmpState = new DoubleArrayState(boundaryValue());
+            DoubleArrayState tmpState = new DoubleArrayState(initialDefaultValue());
             blobBlock.get(0, tmpState);
-            final double[] values = tmpState.getValues();
             final int positions = groupIdBlock.getPositionCount();
             final DoubleArrayState s = state;
             for (int i = 0; i < positions; i++) {
                 int groupId = (int) groupIdBlock.getLong(i);
-                s.set(operator(s.getOrDefault(groupId, boundaryValue()), values[i]), groupId);
+                s.set(operator(s.getOrDefault(groupId, initialDefaultValue()), tmpState.get(i)), groupId);
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

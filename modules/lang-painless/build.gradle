@@ -96,7 +96,8 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'painless/40_fields_api/script fields api for dates',
             'painless/70_execute_painless_scripts/Execute with double field context (multi-value, fields api)',
             'painless/40_fields_api/filter script fields api',
-            'painless/40_fields_api/script score fields api'
+            'painless/40_fields_api/script score fields api',
+            'painless/70_mov_fn_agg/*' // Agg moved to a module.
     ].join(',')
 }
 

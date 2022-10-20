@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.calendars.CalendarTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
-public class PutCalendarActionRequestTests extends AbstractSerializingTestCase<PutCalendarAction.Request> {
+public class PutCalendarActionRequestTests extends AbstractXContentSerializingTestCase<PutCalendarAction.Request> {
 
     private final String calendarId = JobTests.randomValidJobId();
 

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction.Request;
 
 import java.io.IOException;
 
-public class StopTrainedModelDeploymentRequestTests extends AbstractSerializingTestCase<Request> {
+public class StopTrainedModelDeploymentRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {

@@ -64,7 +64,7 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
     }

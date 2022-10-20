@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.io.IOException;
 
-public class PutFollowActionRequestTests extends AbstractSerializingTestCase<PutFollowAction.Request> {
+public class PutFollowActionRequestTests extends AbstractXContentSerializingTestCase<PutFollowAction.Request> {
 
     @Override
     protected Writeable.Reader<PutFollowAction.Request> instanceReader() {

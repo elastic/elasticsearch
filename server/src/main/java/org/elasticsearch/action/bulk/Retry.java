@@ -54,7 +54,6 @@ public class Retry {
         this.maxNumberOfConcurrentRequests = Math.max(maxNumberOfConcurrentRequests, 1);
         requestsInFlightSemaphore = new Semaphore(maxNumberOfConcurrentRequests);
         this.queue = new ArrayBlockingQueue<>(queueCapacity);
-
     }
 
     public void init() {

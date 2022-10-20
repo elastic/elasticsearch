@@ -188,6 +188,7 @@ public class RetryTests extends ESIntegTestCase {
         }
 
         Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
+        retry.init();
         BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();

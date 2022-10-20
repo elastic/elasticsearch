@@ -75,7 +75,9 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
+        Retry retry = new Retry(backoff, bulkClient.threadPool());
+        retry.init();
+        BulkResponse response = retry.withBackoff(bulkClient::bulk, bulkRequest).actionGet();
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
@@ -86,7 +88,9 @@ public class RetryTests extends ESTestCase {
 
         BulkRequest bulkRequest = createBulkRequest();
         try {
-            BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
+            Retry retry = new Retry(backoff, bulkClient.threadPool());
+            retry.init();
+            BulkResponse response = retry.withBackoff(bulkClient::bulk, bulkRequest).actionGet();
             /*
              * If the last failure was an item failure we'll end up here
              */
@@ -107,6 +111,7 @@ public class RetryTests extends ESTestCase {
 
         BulkRequest bulkRequest = createBulkRequest();
         Retry retry = new Retry(backoff, bulkClient.threadPool());
+        retry.init();
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
@@ -122,6 +127,7 @@ public class RetryTests extends ESTestCase {
 
         BulkRequest bulkRequest = createBulkRequest();
         Retry retry = new Retry(backoff, bulkClient.threadPool());
+        retry.init();
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();

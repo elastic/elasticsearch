@@ -172,6 +172,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
+        bulkRetry.init();
         scrollSource = buildScrollableResultSource(
             backoffPolicy,
             prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm)

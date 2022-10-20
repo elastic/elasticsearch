@@ -29,7 +29,7 @@ Authorization::
 * Remove magic string for the empty Role {es-pull}89766[#89766]
 
 CCR::
-* [CCR] Data streams: order follower backing indices by original name {es-pull}90850[#90850] (issue: {es-issue}90820[#90820])
+* Order follower backing indices for data streams by original name {es-pull}90850[#90850] (issue: {es-issue}90820[#90820])
 
 Cluster Coordination::
 * Capture deprecation warnings in batched master tasks {es-pull}85525[#85525] (issue: {es-issue}85506[#85506])

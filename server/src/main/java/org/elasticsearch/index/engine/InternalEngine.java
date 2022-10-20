@@ -188,6 +188,8 @@ public class InternalEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
+    private final LongSupplier relativeTimeInNanosSupplier;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -195,6 +197,7 @@ public class InternalEngine extends Engine {
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
+        this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -262,7 +265,10 @@ public class InternalEngine extends Engine {
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
-                    restoreVersionMapAndCheckpointTracker(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
+                    restoreVersionMapAndCheckpointTracker(
+                        Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
+                        engineConfig.getIndexSettings().getIndexVersionCreated()
+                    );
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(
                         config().getShardId(),
@@ -1024,7 +1030,7 @@ public class InternalEngine extends Engine {
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
                 }
-                indexResult.setTook(System.nanoTime() - index.startTime());
+                indexResult.setTook(relativeTimeInNanosSupplier.getAsLong() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
             } finally {
@@ -2766,7 +2772,12 @@ public class InternalEngine extends Engine {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
-            return LuceneChangesSnapshot.countOperations(searcher, fromSeqNo, toSeqNo);
+            return LuceneChangesSnapshot.countOperations(
+                searcher,
+                fromSeqNo,
+                toSeqNo,
+                config().getIndexSettings().getIndexVersionCreated()
+            );
         } catch (Exception e) {
             try {
                 maybeFailEngine("count changes", e);
@@ -2797,7 +2808,8 @@ public class InternalEngine extends Engine {
                 toSeqNo,
                 requiredFullRange,
                 singleConsumer,
-                accessStats
+                accessStats,
+                config().getIndexSettings().getIndexVersionCreated()
             );
             searcher = null;
             return snapshot;
@@ -2964,14 +2976,14 @@ public class InternalEngine extends Engine {
      * after the local checkpoint in the safe commit. This step ensures the live version map and checkpoint tracker
      * are in sync with the Lucene commit.
      */
-    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader) throws IOException {
+    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, Version indexVersionCreated) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
             LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
             BooleanClause.Occur.MUST
         )
-            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents
+            .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         for (LeafReaderContext leaf : directoryReader.leaves()) {

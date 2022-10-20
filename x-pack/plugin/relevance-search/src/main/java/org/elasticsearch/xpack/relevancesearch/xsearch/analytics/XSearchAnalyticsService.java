@@ -56,8 +56,7 @@ public class XSearchAnalyticsService {
                     .setSource(buildEvent(request))
                     .request()
                     .opType(DocWriteRequest.OpType.CREATE);
-                logger.info("INDEXING REQUEST " + indexRequest.toString());
-                client.execute(IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
+                client.execute(IndexAction.INSTANCE, indexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         // No action required

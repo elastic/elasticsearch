@@ -2033,8 +2033,8 @@ public class DataStreamIT extends ESIntegTestCase {
             if (index.equals(dataStream.getWriteIndex()) == false) {
                 assertThat(indexWriteLoad, is(notNullValue()));
                 for (int shardId = 0; shardId < numberOfShards; shardId++) {
-                    assertThat(indexWriteLoad.getWriteLoadForShard(shardId), is(greaterThanOrEqualTo(0.0)));
-                    assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId), is(greaterThan(0L)));
+                    assertThat(indexWriteLoad.getWriteLoadForShard(shardId).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
+                    assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId).getAsLong(), is(greaterThan(0L)));
                 }
             } else {
                 assertThat(indexWriteLoad, is(nullValue()));
@@ -2101,12 +2101,12 @@ public class DataStreamIT extends ESIntegTestCase {
             if (index.equals(dataStream.getWriteIndex()) == false) {
                 assertThat(indexWriteLoad, is(notNullValue()));
                 // All stats request performed against nodes holding the shard 0 failed
-                assertThat(indexWriteLoad.getWriteLoadForShard(0), is(nullValue()));
-                assertThat(indexWriteLoad.getUptimeInMillisForShard(0), is(nullValue()));
+                assertThat(indexWriteLoad.getWriteLoadForShard(0).isPresent(), is(false));
+                assertThat(indexWriteLoad.getUptimeInMillisForShard(0).isPresent(), is(false));
 
                 // At least one of the shard 1 copies responded with stats
-                assertThat(indexWriteLoad.getWriteLoadForShard(1), is(greaterThanOrEqualTo(0.0)));
-                assertThat(indexWriteLoad.getUptimeInMillisForShard(1), is(greaterThan(0L)));
+                assertThat(indexWriteLoad.getWriteLoadForShard(1).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
+                assertThat(indexWriteLoad.getUptimeInMillisForShard(1).getAsLong(), is(greaterThan(0L)));
             } else {
                 assertThat(indexWriteLoad, is(nullValue()));
             }

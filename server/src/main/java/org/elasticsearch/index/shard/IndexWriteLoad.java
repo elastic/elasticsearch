@@ -25,6 +25,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.OptionalDouble;
+import java.util.OptionalLong;
 
 public class IndexWriteLoad implements Writeable, ToXContentFragment {
     public static final ParseField SHARDS_WRITE_LOAD_FIELD = new ParseField("shards_write_load");
@@ -46,8 +48,9 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
 
     public static IndexWriteLoad create(List<Double> shardsWriteLoad, List<Long> shardsUptimeInMillis) {
         if (shardsWriteLoad.size() != shardsUptimeInMillis.size()) {
+            assert false;
             throw new IllegalArgumentException(
-                "The same number of shards write load and shard uptime should be provided, but "
+                "The same number of shard write loads and shard uptimes should be provided, but "
                     + shardsWriteLoad
                     + " "
                     + shardsUptimeInMillis
@@ -56,6 +59,7 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         }
 
         if (shardsWriteLoad.isEmpty()) {
+            assert false;
             throw new IllegalArgumentException("At least one shard write load and uptime should be provided, but none was provided");
         }
 
@@ -125,36 +129,18 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         return PARSER.parse(parser, null);
     }
 
-    @Nullable
-    public Double getWriteLoadForShard(int shardId) {
-        return getWriteLoadForShard(shardId, null);
-    }
-
-    public Double getWriteLoadForShard(int shardId, Double defaultValue) {
-        checkBounds(shardId);
+    public OptionalDouble getWriteLoadForShard(int shardId) {
+        assertShardInBounds(shardId);
 
         double load = shardWriteLoadLoad[shardId];
-        if (load == UNKNOWN_LOAD) {
-            return defaultValue;
-        } else {
-            return load;
-        }
+        return load != UNKNOWN_LOAD ? OptionalDouble.of(load) : OptionalDouble.empty();
     }
 
-    @Nullable
-    public Long getUptimeInMillisForShard(int shardId) {
-        return getUptimeInMillisForShard(shardId, null);
-    }
-
-    public Long getUptimeInMillisForShard(int shardId, Long defaultValue) {
-        checkBounds(shardId);
+    public OptionalLong getUptimeInMillisForShard(int shardId) {
+        assertShardInBounds(shardId);
 
         long uptime = shardUptimeInMillis[shardId];
-        if (uptime == UNKNOWN_UPTIME) {
-            return defaultValue;
-        } else {
-            return uptime;
-        }
+        return uptime != UNKNOWN_UPTIME ? OptionalLong.of(uptime) : OptionalLong.empty();
     }
 
     // Visible for testing
@@ -162,10 +148,9 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         return shardWriteLoadLoad.length;
     }
 
-    private void checkBounds(int shardId) {
-        if (shardId < 0 || shardId >= shardWriteLoadLoad.length) {
-            throw new IllegalArgumentException("Unexpected shard id " + shardId);
-        }
+    private void assertShardInBounds(int shardId) {
+        assert shardId >= 0 : "Unexpected shard id " + shardId;
+        assert shardId < shardWriteLoadLoad.length;
     }
 
     @Override
@@ -184,9 +169,7 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
     }
 
     public static Builder builder(int numShards) {
-        if (numShards <= 0) {
-            throw new IllegalArgumentException("A positive number of shards should be provided");
-        }
+        assert numShards > 0 : "A positive number of shards should be provided";
         return new Builder(numShards);
     }
 

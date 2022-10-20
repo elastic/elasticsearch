@@ -24,7 +24,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -53,29 +52,15 @@ public class IndexWriteLoadTests extends ESTestCase {
         final IndexWriteLoad indexWriteLoad = indexWriteLoadBuilder.build();
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             if (shardId < numberOfPopulatedShards) {
-                assertThat(indexWriteLoad.getWriteLoadForShard(shardId), is(equalTo(populatedShardWriteLoads[shardId])));
-                assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId), is(populatedShardUptimes[shardId]));
+                assertThat(indexWriteLoad.getWriteLoadForShard(shardId).isPresent(), is(equalTo(true)));
+                assertThat(indexWriteLoad.getWriteLoadForShard(shardId).getAsDouble(), is(equalTo(populatedShardWriteLoads[shardId])));
+                assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId).isPresent(), is(equalTo(true)));
+                assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId).getAsLong(), is(equalTo(populatedShardUptimes[shardId])));
             } else {
-                double fallbackWriteLoadValue = randomDoubleBetween(1, 128, true);
-                assertThat(indexWriteLoad.getWriteLoadForShard(shardId), is(nullValue()));
-                assertThat(indexWriteLoad.getWriteLoadForShard(shardId, fallbackWriteLoadValue), is(equalTo(fallbackWriteLoadValue)));
-
-                long fallbackUptimeValue = randomNonNegativeLong();
-                assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId), is(nullValue()));
-                assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId, fallbackUptimeValue), is(equalTo(fallbackUptimeValue)));
+                assertThat(indexWriteLoad.getWriteLoadForShard(shardId).isPresent(), is(false));
+                assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId).isPresent(), is(false));
             }
         }
-
-        expectThrows(IllegalArgumentException.class, () -> indexWriteLoad.getWriteLoadForShard(-1));
-        expectThrows(IllegalArgumentException.class, () -> indexWriteLoad.getWriteLoadForShard(numberOfShards + 1));
-        expectThrows(IllegalArgumentException.class, () -> indexWriteLoad.getUptimeInMillisForShard(-1));
-        expectThrows(IllegalArgumentException.class, () -> indexWriteLoad.getUptimeInMillisForShard(numberOfShards + 1));
-    }
-
-    public void testValidations() {
-        expectThrows(IllegalArgumentException.class, () -> IndexWriteLoad.builder(randomIntBetween(-100, 0)));
-        expectThrows(IllegalArgumentException.class, () -> IndexWriteLoad.create(List.of(), List.of()));
-        expectThrows(IllegalArgumentException.class, () -> IndexWriteLoad.create(List.of(2.0, 3.0), List.of(1L)));
     }
 
     public void testFromStatsCreation() {
@@ -111,15 +96,19 @@ public class IndexWriteLoadTests extends ESTestCase {
 
         // Shard 0 uses the results from the primary
         final IndexWriteLoad indexWriteLoadFromStats = IndexWriteLoad.fromStats(indexMetadata, response);
-        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(0), is(equalTo(128.0)));
-        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(0), is(equalTo(1024L)));
+        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(0).isPresent(), is(equalTo(true)));
+        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(0).getAsDouble(), is(equalTo(128.0)));
+        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(0).isPresent(), is(equalTo(true)));
+        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(0).getAsLong(), is(equalTo(1024L)));
 
         // Shard 1 uses the only available stats from a replica
-        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(1), is(equalTo(256.0)));
-        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(1), is(equalTo(512L)));
+        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(1).isPresent(), is(equalTo(true)));
+        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(1).getAsDouble(), is(equalTo(256.0)));
+        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(1).isPresent(), is(equalTo(true)));
+        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(1).getAsLong(), is(equalTo(512L)));
 
-        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(2), is(nullValue()));
-        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(2), is(nullValue()));
+        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(2).isPresent(), is(equalTo(false)));
+        assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(2).isPresent(), is(equalTo(false)));
 
         assertThat(IndexWriteLoad.fromStats(indexMetadata, null), is(nullValue()));
     }

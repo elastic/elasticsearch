@@ -2209,7 +2209,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             indexMetadata.timestampRange.toXContent(builder, params);
             builder.endObject();
 
-            if (context != Metadata.XContentContext.API && indexMetadata.writeLoad != null) {
+            if (indexMetadata.writeLoad != null) {
                 builder.startObject(KEY_WRITE_LOAD);
                 indexMetadata.writeLoad.toXContent(builder, params);
                 builder.endObject();

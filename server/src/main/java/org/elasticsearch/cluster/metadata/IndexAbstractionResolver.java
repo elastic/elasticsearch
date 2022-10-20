@@ -190,7 +190,7 @@ public class IndexAbstractionResolver {
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // complicated to support those options with aliases pointing to multiple indices...
-            return isVisible && indicesOptions.ignoreAliases() == false;
+            return isVisible;
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
             return isVisible;

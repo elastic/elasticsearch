@@ -122,7 +122,7 @@ public class SearchEngineAnalyticsBuilder {
             } else {
                 logger.info("Upserting component template " + mappingComponentTemplateName);
                 ComponentTemplate mappingComponentTemplate = new ComponentTemplate(
-                    new Template(null, new CompressedXContent(componentTemplateJson()), null),
+                    new Template(null, new CompressedXContent((builder, params) -> buildMappingComponentTemplateRequest()), null),
                     null,
                     null
                 );
@@ -202,43 +202,34 @@ public class SearchEngineAnalyticsBuilder {
         return exists[0];
     }
 
-    // TODO - replace this with XContentBuilder or something else more structured
-    private static String componentTemplateJson() {
-        return """
-            {
-                  "properties": {
-                    "@timestamp": {
-                      "type": "date",
-                      "format": "date_optional_time||epoch_millis"
-                    },
-                    "query": {
-                      "type": "keyword"
-                    }
-                  }
-                }
-            """;
-    }
-
     private static XContentBuilder buildMappingComponentTemplateRequest() {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE)) {
             builder.startObject();
-            builder.field("properties");
-            builder.startObject();
-            builder.field("@timestamp");
-            builder.startObject();
-            builder.field("type", "date");
-            builder.field("format", "date_optional_time||epoch_millis");
-            builder.endObject();
-            builder.field("query");
-            builder.startObject();
-            builder.field("type", "keyword");
-            builder.endObject();
-            builder.endObject();
+            {
+                builder.field("properties");
+                builder.startObject();
+                {
+                    builder.field("@timestamp");
+                    builder.startObject();
+                    {
+                        builder.field("type", "date");
+                        builder.field("format", "date_optional_time||epoch_millis");
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.field("query");
+                builder.startObject();
+                {
+                    builder.field("type", "keyword");
+                }
+                builder.endObject();
+            }
             builder.endObject();
 
             return builder;
         } catch (IOException e) {
-            throw new ElasticsearchException("could not build xcontent for component template mappings", e);
+            throw new ElasticsearchException("could not build xcontent", e);
         }
     }
 }

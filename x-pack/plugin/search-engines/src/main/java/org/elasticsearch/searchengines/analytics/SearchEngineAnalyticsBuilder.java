@@ -69,8 +69,7 @@ public class SearchEngineAnalyticsBuilder {
                 dataStreamExists[0] = response.getDataStreams()
                     .stream()
                     .map(GetDataStreamAction.Response.DataStreamInfo::getDataStream)
-                    .filter(dataStream -> dataStream.getName().equals(dataStreamName))
-                    .count() == 1;
+                    .anyMatch(dataStream -> dataStream.getName().equals(dataStreamName))
             }
 
             @Override

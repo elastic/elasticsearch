@@ -187,16 +187,16 @@ Infra/Node Lifecycle::
 Infra/Plugins::
 * Add deprecation message for deprecated plugin APIs {es-pull}88961[#88961]
 * Register stable plugins in `ActionModule` {es-pull}90067[#90067]
-* [Stable plugin API] Load plugin named components {es-pull}89969[#89969]
+* Load plugin named components {es-pull}89969[#89969]
 
 Infra/Scripting::
 * Initial code to support binary expression scripts {es-pull}89895[#89895]
 * Protect `_source` inside update scripts {es-pull}88733[#88733]
-* Reindex & `UpdateByQuery` metadata {es-pull}88665[#88665]
+* Reindex and `UpdateByQuery` metadata {es-pull}88665[#88665]
 * Add write Field API `NestedDocument` support {es-pull}90021[#90021]
 * Add write Field API path manipulation {es-pull}89889[#89889]
 * Add write Field API with basic path resolution {es-pull}89738[#89738]
-* Add write Fields API for reindex, update, update by query {es-pull}90145[#90145]
+* Add write Fields API for reindex, update, and update by query {es-pull}90145[#90145]
 
 Infra/Settings::
 * Introduce max headroom for disk watermark stages {es-pull}88639[#88639] (issue: {es-issue}81406[#81406])
@@ -245,7 +245,7 @@ SQL::
 
 Search::
 * Enable `BloomFilter` for `_id` of non-datastream indices {es-pull}88409[#88409]
-* In the field capabilities API, re-add support for fields in the request body {es-pull}88972[#88972] (issue: {es-issue}86875[#86875])
+* In the field capabilities API, renew support for fields in the request body {es-pull}88972[#88972] (issue: {es-issue}86875[#86875])
 
 Security::
 * Add usage stats report for user profiles {es-pull}90123[#90123]

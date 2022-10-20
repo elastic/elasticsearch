@@ -105,7 +105,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
 
-    // TODO: maybe add base class that overwrites getSearchPlugins(...) for all tests that will be added to this module.
+    // TODO: remove when moving DateHistogramAggregatorTestCase to aggregations module
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return List.of(new AggregationsPlugin());

@@ -188,12 +188,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 .execute(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
                     Metadata responseMetadata = response.getState().metadata();
                     Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
-                    List<String> indices = new ArrayList<>(indicesMap.keySet());
                     return new SnapshotInfo(
                         new Snapshot(this.metadata.name(), SNAPSHOT_ID),
-                        indices,
-                        new ArrayList<>(responseMetadata.dataStreams().keySet()),
-                        Collections.emptyList(),
+                        List.copyOf(indicesMap.keySet()),
+                        List.copyOf(responseMetadata.dataStreams().keySet()),
+                        List.of(),
                         response.getState().getNodes().getMaxNodeVersion(),
                         SnapshotState.SUCCESS
                     );
@@ -275,10 +274,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         indexName,
                         new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT, nowMillis, nowMillis, "")
                     );
-                    indexSnapshots.put(
-                        new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()),
-                        Collections.singletonList(snapshotId)
-                    );
+                    indexSnapshots.put(new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()), List.of(snapshotId));
                 }
                 return new RepositoryData(
                     MISSING_UUID,

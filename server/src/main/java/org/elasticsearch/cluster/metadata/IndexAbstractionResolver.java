@@ -76,14 +76,8 @@ public class IndexAbstractionResolver {
                 } else {
                     if (minus) {
                         finalIndices.remove(dateMathName);
-                    } else {
-                        if (availableIndexAbstractions.contains(dateMathName)) {
-                            finalIndices.add(dateMathName);
-                        } else {
-                            if (indicesOptions.ignoreUnavailable() == false) {
-                                throw new IndexNotFoundException(dateMathName);
-                            }
-                        }
+                    } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(dateMathName)) {
+                        finalIndices.add(dateMathName);
                     }
                 }
             }

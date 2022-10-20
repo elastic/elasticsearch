@@ -431,8 +431,11 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        ParentIndexActionAuthorization parentAuthorization = requestInfo.getParentAuthorization().get();
-        if (requestInfo.getAction().startsWith(parentAuthorization.action()) == false) {
+        final ParentIndexActionAuthorization parentAuthorization = requestInfo.getParentAuthorization().get();
+        final String parentAction = parentAuthorization.action();
+        final String childAction = requestInfo.getAction();
+        if (AuthorizationUtils.shouldPreAuthorizeChildAction(parentAction, childAction) == false) {
+            // We only pre-authorize explicitly allowed child actions.
             return false;
         }
 
@@ -456,9 +459,7 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        logger.debug(
-            "pre-authorizing child action [" + requestInfo.getAction() + "] of parent action [" + parentAuthorization.action() + "]"
-        );
+        logger.debug("pre-authorizing child action [" + childAction + "] of parent action [" + parentAction + "]");
         return true;
     }
 

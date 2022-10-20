@@ -34,7 +34,9 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -65,6 +67,31 @@ public final class AuthorizationUtils {
     private static final Logger logger = LogManager.getLogger(AuthorizationUtils.class);
 
     private static final Predicate<String> INTERNAL_PREDICATE = Automatons.predicate("internal:*");
+
+    /**
+     * This map holds parent-child action relationships for which we can optimize authorization
+     * and pre-authorize child actions if the parent action is successfully authorized.
+     * Normally every action would be authorized on a local node on which it's being executed.
+     * Here we define all child actions for which the authorization can be safely skipped
+     * on remote node as they only access a subset of resources.
+     */
+    private static final Map<String, Set<String>> PRE_AUTHORIZED_CHILD_ACTIONS = Map.of(
+        "indices:data/read/search",
+        Set.of(
+            "indices:data/read/search[free_context/scroll]",
+            "indices:data/read/search[free_context]",
+            "indices:data/read/search[clear_scroll_contexts]",
+            "indices:data/read/search[phase/dfs]",
+            "indices:data/read/search[phase/query]",
+            "indices:data/read/search[phase/query/id]",
+            "indices:data/read/search[phase/query/scroll]",
+            "indices:data/read/search[phase/query+fetch/scroll]",
+            "indices:data/read/search[phase/fetch/id/scroll]",
+            "indices:data/read/search[phase/fetch/id]",
+            "indices:data/read/search[can_match]",
+            "indices:data/read/search[can_match][n]"
+        )
+    );
 
     private AuthorizationUtils() {}
 
@@ -170,6 +197,11 @@ public final class AuthorizationUtils {
         }
     }
 
+    public static boolean shouldPreAuthorizeChildAction(final String parent, final String child) {
+        final Set<String> children = PRE_AUTHORIZED_CHILD_ACTIONS.get(parent);
+        return children != null && children.contains(child);
+    }
+
     public static void maybePreAuthorizeChildAction(
         ThreadContext threadContext,
         ClusterState clusterState,
@@ -218,11 +250,7 @@ public final class AuthorizationUtils {
         }
 
         final String parentAction = parentContext.getAction();
-        if (childAction.startsWith(parentAction) == false) {
-            // Parent action is not a true parent.
-            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
-            // or similar (e.g. search phases) as children, but not every action that is triggered
-            // within another action should be authorized this way.
+        if (shouldPreAuthorizeChildAction(parentAction, childAction) == false) {
             return;
         }
 
@@ -253,8 +281,7 @@ public final class AuthorizationUtils {
                 ParentIndexActionAuthorization.readFromThreadContext(threadContext)
             );
             if (existingParentAuthorization.isPresent()) {
-                if (existingParentAuthorization.get().action().equals(parentAction)
-                    || parentAction.startsWith(existingParentAuthorization.get().action())) {
+                if (existingParentAuthorization.get().action().equals(parentAction)) {
                     // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
                     // Sending a child action to node1 would have already put parent authorization in the thread context.
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here
@@ -263,9 +290,9 @@ public final class AuthorizationUtils {
                     return;
                 } else {
                     throw new AssertionError(
-                        "Pre-authorization of parent action ["
+                        "Found pre-authorization for action ["
                             + existingParentAuthorization.get().action()
-                            + "] found while attempting to pre-authorize child action ["
+                            + "] while attempting to pre-authorize child action ["
                             + childAction
                             + "] of parent ["
                             + parentAction

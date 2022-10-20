@@ -63,6 +63,11 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
     }
 
     @Override
+    public long getEstimatedSize() {
+        return Long.BYTES + (largestIndex + 1) * Long.BYTES;
+    }
+
+    @Override
     public AggregatorStateSerializer<LongArrayState> serializer() {
         return serializer;
     }

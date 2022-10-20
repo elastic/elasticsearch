@@ -14,6 +14,8 @@ import org.elasticsearch.core.Releasable;
 @Experimental
 public interface AggregatorState<T extends AggregatorState<T>> extends Releasable {
 
+    long getEstimatedSize();
+
     AggregatorStateSerializer<T> serializer();
 
     @Override

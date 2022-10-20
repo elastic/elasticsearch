@@ -64,7 +64,7 @@ abstract class AbstractGroupingMinMaxAggregator implements GroupingAggregatorFun
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleArrayState>, DoubleArrayState> builder = AggregatorStateBlock
-            .builderOfAggregatorState(DoubleArrayState.class);
+            .builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
         builder.add(state);
         return builder.build();
     }

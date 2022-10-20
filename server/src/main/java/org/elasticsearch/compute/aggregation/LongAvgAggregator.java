@@ -73,7 +73,8 @@ class LongAvgAggregator implements AggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<AvgState>, AvgState> builder = AggregatorStateBlock.builderOfAggregatorState(
-            AvgState.class
+            AvgState.class,
+            state.getEstimatedSize()
         );
         builder.add(state);
         return builder.build();
@@ -102,6 +103,11 @@ class LongAvgAggregator implements AggregatorFunction {
             this.value = value;
             this.count = count;
             this.serializer = new AvgStateSerializer();
+        }
+
+        @Override
+        public long getEstimatedSize() {
+            return AvgStateSerializer.BYTES_SIZE;
         }
 
         @Override

@@ -425,6 +425,65 @@ public class OperatorTests extends ESTestCase {
         assertEquals(49_999.5, resultBlock.getDouble(0), 0);
     }
 
+    public void testOperatorsWithLuceneGroupingCount() throws IOException {
+        int numDocs = 100000;
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            NumericDocValuesField docValuesField = new NumericDocValuesField("value", 0);
+            for (int i = 0; i < numDocs; i++) {
+                doc.clear();
+                docValuesField.setLongValue(i);
+                doc.add(docValuesField);
+                w.addDocument(doc);
+            }
+            w.commit();
+
+            try (IndexReader reader = w.getReader()) {
+                AtomicInteger pageCount = new AtomicInteger();
+                AtomicInteger rowCount = new AtomicInteger();
+                AtomicReference<Page> lastPage = new AtomicReference<>();
+
+                // implements cardinality on value field
+                Driver driver = new Driver(
+                    List.of(
+                        new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
+                        new NumericDocValuesExtractor(reader, 0, 1, 2, "value"),
+                        new HashAggregationOperator(
+                            3, // group by channel
+                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 3)),
+                            BigArrays.NON_RECYCLING_INSTANCE
+                        ),
+                        new HashAggregationOperator(
+                            0, // group by channel
+                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 1)),
+                            BigArrays.NON_RECYCLING_INSTANCE
+                        ),
+                        new HashAggregationOperator(
+                            0, // group by channel
+                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 1)),
+                            BigArrays.NON_RECYCLING_INSTANCE
+                        ),
+                        new PageConsumerOperator(page -> {
+                            logger.info("New page: {}", page);
+                            pageCount.incrementAndGet();
+                            rowCount.addAndGet(page.getPositionCount());
+                            lastPage.set(page);
+                        })
+                    ),
+                    () -> {}
+                );
+                driver.run();
+                assertEquals(1, pageCount.get());
+                assertEquals(2, lastPage.get().getBlockCount());
+                assertEquals(numDocs, rowCount.get());
+                Block valuesBlock = lastPage.get().getBlock(1);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(1, valuesBlock.getLong(i));
+                }
+            }
+        }
+    }
+
     // Tests that overflows throw during summation.
     public void testSumLongOverflow() {
         Operator source = new SequenceLongBlockSourceOperator(List.of(Long.MAX_VALUE, 1L), 2);
@@ -458,8 +517,7 @@ public class OperatorTests extends ESTestCase {
     record LongGroupPair(long groupId, long value) {}
 
     // Basic test with small(ish) input
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
-    @AwaitsFix(bugUrl = "not available")
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
     public void testBasicGroupingOperators() {
         AtomicInteger pageCount = new AtomicInteger();
         AtomicInteger rowCount = new AtomicInteger();
@@ -580,8 +638,7 @@ public class OperatorTests extends ESTestCase {
     }
 
     // Tests grouping avg aggregations with multiple intermediate partial blocks.
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
-    @AwaitsFix(bugUrl = "not available")
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
     public void testGroupingIntermediateAvgOperators() {
         // expected values based on the group/value pairs described in testGroupingIntermediateOperators
         Function<Integer, Double> expectedValueGenerator = i -> 49.5 + (i * 100);
@@ -589,8 +646,7 @@ public class OperatorTests extends ESTestCase {
     }
 
     // Tests grouping max aggregations with multiple intermediate partial blocks.
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
-    @AwaitsFix(bugUrl = "not available")
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
     public void testGroupingIntermediateMaxOperators() {
         // expected values based on the group/value pairs described in testGroupingIntermediateOperators
         Function<Integer, Double> expectedValueGenerator = i -> (99.0 + (i * 100));
@@ -598,8 +654,7 @@ public class OperatorTests extends ESTestCase {
     }
 
     // Tests grouping min aggregations with multiple intermediate partial blocks.
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
-    @AwaitsFix(bugUrl = "not available")
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
     public void testGroupingIntermediateMinOperators() {
         // expected values based on the group/value pairs described in testGroupingIntermediateOperators
         Function<Integer, Double> expectedValueGenerator = i -> i * 100d;
@@ -608,7 +663,6 @@ public class OperatorTests extends ESTestCase {
 
     // Tests grouping sum aggregations with multiple intermediate partial blocks.
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
-    @AwaitsFix(bugUrl = "not available")
     public void testGroupingIntermediateSumOperators() {
         // expected values based on the group/value pairs described in testGroupingIntermediateOperators
         Function<Integer, Double> expectedValueGenerator = i -> (double) IntStream.range(i * 100, (i * 100) + 100).sum();

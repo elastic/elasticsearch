@@ -64,7 +64,8 @@ public class CountRowsAggregator implements AggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<LongState>, LongState> builder = AggregatorStateBlock.builderOfAggregatorState(
-            LongState.class
+            LongState.class,
+            state.getEstimatedSize()
         );
         builder.add(state);
         return builder.build();

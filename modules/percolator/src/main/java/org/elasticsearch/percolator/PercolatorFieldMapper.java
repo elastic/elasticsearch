@@ -64,7 +64,6 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
@@ -79,7 +78,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
@@ -400,7 +399,17 @@ public class PercolatorFieldMapper extends FieldMapper {
         configureContext(executionContext, isMapUnmappedFieldAsText());
 
         XContentParser parser = context.parser();
-        QueryBuilder queryBuilder = parseQueryBuilder(parser, parser.getTokenLocation());
+        QueryBuilder queryBuilder;
+        try {
+            // make sure that we don't expand dots in field names while parsing, otherwise queries will
+            // fail parsing due to unsupported inner objects
+            context.path().setWithinLeafObject(true);
+            queryBuilder = parseTopLevelQuery(parser);
+        } catch (IOException e) {
+            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
+        } finally {
+            context.path().setWithinLeafObject(false);
+        }
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
@@ -491,14 +500,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         context.setAllowUnmappedFields(false);
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
-    }
-
-    private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
-        try {
-            return parseInnerQueryBuilder(parser);
-        } catch (IOException e) {
-            throw new ParsingException(location, "Failed to parse", e);
-        }
     }
 
     @Override

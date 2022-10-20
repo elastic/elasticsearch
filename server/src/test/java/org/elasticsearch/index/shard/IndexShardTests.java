@@ -155,6 +155,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -4517,7 +4518,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                config.getLeafSorter()
+                config.getLeafSorter(),
+                config.getRelativeTimeInNanosSupplier()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -4550,6 +4552,145 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
+    }
+
+    public void testShardExposesWriteLoadStats() throws Exception {
+        final IndexShard primary = newStartedShard(true);
+        for (int i = 0; i < 10; i++) {
+            indexDoc(primary, "_doc", "primary-" + i);
+        }
+
+        final FakeClock fakeClock = new FakeClock();
+        final ShardRouting shardRouting = newShardRouting(
+            primary.shardId(),
+            randomAlphaOfLength(10),
+            false,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.PeerRecoverySource.INSTANCE
+        );
+        final ShardId shardId = shardRouting.shardId();
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
+        final IndexShard replicaShard = newShard(
+            shardRouting,
+            shardPath,
+            primary.indexSettings().getIndexMetadata(),
+            null,
+            null,
+            new InternalEngineFactory(),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER,
+            fakeClock
+        );
+
+        // Now simulate that each operation takes 1 minute to complete.
+        // This applies both for replaying translog ops and new indexing ops
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueMinutes(1));
+
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final CountDownLatch concurrentIndexingFinished = new CountDownLatch(1);
+        // Index some documents concurrently while the shard is replaying the primary
+        // translog operations to ensure that those are not accounted to compute the
+        // shard write load.
+        final Thread indexingThread = new Thread(() -> {
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+                for (int i = 1; i <= 10; i++) {
+                    long seqNo = primary.seqNoStats().getMaxSeqNo() + i;
+                    replicaShard.applyIndexOperationOnReplica(
+                        seqNo,
+                        primaryTerm,
+                        1,
+                        IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                        false,
+                        new SourceToParse("id-" + seqNo, new BytesArray("{}"), XContentType.JSON)
+                    );
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            } finally {
+                concurrentIndexingFinished.countDown();
+            }
+        });
+        indexingThread.start();
+
+        recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
+            @Override
+            public void indexTranslogOperations(
+                List<Translog.Operation> operations,
+                int totalTranslogOps,
+                long maxSeenAutoIdTimestampOnPrimary,
+                long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                RetentionLeases retentionLeases,
+                long mappingVersionOnPrimary,
+                ActionListener<Long> listener
+            ) {
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                    assertTrue(concurrentIndexingFinished.await(10, TimeUnit.SECONDS));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                super.indexTranslogOperations(
+                    operations,
+                    totalTranslogOps,
+                    maxSeenAutoIdTimestampOnPrimary,
+                    maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                    retentionLeases,
+                    mappingVersionOnPrimary,
+                    listener
+                );
+            }
+        }, true, true);
+
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
+        final IndexingStats indexingStatsBeforeIndexingDocs = replicaShard.indexingStats();
+        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getWriteLoad(), is(equalTo(0.0)));
+
+        // Now simulate that each operation takes 1 second to complete.
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueSeconds(1));
+        final int numberOfDocs = randomIntBetween(5, 10);
+        for (int i = 0; i < numberOfDocs; i++) {
+            long seqNo = replicaShard.seqNoStats().getMaxSeqNo() + 1;
+            replicaShard.applyIndexOperationOnReplica(
+                seqNo,
+                primaryTerm,
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                new SourceToParse("id-" + seqNo, new BytesArray("{}"), XContentType.JSON)
+            );
+        }
+
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
+        final IndexingStats indexingStatsAfterIndexingDocs = replicaShard.indexingStats();
+        assertThat(indexingStatsAfterIndexingDocs.getTotal().getWriteLoad(), is(equalTo(1.0)));
+
+        closeShards(primary, replicaShard);
+    }
+
+    static class FakeClock implements LongSupplier {
+        private final AtomicLong currentRelativeTime = new AtomicLong();
+        private final AtomicInteger tick = new AtomicInteger();
+        private volatile TimeValue elapsedTimePerPairOfQueries = TimeValue.ZERO;
+
+        @Override
+        public long getAsLong() {
+            // Since the clock is checked at the beginning and at the end of
+            // the indexing op, just increase the current relative time at the
+            // end.
+            if (tick.getAndIncrement() % 2 == 0) {
+                return currentRelativeTime.get();
+            } else {
+                return currentRelativeTime.addAndGet(elapsedTimePerPairOfQueries.nanos());
+            }
+        }
+
+        void setSimulatedElapsedRelativeTime(TimeValue elapsedTimePerPairOfQueries) {
+            tick.set(0);
+            this.elapsedTimePerPairOfQueries = elapsedTimePerPairOfQueries;
+        }
     }
 
     private static void blockingCallRelocated(

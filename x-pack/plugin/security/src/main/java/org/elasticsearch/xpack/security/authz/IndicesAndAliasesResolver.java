@@ -196,11 +196,10 @@ class IndicesAndAliasesResolver {
             resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metadata));
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
-            final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
-                if (replaceWildcards) {
+                if (indicesOptions.expandWildcardExpressions()) {
                     for (String authorizedIndex : authorizedIndices) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
@@ -228,7 +227,6 @@ class IndicesAndAliasesResolver {
                     indicesOptions,
                     metadata,
                     authorizedIndices,
-                    replaceWildcards,
                     indicesRequest.includeDataStreams()
                 );
                 resolvedIndicesBuilder.addLocal(replaced);

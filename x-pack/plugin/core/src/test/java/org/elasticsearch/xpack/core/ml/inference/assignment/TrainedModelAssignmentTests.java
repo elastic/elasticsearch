@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskParamsTests;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<TrainedModelAssignment> {
+public class TrainedModelAssignmentTests extends AbstractXContentSerializingTestCase<TrainedModelAssignment> {
 
     public static TrainedModelAssignment randomInstance() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomParams());

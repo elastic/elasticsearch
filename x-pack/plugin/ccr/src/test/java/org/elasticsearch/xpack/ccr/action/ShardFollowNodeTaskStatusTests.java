@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<ShardFollowNodeTaskStatus> {
+public class ShardFollowNodeTaskStatusTests extends AbstractXContentSerializingTestCase<ShardFollowNodeTaskStatus> {
 
     @Override
     protected ShardFollowNodeTaskStatus doParseInstance(XContentParser parser) throws IOException {

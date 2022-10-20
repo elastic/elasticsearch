@@ -21,6 +21,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,6 +38,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class ESTestCaseTests extends ESTestCase {
@@ -226,5 +229,33 @@ public class ESTestCaseTests extends ESTestCase {
             () -> skipTestWaitingForLuceneFix(Version.fromBits(1, 0, 0), "extra message")
         );
         assertThat(ae.getMessage(), containsString("Remove call of skipTestWaitingForLuceneFix"));
+    }
+
+    public void testSecureRandom() throws NoSuchAlgorithmException {
+        final int numInstances = 2;
+        final int numTries = 3;
+        for (int numInstance = 0; numInstance < numInstances; numInstance++) {
+            final byte[] seed = randomByteArrayOfLength(randomIntBetween(16, 32));
+            final SecureRandom secureRandom1 = secureRandom(seed);
+            final SecureRandom secureRandom2 = secureRandom(seed);
+            // verify both SecureRandom instances produce deterministic output
+            for (int numTry = 0; numTry < numTries; numTry++) {
+                final int bound = randomIntBetween(16, 1024);
+                assertThat(secureRandom1.nextBoolean(), is(equalTo(secureRandom2.nextBoolean())));
+                assertThat(secureRandom1.nextInt(), is(equalTo(secureRandom2.nextInt())));
+                assertThat(secureRandom1.nextInt(bound), is(equalTo(secureRandom2.nextInt(bound))));
+                assertThat(secureRandom1.nextLong(), is(equalTo(secureRandom2.nextLong())));
+                assertThat(secureRandom1.nextLong(bound), is(equalTo(secureRandom2.nextLong(bound))));
+                assertThat(secureRandom1.nextFloat(), is(equalTo(secureRandom2.nextFloat())));
+                assertThat(secureRandom1.nextDouble(), is(equalTo(secureRandom2.nextDouble())));
+                assertThat(secureRandom1.nextGaussian(), is(equalTo(secureRandom2.nextGaussian())));
+                assertThat(secureRandom1.nextExponential(), is(equalTo(secureRandom2.nextExponential())));
+                final byte[] randomBytes1 = new byte[bound];
+                final byte[] randomBytes2 = new byte[bound];
+                secureRandom1.nextBytes(randomBytes1);
+                secureRandom2.nextBytes(randomBytes2);
+                assertThat(randomBytes1, is(equalTo(randomBytes2)));
+            }
+        }
     }
 }

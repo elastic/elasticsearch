@@ -144,9 +144,9 @@ public class OldMappingsIT extends ESRestTestCase {
 
             // register repo on old ES and take snapshot
             Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-            createRepoRequest.setJsonEntity("""
+            createRepoRequest.setJsonEntity(formatted("""
                 {"type":"fs","settings":{"location":"%s"}}
-                """.formatted(repoLocation));
+                """, repoLocation));
             assertOK(oldEs.performRequest(createRepoRequest));
 
             Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
@@ -157,9 +157,9 @@ public class OldMappingsIT extends ESRestTestCase {
 
         // register repo on new ES and restore snapshot
         Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest2.setJsonEntity("""
+        createRepoRequest2.setJsonEntity(formatted("""
             {"type":"fs","settings":{"location":"%s"}}
-            """.formatted(repoLocation));
+            """, repoLocation));
         assertOK(client().performRequest(createRepoRequest2));
 
         final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");

@@ -74,7 +74,7 @@ public class IndexAbstractionResolver {
                     // continue
                     indexAbstraction = dateMathName;
                 } else if (availableIndexAbstractions.contains(dateMathName)
-                    && isDateMathVisible(indexAbstraction, dateMathName, indicesOptions, metadata)) {
+                    && isDateMathVisible(dateMathName, indicesOptions, metadata)) {
                         if (minus) {
                             finalIndices.remove(dateMathName);
                         } else {
@@ -185,11 +185,9 @@ public class IndexAbstractionResolver {
         return false;
     }
 
-    public static boolean isDateMathVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata) {
+    public static boolean isDateMathVisible(String index, IndicesOptions indicesOptions, Metadata metadata) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
-        boolean isVisible = indexAbstraction.isHidden() == false
-            || indicesOptions.expandWildcardsHidden()
-            || isVisibleDueToImplicitHidden(expression, index);
+        boolean isVisible = indexAbstraction.isHidden() == false || indicesOptions.expandWildcardsHidden();
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // complicated to support those options with aliases pointing to multiple indices...

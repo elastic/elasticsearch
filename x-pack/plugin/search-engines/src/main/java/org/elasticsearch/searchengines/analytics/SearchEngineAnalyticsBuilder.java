@@ -31,18 +31,21 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-// Path forward:
-// 0. Check if data stream exists. If yes, do nothing else.
-// 1. Check if component template exists. If not, create it.
-// 2. Check if template exists. If not, create it.
-// 3. Check if data stream exists. If not, create it.
+/**
+ * The SearchRequestAnalyticsBuilder tries to ensure that an analytics data stream exists for the specified
+ * {@link org.elasticsearch.cluster.metadata.SearchEngine} if an analytics collection is specified.
+ * If for some reason a data stream cannot be created, we log a message but don't throw an error, and allow
+ * engine requests to continue.
+ */
 public class SearchEngineAnalyticsBuilder {
 
     private static final Logger logger = LogManager.getLogger(SearchEngineAnalyticsBuilder.class);
+    private static final String ANALYTICS_TEMPLATE_POSTFIX = "_template";
+    private static final String COMPONENT_MAPPING_TEMPLATE_POSTFIX = "_mappings";
 
     public static void ensureDataStreamExists(String dataStreamName, Client client) {
         if (dataStreamExists(dataStreamName, client) == false) {
-            uglyUpsertDataStream(dataStreamName, client);
+            upsertDataStreamAndRequiredTemplates(dataStreamName, client);
         }
     }
 
@@ -67,31 +70,14 @@ public class SearchEngineAnalyticsBuilder {
         return dataStreamExists[0];
     }
 
-    private static void createDataStreamAndTemplate(String dataStreamName, Client client) {
-
-        upsertDataStreamTemplate(dataStreamName, client);
-
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info("Data stream [{}] created to log analytics for engine", dataStreamName);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Could not create data stream [{}], analytics will not be recorded for this engine", dataStreamName, e);
-            }
-        });
-
-    }
-
+    /**
+     * Assumes that required templates already exist.
+     */
     private static void createDataStream(String dataStreamName, Client client) {
 
         logger.info("Creating data stream " + dataStreamName);
-
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, new ActionListener<AcknowledgedResponse>() {
+        client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info("Data stream [{}] created to log analytics for engine", dataStreamName);
@@ -105,32 +91,28 @@ public class SearchEngineAnalyticsBuilder {
 
     }
 
-    private static void uglyUpsertDataStream(String dataStreamName, Client client) {
+    private static void upsertDataStreamAndRequiredTemplates(String dataStreamName, Client client) {
 
         try {
             // Component template
-            String mappingComponentTemplateName = dataStreamName + "_mappings";
+            String mappingComponentTemplateName = dataStreamName + COMPONENT_MAPPING_TEMPLATE_POSTFIX;
+            String[] componentTemplateNames = new String[] { mappingComponentTemplateName };
             if (componentTemplateExists(mappingComponentTemplateName, client)) {
-                logger.info(
-                    "Component template "
-                        + mappingComponentTemplateName
-                        + " already exists, creating data stream template for "
-                        + dataStreamName
-                );
-                upsertDataStreamTemplate(dataStreamName, client);
+                upsertDataStreamTemplate(dataStreamName, componentTemplateNames, client);
             } else {
                 logger.info("Creating component template " + mappingComponentTemplateName);
-                CompressedXContent mappings = new CompressedXContent(componentTemplateJson());
-                ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, mappings, null), null, null);
-                PutComponentTemplateAction.Request componentTemplateRequest = new PutComponentTemplateAction.Request(
+                ComponentTemplate mappingComponentTemplate = new ComponentTemplate(
+                    new Template(null, new CompressedXContent(componentTemplateJson()), null),
+                    null,
+                    null
+                );
+                PutComponentTemplateAction.Request mappingComponentTemplateRequest = new PutComponentTemplateAction.Request(
                     mappingComponentTemplateName
-                ).componentTemplate(componentTemplate);
-                // .create(true);
-
-                client.execute(PutComponentTemplateAction.INSTANCE, componentTemplateRequest, new ActionListener<>() {
+                ).componentTemplate(mappingComponentTemplate);
+                client.execute(PutComponentTemplateAction.INSTANCE, mappingComponentTemplateRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        upsertDataStreamTemplate(dataStreamName, client);
+                        upsertDataStreamTemplate(dataStreamName, componentTemplateNames, client);
                     }
 
                     @Override
@@ -138,24 +120,21 @@ public class SearchEngineAnalyticsBuilder {
                         logger.error("error creating component template", e);
                     }
                 });
-
             }
-
         } catch (IOException e) {
-            throw new ElasticsearchException(e);
+            logger.error("Error upserting data stream", e);
         }
 
     }
 
-    private static void upsertDataStreamTemplate(String dataStreamName, Client client) {
+    private static void upsertDataStreamTemplate(String dataStreamName, String[] componentTemplateNames, Client client) {
 
-        String templateName = dataStreamName + "_template";
-        String mappingComponentTemplateName = dataStreamName + "_mappings";
-        String[] componentTemplateNames = new String[] { mappingComponentTemplateName };
+        String templateName = dataStreamName + ANALYTICS_TEMPLATE_POSTFIX;
+        logger.info("Creating analytics data stream template " + templateName + " for data stream " + dataStreamName);
 
-        // TODO - where do you set "data_stream" in this request?
+        List<String> indexPatterns = List.of(dataStreamName + "*");
         ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
+            indexPatterns,
             null,
             Arrays.asList(componentTemplateNames),
             500L,
@@ -164,18 +143,12 @@ public class SearchEngineAnalyticsBuilder {
             new ComposableIndexTemplate.DataStreamTemplate()
         );
 
-        logger.info("Creating data stream template " + templateName);
-
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName);
-        // request.create(true);
-        request.indexTemplate(template);
-
-        logger.info(template.toString());
-
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName).indexTemplate(
+            template
+        );
         client.execute(PutComposableIndexTemplateAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                // No action required
                 if (dataStreamExists(dataStreamName, client) == false) {
                     createDataStream(dataStreamName, client);
                 }
@@ -188,34 +161,12 @@ public class SearchEngineAnalyticsBuilder {
         });
     }
 
-    // TODO org.elasticsearch.ElasticsearchParseException: unknown key [data_stream] in the template
-    private static XContentBuilder buildTemplateRequest(String dataStreamName, String[] componentTemplateNames) {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE)) {
-            builder.startObject();
-            builder.field("index_patterns", new String[] { dataStreamName + "*" });
-            builder.field("data_stream");
-            builder.startObject();
-            builder.endObject();
-            builder.field("composed_of", componentTemplateNames);
-            builder.field("priority", 500);
-            builder.startObject("_meta");
-            builder.field("description", "Template for " + dataStreamName + " time series data");
-            builder.endObject();
-            builder.endObject();
-
-            return builder;
-        } catch (IOException e) {
-            throw new ElasticsearchException("error building template request", e);
-        }
-    }
-
     private static boolean componentTemplateExists(String mappingComponentTemplateName, Client client) {
         final boolean[] exists = { false };
         GetComponentTemplateAction.Request request = new GetComponentTemplateAction.Request(mappingComponentTemplateName);
         client.execute(GetComponentTemplateAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(GetComponentTemplateAction.Response response) {
-                logger.info("Component Templates: " + response.getComponentTemplates().keySet());
                 exists[0] = response.getComponentTemplates().containsKey(mappingComponentTemplateName);
             }
 
@@ -225,34 +176,6 @@ public class SearchEngineAnalyticsBuilder {
             }
         });
         return exists[0];
-    }
-
-    private static void createMappingComponentTemplate(String mappingComponentTemplateName, Client client) {
-        logger.info("Creating component template " + mappingComponentTemplateName);
-
-        try {
-            CompressedXContent mappings = new CompressedXContent(componentTemplateJson());
-            ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, mappings, null), null, null);
-            PutComponentTemplateAction.Request componentTemplateRequest = new PutComponentTemplateAction.Request(
-                mappingComponentTemplateName
-            ).componentTemplate(componentTemplate);
-            // .create(true);
-
-            client.execute(PutComponentTemplateAction.INSTANCE, componentTemplateRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    // no action required
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("error creating component template", e);
-                }
-            });
-
-        } catch (IOException e) {
-            logger.error("error creating component template", e);
-        }
     }
 
     // TODO - replace this with XContentBuilder or something else more structured

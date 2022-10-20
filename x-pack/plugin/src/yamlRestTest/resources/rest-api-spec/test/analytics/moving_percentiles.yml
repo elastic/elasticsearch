@@ -99,7 +99,7 @@ shift:
   - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.0 }
 
 ---
-tdest:
+default choses tdigest:
   - do:
       search:
         index: "foo"
@@ -116,6 +116,44 @@ tdest:
                     field: "histogram"
                     percents: [90]
                     keyed: false
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: "percentiles"
+                    window: 2
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.histo.buckets.0.percentiles.values.0.value: 4.0 }
+  - is_false: aggregations.histo.buckets.0.moving_percentiles
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.percentiles.values.0.value: 5.0 }
+  - match: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: 4.0 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.percentiles.values.0.value:  7.0 }
+  - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.0 }
+
+---
+tdest explicitly:
+  - do:
+      search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: "histogram"
+                    percents: [90]
+                    keyed: false
+                    tdigest: {}
                 moving_percentiles:
                   moving_percentiles:
                     buckets_path: "percentiles"

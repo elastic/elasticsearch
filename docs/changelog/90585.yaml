@@ -2,4 +2,5 @@ pr: 90585
 summary: Return docs when using nested mappings in archive indices
 area: Search
 type: enhancement
-issues: []
+issues:
+ - 90523

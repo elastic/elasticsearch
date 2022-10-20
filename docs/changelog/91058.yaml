@@ -2,4 +2,5 @@ pr: 91058
 summary: Fix APM configuration file delete
 area: Infra/Core
 type: bug
-issues: []
+issues:
+ - 89439

@@ -1191,6 +1191,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build(), }
             )
         );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"));
         assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), indexGroup("index-1"));
 
         role = buildRole(

@@ -84,7 +84,10 @@ public class RoleDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> RoleDescriptor.RemoteIndicesPrivileges.builder().indices("idx").privileges("priv").build()
         );
-        assertThat(ex.getMessage(), containsString("[clusters] must refer to at least one cluster alias or cluster alias pattern"));
+        assertThat(
+            ex.getMessage(),
+            containsString("the [remote_indices] sub-field [clusters] must refer to at least one cluster alias or cluster alias pattern")
+        );
     }
 
     public void testEqualsOnEmptyRoles() {
@@ -406,12 +409,7 @@ public class RoleDescriptorTests extends ESTestCase {
         streamInput.setVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
 
-        if (canIncludeRemoteIndices) {
-            assertThat(serialized, equalTo(descriptor));
-        } else {
-            assertRoleDescriptorsEqualExcludingRemoteIndices(descriptor, serialized);
-            assertThat(serialized.getRemoteIndicesPrivileges(), emptyArray());
-        }
+        assertThat(serialized, equalTo(descriptor));
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
@@ -444,19 +442,8 @@ public class RoleDescriptorTests extends ESTestCase {
             );
             streamInput.setVersion(version);
             final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-            assertRoleDescriptorsEqualExcludingRemoteIndices(descriptor, serialized);
-            assertThat(serialized.getRemoteIndicesPrivileges(), emptyArray());
+            assertThat(descriptor, equalTo(serialized));
         }
-    }
-
-    public static void assertRoleDescriptorsEqualExcludingRemoteIndices(RoleDescriptor actual, RoleDescriptor expected) {
-        assertThat(expected.getName(), equalTo(actual.getName()));
-        assertThat(expected.getIndicesPrivileges(), equalTo(actual.getIndicesPrivileges()));
-        assertThat(expected.getClusterPrivileges(), equalTo(actual.getClusterPrivileges()));
-        assertThat(expected.getApplicationPrivileges(), equalTo(actual.getApplicationPrivileges()));
-        assertThat(expected.getConditionalClusterPrivileges(), equalTo(actual.getConditionalClusterPrivileges()));
-        assertThat(expected.getRunAs(), equalTo(actual.getRunAs()));
-        assertThat(expected.getMetadata(), equalTo(actual.getMetadata()));
     }
 
     public void testParseEmptyQuery() throws Exception {

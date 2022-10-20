@@ -68,14 +68,14 @@ dependencies {
   runtimeOnly "joda-time:joda-time:2.10.10"
 
   // Dependencies for oidc
-  api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
-  api "com.nimbusds:nimbus-jose-jwt:9.8.1"
-  api "com.nimbusds:lang-tag:1.4.4"
-  api "com.sun.mail:jakarta.mail:1.6.3"
+  api "com.nimbusds:oauth2-oidc-sdk:9.43.1"
+  api "com.nimbusds:nimbus-jose-jwt:9.25.4"
+  api "com.nimbusds:lang-tag:1.7"
+  api "com.sun.mail:jakarta.mail:2.0.1"
   api "net.jcip:jcip-annotations:1.0"
-  api "net.minidev:json-smart:2.4.2"
-  api "net.minidev:accessors-smart:2.4.2"
-  api "org.ow2.asm:asm:8.0.1"
+  api "net.minidev:json-smart:2.4.8"
+  api "net.minidev:accessors-smart:2.4.8"
+  api "org.ow2.asm:asm:9.4"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -92,7 +92,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:9.8.1')
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.25.4')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')
@@ -410,13 +410,17 @@ tasks.named("thirdPartyAudit").configure {
           'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
           'com.google.crypto.tink.subtle.Ed25519Verify',
           'com.google.crypto.tink.subtle.X25519',
+          'com.google.crypto.tink.subtle.XChaCha20Poly1305',
           'com.nimbusds.common.contenttype.ContentType',
-          'javax.activation.ActivationDataFlavor',
-          'javax.activation.DataContentHandler',
-          'javax.activation.DataHandler',
-          'javax.activation.DataSource',
-          'javax.activation.FileDataSource',
-          'javax.activation.FileTypeMap'
+          'jakarta.activation.ActivationDataFlavor',
+          'jakarta.activation.DataContentHandler',
+          'jakarta.activation.DataHandler',
+          'jakarta.activation.DataSource',
+          'jakarta.activation.FileDataSource',
+          'jakarta.activation.FileTypeMap',
+          'jakarta.servlet.ServletRequest',
+          'jakarta.servlet.http.HttpServletRequest',
+          'jakarta.servlet.http.HttpServletResponse'
   )
 }
 

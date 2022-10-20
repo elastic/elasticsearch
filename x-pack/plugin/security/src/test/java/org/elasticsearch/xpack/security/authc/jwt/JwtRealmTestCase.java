@@ -207,7 +207,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final JwtIssuer jwtIssuer = new JwtIssuer(issuer, audiences, principalClaimName, users, createHttpsServer);
         final List<String> algorithms = randomOfMinMaxNonUnique(algsCount, algsCount, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final boolean areHmacJwksOidcSafe = randomBoolean();
-        final List<JwtIssuer.AlgJwkPair> algAndJwks = JwtRealmTestCase.randomJwks(algorithms, areHmacJwksOidcSafe);
+        final List<JwtIssuer.AlgJwkPair> algAndJwks = JwtRealmTestCase.randomJwks(algorithms, secureRandom(), areHmacJwksOidcSafe);
         jwtIssuer.setJwks(algAndJwks, areHmacJwksOidcSafe);
         return jwtIssuer;
     }

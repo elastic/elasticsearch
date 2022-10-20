@@ -156,6 +156,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // Generate a replacement set of JWKs 2 for the JWT issuer.
         final List<JwtIssuer.AlgJwkPair> jwtIssuerJwks2Backup = JwtRealmTestCase.randomJwks(
             jwtIssuerJwks1Backup.stream().map(e -> e.alg()).toList(),
+            secureRandom(),
             jwtIssuerJwks1OidcSafe
         );
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks2Backup, jwtIssuerJwks1OidcSafe);

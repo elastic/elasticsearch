@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -32,8 +33,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.junit.After;
 
 import java.io.IOException;
@@ -591,17 +596,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        Regression regression = new Regression(
-            "field_2",
-            BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
-            null,
-            90.0,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        long seed = randomLong();
+
+        Regression regression = new Regression("field_2", BoostedTreeParams.builder().build(), null, 90.0, seed, null, null, null, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
@@ -620,6 +617,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         double predictionErrorSum = 0.0;
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setSize(totalDocCount).get();
+        StringBuilder targetsPredictions = new StringBuilder(); // used to investigate #90599
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
@@ -630,12 +628,32 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             int featureValue = (int) destDoc.get("field_1");
             double predictionValue = (double) resultsObject.get(predictionField);
             predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
+
+            // collect the log of targets and predictions for debugging #90599
+            targetsPredictions.append(2 * featureValue).append(", ").append(predictionValue).append("\n");
         }
 
         // We assert on the mean prediction error in order to reduce the probability
         // the test fails compared to asserting on the prediction of each individual doc.
         double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
-        assertThat(meanPredictionError, lessThanOrEqualTo(10.0));
+
+        // obtain addition information for investigation of #90599
+        String modelId = getModelId(jobId);
+        TrainedModelMetadata modelMetadata = getModelMetadata(modelId);
+        assertThat(modelMetadata.getHyperparameters().size(), greaterThan(0));
+        StringBuilder hyperparameters = new StringBuilder(); // used to investigate #90599
+        for (Hyperparameters hyperparameter : modelMetadata.getHyperparameters()) {
+            hyperparameters.append(hyperparameter.hyperparameterName).append(": ").append(hyperparameter.value).append("\n");
+        }
+        TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
+        Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
+        int numberTrees = ensemble.getModels().size();
+        String str = "Failure: failed for seed %d modelId %s numberTrees %d\n";
+        assertThat(
+            Strings.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
+            meanPredictionError,
+            lessThanOrEqualTo(3.0)
+        );
 
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));

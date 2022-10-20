@@ -73,7 +73,8 @@ class DoubleAvgAggregator implements AggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<AvgState>, AvgState> builder = AggregatorStateBlock.builderOfAggregatorState(
-            AvgState.class
+            AvgState.class,
+            state.getEstimatedSize()
         );
         builder.add(state);
         return builder.build();
@@ -124,6 +125,11 @@ class DoubleAvgAggregator implements AggregatorFunction {
                 delta = correctedSum - (updatedValue - value);
                 value = updatedValue;
             }
+        }
+
+        @Override
+        public long getEstimatedSize() {
+            return AvgStateSerializer.BYTES_SIZE;
         }
 
         @Override

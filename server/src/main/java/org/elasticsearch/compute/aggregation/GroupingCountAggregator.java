@@ -71,7 +71,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<LongArrayState>, LongArrayState> builder = AggregatorStateBlock
-            .builderOfAggregatorState(LongArrayState.class);
+            .builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());
         builder.add(state);
         return builder.build();
     }

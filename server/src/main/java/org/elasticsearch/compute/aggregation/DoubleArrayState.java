@@ -68,6 +68,11 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
     }
 
     @Override
+    public long getEstimatedSize() {
+        return Long.BYTES + (largestIndex + 1) * Double.BYTES;
+    }
+
+    @Override
     public AggregatorStateSerializer<DoubleArrayState> serializer() {
         return serializer;
     }

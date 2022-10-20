@@ -67,20 +67,7 @@ public class IndexAbstractionResolver {
             }
 
             // we always need to check for date math expressions
-            final String dateMathName = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
-            if (dateMathName != indexAbstraction) {
-                assert dateMathName.equals(indexAbstraction) == false;
-                if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(dateMathName)) {
-                    // continue
-                    indexAbstraction = dateMathName;
-                } else {
-                    if (minus) {
-                        finalIndices.remove(dateMathName);
-                    } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(dateMathName)) {
-                        finalIndices.add(dateMathName);
-                    }
-                }
-            }
+            indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
@@ -110,7 +97,7 @@ public class IndexAbstractionResolver {
                         finalIndices.addAll(resolvedIndices);
                     }
                 }
-            } else if (dateMathName.equals(indexAbstraction)) {
+            } else {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
                 } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {

@@ -152,7 +152,6 @@ public class SearchEngineAnalyticsBuilder {
         String templateName = dataStreamName + "_template";
         String mappingComponentTemplateName = dataStreamName + "_mappings";
         String[] componentTemplateNames = new String[] { mappingComponentTemplateName };
-        // createComponentTemplates(dataStreamName, client);
 
         // TODO - where do you set "data_stream" in this request?
         ComposableIndexTemplate template = new ComposableIndexTemplate(
@@ -161,7 +160,8 @@ public class SearchEngineAnalyticsBuilder {
             Arrays.asList(componentTemplateNames),
             500L,
             1L,
-            Map.of("description", "Template for " + dataStreamName + " analytics time series data")
+            Map.of("description", "Template for " + dataStreamName + " analytics time series data"),
+            new ComposableIndexTemplate.DataStreamTemplate()
         );
 
         logger.info("Creating data stream template " + templateName);
@@ -207,10 +207,6 @@ public class SearchEngineAnalyticsBuilder {
         } catch (IOException e) {
             throw new ElasticsearchException("error building template request", e);
         }
-    }
-
-    private static void createComponentTemplates(String mappingComponentTemplateName, Client client) {
-        createMappingComponentTemplate(mappingComponentTemplateName, client);
     }
 
     private static boolean componentTemplateExists(String mappingComponentTemplateName, Client client) {

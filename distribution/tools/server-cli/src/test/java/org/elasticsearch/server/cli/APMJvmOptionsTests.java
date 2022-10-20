@@ -36,6 +36,8 @@ public class APMJvmOptionsTests extends ESTestCase {
             expectThrows(UserException.class, () -> APMJvmOptions.findAgentJar(anotherPath.toAbsolutePath().toString())).getMessage()
                 .contains("Installation is corrupt")
         );
+
+        Files.delete(agentPath);
     }
 
     public void testFileDeleteWorks() throws IOException, UserException {
@@ -47,6 +49,8 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertTrue(Files.exists(tempFile));
         Node.deleteTemporaryApmConfig(jvmInfo, (e, p) -> fail("Shouldn't hit an exception"));
         assertFalse(Files.exists(tempFile));
+
+        Files.delete(agentPath);
     }
 
     private Path makeFakeAgentJar() throws IOException {

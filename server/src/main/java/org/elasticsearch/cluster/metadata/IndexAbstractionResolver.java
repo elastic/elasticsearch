@@ -73,15 +73,17 @@ public class IndexAbstractionResolver {
                 if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName)) {
-                    if (minus) {
-                        finalIndices.remove(dateMathName);
-                    } else {
-                        finalIndices.add(dateMathName);
-                    }
                 } else {
-                    if (indicesOptions.ignoreUnavailable() == false) {
-                        throw new IndexNotFoundException(dateMathName);
+                    if (availableIndexAbstractions.contains(dateMathName)) {
+                        if (minus) {
+                            finalIndices.remove(dateMathName);
+                        } else {
+                            finalIndices.add(dateMathName);
+                        }
+                    } else {
+                        if (indicesOptions.ignoreUnavailable() == false) {
+                            throw new IndexNotFoundException(dateMathName);
+                        }
                     }
                 }
             }

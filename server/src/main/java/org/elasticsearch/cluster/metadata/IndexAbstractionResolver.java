@@ -74,14 +74,13 @@ public class IndexAbstractionResolver {
                     // continue
                     indexAbstraction = dateMathName;
                 } else if (availableIndexAbstractions.contains(dateMathName)
-                    && isIndexVisible(
+                    && isDateMathVisible(
                         indexAbstraction,
                         dateMathName,
                         indicesOptions,
                         metadata,
                         indexNameExpressionResolver,
-                        includeDataStreams,
-                        true
+                        includeDataStreams
                     )) {
                         if (minus) {
                             finalIndices.remove(dateMathName);
@@ -142,18 +141,6 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, resolver, includeDataStreams, false);
-    }
-
-    public static boolean isIndexVisible(
-        String expression,
-        String index,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        IndexNameExpressionResolver resolver,
-        boolean includeDataStreams,
-        boolean dateMathExpression
-    ) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
@@ -176,12 +163,6 @@ public class IndexAbstractionResolver {
             }
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
-        // date math to explicitly reference the index
-        if (dateMathExpression) {
-            assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
-            return true;
-        }
         if (isVisible == false) {
             return false;
         }
@@ -209,6 +190,42 @@ public class IndexAbstractionResolver {
             return true;
         }
         return false;
+    }
+
+    public static boolean isDateMathVisible(
+        String expression,
+        String index,
+        IndicesOptions indicesOptions,
+        Metadata metadata,
+        IndexNameExpressionResolver resolver,
+        boolean includeDataStreams
+    ) {
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+        if (indexAbstraction == null) {
+            throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
+        }
+        final boolean isHidden = indexAbstraction.isHidden();
+        boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
+        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
+            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
+            // complicated to support those options with aliases pointing to multiple indices...
+            return isVisible && indicesOptions.ignoreAliases() == false;
+        }
+        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+            if (includeDataStreams == false) {
+                return false;
+            }
+            if (indexAbstraction.isSystem()) {
+                return isSystemIndexVisible(resolver, indexAbstraction);
+            } else {
+                return isVisible;
+            }
+        }
+        assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
+        // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
+        // date math to explicitly reference the index
+        assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
+        return true;
     }
 
     private static boolean isSystemIndexVisible(IndexNameExpressionResolver resolver, IndexAbstraction indexAbstraction) {

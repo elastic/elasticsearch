@@ -8,6 +8,7 @@
 package org.elasticsearch.searchengines.analytics;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
@@ -40,16 +41,26 @@ import java.util.Map;
 public class SearchEngineAnalyticsBuilder {
 
     private static final Logger logger = LogManager.getLogger(SearchEngineAnalyticsBuilder.class);
+    private static final int MAX_RETRIES = 3;
     private static final String ANALYTICS_TEMPLATE_POSTFIX = "_template";
     private static final String COMPONENT_MAPPING_TEMPLATE_POSTFIX = "_mappings";
 
     public static void ensureDataStreamExists(String dataStreamName, Client client) {
         if (dataStreamExists(dataStreamName, client) == false) {
-            upsertDataStreamAndRequiredTemplates(dataStreamName, client);
+
+            // Due to async template creation calls, retry in the event
+            // of a race condition during initial creation calls.
+            for (int i = 0; i < MAX_RETRIES; i++) {
+                boolean created = createDataStreamAndUpsertRequiredTemplates(dataStreamName, client);
+                if (created) {
+                    break;
+                }
+            }
         }
     }
 
     private static boolean dataStreamExists(String dataStreamName, Client client) {
+
         final boolean[] dataStreamExists = { false };
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
         client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest, new ActionListener<>() {
@@ -73,7 +84,9 @@ public class SearchEngineAnalyticsBuilder {
     /**
      * Assumes that required templates already exist.
      */
-    private static void createDataStream(String dataStreamName, Client client) {
+    private static boolean createDataStream(String dataStreamName, Client client) {
+
+        final boolean[] created = { false };
 
         logger.info("Creating data stream " + dataStreamName);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -81,26 +94,33 @@ public class SearchEngineAnalyticsBuilder {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info("Data stream [{}] created to log analytics for engine", dataStreamName);
+                created[0] = true;
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Could not create data stream [{}], analytics will not be recorded for this engine", dataStreamName, e);
+                if (e instanceof ResourceAlreadyExistsException) {
+                    created[0] = true;
+                } else {
+                    logger.error("Could not create data stream [{}], analytics will not be recorded for this engine", dataStreamName, e);
+                }
             }
         });
 
+        return created[0];
     }
 
-    private static void upsertDataStreamAndRequiredTemplates(String dataStreamName, Client client) {
+    private static boolean createDataStreamAndUpsertRequiredTemplates(String dataStreamName, Client client) {
 
+        final boolean[] created = { false };
         try {
             // Component template
             String mappingComponentTemplateName = dataStreamName + COMPONENT_MAPPING_TEMPLATE_POSTFIX;
             String[] componentTemplateNames = new String[] { mappingComponentTemplateName };
             if (componentTemplateExists(mappingComponentTemplateName, client)) {
-                upsertDataStreamTemplate(dataStreamName, componentTemplateNames, client);
+                created[0] = upsertDataStreamTemplate(dataStreamName, componentTemplateNames, client);
             } else {
-                logger.info("Creating component template " + mappingComponentTemplateName);
+                logger.info("Upserting component template " + mappingComponentTemplateName);
                 ComponentTemplate mappingComponentTemplate = new ComponentTemplate(
                     new Template(null, new CompressedXContent(componentTemplateJson()), null),
                     null,
@@ -112,25 +132,27 @@ public class SearchEngineAnalyticsBuilder {
                 client.execute(PutComponentTemplateAction.INSTANCE, mappingComponentTemplateRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        upsertDataStreamTemplate(dataStreamName, componentTemplateNames, client);
+                        created[0] = upsertDataStreamTemplate(dataStreamName, componentTemplateNames, client);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("error creating component template", e);
+                        logger.error("error upserting component template", e);
                     }
                 });
             }
         } catch (IOException e) {
             logger.error("Error upserting data stream", e);
         }
-
+        return created[0];
     }
 
-    private static void upsertDataStreamTemplate(String dataStreamName, String[] componentTemplateNames, Client client) {
+    private static boolean upsertDataStreamTemplate(String dataStreamName, String[] componentTemplateNames, Client client) {
+
+        final boolean[] created = { false };
 
         String templateName = dataStreamName + ANALYTICS_TEMPLATE_POSTFIX;
-        logger.info("Creating analytics data stream template " + templateName + " for data stream " + dataStreamName);
+        logger.info("Upserting analytics data stream template [{}] for data stream [{}]", templateName, dataStreamName);
 
         List<String> indexPatterns = List.of(dataStreamName + "*");
         ComposableIndexTemplate template = new ComposableIndexTemplate(
@@ -150,7 +172,7 @@ public class SearchEngineAnalyticsBuilder {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (dataStreamExists(dataStreamName, client) == false) {
-                    createDataStream(dataStreamName, client);
+                    created[0] = createDataStream(dataStreamName, client);
                 }
             }
 
@@ -159,6 +181,8 @@ public class SearchEngineAnalyticsBuilder {
                 logger.error("could not create template", dataStreamName, e);
             }
         });
+
+        return created[0];
     }
 
     private static boolean componentTemplateExists(String mappingComponentTemplateName, Client client) {

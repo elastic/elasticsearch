@@ -186,14 +186,8 @@ public class IndexAbstractionResolver {
 
     public static boolean isDateMathVisible(String index, IndicesOptions indicesOptions, Metadata metadata) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
-        boolean isVisible = indexAbstraction.isHidden() == false || indicesOptions.expandWildcardsHidden();
-        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            // complicated to support those options with aliases pointing to multiple indices...
-            return isVisible;
-        }
-        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            return isVisible;
+        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS || indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+            return indexAbstraction.isHidden() == false || indicesOptions.expandWildcardsHidden();
         }
         return true;
     }

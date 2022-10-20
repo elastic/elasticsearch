@@ -267,6 +267,7 @@ public class IndexActionIT extends ESIntegTestCase {
             MapperParsingException.class,
             () -> { client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet(); }
         );
-        assertThat(e.getMessage(), containsString("Field name cannot contain only whitespace"));
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getRootCause().getMessage(), containsString("field name cannot be an empty string"));
     }
 }

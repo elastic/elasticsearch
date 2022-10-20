@@ -72,7 +72,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
-     *  @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
+     *
+     * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
      * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive

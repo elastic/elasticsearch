@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -87,6 +88,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+
+                final String remoteClusterAlias = threadPool.getThreadContext()
+                    .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
+                if (remoteClusterAlias != null) {
+                    logger.info("Remote cluster alias transient header [{}]", remoteClusterAlias);
+                    securityContext.getAuthorizationInfoFromContext();
+                }
 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user

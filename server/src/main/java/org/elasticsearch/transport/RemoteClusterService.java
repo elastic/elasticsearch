@@ -125,6 +125,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
     );
 
+    public static final String REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME = "remote.cluster_alias";
+
     private final boolean enabled;
 
     public boolean isEnabled() {

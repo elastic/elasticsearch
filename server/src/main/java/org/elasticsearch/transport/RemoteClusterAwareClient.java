@@ -61,13 +61,16 @@ final class RemoteClusterAwareClient extends AbstractClient {
                 }
                 throw e;
             }
-            service.sendRequest(
-                connection,
-                action.name(),
-                request,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, action.getResponseReader())
-            );
+            try (var ignored = threadPool().getThreadContext().newStoredContext()) {
+                threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
+                service.sendRequest(
+                    connection,
+                    action.name(),
+                    request,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(listener, action.getResponseReader())
+                );
+            }
         }, listener::onFailure));
     }
 

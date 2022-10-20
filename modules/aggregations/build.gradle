@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -42,6 +44,7 @@ artifacts {
 
 testClusters.configureEach {
   module ':modules:lang-painless'
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 dependencies {

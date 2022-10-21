@@ -300,10 +300,10 @@ Security::
 TSDS::
 * Add a TSID global ordinal to `TimeSeriesIndexSearcher` {es-pull}90035[#90035]
 * Release time series data stream functionality {es-pull}90116[#90116] (issue: {es-issue}74660[#74660])
-* Add synthetic `_source` support for `ignore_above` {es-pull}89466[#89466]
+* Add synthetic `_source` support for the `ignore_above` parameter on `keyword` fields {es-pull}89466[#89466]
 
 Vector Search::
-* Support `dense_vector` {es-pull}89840[#89840]
+* Add synthetic `_source` support for `dense_vector` {es-pull}89840[#89840]
 
 [[regression-8.5.0]]
 [float]

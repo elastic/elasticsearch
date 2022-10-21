@@ -40,16 +40,16 @@ public class Stateless extends Plugin {
     private static final String NAME = "stateless";
 
     public static final LicensedFeature.Momentary STATELESS_FEATURE = LicensedFeature.momentary(
-            null,
-            NAME,
-            License.OperationMode.ENTERPRISE
+        null,
+        NAME,
+        License.OperationMode.ENTERPRISE
     );
 
     /** Setting for enabling stateless. Defaults to false. **/
     public static final Setting<Boolean> STATELESS_ENABLED = Setting.boolSetting(
-            DiscoveryNode.STATELESS_ENABLED_SETTING_NAME,
-            false,
-            Setting.Property.NodeScope
+        DiscoveryNode.STATELESS_ENABLED_SETTING_NAME,
+        false,
+        Setting.Property.NodeScope
     );
 
     static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
@@ -60,9 +60,9 @@ public class Stateless extends Plugin {
 
     public Stateless(Settings settings) {
         this(
-                settings,
-                new StatelessLicenseChecker(() -> STATELESS_FEATURE.check(XPackPlugin.getSharedLicenseState())),
-                Build.CURRENT.isSnapshot()
+            settings,
+            new StatelessLicenseChecker(() -> STATELESS_FEATURE.check(XPackPlugin.getSharedLicenseState())),
+            Build.CURRENT.isSnapshot()
         );
     }
 
@@ -82,19 +82,19 @@ public class Stateless extends Plugin {
 
     @Override
     public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationDeciders allocationDeciders
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         if (isEnabled()) {
             return List.of(licenseChecker);
@@ -124,10 +124,10 @@ public class Stateless extends Plugin {
                 throw new IllegalArgumentException(NAME + " requires the feature flag [es.use_stateless] to be enabled");
             }
             var nonStatelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
-                    .stream()
-                    .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r) == false)
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toSet());
+                .stream()
+                .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r) == false)
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.toSet());
             if (nonStatelessDataNodeRoles.isEmpty() == false) {
                 throw new IllegalArgumentException(NAME + " does not support roles " + nonStatelessDataNodeRoles);
             }
@@ -138,7 +138,7 @@ public class Stateless extends Plugin {
             STATELESS_ROLES.forEach(r -> {
                 if (DiscoveryNode.hasRole(settings, r)) {
                     throw new IllegalArgumentException(
-                            "Node role [" + r.roleName() + "] requires setting [" + STATELESS_ENABLED.getKey() + "] to be enabled"
+                        "Node role [" + r.roleName() + "] requires setting [" + STATELESS_ENABLED.getKey() + "] to be enabled"
                     );
                 }
             });

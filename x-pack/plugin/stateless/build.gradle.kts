@@ -11,11 +11,9 @@ esplugin {
 }
 
 dependencies {
-    compileOnly("org.elasticsearch.plugin:core")
-    internalClusterTestImplementation("org.elasticsearch.plugin:core") {
-        capabilities {
-            requireCapabilities("org.elasticsearch.gradle:core-test-artifacts")
-        }
+    dependencies {
+        compileOnly(xpackModule("core"))
+        internalClusterTestImplementation(testArtifact(xpackModule("core")))
     }
 }
 

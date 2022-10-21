@@ -62,7 +62,7 @@ public interface XContentFieldFilter {
                     }
                     return emptyValueSupplier.apply(contentType);
                 }
-                Function<Map<String, ?>, Map<String, Object>> mapFilter = XContentMapValues.filter(includes, excludes);
+                Function<Map<String, Object>, Map<String, Object>> mapFilter = XContentMapValues.filter(includes, excludes);
                 Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(originalSource, true, contentType);
                 Map<String, Object> filteredSource = mapFilter.apply(mapTuple.v2());
                 BytesStreamOutput bStream = new BytesStreamOutput();

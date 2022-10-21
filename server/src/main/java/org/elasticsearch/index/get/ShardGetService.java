@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -282,13 +283,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // apply request-level source filtering
             if (fetchSourceContext.fetchSource() == false) {
                 source = null;
-            } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                try {
-                    source = XContentFieldFilter.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
-                        .apply(source, null);
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Failed to get id [" + id + "] with includes/excludes set", e);
-                }
+            } else if (fetchSourceContext.hasFilter()) {
+                source = Source.fromBytes(source).filter(fetchSourceContext.filter()).internalSourceRef();
             }
         }
 

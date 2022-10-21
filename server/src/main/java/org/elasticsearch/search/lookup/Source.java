@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -52,6 +51,11 @@ public interface Source {
     BytesReference internalSourceRef();
 
     /**
+     * Apply a filter to this source, returning a new Source
+     */
+    Source filter(SourceFilter sourceFilter);
+
+    /**
      * For the provided path, return its value in the source.
      *
      * Both array and object values can be returned.
@@ -64,13 +68,6 @@ public interface Source {
      */
     default Object extractValue(String path, @Nullable Object nullValue) {
         return XContentMapValues.extractValue(path, source(), nullValue);
-    }
-
-    /**
-     * Apply a filter to this source, returning a new map representation
-     */
-    default Map<String, Object> filter(FetchSourceContext context) {
-        return context.getFilter().apply(source());
     }
 
     /**
@@ -98,9 +95,10 @@ public interface Source {
             }
 
             @Override
+            @SuppressWarnings("deprecation")
             public XContentType sourceContentType() {
                 if (xContentType == null) {
-                    parseBytes();
+                    xContentType = XContentHelper.xContentType(bytes);
                 }
                 return xContentType;
             }
@@ -116,6 +114,16 @@ public interface Source {
             @Override
             public BytesReference internalSourceRef() {
                 return bytes;
+            }
+
+            @Override
+            public Source filter(SourceFilter sourceFilter) {
+                // If we've already parsed to a map, then filter using that; but if we can
+                // filter without reifying the bytes then that will perform better.
+                if (asMap != null) {
+                    return sourceFilter.filterMap(this);
+                }
+                return sourceFilter.filterBytes(this);
             }
         };
     }
@@ -144,6 +152,11 @@ public interface Source {
             @Override
             public BytesReference internalSourceRef() {
                 return mapToBytes(sourceMap, xContentType);
+            }
+
+            @Override
+            public Source filter(SourceFilter sourceFilter) {
+                return sourceFilter.filterMap(this);
             }
 
             private static BytesReference mapToBytes(Map<String, Object> value, XContentType xContentType) {
@@ -189,6 +202,14 @@ public interface Source {
                     inner = sourceSupplier.get();
                 }
                 return inner.internalSourceRef();
+            }
+
+            @Override
+            public Source filter(SourceFilter sourceFilter) {
+                if (inner == null) {
+                    inner = sourceSupplier.get();
+                }
+                return inner.filter(sourceFilter);
             }
         };
     }

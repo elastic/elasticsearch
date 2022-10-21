@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -85,6 +86,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public String[] excludes() {
         return this.excludes;
+    }
+
+    public boolean hasFilter() {
+        return this.includes.length > 0 || this.excludes.length > 0;
+    }
+
+    public SourceFilter filter() {
+        return new SourceFilter(includes, excludes);
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
@@ -252,16 +261,5 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         result = 31 * result + Arrays.hashCode(includes);
         result = 31 * result + Arrays.hashCode(excludes);
         return result;
-    }
-
-    /**
-     * Returns a filter function that expects the source map as an input and returns
-     * the filtered map.
-     */
-    public Function<Map<String, ?>, Map<String, Object>> getFilter() {
-        if (filter == null) {
-            filter = XContentMapValues.filter(includes, excludes);
-        }
-        return filter;
     }
 }

@@ -37,7 +37,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-// Testcase for Validation
 /**
  * Test case for validating {@link ToXContent} objects against a json schema.
  */

@@ -568,10 +568,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "data_frozen": 0,
                     "data_hot": 0,
                     "data_warm": 0,
+                    "index": 0,
                     "ingest": 0,
                     "master": 1,
                     "ml": 0,
                     "remote_cluster_client": 0,
+                    "search": 0,
                     "transform": 0,
                     "voting_only": 0
                   },

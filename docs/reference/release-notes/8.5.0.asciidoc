@@ -174,7 +174,7 @@ ILM+SLM::
 * Move log-related logic into log block in `IndexLifecycleRunner` {es-pull}89292[#89292]
 
 Infra/Core::
-* Add reserved snapshot/repo action {es-pull}89601[#89601]
+* Add reserved `/_snapshot/repo` file based settings {es-pull}89601[#89601]
 * Add `upgrade_status` attributes to Fleet Agents {es-pull}89845[#89845]
 * Add support for `/_autoscaling/policy` for file based settings {es-pull}89708[#89708]
 * Add support for `/_security/role_mapping` for file based settings {es-pull}89667[#89667]

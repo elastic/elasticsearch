@@ -727,6 +727,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer);
+        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 }

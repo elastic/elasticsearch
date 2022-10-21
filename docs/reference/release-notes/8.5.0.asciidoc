@@ -54,7 +54,7 @@ Health::
 * Modify disk indicator details to provide an overview of the disk space health {es-pull}90189[#90189]
 * Fix disk indicator impacts and diagnosis {es-pull}90262[#90262]
 * Fix the details calculation of the disk indicator {es-pull}90869[#90869]
-* Report impact and diagnosis data nodes w/o disk space and no blocked indices {es-pull}90772[#90772] (issue: {es-issue}90442[#90442])
+* Report impact and diagnosis data nodes without disk space and no blocked indices {es-pull}90772[#90772] (issue: {es-issue}90442[#90442])
 * Update min version for health node reporting to 8.5 {es-pull}90365[#90365] (issue: {es-issue}90359[#90359])
 
 Indices APIs::

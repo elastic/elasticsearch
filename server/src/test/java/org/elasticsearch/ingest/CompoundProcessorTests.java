@@ -49,11 +49,17 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSingleProcessor() throws Exception {
+        boolean isAsync = randomBoolean();
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1));
         TestProcessor processor = new TestProcessor(
             ingestDocument -> { assertStats(0, ingestDocument.getFieldValue("compoundProcessor", CompoundProcessor.class), 1, 0, 0, 0); }
-        );
+        ) {
+            @Override
+            public boolean isAsync() {
+                return isAsync;
+            }
+        };
         CompoundProcessor compoundProcessor = new CompoundProcessor(relativeTimeProvider, false, processor);
         ingestDocument.setFieldValue("compoundProcessor", compoundProcessor); // ugly hack to assert current count = 1
         assertThat(compoundProcessor.getProcessors().size(), equalTo(1));

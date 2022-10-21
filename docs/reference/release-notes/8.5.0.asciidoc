@@ -124,7 +124,7 @@ Vector Search::
 * Fix bug for `kNN` with filtered aliases {es-pull}89621[#89621]
 
 Watcher::
-* Allowing `xpack.notification.email.account.domain_allowlist` to be set dynamically {es-pull}90426[#90426] (issue: {es-issue}89913[#89913])
+* Allow `xpack.notification.email.account.domain_allowlist` to be set dynamically {es-pull}90426[#90426] (issue: {es-issue}89913[#89913])
 * Handling timeout exceptions on watcher startup {es-pull}90421[#90421] (issue: {es-issue}44981[#44981])
 
 [[deprecation-8.5.0]]

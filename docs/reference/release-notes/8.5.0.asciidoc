@@ -169,7 +169,7 @@ Highlighting::
 
 ILM+SLM::
 * Add validations for the downsampling ILM action {es-pull}90295[#90295]
-* Ensure that ILM does not rollover empty indices {es-pull}89557[#89557] (issue: {es-issue}86203[#86203])
+* Ensure that ILM does not roll over empty indices {es-pull}89557[#89557] (issue: {es-issue}86203[#86203])
 * Reuse informational message in lifecycle step {es-pull}89419[#89419]
 * Move log-related logic into log block in `IndexLifecycleRunner` {es-pull}89292[#89292]
 

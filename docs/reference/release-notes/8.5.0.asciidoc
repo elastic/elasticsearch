@@ -22,7 +22,7 @@ Aggregations::
 * Fix merging with empty results {es-pull}86939[#86939] (issue: {es-issue}84622[#84622])
 * Fix partial reduce bug in `ip_prefix` {es-pull}89734[#89734] (issue: {es-issue}89686[#89686])
 * Remove unexpected meta parameter in aggregation response {es-pull}89467[#89467] (issue: {es-issue}89455[#89455])
-* Consistently allow sorting `top_metrics` by size>1 {es-pull}89974[#89974] (issue: {es-issue}86663[#86663])
+* Consistently allow sorting `top_metrics` aggregations whose size is greater than 1 {es-pull}89974[#89974] (issue: {es-issue}86663[#86663])
 * Check parent circuit breaker when allocating an empty bucket {es-pull}89568[#89568] (issue: {es-issue}80789[#80789])
 
 Authorization::

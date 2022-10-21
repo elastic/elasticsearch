@@ -205,7 +205,7 @@ License::
 * License check for user profile collaboration feature {es-pull}89990[#89990]
 
 Machine Learning::
-* Add measure of non cache hit inference count {es-pull}90464[#90464]
+* Add measure of non-cache hit inference count {es-pull}90464[#90464]
 * Add new `text_similarity` nlp task {es-pull}88439[#88439]
 * Add new trained model deployment cache clear API {es-pull}89074[#89074]
 * Add processor autoscaling decider {es-pull}89645[#89645]

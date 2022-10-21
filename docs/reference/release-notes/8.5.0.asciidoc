@@ -310,7 +310,7 @@ Vector Search::
 === Regressions
 
 Infra/Scripting::
-* Fix fields API Caching Regression {es-pull}90017[#90017]
+* Fix fields API caching regression {es-pull}90017[#90017]
 
 [[upgrade-8.5.0]]
 [float]

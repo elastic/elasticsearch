@@ -522,6 +522,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .stream()
                     .filter(DiscoveryNodeRole::canContainData)
                     .filter(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+                    .filter(r -> r != DiscoveryNodeRole.SEARCH_ROLE)
+                    .filter(r -> r != DiscoveryNodeRole.INDEX_ROLE)
                     .sorted()
                     .collect(Collectors.toList())
             )

@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -432,12 +431,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      */
     long getRefreshingBytes() {
         return maps.old.ramBytesUsed.get();
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        // TODO: useful to break down RAM usage here?
-        return Collections.emptyList();
     }
 
     /**

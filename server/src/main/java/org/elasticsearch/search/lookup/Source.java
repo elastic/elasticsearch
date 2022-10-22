@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -92,6 +93,7 @@ public interface Source {
                 Tuple<XContentType, Map<String, Object>> t = XContentHelper.convertToMap(bytes, true);
                 this.xContentType = t.v1();
                 this.asMap = t.v2();
+                assert (this.asMap = Collections.unmodifiableMap(this.asMap)) != null;
             }
 
             @Override

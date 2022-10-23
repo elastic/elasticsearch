@@ -823,18 +823,21 @@ public class SamlRealmTests extends SamlTestCase {
         // Confirm these files are located in /x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/saml/
         final Path originalMetadataPath = getDataPath("idp1.xml");
         final Path updatedMetadataPath = getDataPath("idp1-same-certs-updated-id-cacheDuration.xml");
-        assertThat(originalMetadataPath.toFile().exists(), is(true));
-        assertThat(updatedMetadataPath.toFile().exists(), is(true));
+        assertThat(Files.exists(originalMetadataPath), is(true));
+        assertThat(Files.exists(updatedMetadataPath), is(true));
         // Confirm the file contents are different
         assertThat(Files.readString(originalMetadataPath), is(not(equalTo(Files.readString(updatedMetadataPath)))));
 
         // Use a temp file to trigger load and reload by ResourceWatcherService
-        final Path realmMetadataPath = Files.createTempFile(PathUtils.get(createTempDir().toString()), "idp2-metadata", "xml");
+        final Path realmMetadataPath = Files.createTempFile(PathUtils.get(createTempDir().toString()), "idp1-metadata", "xml");
 
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, "saml-idp1");
-        final RealmConfig realmConfig = new RealmConfig(realmIdentifier, Settings.builder()
-            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 1)
-            .build(), this.env, this.threadContext);
+        final RealmConfig realmConfig = new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 1).build(),
+            this.env,
+            this.threadContext
+        );
 
         final TestThreadPool testThreadPool = new TestThreadPool("Async Reload");
         try {

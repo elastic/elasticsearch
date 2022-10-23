@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
@@ -24,10 +24,9 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -36,17 +35,20 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MovFnAggrgatorTests extends AggregatorTestCase {
+public class MovFnAggregatorTests extends AggregatorTestCase {
 
     private static final String DATE_FIELD = "date";
     private static final String INSTANT_FIELD = "instant";
@@ -69,14 +71,44 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
 
     @Override
     protected ScriptService getMockScriptService() {
-        MockScriptEngine scriptEngine = new MockScriptEngine(
-            MockScriptEngine.NAME,
-            Collections.singletonMap("test", script -> MovingFunctions.max((double[]) script.get("_values"))),
-            Collections.emptyMap()
-        );
+        ScriptEngine scriptEngine = new ScriptEngine() {
+            @Override
+            public String getType() {
+                return "test";
+            }
+
+            @Override
+            public <FactoryType> FactoryType compile(
+                String name,
+                String code,
+                ScriptContext<FactoryType> context,
+                Map<String, String> params
+            ) {
+                if (getSupportedContexts().contains(context) == false) {
+                    return null;
+                }
+                MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
+                    @Override
+                    public double execute(Map<String, Object> params, double[] values) {
+                        return MovingFunctions.max(values);
+                    }
+                };
+                return context.factoryClazz.cast(factory);
+            }
+
+            @Override
+            public Set<ScriptContext<?>> getSupportedContexts() {
+                return Set.of(MovingFunctionScript.CONTEXT);
+            }
+        };
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            Map.of(MovingFunctionScript.CONTEXT.name, MovingFunctionScript.CONTEXT),
+            () -> 1L
+        );
     }
 
     public void testMatchAllDocs() throws IOException {
@@ -94,7 +126,7 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
     }
 
     private void check(int shift, int window, List<Double> expected) throws IOException {
-        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "test", Collections.emptyMap());
+        Script script = new Script(ScriptType.INLINE, "test", "test", Collections.emptyMap());
         MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, window);
         builder.setShift(shift);
 

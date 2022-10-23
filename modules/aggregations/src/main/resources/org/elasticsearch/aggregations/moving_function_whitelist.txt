@@ -6,7 +6,7 @@
 # Side Public License, v 1.
 #
 
-# This file contains a whitelist for the Moving Function pipeline aggregator in core
+# This file contains a allowlist for the Moving Function pipeline aggregator
 
 class org.elasticsearch.search.aggregations.pipeline.MovingFunctions {
   double max(double[])

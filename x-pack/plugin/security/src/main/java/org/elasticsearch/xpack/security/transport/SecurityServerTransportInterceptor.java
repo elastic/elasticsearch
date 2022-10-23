@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -93,12 +95,18 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
                 if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                    // TODO Use these values to create the RCS 2.0 TransportRequest header
-                    if (logger.isTraceEnabled()) {
-                        final String clusterAlias = connection.getNode().getId();
-                        final String ccxApiKey = crossClusterSecurity.getApiKey(clusterAlias);
-                        // TODO Remove API Key from log message
-                        logger.trace("clusterAlias: [{}], ccxApiKey: [{}]", clusterAlias, ccxApiKey);
+                    final DiscoveryNode discoveryNode = connection.getNode();
+                    if ((discoveryNode != null) && (discoveryNode.isRemoteClusterClient())) {
+                        // See ProxyConnectionStrategy: String id = clusterAlias + "#" + resolved;
+                        // TBD SniffConnectionStrategy: Does id contain clusterAlias prefix too?
+                        final String nodeId = discoveryNode.getId(); // TODO DiscoveryNode.getRemoteClusterAlias()
+                        if (Strings.isEmpty(nodeId) == false) {
+                            final String clusterAlias = nodeId.contains("#") ? nodeId.substring(0, nodeId.indexOf("#")) : nodeId;
+                            logger.info("nodeId: [{}], clusterAlias: [{}]", nodeId, clusterAlias);
+                            // TODO Remove this log message containing API Key
+                            final String ccxApiKey = crossClusterSecurity.getApiKey(clusterAlias);
+                            logger.info("nodeId: [{}], clusterAlias: [{}], ccxApiKey: [{}]", nodeId, clusterAlias, ccxApiKey);
+                        }
                     }
                 }
 

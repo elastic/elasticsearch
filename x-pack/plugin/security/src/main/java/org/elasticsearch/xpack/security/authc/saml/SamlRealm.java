@@ -345,16 +345,16 @@ public final class SamlRealm extends Realm implements Releasable {
                 final Set<PublicKey> newPublicKeys = newCredentials.stream().map(cert -> cert.getPublicKey()).collect(Collectors.toSet());
                 final Set<PublicKey> previousPublicKeys = previousCredentialsRef.get();
                 if (previousPublicKeys == null) {
-                    LOGGER.info("Signing credentials initialized, added: [{}]", newCredentials.size());
+                    LOGGER.trace("Signing credentials initialized, added: [{}]", newCredentials.size());
                 } else {
                     final List<PublicKey> added = new ArrayList<>(newPublicKeys);
                     added.removeAll(previousPublicKeys);
                     final List<PublicKey> removed = new ArrayList<>(previousPublicKeys);
                     removed.removeAll(newPublicKeys);
                     if (added.isEmpty() && removed.isEmpty()) {
-                        LOGGER.info("Signing credentials did not change, current: [{}]", newCredentials.size());
+                        LOGGER.debug("Signing credentials did not change, current: [{}]", newCredentials.size());
                     } else {
-                        LOGGER.info("Signing credentials changed, added: [{}], removed: [{}]", added.size(), removed.size());
+                        LOGGER.warn("Signing credentials changed, added: [{}], removed: [{}]", added.size(), removed.size());
                     }
                 }
                 previousCredentialsRef.set(newPublicKeys);

@@ -77,10 +77,10 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         params = new TaskParams(
             params.getModelId(),
             params.getModelBytes(),
-            numberOfAllocations,
             params.getThreadsPerAllocation(),
+            numberOfAllocations,
             params.getQueueCapacity(),
-            null
+            params.getCacheSize().orElse(null)
         );
     }
 

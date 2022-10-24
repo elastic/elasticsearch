@@ -150,12 +150,12 @@ end::dest[]
 tag::dest-index[]
 The _destination index_ for the {transform}.
 
-In case of a `pivot` transform, the mappings of the destination
+In the case of a `pivot` transform, the mappings of the destination
 index are deduced based on the source fields when possible. If alternate
 mappings are required, use the <<indices-create-index,Create index API>>
 prior to starting the {transform}.
 
-In case of a `latest` transform, the mappings are never deduced. If dynamic
+In the case of a `latest` transform, the mappings are never deduced. If dynamic
 mappings for the destination index are undesirable, use the
 <<indices-create-index,Create index API>> prior to starting the {transform}.
 end::dest-index[]

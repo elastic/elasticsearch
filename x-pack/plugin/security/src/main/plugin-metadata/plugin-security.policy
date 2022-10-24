@@ -46,14 +46,16 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };
 
-grant codeBase "${codebase.nimbus-jose-jwt}" {
+grant codeBase "${codebase.nimbus-jose-jwt-9.25.4.jar}" {
   // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.oauth2-oidc-sdk}" {
+grant codeBase "${codebase.oauth2-oidc-sdk-9.43.1.jar}" {
   // needed for com.nimbusds.oauth2.sdk.id.Identifier#value
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 

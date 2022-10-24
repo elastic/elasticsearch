@@ -153,19 +153,19 @@ public class CompositeRolesStore {
         }
         this.negativeLookupCache = nlcBuilder.build();
         this.restrictedIndices = restrictedIndices;
-        this.superuserRole = Role.fromRoleDescriptor(
+        this.superuserRole = Role.buildFromRoleDescriptor(
             ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
             fieldPermissionsCache,
             this.restrictedIndices
         );
-        this.xpackSecurityRole = Role.fromRoleDescriptor(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
-        this.securityProfileRole = Role.fromRoleDescriptor(
+        this.xpackSecurityRole = Role.buildFromRoleDescriptor(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
+        this.securityProfileRole = Role.buildFromRoleDescriptor(
             SecurityProfileUser.ROLE_DESCRIPTOR,
             fieldPermissionsCache,
             this.restrictedIndices
         );
-        this.xpackUserRole = Role.fromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
-        this.asyncSearchUserRole = Role.fromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
+        this.xpackUserRole = Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
+        this.asyncSearchUserRole = Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
 
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,

@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -341,11 +342,12 @@ public interface Role {
         }
     }
 
-    static SimpleRole fromRoleDescriptor(
+    static SimpleRole buildFromRoleDescriptor(
         final RoleDescriptor roleDescriptor,
         final FieldPermissionsCache fieldPermissionsCache,
         final RestrictedIndices restrictedIndices
     ) {
+        Objects.requireNonNull(fieldPermissionsCache);
         // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
         // using this builder
         assert false == roleDescriptor.hasRemoteIndicesPrivileges();
@@ -354,15 +356,10 @@ public interface Role {
             Arrays.asList(roleDescriptor.getConditionalClusterPrivileges())
         );
         for (RoleDescriptor.IndicesPrivileges privilege : roleDescriptor.getIndicesPrivileges()) {
-            final FieldPermissionsDefinition fieldPermissionsDefinition = new FieldPermissionsDefinition(
-                privilege.getGrantedFields(),
-                privilege.getDeniedFields()
-            );
-            final FieldPermissions fieldPermissions = fieldPermissionsCache == null
-                ? new FieldPermissions(fieldPermissionsDefinition)
-                : fieldPermissionsCache.getFieldPermissions(fieldPermissionsDefinition);
             builder.add(
-                fieldPermissions,
+                fieldPermissionsCache.getFieldPermissions(
+                    new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                ),
                 privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery()),
                 IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
                 privilege.allowRestrictedIndices(),

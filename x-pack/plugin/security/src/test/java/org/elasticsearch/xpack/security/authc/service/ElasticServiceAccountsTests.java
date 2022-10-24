@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -146,9 +148,9 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticFleetServerPrivileges() {
-        final Role role = (SimpleRole) Role.fromRoleDescriptor(
+        final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
-            null,
+            new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
         );
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
@@ -306,9 +308,9 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticEnterpriseSearchServerAccount() {
-        final Role role = (SimpleRole) Role.fromRoleDescriptor(
+        final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
-            null,
+            new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
         );
 

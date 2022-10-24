@@ -28,9 +28,9 @@ public class SimpleRoleTests extends ESTestCase {
     }
 
     public void testHasPrivilegesCache() throws ExecutionException {
-        final SimpleRole role = Role.fromRoleDescriptor(
+        final SimpleRole role = Role.buildFromRoleDescriptor(
             new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "monitor" }, null, null),
-            null,
+            new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
         );
 

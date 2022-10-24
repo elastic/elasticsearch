@@ -59,7 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
@@ -1223,9 +1223,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    queryBuilder = parseInnerQueryBuilder(parser);
+                    queryBuilder = parseTopLevelQuery(parser);
                 } else if (POST_FILTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    postQueryBuilder = parseInnerQueryBuilder(parser);
+                    postQueryBuilder = parseTopLevelQuery(parser);
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnSearch = KnnSearchBuilder.fromXContent(parser);
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

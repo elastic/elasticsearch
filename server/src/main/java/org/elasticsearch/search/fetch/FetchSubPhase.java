@@ -12,7 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 
@@ -25,14 +25,13 @@ public interface FetchSubPhase {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;
         private final int docId;
-        private SourceLookup sourceLookup;
+        private final Source source;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId, Source source) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
-            sourceLookup.setSegmentAndDocument(context, docId);
+            this.source = source;
         }
 
         public SearchHit hit() {
@@ -61,12 +60,8 @@ public interface FetchSubPhase {
          * In most cases, the hit document's source is loaded eagerly at the start of the
          * {@link FetchPhase}. This lookup will contain the preloaded source.
          */
-        public SourceLookup sourceLookup() {
-            return sourceLookup;
-        }
-
-        public void setSourceLookup(SourceLookup sourceLookup) {
-            this.sourceLookup = sourceLookup;
+        public Source source() {
+            return source;
         }
 
         public IndexReader topLevelReader() {

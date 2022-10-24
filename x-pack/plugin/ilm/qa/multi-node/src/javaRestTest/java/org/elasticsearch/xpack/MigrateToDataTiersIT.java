@@ -130,13 +130,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).phase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
 
         // let's also have a policy that doesn't need migrating
         String rolloverOnlyPolicyName = "rollover-policy";
@@ -410,13 +406,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).phase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
 
         String indexWithDataWarmRouting = "indexwithdatawarmrouting";
         Settings.Builder settings = Settings.builder()

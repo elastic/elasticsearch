@@ -20,7 +20,6 @@ import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-public class SourceLookup implements Map<String, Object> {
+public class SourceLookup implements Source, Map<String, Object> {
     private SourceProvider sourceProvider;
 
     private int docId = -1;
@@ -40,6 +39,7 @@ public class SourceLookup implements Map<String, Object> {
         this.sourceProvider = sourceProvider;
     }
 
+    @Override
     public XContentType sourceContentType() {
         return sourceProvider.sourceContentType();
     }
@@ -48,16 +48,7 @@ public class SourceLookup implements Map<String, Object> {
         return docId;
     }
 
-    /**
-     * Return the source as a map that will be unchanged when the lookup
-     * moves to a different document.
-     * <p>
-     * Important: This can lose precision on numbers with a decimal point. It
-     * converts numbers like {@code "n": 1234.567} to a {@code double} which
-     * only has 52 bits of precision in the mantissa. This will come up most
-     * frequently when folks write nanosecond precision dates as a decimal
-     * number.
-     */
+    @Override
     public Map<String, Object> source() {
         return sourceProvider.source();
     }
@@ -74,6 +65,7 @@ public class SourceLookup implements Map<String, Object> {
     /**
      * Internal source representation, might be compressed....
      */
+    @Override
     public BytesReference internalSourceRef() {
         return sourceProvider.sourceAsBytes();
     }
@@ -101,25 +93,6 @@ public class SourceLookup implements Map<String, Object> {
      */
     public List<Object> extractRawValuesWithoutCaching(String path) {
         return sourceProvider.extractRawValuesWithoutCaching(path);
-    }
-
-    /**
-     * For the provided path, return its value in the source.
-     *
-     * Both array and object values can be returned.
-     *
-     * @param path the value's path in the source.
-     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
-     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
-     *
-     * @return the value associated with the path in the source or 'null' if the path does not exist.
-     */
-    public Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, source(), nullValue);
-    }
-
-    public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(source());
     }
 
     private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {

@@ -70,10 +70,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     // Impacts of having an unstable master:
     private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
         + "insert or update documents.";
-    private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not "
-        + "work. The _cat APIs will not work.";
-    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work. Searchable snapshots cannot be "
-        + "mounted.";
+    private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, Index Lifecycle "
+        + "Management, and Snapshot Lifecycle Management will not work. The _cat APIs will not work.";
+    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work, your data will not be backed up. "
+        + "Searchable snapshots cannot be mounted.";
 
     /**
      * This is the list of the impacts to be reported when the master node is determined to be unstable.

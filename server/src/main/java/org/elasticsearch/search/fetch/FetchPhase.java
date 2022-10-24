@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -42,6 +41,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -292,7 +293,8 @@ public class FetchPhase {
 
         if (leafStoredFieldLoader.id() == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
-            return new HitContext(hit, subReaderContext, subDocId);
+            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
+            return new HitContext(hit, subReaderContext, subDocId, source);
         } else {
             SearchHit hit;
             if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
@@ -304,30 +306,35 @@ public class FetchPhase {
                 hit = new SearchHit(docId, leafStoredFieldLoader.id(), emptyMap(), emptyMap());
             }
 
-            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId);
-            BytesReference source;
+            Source source;
             if (sourceRequired(context)) {
                 try {
                     profiler.startLoadingSource();
-                    source = sourceLoader.source(leafStoredFieldLoader, subDocId);
+                    source = Source.fromBytes(sourceLoader.source(leafStoredFieldLoader, subDocId));
+                    SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
+                    scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
+                    scriptSourceLookup.setSourceProvider(new SourceLookup.BytesSourceProvider(source.internalSourceRef()));
                 } finally {
                     profiler.stopLoadingSource();
                 }
             } else {
-                source = null;
+                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
-            if (source != null) {
-                // Store the loaded source on the hit context so that fetch subphases can access it.
-                // Also make it available to scripts by storing it on the shared SearchLookup instance.
-                SourceLookup.BytesSourceProvider sourceBytes = new SourceLookup.BytesSourceProvider(source);
-                hitContext.setSourceLookup(new SourceLookup(sourceBytes));
-
-                SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
-                scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
-                scriptSourceLookup.setSourceProvider(sourceBytes);
-            }
-            return hitContext;
+            return new HitContext(hit, subReaderContext, subDocId, source);
         }
+    }
+
+    private static Supplier<Source> lazyStoredSourceLoader(Profiler profiler, LeafReaderContext ctx, int doc) {
+        return () -> {
+            StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
+            LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
+            try {
+                leafRootLoader.advanceTo(doc);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return Source.fromBytes(leafRootLoader.source());
+        };
     }
 
     /**
@@ -396,7 +403,6 @@ public class FetchPhase {
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
 
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
-        HitContext hitContext = new HitContext(hit, subReaderContext, nestedInfo.doc());
 
         if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
@@ -421,10 +427,9 @@ public class FetchPhase {
                     current = next;
                 }
             }
-
-            hitContext.setSourceLookup(new SourceLookup(new SourceLookup.MapSourceProvider(nestedSourceAsMap, rootSourceContentType)));
+            return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.fromMap(nestedSourceAsMap, rootSourceContentType));
         }
-        return hitContext;
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.EMPTY);
     }
 
     public static List<Object> processStoredField(Function<String, MappedFieldType> fieldTypeLookup, String field, List<Object> input) {

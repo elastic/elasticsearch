@@ -158,14 +158,22 @@ public class CompositeRolesStore {
             fieldPermissionsCache,
             this.restrictedIndices
         );
-        this.xpackSecurityRole = Role.buildFromRoleDescriptor(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
+        this.xpackSecurityRole = Role.buildFromRoleDescriptor(
+            XPackSecurityUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
         this.securityProfileRole = Role.buildFromRoleDescriptor(
             SecurityProfileUser.ROLE_DESCRIPTOR,
             fieldPermissionsCache,
             this.restrictedIndices
         );
         this.xpackUserRole = Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
-        this.asyncSearchUserRole = Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
+        this.asyncSearchUserRole = Role.buildFromRoleDescriptor(
+            AsyncSearchUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
 
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,

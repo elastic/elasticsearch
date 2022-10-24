@@ -455,9 +455,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
             assertFalse(
                 "no cluster permission should be authorized",
-                Role.buildFromRoleDescriptor(getRolesResponse.roles()[0], new FieldPermissionsCache(Settings.EMPTY), EMPTY_RESTRICTED_INDICES)
-                    .cluster()
-                    .check("cluster:admin/bar", request, authentication)
+                Role.buildFromRoleDescriptor(
+                    getRolesResponse.roles()[0],
+                    new FieldPermissionsCache(Settings.EMPTY),
+                    EMPTY_RESTRICTED_INDICES
+                ).cluster().check("cluster:admin/bar", request, authentication)
             );
         }
     }

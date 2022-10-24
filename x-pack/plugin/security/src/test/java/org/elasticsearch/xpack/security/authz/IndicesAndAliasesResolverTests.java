@@ -364,7 +364,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 return Void.TYPE;
             }
             if (AsyncSearchUser.is(user)) {
-                listener.onResponse(Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES));
+                listener.onResponse(
+                    Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
+                );
                 return Void.TYPE;
             }
 

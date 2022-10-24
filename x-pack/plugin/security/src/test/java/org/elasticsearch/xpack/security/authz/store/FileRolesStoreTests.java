@@ -443,7 +443,11 @@ public class FileRolesStoreTests extends ESTestCase {
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
-            Role role = Role.buildFromRoleDescriptor(descriptors.iterator().next(), new FieldPermissionsCache(Settings.EMPTY), restrictedIndices);
+            Role role = Role.buildFromRoleDescriptor(
+                descriptors.iterator().next(),
+                new FieldPermissionsCache(Settings.EMPTY),
+                restrictedIndices
+            );
             assertThat(role, notNullValue());
             assertThat(role.names(), equalTo(new String[] { "role5" }));
             assertThat(role.cluster().check("cluster:monitor/foo/bar", request, authentication), is(true));

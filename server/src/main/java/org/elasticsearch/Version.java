@@ -164,12 +164,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             : "Version must be upgraded to [" + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
         assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
             : "RestApiVersion must be upgraded "
-            + "to reflect major from Version.CURRENT ["
-            + CURRENT.major
-            + "]"
-            + " but is still set to ["
-            + RestApiVersion.current().major
-            + "]";
+                + "to reflect major from Version.CURRENT ["
+                + CURRENT.major
+                + "]"
+                + " but is still set to ["
+                + RestApiVersion.current().major
+                + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
         idToVersion = Map.copyOf(builder);

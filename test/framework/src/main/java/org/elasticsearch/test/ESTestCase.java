@@ -1897,10 +1897,8 @@ public abstract class ESTestCase extends LuceneTestCase {
             final String providerName = provider.getName();
             final Logger logger = LogManager.getLogger(ESTestCase.class);
             logger.warn(
-                "Returning non-deterministic FIPS SecureRandom alg=DEFAULT. "
-                    + "Reason is provider [{}] key-gen requires FIPS SecureRandom like DEFAULT, and rejects non-FIPS like SHA1PRNG. "
-                    + "Use secureRandomNonFips() directly to get a deterministic non-FIPS alg=SHA1PRNG in needed in FIPS mode.",
-                providerName
+                "Returning a non-deterministic secureRandom for use with FIPS."
+                    + "This may result in difficulty reproducing test failures with from a given a seed."
             );
         }
         secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic

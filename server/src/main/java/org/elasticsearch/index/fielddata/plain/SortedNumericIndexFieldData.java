@@ -13,7 +13,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -30,8 +29,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -231,11 +228,6 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
         }
 
         @Override

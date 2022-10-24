@@ -1620,11 +1620,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME))
-        );
-        assertEquals("no such index [" + expectedIndex + "]", e.getMessage());
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
+        assertThat(indices, contains(expectedIndex));
     }
 
     public void testResolveDateMathExpression() {
@@ -1673,11 +1670,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME))
-        );
-        assertEquals("no such index [" + expectedIndex + "]", e.getMessage());
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
+        assertThat(indices, contains(expectedIndex));
     }
 
     public void testAliasDateMathExpressionNotSupported() {

@@ -319,15 +319,16 @@ public interface Role {
         final FieldPermissionsCache fieldPermissionsCache,
         final RestrictedIndices restrictedIndices
     ) {
-        Objects.requireNonNull(fieldPermissionsCache);
         // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
         // using this builder
         assert false == roleDescriptor.hasRemoteIndicesPrivileges();
-        final var builder = new Builder(restrictedIndices, new String[] { roleDescriptor.getName() });
+        final var builder = builder(restrictedIndices, roleDescriptor.getName());
+
         builder.cluster(
             Sets.newHashSet(roleDescriptor.getClusterPrivileges()),
             Arrays.asList(roleDescriptor.getConditionalClusterPrivileges())
         );
+
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
             builder.add(
                 fieldPermissionsCache.getFieldPermissions(
@@ -340,8 +341,7 @@ public interface Role {
             );
         }
 
-        final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = roleDescriptor.getApplicationPrivileges();
-        for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
+        for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : roleDescriptor.getApplicationPrivileges()) {
             builder.addApplicationPrivilege(
                 new ApplicationPrivilege(
                     applicationPrivilege.getApplication(),
@@ -351,10 +351,12 @@ public interface Role {
                 Sets.newHashSet(applicationPrivilege.getResources())
             );
         }
+
         final String[] rdRunAs = roleDescriptor.getRunAs();
         if (rdRunAs != null && rdRunAs.length > 0) {
             builder.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
         }
+
         return builder.build();
     }
 }

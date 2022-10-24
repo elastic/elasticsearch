@@ -2419,7 +2419,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        // return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return true; // TODO: DO NOT COMMIT !!
     }
 
     protected void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {

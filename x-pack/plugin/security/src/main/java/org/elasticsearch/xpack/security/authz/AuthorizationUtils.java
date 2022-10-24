@@ -199,7 +199,7 @@ public final class AuthorizationUtils {
 
     public static boolean shouldPreAuthorizeChildAction(final String parent, final String child) {
         final Set<String> children = PRE_AUTHORIZED_CHILD_ACTIONS.get(parent);
-        return children != null && children.contains(child);
+        return children != null && (parent.equals(child) || children.contains(child));
     }
 
     public static void maybePreAuthorizeChildAction(

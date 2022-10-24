@@ -123,7 +123,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_4_2 = new Version(8_04_02_99, org.apache.lucene.util.Version.LUCENE_9_3_0);
     public static final Version V_8_4_3 = new Version(8_04_03_99, org.apache.lucene.util.Version.LUCENE_9_3_0);
     public static final Version V_8_4_4 = new Version(8_04_04_99, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version V_8_5_0 = new Version(8_05_00_99, org.apache.lucene.util.Version.LUCENE_9_4_0);
+    public static final Version V_8_5_0 = new Version(8_05_00_99, org.apache.lucene.util.Version.LUCENE_9_4_1);
     public static final Version CURRENT = V_8_5_0;
 
     private static final Map<Integer, Version> idToVersion;
@@ -164,12 +164,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             : "Version must be upgraded to [" + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
         assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
             : "RestApiVersion must be upgraded "
-                + "to reflect major from Version.CURRENT ["
-                + CURRENT.major
-                + "]"
-                + " but is still set to ["
-                + RestApiVersion.current().major
-                + "]";
+            + "to reflect major from Version.CURRENT ["
+            + CURRENT.major
+            + "]"
+            + " but is still set to ["
+            + RestApiVersion.current().major
+            + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
         idToVersion = Map.copyOf(builder);

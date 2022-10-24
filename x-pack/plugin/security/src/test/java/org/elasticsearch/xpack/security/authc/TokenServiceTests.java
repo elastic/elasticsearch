@@ -1050,7 +1050,7 @@ public class TokenServiceTests extends ESTestCase {
         assertEquals(expected.getUser(), result.getUser());
         assertEquals(expected.getAuthenticatedBy(), result.getAuthenticatedBy());
         assertEquals(expected.getLookedUpBy(), result.getLookedUpBy());
-        assertEquals(expected.getMetadata(), result.getMetadata());
+        assertEquals(expected.getAuthenticatingSubject().getMetadata(), result.getAuthenticatingSubject().getMetadata());
     }
 
     private DiscoveryNode addAnotherDataNodeWithVersion(ClusterService clusterService, Version version) {

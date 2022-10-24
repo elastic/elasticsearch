@@ -69,7 +69,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
         if (authentication != null) {
             if (authentication.isApiKey()) {
-                final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                final String apiKeyId = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_ID_KEY);
                 assert apiKeyId != null : "api key id must be present in the metadata";
                 finalQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyId));
             } else {

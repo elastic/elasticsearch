@@ -1608,8 +1608,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey()) {
-                logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-                String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+                logEntry.with(
+                    API_KEY_ID_FIELD_NAME,
+                    (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                );
+                String apiKeyName = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
                     logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
@@ -1644,10 +1649,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             // TODO: service token info is logged in a separate authentication field (#84394)
             if (authentication.isAuthenticatedWithServiceAccount()) {
-                logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
+                logEntry.with(
+                    SERVICE_TOKEN_NAME_FIELD_NAME,
+                    (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
+                )
                     .with(
                         SERVICE_TOKEN_TYPE_FIELD_NAME,
-                        ServiceAccountSettings.REALM_TYPE + "_" + authentication.getMetadata().get(TOKEN_SOURCE_FIELD)
+                        ServiceAccountSettings.REALM_TYPE
+                            + "_"
+                            + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                     );
             }
             return this;

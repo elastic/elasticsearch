@@ -122,16 +122,18 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.net.SocketPermission "*", "accept,connect";
 };
 
-grant codeBase "${codebase.nimbus-jose-jwt-9.25.4.jar}" {
+//grant codeBase "${codebase.nimbus-jose-jwt-9.25.4.jar}" {
+grant {
   // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.oauth2-oidc-sdk-9.43.1.jar}" {
+//grant codeBase "${codebase.oauth2-oidc-sdk-9.43.1.jar}" {
+grant {
   // needed for com.nimbusds.oauth2.sdk.id.Identifier#value
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
+//  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 grant {

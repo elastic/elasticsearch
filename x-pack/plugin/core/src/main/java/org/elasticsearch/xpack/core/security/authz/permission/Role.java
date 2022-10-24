@@ -312,34 +312,6 @@ public interface Role {
                 this.indices = indices;
             }
         }
-
-        static List<IndicesPermissionGroupDefinition> convertFromIndicesPrivileges(
-            RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
-            @Nullable FieldPermissionsCache fieldPermissionsCache
-        ) {
-            List<IndicesPermissionGroupDefinition> list = new ArrayList<>(indicesPrivileges.length);
-            for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
-                final FieldPermissions fieldPermissions;
-                if (fieldPermissionsCache != null) {
-                    fieldPermissions = fieldPermissionsCache.getFieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields());
-                } else {
-                    fieldPermissions = new FieldPermissions(
-                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
-                    );
-                }
-                final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                list.add(
-                    new IndicesPermissionGroupDefinition(
-                        IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                        fieldPermissions,
-                        query,
-                        privilege.allowRestrictedIndices(),
-                        privilege.getIndices()
-                    )
-                );
-            }
-            return list;
-        }
     }
 
     static SimpleRole buildFromRoleDescriptor(
@@ -351,19 +323,20 @@ public interface Role {
         // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
         // using this builder
         assert false == roleDescriptor.hasRemoteIndicesPrivileges();
-        final Builder builder = new Builder(restrictedIndices, new String[] { roleDescriptor.getName() }).cluster(
+        final var builder = new Builder(restrictedIndices, new String[] { roleDescriptor.getName() });
+        builder.cluster(
             Sets.newHashSet(roleDescriptor.getClusterPrivileges()),
             Arrays.asList(roleDescriptor.getConditionalClusterPrivileges())
         );
-        for (RoleDescriptor.IndicesPrivileges privilege : roleDescriptor.getIndicesPrivileges()) {
+        for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
             builder.add(
                 fieldPermissionsCache.getFieldPermissions(
-                    new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                    new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
                 ),
-                privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery()),
-                IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                privilege.allowRestrictedIndices(),
-                privilege.getIndices()
+                indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                indexPrivilege.allowRestrictedIndices(),
+                indexPrivilege.getIndices()
             );
         }
 
@@ -384,5 +357,4 @@ public interface Role {
         }
         return builder.build();
     }
-
 }

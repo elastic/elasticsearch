@@ -1833,7 +1833,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG instance seeded by deterministic LuceneTestCase.random().
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
      * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by deterministic LuceneTestCase.random().
      * @return SecureRandom SHA1PRNG instance.
      * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
@@ -1844,7 +1844,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG instance seeded by the input value.
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by the input value.
      * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by the input value.
      * @param seed Byte array to use for seeding the SecureRandom instance.
      * @return SecureRandom SHA1PRNG or DEFAULT/BCFIPS instance, depending on FIPS mode.
@@ -1852,24 +1852,58 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @throws NoSuchProviderException BCFIPS algorithm not found.
      */
     public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException, NoSuchProviderException {
-        final SecureRandom secureRandom = inFipsJvm() ? secureRandomFips() : secureRandomNonFips();
-        secureRandom.setSeed(seed);
-        return secureRandom;
+        return inFipsJvm() ? secureRandomFips(seed) : secureRandomNonFips(seed);
     }
 
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips() throws NoSuchAlgorithmException {
+        return secureRandomNonFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
     protected static SecureRandom secureRandomFips() throws NoSuchAlgorithmException {
-        final SecureRandom secureRandomFips = SecureRandom.getInstance("DEFAULT");
+        return secureRandomFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomNonFips = SecureRandom.getInstance("SHA1PRNG"); // SHA1PRNG/SUN
+        secureRandomNonFips.setSeed(seed); // SHA1PRNG/SUN setSeed() is deterministic
+        return secureRandomNonFips;
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
+    protected static SecureRandom secureRandomFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomFips = SecureRandom.getInstance("DEFAULT"); // DEFAULT/BCFIPS
         if (WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.get() == null) {
             WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.set(Boolean.TRUE);
             final Provider provider = secureRandomFips.getProvider();
             final String providerName = provider.getName();
             final Logger logger = LogManager.getLogger(ESTestCase.class);
-            logger.warn("FIPS provider [{}] does not support deterministic SHA1PRNG, but FIPS key-gen rejects it", providerName);
+            logger.warn(
+                "Returning non-deterministic FIPS SecureRandom alg=DEFAULT. "
+                    + "Reason is provider [{}] key-gen requires FIPS SecureRandom like DEFAULT, and rejects non-FIPS like SHA1PRNG. "
+                    + "Use secureRandomNonFips() directly to get a deterministic non-FIPS alg=SHA1PRNG in needed in FIPS mode.",
+                providerName
+            );
         }
+        secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
         return secureRandomFips;
-    }
-
-    protected static SecureRandom secureRandomNonFips() throws NoSuchAlgorithmException {
-        return SecureRandom.getInstance("SHA1PRNG");
     }
 }

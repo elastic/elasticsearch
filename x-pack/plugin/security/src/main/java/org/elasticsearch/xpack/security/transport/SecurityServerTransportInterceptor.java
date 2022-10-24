@@ -11,8 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -22,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -93,22 +90,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
-
-                if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                    final DiscoveryNode discoveryNode = connection.getNode();
-                    if ((discoveryNode != null) && (discoveryNode.isRemoteClusterClient())) {
-                        // See ProxyConnectionStrategy: String id = clusterAlias + "#" + resolved;
-                        // TBD SniffConnectionStrategy: Does id contain clusterAlias prefix too?
-                        final String nodeId = discoveryNode.getId(); // TODO DiscoveryNode.getRemoteClusterAlias()
-                        if (Strings.isEmpty(nodeId) == false) {
-                            final String clusterAlias = nodeId.contains("#") ? nodeId.substring(0, nodeId.indexOf("#")) : nodeId;
-                            logger.info("nodeId: [{}], clusterAlias: [{}]", nodeId, clusterAlias);
-                            // TODO Remove this log message containing API Key
-                            final String ccxApiKey = crossClusterSecurity.getApiKey(clusterAlias);
-                            logger.info("nodeId: [{}], clusterAlias: [{}], ccxApiKey: [{}]", nodeId, clusterAlias, ccxApiKey);
-                        }
-                    }
-                }
 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user

@@ -21,7 +21,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.security.Key;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,12 +36,16 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import javax.crypto.KeyGenerator;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assume.assumeThat;
 
 public class ESTestCaseTests extends ESTestCase {
 
@@ -231,7 +237,8 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(ae.getMessage(), containsString("Remove call of skipTestWaitingForLuceneFix"));
     }
 
-    public void testSecureRandom() throws NoSuchAlgorithmException {
+    public void testSecureRandom() throws NoSuchAlgorithmException, NoSuchProviderException {
+        assumeThat(ESTestCase.inFipsJvm(), is(false));
         final int numInstances = 2;
         final int numTries = 3;
         for (int numInstance = 0; numInstance < numInstances; numInstance++) {
@@ -255,6 +262,40 @@ public class ESTestCaseTests extends ESTestCase {
                 secureRandom1.nextBytes(randomBytes1);
                 secureRandom2.nextBytes(randomBytes2);
                 assertThat(randomBytes1, is(equalTo(randomBytes2)));
+            }
+        }
+    }
+
+    public void testSecureRandomKeyGen() throws NoSuchAlgorithmException, NoSuchProviderException, ClassNotFoundException {
+        if (ESTestCase.inFipsJvm()) {
+            { // non-FIPS SecureRandom => FIPS KeyGenerator => Fails
+                final Exception e = expectThrows(Exception.class, () -> {
+                    final SecureRandom secureRandomNonFips = secureRandomNonFips();
+                    KeyGenerator keyGeneratorFips = KeyGenerator.getInstance("AES", "BCFIPS");
+                    try {
+                        keyGeneratorFips.init(256, secureRandomNonFips); // FAIL
+                    } catch (Throwable t) {
+                        throw new Exception(t); // wrap Throwable, expectThrows can only catch Exception (FipsUnapprovedOperationError)
+                    }
+                });
+                final Throwable t = e.getCause(); // unwrap Throwable (FipsUnapprovedOperationError)
+                assertThat(t.getClass().getCanonicalName(), is(equalTo("org.bouncycastle.crypto.fips.FipsUnapprovedOperationError")));
+                assertThat(t.getMessage(), is(equalTo("Attempt to create key with unapproved RNG: AES")));
+            }
+            { // FIPS SecureRandom => FIPS KeyGenerator => Works
+                final SecureRandom secureRandomFips = secureRandomFips();
+                KeyGenerator keyGeneratorFips = KeyGenerator.getInstance("AES", "BCFIPS");
+                keyGeneratorFips.init(256, secureRandomFips);
+                Key keyFips = keyGeneratorFips.generateKey();
+                assertThat(keyFips, is(notNullValue()));
+            }
+        } else {
+            { // non-FIPS SecureRandom => non-FIPS KeyGenerator => Works
+                final SecureRandom secureRandomNonFips = secureRandomNonFips();
+                KeyGenerator keyGeneratorNonFips = KeyGenerator.getInstance("AES");
+                keyGeneratorNonFips.init(256, secureRandomNonFips);
+                Key keyNonFips = keyGeneratorNonFips.generateKey();
+                assertThat(keyNonFips, is(notNullValue()));
             }
         }
     }

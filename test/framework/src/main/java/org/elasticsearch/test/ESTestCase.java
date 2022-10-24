@@ -130,6 +130,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -1828,23 +1829,35 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Get a deterministic SecureRandom SHA1PRNG instance seeded by deterministic LuceneTestCase.random().
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG instance seeded by deterministic LuceneTestCase.random().
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by deterministic LuceneTestCase.random().
      * @return SecureRandom SHA1PRNG instance.
-     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
      */
-    public static SecureRandom secureRandom() throws NoSuchAlgorithmException {
+    public static SecureRandom secureRandom() throws NoSuchAlgorithmException, NoSuchProviderException {
         return secureRandom(randomByteArrayOfLength(32));
     }
 
     /**
-     * Get a deterministic SecureRandom SHA1PRNG instance seeded by the input value.
-     * @param seed Byte array to use for seeding the SecureRandom SHA1PRNG instance.
-     * @return SecureRandom SHA1PRNG instance.
-     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG instance seeded by the input value.
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by the input value.
+     * @param seed Byte array to use for seeding the SecureRandom instance.
+     * @return SecureRandom SHA1PRNG or DEFAULT/BCFIPS instance, depending on FIPS mode.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
      */
-    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException {
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException, NoSuchProviderException {
+        final SecureRandom secureRandom = inFipsJvm() ? secureRandomFips() : secureRandomNonFips();
         secureRandom.setSeed(seed);
         return secureRandom;
+    }
+
+    protected static SecureRandom secureRandomFips() throws NoSuchAlgorithmException, NoSuchProviderException {
+        return SecureRandom.getInstance("DEFAULT", "BCFIPS");
+    }
+
+    protected static SecureRandom secureRandomNonFips() throws NoSuchAlgorithmException {
+        return SecureRandom.getInstance("SHA1PRNG");
     }
 }

@@ -154,7 +154,7 @@ specifies `null` for the setting.
 
 [source,console]
 ----
-PUT _cluster/_settings
+PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.enforce_default_tier_preference": true

@@ -1702,7 +1702,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-       // return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        // return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
         return true;// TODO: DO NOT COMMIT THIS !!
     }
 

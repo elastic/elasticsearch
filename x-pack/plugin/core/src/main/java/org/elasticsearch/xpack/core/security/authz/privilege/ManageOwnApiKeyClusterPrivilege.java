@@ -142,7 +142,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 } else if (ownedByAuthenticatedUser) {
                     return true;
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
-                    if (false == username.equals(authentication.getUser().principal())) {
+                    if (false == username.equals(authentication.getEffectiveSubject().getUser().principal())) {
                         return false;
                     }
                     RealmDomain domain = authentication.getSourceRealm().getDomain();

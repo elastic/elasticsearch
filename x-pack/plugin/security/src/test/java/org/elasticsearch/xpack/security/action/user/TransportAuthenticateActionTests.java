@@ -122,7 +122,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         final AnonymousUser anonymousUser = prepareAnonymousUser();
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         final Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
-        final User effectiveUser = authentication.getUser();
+        final User effectiveUser = authentication.getEffectiveSubject().getUser();
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, effectiveUser, authentication);
 
@@ -143,10 +143,10 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         assertThat(responseRef.get(), notNullValue());
         if (anonymousUser.enabled() && false == authentication.isApiKey()) {
             final Authentication auth = responseRef.get().authentication();
-            final User userInResponse = auth.getUser();
+            final User userInResponse = auth.getEffectiveSubject().getUser();
             assertThat(
                 userInResponse.roles(),
-                arrayContainingInAnyOrder(ArrayUtils.concat(authentication.getUser().roles(), anonymousUser.roles()))
+                arrayContainingInAnyOrder(ArrayUtils.concat(authentication.getEffectiveSubject().getUser().roles(), anonymousUser.roles()))
             );
             assertThat(auth.isRunAs(), is(authentication.isRunAs()));
             if (auth.isRunAs()) {
@@ -173,7 +173,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         } else {
             authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         }
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, user, authentication);
 
@@ -194,7 +194,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         assertThat(responseRef.get(), notNullValue());
         if (anonymousUser.enabled()) {
             final Authentication auth = responseRef.get().authentication();
-            final User authUser = auth.getUser();
+            final User authUser = auth.getEffectiveSubject().getUser();
             assertThat(authUser.roles(), emptyArray());
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));

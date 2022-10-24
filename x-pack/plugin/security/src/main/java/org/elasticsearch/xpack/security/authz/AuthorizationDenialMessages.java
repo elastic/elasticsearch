@@ -42,7 +42,7 @@ class AuthorizationDenialMessages {
         String unauthorizedToRunAsMessage = "because "
             + userText
             + " is unauthorized to run as ["
-            + authentication.getUser().principal()
+            + authentication.getEffectiveSubject().getUser().principal()
             + "]";
 
         return actionIsUnauthorizedMessage
@@ -61,7 +61,7 @@ class AuthorizationDenialMessages {
         String userText = authenticatedUserDescription(authentication);
 
         if (authentication.isRunAs()) {
-            userText = userText + " run as [" + authentication.getUser().principal() + "]";
+            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
         }
 
         userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);

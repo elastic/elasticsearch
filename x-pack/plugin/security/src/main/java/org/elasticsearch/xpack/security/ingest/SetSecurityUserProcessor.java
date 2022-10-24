@@ -80,7 +80,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         if (this.securityContext != null) {
             authentication = securityContext.getAuthentication();
             if (authentication != null) {
-                user = authentication.getUser();
+                user = authentication.getEffectiveSubject().getUser();
             }
         }
 

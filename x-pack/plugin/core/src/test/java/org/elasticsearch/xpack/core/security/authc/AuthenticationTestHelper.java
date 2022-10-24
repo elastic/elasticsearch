@@ -209,7 +209,7 @@ public class AuthenticationTestHelper {
     }
 
     public static String randomInternalUsername() {
-        return builder().internal().build(false).getUser().principal();
+        return builder().internal().build(false).getEffectiveSubject().getUser().principal();
     }
 
     /**

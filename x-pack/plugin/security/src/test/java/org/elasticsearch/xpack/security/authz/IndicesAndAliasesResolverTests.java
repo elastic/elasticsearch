@@ -187,7 +187,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(
                 indexBuilder("hidden-w-aliases").settings(Settings.builder().put(settings).put("index.hidden", true).build())
                     .putAlias(AliasMetadata.builder("alias-hidden").isHidden(true).build())
+                    .putAlias(AliasMetadata.builder("alias-hidden-datemath-" + todaySuffix).isHidden(true).build())
                     .putAlias(AliasMetadata.builder(".alias-hidden").isHidden(true).build())
+                    .putAlias(AliasMetadata.builder(".alias-hidden-datemath-" + todaySuffix).isHidden(true).build())
                     .putAlias(AliasMetadata.builder("alias-visible-mixed").isHidden(false).build())
             )
             .put(
@@ -269,7 +271,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 null,
                 new IndicesPrivileges[] {
                     IndicesPrivileges.builder()
-                        .indices("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open")
+                        .indices("alias-visible", "alias-visible-mixed", "alias-hidden*", ".alias-hidden*", "hidden-open")
                         .privileges("all")
                         .build() },
                 null
@@ -1851,7 +1853,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(
             resolvedIndices.getLocal(),
-            containsInAnyOrder("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open")
+            containsInAnyOrder(
+                "alias-visible",
+                "alias-visible-mixed",
+                "alias-hidden",
+                "alias-hidden-datemath-" + todaySuffix,
+                ".alias-hidden",
+                ".alias-hidden-datemath-" + todaySuffix,
+                "hidden-open"
+            )
         );
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
@@ -1859,14 +1869,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest = new SearchRequest("alias-h*");
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden"));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden", "alias-hidden-datemath-" + todaySuffix));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Dot prefix, implicitly including hidden
         searchRequest = new SearchRequest(".a*");
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden"));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden", ".alias-hidden-datemath-" + todaySuffix));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (visible only)

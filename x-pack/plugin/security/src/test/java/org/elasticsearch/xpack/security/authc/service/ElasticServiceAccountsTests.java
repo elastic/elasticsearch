@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
@@ -145,11 +146,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticFleetServerPrivileges() {
-        final Role role = Role.builder(
+        final Role role = (SimpleRole) Role.fromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
             null,
             RESTRICTED_INDICES
-        ).build();
+        );
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         assertThat(
             role.cluster()
@@ -305,11 +306,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticEnterpriseSearchServerAccount() {
-        final Role role = Role.builder(
+        final Role role = (SimpleRole) Role.fromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
             null,
             RESTRICTED_INDICES
-        ).build();
+        );
 
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final TransportRequest request = mock(TransportRequest.class);

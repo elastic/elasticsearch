@@ -432,8 +432,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue(
                 "any cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
-                    .build()
+                Role.fromRoleDescriptor(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
                     .cluster()
                     .check("cluster:admin/foo", request, authentication)
             );
@@ -453,8 +452,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
             assertFalse(
                 "no cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
-                    .build()
+                Role.fromRoleDescriptor(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
                     .cluster()
                     .check("cluster:admin/bar", request, authentication)
             );

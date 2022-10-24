@@ -101,7 +101,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
-        Role role = Role.builder(descriptor, null, restrictedIndices).build();
+        Role role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1" }));
         assertThat(role.cluster(), notNullValue());
@@ -129,7 +129,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role1.ab");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1.ab" }));
         assertThat(role.cluster(), notNullValue());
@@ -141,7 +141,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role2");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role2" }));
         assertThat(role.cluster(), notNullValue());
@@ -152,7 +152,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role3");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role3" }));
         assertThat(role.cluster(), notNullValue());
@@ -182,7 +182,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_run_as");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as" }));
         assertThat(role.cluster(), notNullValue());
@@ -195,7 +195,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_run_as1");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as1" }));
         assertThat(role.cluster(), notNullValue());
@@ -208,7 +208,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_fields");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_fields" }));
         assertThat(role.cluster(), notNullValue());
@@ -230,7 +230,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_query");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query" }));
         assertThat(role.cluster(), notNullValue());
@@ -251,7 +251,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_query_fields");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null, restrictedIndices).build();
+        role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query_fields" }));
         assertThat(role.cluster(), notNullValue());
@@ -442,7 +442,7 @@ public class FileRolesStoreTests extends ESTestCase {
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
-            Role role = Role.builder(descriptors.iterator().next(), null, restrictedIndices).build();
+            Role role = Role.fromRoleDescriptor(descriptors.iterator().next(), null, restrictedIndices);
             assertThat(role, notNullValue());
             assertThat(role.names(), equalTo(new String[] { "role5" }));
             assertThat(role.cluster().check("cluster:monitor/foo/bar", request, authentication), is(true));
@@ -539,7 +539,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles, hasKey("valid_role"));
         RoleDescriptor descriptor = roles.get("valid_role");
         assertNotNull(descriptor);
-        Role role = Role.builder(descriptor, null, restrictedIndices).build();
+        Role role = Role.fromRoleDescriptor(descriptor, null, restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 

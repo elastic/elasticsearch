@@ -38,6 +38,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
@@ -131,6 +132,7 @@ import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -221,6 +223,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
     public static final String FIPS_SYSPROP = "tests.fips.enabled";
+
+    private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -1853,8 +1857,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return secureRandom;
     }
 
-    protected static SecureRandom secureRandomFips() throws NoSuchAlgorithmException, NoSuchProviderException {
-        return SecureRandom.getInstance("DEFAULT", "BCFIPS");
+    protected static SecureRandom secureRandomFips() throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomFips = SecureRandom.getInstance("DEFAULT");
+        if (WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.get() == null) {
+            WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.set(Boolean.TRUE);
+            final Provider provider = secureRandomFips.getProvider();
+            final String providerName = provider.getName();
+            final Logger logger = LogManager.getLogger(ESTestCase.class);
+            logger.warn("FIPS provider [{}] does not support deterministic SHA1PRNG, but FIPS key-gen rejects it", providerName);
+        }
+        return secureRandomFips;
     }
 
     protected static SecureRandom secureRandomNonFips() throws NoSuchAlgorithmException {

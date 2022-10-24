@@ -158,8 +158,6 @@ In case of a `latest` transform, the mappings are never deduced. If dynamic
 mappings for the destination index are undesirable, use the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
 prior to starting the {transform}.
-
-
 end::dest-index[]
 
 tag::dest-pipeline[]

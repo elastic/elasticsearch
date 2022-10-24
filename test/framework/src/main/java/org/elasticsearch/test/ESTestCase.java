@@ -1897,7 +1897,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final String providerName = provider.getName();
             final Logger logger = LogManager.getLogger(ESTestCase.class);
             logger.warn(
-                "Returning a non-deterministic secureRandom for use with FIPS."
+                "Returning a non-deterministic secureRandom for use with FIPS. "
                     + "This may result in difficulty reproducing test failures with from a given a seed."
             );
         }

@@ -161,7 +161,7 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(original.getUser(), authentication.getUser());
             assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
             assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
-            assertEquals(VersionUtils.getPreviousVersion(), authentication.getVersion());
+            assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getVersion());
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
             // Other request headers should be preserved

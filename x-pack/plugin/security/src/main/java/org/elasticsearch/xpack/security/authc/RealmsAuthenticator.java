@@ -279,7 +279,11 @@ class RealmsAuthenticator implements Authenticator {
         assert authentication.getLookedUpBy() == null : "authentication already has a lookup realm";
         final String runAsUsername = context.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
         if (runAsUsername != null && runAsUsername.isEmpty() == false) {
-            logger.trace("Looking up run-as user [{}] for authenticated user [{}]", runAsUsername, authentication.getUser().principal());
+            logger.trace(
+                "Looking up run-as user [{}] for authenticated user [{}]",
+                runAsUsername,
+                authentication.getAuthenticatingSubject().getUser().principal()
+            );
             final RealmUserLookup lookup = new RealmUserLookup(getRealmList(context, runAsUsername), context.getThreadContext());
             final long startInvalidationNum = numInvalidation.get();
             lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
@@ -287,7 +291,7 @@ class RealmsAuthenticator implements Authenticator {
                     logger.debug(
                         "Cannot find run-as user [{}] for authenticated user [{}]",
                         runAsUsername,
-                        authentication.getUser().principal()
+                        authentication.getAuthenticatingSubject().getUser().principal()
                     );
                     listener.onResponse(null);
                 } else {
@@ -298,14 +302,21 @@ class RealmsAuthenticator implements Authenticator {
                         // this might provide a valid hint
                         lastSuccessfulAuthCache.computeIfAbsent(runAsUsername, s -> realm);
                     }
-                    logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
+                    logger.trace(
+                        "Using run-as user [{}] with authenticated user [{}]",
+                        foundUser,
+                        authentication.getAuthenticatingSubject().getUser().principal()
+                    );
                     listener.onResponse(tuple);
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));
         } else if (runAsUsername == null) {
             listener.onResponse(null);
         } else {
-            logger.debug("user [{}] attempted to runAs with an empty username", authentication.getUser().principal());
+            logger.debug(
+                "user [{}] attempted to runAs with an empty username",
+                authentication.getAuthenticatingSubject().getUser().principal()
+            );
             listener.onFailure(
                 context.getRequest()
                     .runAsDenied(authentication.runAs(new User(runAsUsername), null), context.getMostRecentAuthenticationToken())

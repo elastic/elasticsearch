@@ -1034,7 +1034,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (lastCheckpoint != null) {
                 filteredQuery.filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
             } else {
-                filteredQuery.filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+                filteredQuery.filter(config.getSyncConfig().getRangeQuery(context.startAfter(), nextCheckpoint));
             }
             return filteredQuery;
         }
@@ -1108,7 +1108,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         if (isContinuous()) {
             BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
-                .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+                .filter(config.getSyncConfig().getRangeQuery(context.startAfter(), nextCheckpoint));
 
             // Only apply extra filter if it is the subsequent run of the continuous transform
             if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {

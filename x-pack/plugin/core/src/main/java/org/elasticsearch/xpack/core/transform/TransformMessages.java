@@ -75,6 +75,8 @@ public class TransformMessages {
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS = "Failed to parse transform checkpoints for [{0}]";
 
+    public static final String FAILED_TO_PARSE_DATE = "Failed to parse date for [{0}]";
+
     public static final String ID_TOO_LONG = "The id cannot contain more than {0} characters.";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or "
         + "underscores; must start and end with alphanumeric";

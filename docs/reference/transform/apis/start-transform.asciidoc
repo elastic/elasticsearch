@@ -61,6 +61,10 @@ Identifier for the {transform}.
 [[start-transform-query-parms]]
 == {api-query-parms-title}
 
+`start_after`::
+(Optional, string) Restricts the set of transformed documents to those with
+timestamps after this time. Only applicable for continuous transforms.
+
 `timeout`::
 (Optional, time)
 Period to wait for a response. If no response is received before the timeout

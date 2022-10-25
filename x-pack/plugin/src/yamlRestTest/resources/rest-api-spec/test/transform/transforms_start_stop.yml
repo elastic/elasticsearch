@@ -256,6 +256,23 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
+
+---
+"Test start transform with empty value of start_after parameter":
+  - do:
+      catch: /Failed to parse date for \[start_after\]/
+      transform.start_transform:
+        start_after: ""
+        transform_id: "airline-transform-start-stop-continuous"
+
+---
+"Test start transform with invalid value of start_after parameter":
+  - do:
+      catch: /Failed to parse date for \[start_after\]/
+      transform.start_transform:
+        start_after: "not-a-valid-timestamp"
+        transform_id: "airline-transform-start-stop-continuous"
+
 ---
 "Test stop missing transform":
   - do:

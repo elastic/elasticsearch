@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Objects;
 
@@ -35,25 +37,39 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final String id;
+        private final Instant startAfter;
 
-        public Request(String id, TimeValue timeout) {
+        public Request(String id, Instant startAfter, TimeValue timeout) {
             super(timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
+            this.startAfter = startAfter;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+                startAfter = in.readOptionalInstant();
+            } else {
+                startAfter = null;
+            }
         }
 
         public String getId() {
             return id;
         }
 
+        public Instant startAfter() {
+            return startAfter;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+                out.writeOptionalInstant(startAfter);
+            }
         }
 
         @Override
@@ -64,7 +80,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id);
+            return Objects.hash(timeout(), id, startAfter);
         }
 
         @Override
@@ -77,7 +93,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             }
             Request other = (Request) obj;
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return Objects.equals(id, other.id) && timeout().equals(other.timeout());
+            return Objects.equals(id, other.id) && Objects.equals(startAfter, other.startAfter) && timeout().equals(other.timeout());
         }
     }
 

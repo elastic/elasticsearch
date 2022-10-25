@@ -221,6 +221,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 new TransformTaskParams(
                     config.getId(),
                     config.getVersion(),
+                    request.startAfter(),
                     config.getFrequency(),
                     config.getSource().requiresRemoteCluster()
                 )

@@ -212,7 +212,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 "pki_dn",
                 token.dn(),
                 "pki_delegated_by_user",
-                token.getDelegateeAuthentication().getUser().principal(),
+                token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal(),
                 "pki_delegated_by_realm",
                 token.getDelegateeAuthentication().getAuthenticatedBy().getName()
             );

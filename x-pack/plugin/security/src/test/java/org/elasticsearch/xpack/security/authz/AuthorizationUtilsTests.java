@@ -150,7 +150,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
-            assertEquals(user, authentication.getUser());
+            assertEquals(user, authentication.getEffectiveSubject().getUser());
             assertEquals(version, authentication.getEffectiveSubject().getVersion());
             latch.countDown();
         }, e -> fail(e.getMessage()));
@@ -159,7 +159,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
-            assertEquals(user, authentication.getUser());
+            assertEquals(user, authentication.getEffectiveSubject().getUser());
             assertEquals(version, authentication.getEffectiveSubject().getVersion());
             latch.countDown();
             listener.onResponse(null);

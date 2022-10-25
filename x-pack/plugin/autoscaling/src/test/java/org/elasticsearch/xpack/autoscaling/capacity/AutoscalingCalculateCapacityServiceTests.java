@@ -175,6 +175,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91085")
     public void testContext() {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterInfo info = ClusterInfo.EMPTY;

@@ -246,7 +246,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final SecondaryAuthentication secondaryAuthentication = future.get(0, TimeUnit.MILLISECONDS);
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
-        assertThat(secondaryAuthentication.getAuthentication().getUser().principal(), equalTo(user));
+        assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(), equalTo(user));
         assertThat(secondaryAuthentication.getAuthentication().getAuthenticatedBy().getName(), equalTo(realm.name()));
 
         listenerContext.get().restore();
@@ -326,7 +326,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final SecondaryAuthentication secondaryAuthentication = future.actionGet(0, TimeUnit.MILLISECONDS);
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
-        assertThat(secondaryAuthentication.getAuthentication().getUser(), equalTo(user));
+        assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser(), equalTo(user));
         assertThat(secondaryAuthentication.getAuthentication().getAuthenticationType(), equalTo(AuthenticationType.TOKEN));
     }
 

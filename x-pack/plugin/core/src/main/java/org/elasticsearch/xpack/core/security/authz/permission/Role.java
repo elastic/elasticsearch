@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +50,8 @@ public interface Role {
     ApplicationPermission application();
 
     RunAsPermission runAs();
+
+    RemoteIndicesPermission remoteIndices();
 
     /**
      * Whether the Role has any field or document level security enabled index privileges
@@ -184,6 +187,7 @@ public interface Role {
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
+        private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
 
@@ -193,6 +197,9 @@ public interface Role {
         }
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
+            // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
+            // using this builder
+            assert false == rd.hasRemoteIndicesPrivileges();
             this.names = new String[] { rd.getName() };
             cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
             groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));
@@ -244,6 +251,19 @@ public interface Role {
             return this;
         }
 
+        public Builder addRemoteGroup(
+            final Set<String> remoteClusterAliases,
+            final FieldPermissions fieldPermissions,
+            final Set<BytesReference> query,
+            final IndexPrivilege privilege,
+            final boolean allowRestrictedIndices,
+            final String... indices
+        ) {
+            remoteGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
+                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+            return this;
+        }
+
         public Builder addApplicationPrivilege(ApplicationPrivilege privilege, Set<String> resources) {
             applicationPrivs.add(new Tuple<>(privilege, resources));
             return this;
@@ -266,10 +286,32 @@ public interface Role {
                 }
                 indices = indicesBuilder.build();
             }
+
+            final RemoteIndicesPermission remoteIndices;
+            if (remoteGroups.isEmpty()) {
+                remoteIndices = RemoteIndicesPermission.NONE;
+            } else {
+                final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder();
+                for (final Map.Entry<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroupEntry : remoteGroups.entrySet()) {
+                    final var clusterAlias = remoteGroupEntry.getKey();
+                    for (IndicesPermissionGroupDefinition group : remoteGroupEntry.getValue()) {
+                        remoteIndicesBuilder.addGroup(
+                            clusterAlias,
+                            group.privilege,
+                            group.fieldPermissions,
+                            group.query,
+                            group.allowRestrictedIndices,
+                            group.indices
+                        );
+                    }
+                }
+                remoteIndices = remoteIndicesBuilder.build();
+            }
+
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs);
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
         }
 
         static List<IndicesPermissionGroupDefinition> convertFromIndicesPrivileges(

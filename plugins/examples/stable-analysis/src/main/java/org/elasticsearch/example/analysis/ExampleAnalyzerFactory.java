@@ -15,7 +15,6 @@ import org.elasticsearch.example.analysis.lucene.UnderscoreTokenizer;
 import org.elasticsearch.plugin.api.NamedComponent;
 
 @NamedComponent(name = "example_analyzer_factory")
-//TODO guide mention about named component, org.elasticsearch.plugin.analysis.api.*
 public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
 
     @Override

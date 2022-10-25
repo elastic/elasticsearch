@@ -1,11 +1,6 @@
-//TODO guide - mention buildscript (in parent)
-
-//TODO guide - mention about new plugin
 apply plugin: 'elasticsearch.stable-esplugin'
-//TODO guide - mention about testing
 apply plugin: 'elasticsearch.yaml-rest-test'
 
-//TODO guide - mention classname not needed, descriptor, named_components
 esplugin {
   name 'stable-analysis-plugin'
   description 'An example analysis plugin using stable plugin api'
@@ -14,7 +9,6 @@ esplugin {
 
 dependencies {
 
-  //TODO guide - mention about api dependencies, mention about compileOnly,
   //TODO transitive dependency off and plugin-api dependency?
   compileOnly "org.elasticsearch:elasticsearch-plugin-api:${elasticsearchVersion}"
   compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"

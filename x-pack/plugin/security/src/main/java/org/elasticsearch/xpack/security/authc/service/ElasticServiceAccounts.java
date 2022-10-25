@@ -44,8 +44,7 @@ final class ElasticServiceAccounts {
                         "logs-crawler-default",
                         "logs-elastic_crawler-default",
                         "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default",
-                        ".elastic-connectors*"
+                        "logs-workplace_search.content_events-default"
                     )
                     .privileges("manage", "read", "write")
                     .build() },

@@ -168,14 +168,6 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * Use {@code getEffectiveSubject().getUser()} instead.
-     */
-    @Deprecated
-    public User getUser() {
-        return effectiveSubject.getUser();
-    }
-
-    /**
      * Use {@code getAuthenticatingSubject().getRealm()} instead.
      */
     @Deprecated
@@ -213,14 +205,6 @@ public final class Authentication implements ToXContentObject {
         // failures. So leave it for now.
         final RealmRef sourceRealm = effectiveSubject.getRealm();
         return sourceRealm == null ? authenticatingSubject.getRealm() : sourceRealm;
-    }
-
-    /**
-     * Use {@code getAuthenticatingSubject().getMetadata()} instead.
-     */
-    @Deprecated
-    public Map<String, Object> getMetadata() {
-        return authenticatingSubject.getMetadata();
     }
 
     /**
@@ -321,8 +305,8 @@ public final class Authentication implements ToXContentObject {
     public Authentication maybeAddAnonymousRoles(@Nullable AnonymousUser anonymousUser) {
         final boolean shouldAddAnonymousRoleNames = anonymousUser != null
             && anonymousUser.enabled()
-            && false == anonymousUser.equals(getUser())
-            && false == User.isInternal(getUser())
+            && false == anonymousUser.equals(getEffectiveSubject().getUser())
+            && false == User.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
             && false == isServiceAccount();
 
@@ -334,7 +318,7 @@ public final class Authentication implements ToXContentObject {
         if (anonymousUser.roles().length == 0) {
             throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
         }
-        final String[] allRoleNames = ArrayUtils.concat(getUser().roles(), anonymousUser.roles());
+        final String[] allRoleNames = ArrayUtils.concat(getEffectiveSubject().getUser().roles(), anonymousUser.roles());
 
         if (isRunAs()) {
             final User user = effectiveSubject.getUser();
@@ -433,7 +417,7 @@ public final class Authentication implements ToXContentObject {
 
         // There is no reason for internal users to run-as. This check prevents either internal user itself
         // or a token created for it (though no such thing in current code) to run-as.
-        if (User.isInternal(getUser())) {
+        if (User.isInternal(getEffectiveSubject().getUser())) {
             return false;
         }
 
@@ -449,7 +433,7 @@ public final class Authentication implements ToXContentObject {
         // Also, if anonymous access is disabled or anonymous username, roles are changed after the token is created.
         // Should we still consider the token being created by an anonymous user which is now different from the new
         // anonymous user?
-        if (getUser().equals(anonymousUser)) {
+        if (getEffectiveSubject().getUser().equals(anonymousUser)) {
             assert ANONYMOUS_REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType())
                 && ANONYMOUS_REALM_NAME.equals(getAuthenticatingSubject().getRealm().getName());
             return false;
@@ -507,7 +491,7 @@ public final class Authentication implements ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeVInt(type.ordinal());
-        out.writeGenericMap(getMetadata());
+        out.writeGenericMap(getAuthenticatingSubject().getMetadata());
     }
 
     /**
@@ -572,9 +556,9 @@ public final class Authentication implements ToXContentObject {
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
-            final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+            final String tokenName = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
-            final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+            final String tokenSource = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
             builder.field(
                 User.Fields.TOKEN.getPreferredName(),
@@ -609,8 +593,8 @@ public final class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey()) {
-            final String apiKeyId = (String) getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-            final String apiKeyName = (String) getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName == null) {
                 builder.field("api_key", Map.of("id", apiKeyId));
             } else {
@@ -638,7 +622,8 @@ public final class Authentication implements ToXContentObject {
         }
 
         // Assert API key metadata
-        assert (false == isAuthenticatedAsApiKey()) || (this.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
+        assert (false == isAuthenticatedAsApiKey())
+            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
 
         // Assert domain assignment
@@ -907,7 +892,7 @@ public final class Authentication implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
-        Map<String, Object> metadata = authentication.getMetadata();
+        Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors
         if (authentication.isAuthenticatedAsApiKey()) {

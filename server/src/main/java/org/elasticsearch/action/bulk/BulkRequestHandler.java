@@ -38,7 +38,7 @@ public final class BulkRequestHandler {
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
-        this.retry = new Retry(backoffPolicy, scheduler, 100 * Math.max(1, concurrentRequests), concurrentRequests);
+        this.retry = new Retry(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), concurrentRequests);
         retry.init();
     }
 
@@ -62,7 +62,7 @@ public final class BulkRequestHandler {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
             }, latch::countDown));
-            if (concurrentRequests <= 1) { // TODO: lots of integration tests depend on this but do we really want it?
+            if (concurrentRequests < 1) { // TODO: lots of integration tests depend on this but do we really want it?
                 latch.await();
             }
         } catch (InterruptedException e) {
@@ -76,6 +76,7 @@ public final class BulkRequestHandler {
     }
 
     boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+        retry.flush();
         return retry.awaitClose(timeout, unit);
     }
 }

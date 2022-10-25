@@ -216,7 +216,7 @@ class AuthenticatorChain {
                 logger.debug(
                     "Cannot find run-as user [{}] for authenticated user [{}]",
                     runAsUsername,
-                    authentication.getEffectiveSubject().getUser().principal()
+                    authentication.getAuthenticatingSubject().getUser().principal()
                 );
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
                 finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);

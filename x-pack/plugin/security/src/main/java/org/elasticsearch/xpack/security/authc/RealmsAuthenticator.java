@@ -282,7 +282,7 @@ class RealmsAuthenticator implements Authenticator {
             logger.trace(
                 "Looking up run-as user [{}] for authenticated user [{}]",
                 runAsUsername,
-                authentication.getEffectiveSubject().getUser().principal()
+                authentication.getAuthenticatingSubject().getUser().principal()
             );
             final RealmUserLookup lookup = new RealmUserLookup(getRealmList(context, runAsUsername), context.getThreadContext());
             final long startInvalidationNum = numInvalidation.get();
@@ -291,7 +291,7 @@ class RealmsAuthenticator implements Authenticator {
                     logger.debug(
                         "Cannot find run-as user [{}] for authenticated user [{}]",
                         runAsUsername,
-                        authentication.getEffectiveSubject().getUser().principal()
+                        authentication.getAuthenticatingSubject().getUser().principal()
                     );
                     listener.onResponse(null);
                 } else {
@@ -305,7 +305,7 @@ class RealmsAuthenticator implements Authenticator {
                     logger.trace(
                         "Using run-as user [{}] with authenticated user [{}]",
                         foundUser,
-                        authentication.getEffectiveSubject().getUser().principal()
+                        authentication.getAuthenticatingSubject().getUser().principal()
                     );
                     listener.onResponse(tuple);
                 }
@@ -313,7 +313,10 @@ class RealmsAuthenticator implements Authenticator {
         } else if (runAsUsername == null) {
             listener.onResponse(null);
         } else {
-            logger.debug("user [{}] attempted to runAs with an empty username", authentication.getEffectiveSubject().getUser().principal());
+            logger.debug(
+                "user [{}] attempted to runAs with an empty username",
+                authentication.getAuthenticatingSubject().getUser().principal()
+            );
             listener.onFailure(
                 context.getRequest()
                     .runAsDenied(authentication.runAs(new User(runAsUsername), null), context.getMostRecentAuthenticationToken())

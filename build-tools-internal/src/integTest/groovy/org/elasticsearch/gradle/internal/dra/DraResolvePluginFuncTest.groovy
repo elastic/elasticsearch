@@ -9,12 +9,25 @@
 package org.elasticsearch.gradle.internal.dra
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.WiremockFixture
+import org.gradle.testkit.runner.TaskOutcome
 
 class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
 
 
     def setup() {
         configurationCacheCompatible = false
+
+        buildFile << """
+        plugins {
+            id 'elasticsearch.dra-artifacts'
+        }
+        
+        repositories.all {
+            // for supporting http testing repos here
+            allowInsecureProtocol = true
+        }
+        """
     }
 
     def "configures repositories to resolve dra snapshot artifacts"(){
@@ -23,10 +36,6 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
 foo-bar=8.6.0-f633b1d7
         """
         buildFile << """
-        plugins {
-            id 'elasticsearch.dra-artifacts'
-        }
-        
         configurations {
             dras
         }
@@ -40,20 +49,18 @@ foo-bar=8.6.0-f633b1d7
                 configurations.dras.files.each { println it }
             }
         }
-        
-        repositories.all {
-            println it.name
-        }
         """
 
         when:
-        def build = gradleRunner("resolveDraArtifacts", '-Ddra.artifacts=true', '-g', gradleUserHome, '--refresh-dependencies').buildAndFail()
+        def result = WiremockFixture.withWireMock("/foo-bar/8.6.0-f633b1d7/downloads/foo-bar/foo-bar-8.6.0-SNAPSHOT-deps.zip",
+                "content".getBytes('UTF-8')) { server ->
+            gradleRunner("resolveDraArtifacts",
+                    '-Ddra.artifacts=true',
+                    "-Ddra.artifacts.url.prefix=${server.baseUrl()}",
+                    '-g', gradleUserHome, '--refresh-dependencies').build()
+        }
 
         then:
-        build.output.contains """\
-> Could not resolve all files for configuration ':dras'.
-   > Could not find org.acme:foo-bar:8.6.0-SNAPSHOT.
-     Searched in the following locations:
-       - https://artifacts-snapshot.elastic.co/foo-bar/8.6.0-f633b1d7/downloads/foo-bar/foo-bar-8.6.0-SNAPSHOT-deps.zip"""
+        result.task(":resolveDraArtifacts").outcome == TaskOutcome.SUCCESS
     }
 }

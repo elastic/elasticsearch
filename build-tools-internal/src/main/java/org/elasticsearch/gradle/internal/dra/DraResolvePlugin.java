@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.dra;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.initialization.layout.BuildLayout;
 
@@ -26,10 +27,13 @@ public class DraResolvePlugin implements Plugin<Project> {
     private final ProviderFactory providerFactory;
     private BuildLayout buildLayout;
 
+    private Provider<String> repositoryPrefix;
+
     @Inject
     public DraResolvePlugin(ProviderFactory providerFactory, BuildLayout buildLayout) {
         this.providerFactory = providerFactory;
         this.buildLayout = buildLayout;
+        this.repositoryPrefix = providerFactory.systemProperty("dra.artifacts.url.prefix");
     }
 
     @Override
@@ -40,7 +44,7 @@ public class DraResolvePlugin implements Plugin<Project> {
                 project.getRepositories().ivy(repo -> {
                     repo.setName("dra-artifacts-" + key.toString());
                     // TODO handle releases
-                    repo.setUrl("https://artifacts-snapshot.elastic.co/");
+                    repo.setUrl(repositoryPrefix.getOrElse("https://artifacts-snapshot.elastic.co/"));
                     repo.patternLayout(patternLayout -> patternLayout.artifact(calculateArtifactPattern(key, buildId)));
                     repo.metadataSources(metadataSources -> metadataSources.artifact());
 

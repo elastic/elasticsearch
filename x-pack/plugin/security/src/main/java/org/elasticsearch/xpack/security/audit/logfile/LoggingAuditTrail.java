@@ -448,7 +448,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.empty(),
@@ -479,7 +479,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.empty(),
@@ -666,7 +666,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportRequest msg,
         AuthorizationInfo authorizationInfo
     ) {
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         final boolean isSystem = User.isInternal(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
@@ -788,7 +788,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
         final String[] indices = index == null ? null : new String[] { index };
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         if (User.isInternal(user) && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
@@ -839,7 +839,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -902,7 +902,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.empty(),
@@ -971,7 +971,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -1007,7 +1007,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -1036,7 +1036,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -1532,7 +1532,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRunAsSubject(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                 .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
-                .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getUser().principal());
+                .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             if (authentication.getAuthenticatedBy().getDomain() != null) {
                 logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatedBy().getDomain().name());
             }
@@ -1605,7 +1605,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
+            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey()) {
                 logEntry.with(

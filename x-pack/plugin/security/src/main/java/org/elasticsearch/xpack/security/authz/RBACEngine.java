@@ -155,7 +155,9 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getUser().principal())));
+            listener.onResponse(
+                new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getEffectiveSubject().getUser().principal()))
+            );
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
@@ -198,7 +200,7 @@ public class RBACEngine implements AuthorizationEngine {
                     return false;
                 }
                 final String username = usernames[0];
-                final boolean sameUsername = authentication.getUser().principal().equals(username);
+                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);
                 if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
                     return checkChangePasswordAction(authentication);
                 }

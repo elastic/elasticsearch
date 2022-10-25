@@ -75,7 +75,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 assert apiKeyId != null : "api key id must be present in the metadata";
                 finalQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyId));
             } else {
-                finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
+                finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()));
                 final String[] realms = ApiKeyService.getOwnersRealmNames(authentication);
                 final QueryBuilder realmsQuery = ApiKeyService.filterForRealmNames(realms);
                 assert realmsQuery != null;

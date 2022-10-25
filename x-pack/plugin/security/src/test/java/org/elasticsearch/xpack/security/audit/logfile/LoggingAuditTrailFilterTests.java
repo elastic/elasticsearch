@@ -2797,7 +2797,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             threadContext,
             indexName != null ? indexName : randomAlphaOfLengthBetween(3, 10)
         );
-        final AuthorizationInfo authorizationInfo = authzInfo(authentication.getUser().roles());
+        final AuthorizationInfo authorizationInfo = authzInfo(authentication.getEffectiveSubject().getUser().roles());
         final String action = actionName != null ? actionName : randomAlphaOfLengthBetween(3, 10);
 
         // Filter not created yet, message should be logged

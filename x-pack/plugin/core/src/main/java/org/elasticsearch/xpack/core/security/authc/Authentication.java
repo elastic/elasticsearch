@@ -168,14 +168,6 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * Use {@code getEffectiveSubject().getUser()} instead.
-     */
-    @Deprecated
-    public User getUser() {
-        return effectiveSubject.getUser();
-    }
-
-    /**
      * Use {@code getAuthenticatingSubject().getRealm()} instead.
      */
     @Deprecated
@@ -313,8 +305,8 @@ public final class Authentication implements ToXContentObject {
     public Authentication maybeAddAnonymousRoles(@Nullable AnonymousUser anonymousUser) {
         final boolean shouldAddAnonymousRoleNames = anonymousUser != null
             && anonymousUser.enabled()
-            && false == anonymousUser.equals(getUser())
-            && false == User.isInternal(getUser())
+            && false == anonymousUser.equals(getEffectiveSubject().getUser())
+            && false == User.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
             && false == isServiceAccount();
 
@@ -326,7 +318,7 @@ public final class Authentication implements ToXContentObject {
         if (anonymousUser.roles().length == 0) {
             throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
         }
-        final String[] allRoleNames = ArrayUtils.concat(getUser().roles(), anonymousUser.roles());
+        final String[] allRoleNames = ArrayUtils.concat(getEffectiveSubject().getUser().roles(), anonymousUser.roles());
 
         if (isRunAs()) {
             final User user = effectiveSubject.getUser();
@@ -425,7 +417,7 @@ public final class Authentication implements ToXContentObject {
 
         // There is no reason for internal users to run-as. This check prevents either internal user itself
         // or a token created for it (though no such thing in current code) to run-as.
-        if (User.isInternal(getUser())) {
+        if (User.isInternal(getEffectiveSubject().getUser())) {
             return false;
         }
 
@@ -441,7 +433,7 @@ public final class Authentication implements ToXContentObject {
         // Also, if anonymous access is disabled or anonymous username, roles are changed after the token is created.
         // Should we still consider the token being created by an anonymous user which is now different from the new
         // anonymous user?
-        if (getUser().equals(anonymousUser)) {
+        if (getEffectiveSubject().getUser().equals(anonymousUser)) {
             assert ANONYMOUS_REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType())
                 && ANONYMOUS_REALM_NAME.equals(getAuthenticatingSubject().getRealm().getName());
             return false;

@@ -2874,7 +2874,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
-        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
         if (authentication.isApiKey()) {
             assert false == authentication.isRunAs();

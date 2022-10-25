@@ -158,7 +158,7 @@ public class SecurityContextTests extends ESTestCase {
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertEquals(original.getUser(), authentication.getUser());
+            assertEquals(original.getEffectiveSubject().getUser(), authentication.getEffectiveSubject().getUser());
             assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
             assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
             assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getVersion());

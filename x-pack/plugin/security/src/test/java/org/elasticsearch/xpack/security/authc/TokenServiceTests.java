@@ -464,7 +464,7 @@ public class TokenServiceTests extends ESTestCase {
         } else {
             return new RefreshTokenStatus(
                 invalidated,
-                authentication.getUser().principal(),
+                authentication.getEffectiveSubject().getUser().principal(),
                 authentication.getAuthenticatedBy().getName(),
                 refreshed,
                 refreshInstant,
@@ -1047,7 +1047,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public static void assertAuthentication(Authentication result, Authentication expected) {
-        assertEquals(expected.getUser(), result.getUser());
+        assertEquals(expected.getEffectiveSubject().getUser(), result.getEffectiveSubject().getUser());
         assertEquals(expected.getAuthenticatedBy(), result.getAuthenticatedBy());
         assertEquals(expected.getLookedUpBy(), result.getLookedUpBy());
         assertEquals(expected.getAuthenticatingSubject().getMetadata(), result.getAuthenticatingSubject().getMetadata());

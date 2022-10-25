@@ -9,17 +9,12 @@
 package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.example.analysis.lucene.UnderscoreTokenizer;
 import org.elasticsearch.plugin.analysis.api.TokenizerFactory;
 import org.elasticsearch.plugin.api.NamedComponent;
 
 @NamedComponent(name = "example_tokenizer_factory")
 public class ExampleTokenizerFactory implements TokenizerFactory {
-    @SuppressForbidden(reason = "need a public constructor")
-    public ExampleTokenizerFactory() {
-    }
-
     @Override
     public Tokenizer create() {
         return new UnderscoreTokenizer();

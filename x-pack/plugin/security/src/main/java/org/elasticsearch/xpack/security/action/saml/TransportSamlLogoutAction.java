@@ -134,7 +134,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
     }
 
     private SamlRealm findRealm(Authentication authentication) {
-        final Authentication.RealmRef ref = authentication.getAuthenticatedBy();
+        final Authentication.RealmRef ref = authentication.getAuthenticatingSubject().getRealm();
         if (ref == null || Strings.isNullOrEmpty(ref.getName())) {
             throw SamlUtils.samlException("Authentication {} has no authenticating realm", authentication);
         }

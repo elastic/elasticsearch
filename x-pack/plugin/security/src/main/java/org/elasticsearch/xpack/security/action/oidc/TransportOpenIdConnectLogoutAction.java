@@ -86,7 +86,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
 
     private OpenIdConnectLogoutResponse buildResponse(Authentication authentication, Map<String, Object> tokenMetadata) {
         final String idTokenHint = (String) getFromMetadata(tokenMetadata, "id_token_hint");
-        final Realm realm = this.realms.realm(authentication.getAuthenticatedBy().getName());
+        final Realm realm = this.realms.realm(authentication.getAuthenticatingSubject().getRealm().getName());
         final JWT idToken;
         try {
             idToken = JWTParser.parse(idTokenHint);
@@ -108,11 +108,11 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
             throw new ElasticsearchSecurityException("No active user");
         }
 
-        final Authentication.RealmRef ref = authentication.getAuthenticatedBy();
+        final Authentication.RealmRef ref = authentication.getAuthenticatingSubject().getRealm();
         if (ref == null || Strings.isNullOrEmpty(ref.getName())) {
             throw new ElasticsearchSecurityException("Authentication {} has no authenticating realm", authentication);
         }
-        final Realm realm = this.realms.realm(authentication.getAuthenticatedBy().getName());
+        final Realm realm = this.realms.realm(authentication.getAuthenticatingSubject().getRealm().getName());
         if (realm == null) {
             throw new ElasticsearchSecurityException("Authenticating realm {} does not exist", ref.getName());
         }

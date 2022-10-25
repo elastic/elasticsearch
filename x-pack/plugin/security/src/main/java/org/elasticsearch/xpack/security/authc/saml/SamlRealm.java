@@ -347,10 +347,8 @@ public final class SamlRealm extends Realm implements Releasable {
                 if (previousPublicKeys == null) {
                     LOGGER.trace("Signing credentials initialized, added: [{}]", newCredentials.size());
                 } else {
-                    final List<PublicKey> added = new ArrayList<>(newPublicKeys);
-                    added.removeAll(previousPublicKeys);
-                    final List<PublicKey> removed = new ArrayList<>(previousPublicKeys);
-                    removed.removeAll(newPublicKeys);
+                    final Set<PublicKey> added = Sets.difference(newPublicKeys, previousPublicKeys);
+                    final Set<PublicKey> removed = Sets.difference(previousPublicKeys, newPublicKeys);
                     if (added.isEmpty() && removed.isEmpty()) {
                         LOGGER.debug("Signing credentials did not change, current: [{}]", newCredentials.size());
                     } else {

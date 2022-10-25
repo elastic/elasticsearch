@@ -5,7 +5,7 @@
 <titleabbrev>Dense vector</titleabbrev>
 ++++
 
-The `dense_vector` field type stores dense vectors of float values. Dense
+The `dense_vector` field type stores dense vectors of numeric values. Dense
 vector fields can be used in the following ways:
 
 * In <<query-dsl-script-score-query,`script_score`>> queries, to score
@@ -14,8 +14,12 @@ documents matching a filter
 vectors to a query vector
 
 The `dense_vector` type does not support aggregations or sorting.
+When <<dense-vector-params, `element_type`>> is `byte`
+<<query-dsl-script-score-query,`script_score`>> is not supported.
 
-You add a `dense_vector` field as an array of floats:
+You add a `dense_vector` field as an array of numeric values
+based on <<dense-vector-params, `element_type`>> with
+`float` by default:
 
 [source,console]
 --------------------------------------------------
@@ -104,6 +108,16 @@ Dense vector fields cannot be indexed if they are within
 
 The following mapping parameters are accepted:
 
+`element_type`::
+(Optional, string)
+The data type used to encode vectors. The supported data types are
+`float` (default) and `byte`. `float` indexes a 4-byte floating-point
+value per dimension. `byte` indexes a 1-byte integer value per dimension.
+`byte` requires `index` to be `true`. Using `byte` can result in a
+substantially smaller index size with the trade off of lower
+precision. Vectors using `byte` require dimensions with integer values
+between -128 to 127, inclusive for both indexing and searching.
+
 `dims`::
 (Required, integer)
 Number of vector dimensions. Can't exceed `1024` for indexed vectors
@@ -134,9 +148,18 @@ distance) between the vectors. The document `_score` is computed as
 
 `dot_product`:::
 Computes the dot product of two vectors. This option provides an optimized way
-to perform cosine similarity. In order to use it, all vectors must be of unit
-length, including both document and query vectors. The document `_score` is
-computed as `(1 + dot_product(query, vector)) / 2`.
+to perform cosine similarity. The constraints and computed score are defined
+by `element_type`.
++
+When `element_type` is `float`, all vectors must be unit length, including both
+document and query vectors. The document `_score` is computed as
+`(1 + dot_product(query, vector)) / 2`.
++
+When `element_type` is `byte`, all vectors must have the same
+length including both document and query vectors or results will be inaccurate.
+The document `_score` is computed as
+`0.5 + (dot_product(query, vector) / (32768 * dims))`
+where `dims` is the number of dimensions per vector.
 
 `cosine`:::
 Computes the cosine similarity. Note that the most efficient way to perform

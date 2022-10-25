@@ -67,6 +67,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -302,6 +303,12 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges))) {
+            throw new IllegalArgumentException("remote indices not supported for API keys");
+        }
+
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
@@ -373,6 +380,13 @@ public class ApiKeyService {
                 new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
             );
             return;
+        }
+
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || (request.getRoleDescriptors() != null
+                    && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)))) {
+            throw new IllegalArgumentException("remote indices not supported for API keys");
         }
 
         logger.debug("Updating [{}] API keys", request.getIds().size());

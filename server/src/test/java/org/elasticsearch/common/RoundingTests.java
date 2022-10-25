@@ -1016,6 +1016,7 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.round(time("2078-11-10T02:51:22.662Z")), isDate(time("1970-01-01T00:00:00+03:30"), tz));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91040")
     public void testHugeTimeFewAttempts() {
         ZoneId tz = ZoneId.of("Asia/Tehran");
         Rounding.TimeIntervalRounding.JavaTimeRounding prepared = (Rounding.TimeIntervalRounding.JavaTimeRounding) Rounding.builder(

@@ -170,19 +170,27 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         }, 30, TimeUnit.SECONDS);
 
+        // Weird testing behaviour ahead...
+        // In a multi node cluster, invalidating by access token (get) or refresh token (search) can both,
+        // in a small % of cases, find a document that has been deleted but not yet refreshed
+        // in that node's shard.
+        // Our assertion, therefore, is that an attempt to invalidate the token must not actually invalidate
+        // anything (concurrency controls must prevent that), nor may return any errors,
+        // but it might _temporarily_ find an "already deleted" token.
+
         // Now the documents are deleted, try to invalidate the access token and refresh token again
         TokenInvalidation invalidateAccessTokenResponse = invalidateAccessToken(accessToken);
         assertThat(invalidateAccessTokenResponse.invalidated(), equalTo(0));
         assertThat(invalidateAccessTokenResponse.previouslyInvalidated(), equalTo(0));
-        assertThat(invalidateAccessTokenResponse.errors(), empty());
 
-        // Weird testing behaviour ahead...
-        // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
-        // In a multi node cluster, in a small % of cases, the search might find a document that has been deleted but not yet refreshed
-        // in that node's shard.
-        // Our assertion, therefore, is that an attempt to invalidate the refresh token must not actually invalidate
-        // anything (concurrency controls must prevent that), nor may return any errors,
-        // but it might _temporarily_ find an "already deleted" token.
+        // 99% of the time, this will already be empty, but if not ensure it goes to empty within the allowed timeframe
+        if (false == invalidateAccessTokenResponse.errors().isEmpty()) {
+            assertBusy(() -> {
+                var newResponse = invalidateAccessToken(accessToken);
+                assertThat(newResponse.errors(), empty());
+            });
+        }
+
         TokenInvalidation invalidateRefreshTokenResponse = invalidateRefreshToken(refreshToken);
         assertThat(invalidateRefreshTokenResponse.invalidated(), equalTo(0));
         assertThat(invalidateRefreshTokenResponse.previouslyInvalidated(), equalTo(0));

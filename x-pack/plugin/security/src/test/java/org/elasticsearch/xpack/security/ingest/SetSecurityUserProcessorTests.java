@@ -70,24 +70,24 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().fullName().startsWith("Service account - ")) {
+        if (authentication.getEffectiveSubject().getUser().fullName().startsWith("Service account - ")) {
             assertThat(result, not(hasKey("roles")));
             assertThat(result, not(hasKey("email")));
         } else {
-            assertThat(result.get("email"), equalTo(authentication.getUser().email()));
-            if (authentication.getUser().roles().length == 0) {
+            assertThat(result.get("email"), equalTo(authentication.getEffectiveSubject().getUser().email()));
+            if (authentication.getEffectiveSubject().getUser().roles().length == 0) {
                 assertThat(result, not(hasKey("roles")));
             } else {
-                assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getUser().roles())));
+                assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getEffectiveSubject().getUser().roles())));
             }
         }
-        if (authentication.getUser().metadata().isEmpty()) {
+        if (authentication.getEffectiveSubject().getUser().metadata().isEmpty()) {
             assertThat(result, not(hasKey("metadata")));
         } else {
-            assertThat(result.get("metadata"), equalTo(authentication.getUser().metadata()));
+            assertThat(result.get("metadata"), equalTo(authentication.getEffectiveSubject().getUser().metadata()));
         }
-        assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
-        assertThat(result.get("full_name"), equalTo(authentication.getUser().fullName()));
+        assertThat(result.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
+        assertThat(result.get("full_name"), equalTo(authentication.getEffectiveSubject().getUser().fullName()));
         assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(ApiKeyService.getCreatorRealmName(authentication)));
         assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(ApiKeyService.getCreatorRealmType(authentication)));
         assertThat(result.get("authentication_type"), equalTo(authentication.getAuthenticationType().toString()));
@@ -176,7 +176,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(1));
-        assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
+        assertThat(result.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
     }
 
     public void testRolesProperties() throws Exception {
@@ -196,11 +196,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().roles().length == 0) {
+        if (authentication.getEffectiveSubject().getUser().roles().length == 0) {
             assertThat(result, not(hasKey("roles")));
         } else {
             assertThat(result, aMapWithSize(1));
-            assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getUser().roles())));
+            assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getEffectiveSubject().getUser().roles())));
         }
     }
 
@@ -222,7 +222,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(1));
-        assertThat(result.get("full_name"), equalTo(authentication.getUser().fullName()));
+        assertThat(result.get("full_name"), equalTo(authentication.getEffectiveSubject().getUser().fullName()));
     }
 
     public void testEmailProperties() throws Exception {
@@ -242,9 +242,9 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().email() != null) {
+        if (authentication.getEffectiveSubject().getUser().email() != null) {
             assertThat(result, aMapWithSize(1));
-            assertThat(result.get("email"), equalTo(authentication.getUser().email()));
+            assertThat(result.get("email"), equalTo(authentication.getEffectiveSubject().getUser().email()));
         } else {
             assertThat(result, not(hasKey("email")));
         }
@@ -267,11 +267,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().metadata().isEmpty()) {
+        if (authentication.getEffectiveSubject().getUser().metadata().isEmpty()) {
             assertThat(result, not(hasKey("metadata")));
         } else {
             assertThat(result, aMapWithSize(1));
-            assertThat(result.get("metadata"), equalTo(authentication.getUser().metadata()));
+            assertThat(result.get("metadata"), equalTo(authentication.getEffectiveSubject().getUser().metadata()));
         }
     }
 
@@ -295,7 +295,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(1));
-        assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
+        assertThat(result.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
 
         ingestDocument = TestIngestDocument.emptyIngestDocument();
         ingestDocument.setFieldValue("_field.other", "test");
@@ -305,7 +305,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result2 = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result2, aMapWithSize(2));
-        assertThat(result2.get("username"), equalTo(authentication.getUser().principal()));
+        assertThat(result2.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
         assertThat(result2.get("other"), equalTo("test"));
     }
 

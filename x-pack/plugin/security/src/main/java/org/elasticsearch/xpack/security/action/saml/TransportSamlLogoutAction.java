@@ -64,7 +64,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
                         if (logger.isTraceEnabled()) {
                             logger.trace(
                                 "SAML Logout User [{}], Token [{}...{}]",
-                                authentication.getUser().principal(),
+                                authentication.getEffectiveSubject().getUser().principal(),
                                 token.substring(0, 8),
                                 token.substring(token.length() - 8)
                             );
@@ -91,7 +91,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         if (authentication == null) {
             throw SamlUtils.samlException("No active authentication");
         }
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         if (user == null) {
             throw SamlUtils.samlException("No active user");
         }

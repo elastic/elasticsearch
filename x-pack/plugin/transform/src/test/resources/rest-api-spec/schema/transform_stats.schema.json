@@ -63,6 +63,9 @@
     "reason": {
       "type": "string",
       "description": "reason if failed"
+    },
+    "health": {
+      "$ref": "file:transform_health.schema.json"
     }
   }
 }

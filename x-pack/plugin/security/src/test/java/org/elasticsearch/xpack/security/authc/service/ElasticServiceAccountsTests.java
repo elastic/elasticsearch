@@ -362,7 +362,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "logs-crawler-default",
             "logs-workplace_search.analytics-default",
             "logs-workplace_search.content_events-default",
-            ".elastic-connectors*"
+            ".elastic-connectors*",
+            "logs-elastic_crawler-default"
         ).forEach(index -> {
             final IndexAbstraction enterpriseSearchIndex = mockIndexAbstraction(index);
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(enterpriseSearchIndex), is(true));

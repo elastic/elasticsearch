@@ -448,7 +448,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.empty(),
@@ -457,7 +457,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     )
                 ) == false) {
             // this is redundant information maintained for bwc purposes
-            final String authnRealm = authentication.getAuthenticatedBy().getName();
+            final String authnRealm = authentication.getAuthenticatingSubject().getRealm().getName();
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                 .with(REALM_FIELD_NAME, authnRealm)
@@ -479,7 +479,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.empty(),
@@ -666,7 +666,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportRequest msg,
         AuthorizationInfo authorizationInfo
     ) {
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         final boolean isSystem = User.isInternal(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
@@ -788,7 +788,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
         final String[] indices = index == null ? null : new String[] { index };
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         if (User.isInternal(user) && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
@@ -839,7 +839,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -902,7 +902,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.empty(),
@@ -971,7 +971,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -1007,7 +1007,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -1036,7 +1036,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
-                        Optional.of(authentication.getUser()),
+                        Optional.of(authentication.getEffectiveSubject().getUser()),
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
@@ -1531,10 +1531,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRunAsSubject(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
-                .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
-                .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getUser().principal());
-            if (authentication.getAuthenticatedBy().getDomain() != null) {
-                logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatedBy().getDomain().name());
+                .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
+                .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
+            if (authentication.getAuthenticatingSubject().getRealm().getDomain() != null) {
+                logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getDomain().name());
             }
             if (authentication.getLookedUpBy() != null) {
                 logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, authentication.getLookedUpBy().getName());
@@ -1605,11 +1605,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
+            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey()) {
-                logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-                String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+                logEntry.with(
+                    API_KEY_ID_FIELD_NAME,
+                    (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                );
+                String apiKeyName = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
                     logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
@@ -1620,7 +1625,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     // No domain information is needed here since API key itself does not work across realms
                 }
             } else {
-                final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatedBy();
+                final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
                 if (authentication.isRunAs()) {
                     final Authentication.RealmRef lookedUpBy = authentication.getLookedUpBy();
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName())
@@ -1644,10 +1649,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             // TODO: service token info is logged in a separate authentication field (#84394)
             if (authentication.isAuthenticatedWithServiceAccount()) {
-                logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
+                logEntry.with(
+                    SERVICE_TOKEN_NAME_FIELD_NAME,
+                    (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
+                )
                     .with(
                         SERVICE_TOKEN_TYPE_FIELD_NAME,
-                        ServiceAccountSettings.REALM_TYPE + "_" + authentication.getMetadata().get(TOKEN_SOURCE_FIELD)
+                        ServiceAccountSettings.REALM_TYPE
+                            + "_"
+                            + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                     );
             }
             return this;

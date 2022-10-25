@@ -9,12 +9,10 @@
 package org.elasticsearch.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.bucket.AggregationTestCase;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,13 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 
-public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
-
-    // TODO: maybe add base class that overwrites getSearchPlugins(...) for all tests that will be added to this module.
-    @Override
-    protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new AggregationsPlugin());
-    }
+public class AdjacencyMatrixAggregatorTests extends AggregationTestCase {
 
     public void testTooManyFilters() {
         int maxFilters = IndexSearcher.getMaxClauseCount();

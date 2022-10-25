@@ -20,7 +20,6 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -251,15 +250,6 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
-            MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
-                @Override
-                public double execute(Map<String, Object> params1, double[] values) {
-                    params1.put("_values", values);
-                    return (double) script.apply(params1);
-                }
-            };
-            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = new MockScoreScript(script);
             return context.factoryClazz.cast(factory);
@@ -372,7 +362,6 @@ public class MockScriptEngine implements ScriptEngine {
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
-            MovingFunctionScript.CONTEXT,
             ScoreScript.CONTEXT,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,

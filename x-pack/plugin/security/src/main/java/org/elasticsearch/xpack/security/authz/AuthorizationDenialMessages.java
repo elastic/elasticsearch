@@ -98,7 +98,9 @@ class AuthorizationDenialMessages {
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
         if (authentication.isAuthenticatedAsApiKey()) {
-            final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyId = (String) authentication.getAuthenticatingSubject()
+                .getMetadata()
+                .get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
         }

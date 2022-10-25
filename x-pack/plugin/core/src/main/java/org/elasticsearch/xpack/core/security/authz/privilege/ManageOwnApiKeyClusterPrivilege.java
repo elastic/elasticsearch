@@ -159,7 +159,9 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         private static boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
             if (authentication.isApiKey()) {
                 // API key id from authentication must match the id from request
-                final String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                final String authenticatedApiKeyId = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_ID_KEY);
                 if (Strings.hasText(apiKeyId)) {
                     return apiKeyId.equals(authenticatedApiKeyId);
                 }

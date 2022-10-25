@@ -108,9 +108,8 @@ public class PackageUpgradeTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85386")
     public void test21CheckUpgradedVersion() throws Exception {
-        assertWhileRunning(() -> { assertDocsExist(); });
+        assertWhileRunning(this::assertDocsExist);
     }
 
     private void assertDocsExist() throws Exception {

@@ -180,6 +180,7 @@ public class StringsTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91075")
     public void testDeleteAny() {
         assertNull(deleteAny((CharSequence) null, "abc"));
         assertNull(deleteAny((String) null, "abc"));

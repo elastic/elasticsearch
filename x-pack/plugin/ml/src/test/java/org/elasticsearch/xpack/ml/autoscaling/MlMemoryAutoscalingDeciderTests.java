@@ -1053,7 +1053,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 3, 2, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 2, 3, 100, null)
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
@@ -1066,7 +1066,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 3, 1, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null)
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
@@ -1079,7 +1079,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 3, 1, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null)
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
                         new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)

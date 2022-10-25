@@ -153,10 +153,7 @@ public class Retry {
      * @param bulkRequest The bulk request that should be executed.
      * @return a future representing the bulk response returned by the client.
      */
-    public ActionFuture<BulkResponse> withBackoff(
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-        BulkRequest bulkRequest
-    ) {
+    public ActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest) {
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         withBackoff(consumer, bulkRequest, future);
         return future;
@@ -196,7 +193,8 @@ public class Retry {
                 bulkRequest,
                 scheduler.schedule(
                     () -> {
-                        consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, backoff));},
+                        consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, backoff));
+                    },
                     isRetry ? backoff.next() : TimeValue.ZERO,
                     ThreadPool.Names.SAME
                 )

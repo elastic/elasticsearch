@@ -106,8 +106,9 @@ public class PackageUpgradeTests extends PackagingTestCase {
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
         verifySecurityNotAutoConfigured(installation);
-        
-        // Upgrade overwrites the configuration file because we run with --force-confnew so we need to disable security again
+
+        // Upgrade overwrites the configuration file because we run with `--force-confnew`, so we need to remove security configuration
+        // again
         possiblyRemoveSecurityConfiguration(installation);
     }
 

@@ -109,8 +109,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
     }
 
     public void test21CheckUpgradedVersion() throws Exception {
-        fail("is this even running");
-        
         assertWhileRunning(this::assertDocsExist);
     }
 

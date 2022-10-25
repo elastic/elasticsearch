@@ -322,7 +322,9 @@ public interface Role {
         // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
         // using this builder
         assert false == roleDescriptor.hasRemoteIndicesPrivileges();
-        final var builder = builder(restrictedIndices, roleDescriptor.getName());
+        Objects.requireNonNull(fieldPermissionsCache);
+
+        final Builder builder = builder(restrictedIndices, roleDescriptor.getName());
 
         builder.cluster(
             Sets.newHashSet(roleDescriptor.getClusterPrivileges()),

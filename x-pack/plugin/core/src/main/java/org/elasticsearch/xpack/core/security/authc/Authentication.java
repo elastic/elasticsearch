@@ -63,6 +63,14 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FA
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
+/**
+ * The Authentication class encapsulates identity information created after successful authentication
+ * and is the starting point of subsequent authorization.
+ *
+ * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
+ * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
+ * the lifetime of the original request.
+ */
 public final class Authentication implements ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
@@ -208,21 +216,6 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * Returns the authentication version.
-     * Nodes can only interpret authentications from current or older versions as the node's.
-     *
-     * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
-     * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
-     * the lifetime of the original request.
-     *
-     * Use {@code getEffectiveSubject().getVersion()} instead.
-     */
-    @Deprecated
-    public Version getVersion() {
-        return effectiveSubject.getVersion();
-    }
-
-    /**
      * Use {@code getAuthenticatingSubject().getMetadata()} instead.
      */
     @Deprecated
@@ -294,7 +287,11 @@ public final class Authentication implements ToXContentObject {
         assert false == hasSyntheticRealmNameOrType(lookupRealmRef) : "should not use synthetic realm name/type for lookup realms";
 
         Objects.requireNonNull(runAs);
-        return new Authentication(new Subject(runAs, lookupRealmRef, getVersion(), Map.of()), authenticatingSubject, type);
+        return new Authentication(
+            new Subject(runAs, lookupRealmRef, getEffectiveSubject().getVersion(), Map.of()),
+            authenticatingSubject,
+            type
+        );
     }
 
     /** Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
@@ -478,8 +475,8 @@ public final class Authentication implements ToXContentObject {
 
     public String encode() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(getVersion());
-        Version.writeVersion(getVersion(), output);
+        output.setVersion(getEffectiveSubject().getVersion());
+        Version.writeVersion(getEffectiveSubject().getVersion(), output);
         writeTo(output);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }
@@ -918,7 +915,7 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
-            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+            if (authentication.getEffectiveSubject().getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
@@ -931,7 +928,7 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
-            } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
+            } else if (authentication.getEffectiveSubject().getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
                     metadata = new HashMap<>(metadata);
                     metadata.put(

@@ -72,7 +72,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "OpenID Connect Logout for user [{}] and token [{}...{}]",
-                            authentication.getUser().principal(),
+                            authentication.getEffectiveSubject().getUser().principal(),
                             token.substring(0, 8),
                             token.substring(token.length() - 8)
                         );
@@ -103,7 +103,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
         if (authentication == null) {
             throw new ElasticsearchSecurityException("No active authentication");
         }
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         if (user == null) {
             throw new ElasticsearchSecurityException("No active user");
         }

@@ -16,10 +16,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -515,13 +513,7 @@ public class License implements ToXContentObject {
 
     @Override
     public String toString() {
-        try {
-            final XContentBuilder builder = XContentFactory.jsonBuilder();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return "";
-        }
+        return Strings.toString(this);
     }
 
     @Override

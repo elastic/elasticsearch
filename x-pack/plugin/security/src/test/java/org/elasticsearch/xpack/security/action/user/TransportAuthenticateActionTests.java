@@ -154,7 +154,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             }
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
+            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
             assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
             assertThat(auth.getMetadata(), sameInstance(auth.getMetadata()));
         } else {
@@ -198,7 +198,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             assertThat(authUser.roles(), emptyArray());
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
+            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
             assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
             assertThat(auth.getMetadata(), sameInstance(auth.getMetadata()));
         } else {

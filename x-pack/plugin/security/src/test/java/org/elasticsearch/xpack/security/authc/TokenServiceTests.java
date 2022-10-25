@@ -459,7 +459,7 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+        if (authentication.getEffectiveSubject().getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
             return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
         } else {
             return new RefreshTokenStatus(

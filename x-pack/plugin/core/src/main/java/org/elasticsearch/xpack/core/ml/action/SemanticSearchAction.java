@@ -159,7 +159,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             List<FieldAndFormat> docValueFields,
             StoredFieldsContext storedFields
         ) {
-            this.indices = indices;
+            this.indices = Objects.requireNonNull(indices, "[indices] must not be null");
             this.routing = routing;
             this.queryString = queryString;
             this.modelId = modelId;
@@ -329,7 +329,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             private StoredFieldsContext storedFields;
 
             Builder(String[] indices) {
-                this.indices = indices;
+                this.indices = Objects.requireNonNull(indices, "[indices] must not be null");
             }
 
             void setRouting(String routing) {

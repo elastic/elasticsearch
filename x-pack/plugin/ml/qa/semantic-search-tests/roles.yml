@@ -12,8 +12,6 @@ all_data:
         - read
         - write
         - view_index_metadata
-        - indices:data/write/bulk
-        - indices:data/write/index
 
 unrelated_index_only:
   cluster:
@@ -29,5 +27,3 @@ unrelated_index_only:
         - read
         - write
         - view_index_metadata
-        - indices:data/write/bulk
-        - indices:data/write/index

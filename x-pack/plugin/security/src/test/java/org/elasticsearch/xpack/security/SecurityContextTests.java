@@ -159,7 +159,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertEquals(original.getEffectiveSubject().getUser(), authentication.getEffectiveSubject().getUser());
-            assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
+            assertEquals(original.getAuthenticatingSubject().getRealm(), authentication.getAuthenticatingSubject().getRealm());
             assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
             assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getVersion());
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());

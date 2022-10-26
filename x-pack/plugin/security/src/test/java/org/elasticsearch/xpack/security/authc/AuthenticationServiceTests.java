@@ -481,7 +481,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue())); // TODO implement equals
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(result);
             setCompletedToTrue(completed);
@@ -521,10 +521,10 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
-            assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME));
-            assertThat(result.getAuthenticatedBy().getType(), is(SECOND_REALM_TYPE));
-            assertThat(result.getAuthenticatedBy().getDomain(), is(secondDomain));
+            assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue())); // TODO implement equals
+            assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME));
+            assertThat(result.getAuthenticatingSubject().getRealm().getType(), is(SECOND_REALM_TYPE));
+            assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(secondDomain));
             assertThreadContextContainsAuthentication(result);
             verify(auditTrail).authenticationSuccess(reqId.get(), result, "_action", transportRequest);
             setCompletedToTrue(completed);
@@ -542,10 +542,10 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
-            assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME));
-            assertThat(result.getAuthenticatedBy().getType(), is(SECOND_REALM_TYPE));
-            assertThat(result.getAuthenticatedBy().getDomain(), is(secondDomain));
+            assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue())); // TODO implement equals
+            assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME));
+            assertThat(result.getAuthenticatingSubject().getRealm().getType(), is(SECOND_REALM_TYPE));
+            assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(secondDomain));
             assertThreadContextContainsAuthentication(result);
             verify(auditTrail, times(2)).authenticationSuccess(reqId.get(), result, "_action", transportRequest);
             setCompletedToTrue(completed);
@@ -576,10 +576,10 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy(), is(notNullValue()));
-            assertThat(result.getAuthenticatedBy().getName(), is(FIRST_REALM_NAME));
-            assertThat(result.getAuthenticatedBy().getType(), is(FIRST_REALM_TYPE));
-            assertThat(result.getAuthenticatedBy().getDomain(), is(firstDomain));
+            assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue()));
+            assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(FIRST_REALM_NAME));
+            assertThat(result.getAuthenticatingSubject().getRealm().getType(), is(FIRST_REALM_TYPE));
+            assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(firstDomain));
             assertThreadContextContainsAuthentication(result);
             verify(auditTrail).authenticationSuccess(reqId.get(), result, "_action", transportRequest);
             setCompletedToTrue(completed);
@@ -664,8 +664,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
-            assertThat(result.getAuthenticatedBy().getDomain(), is(secondDomain));
+            assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
+            assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(secondDomain));
             assertThreadContextContainsAuthentication(result);
             verify(auditTrail).authenticationSuccess(reqId.get(), result, "_action", transportRequest);
             setCompletedToTrue(completed);
@@ -680,8 +680,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
-            assertThat(result.getAuthenticatedBy().getDomain(), is(secondDomain));
+            assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
+            assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(secondDomain));
             assertThreadContextContainsAuthentication(result);
             verify(auditTrail, times(2)).authenticationSuccess(reqId.get(), result, "_action", transportRequest);
             setCompletedToTrue(completed);
@@ -721,8 +721,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
-            assertThat(result.getAuthenticatedBy().getName(), is(secondRealm.name())); // TODO implement equals
-            assertThat(result.getAuthenticatedBy().getDomain(), is(secondDomain));
+            assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(secondRealm.name())); // TODO implement equals
+            assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(secondDomain));
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(result);
             verify(auditTrail).authenticationSuccess(reqId.get(), result, "_action", transportRequest);
@@ -934,8 +934,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), sameInstance(user));
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
-            assertThat(result.getAuthenticatedBy().getDomain(), is(firstDomain));
-            assertThat(result.getAuthenticatedBy().getName(), is(firstRealm.name())); // TODO implement equals
+            assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(firstDomain));
+            assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(firstRealm.name())); // TODO implement equals
             assertThreadContextContainsAuthentication(result);
             verify(auditTrail).authenticationSuccess(reqId.get(), result, "_action", transportRequest);
             setCompletedToTrue(completed);
@@ -957,8 +957,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(authentication, notNullValue());
             assertThat(authentication.getEffectiveSubject().getUser(), sameInstance(user1));
             assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
-            assertThat(authentication.getAuthenticatedBy().getName(), is(firstRealm.name())); // TODO implement equals
-            assertThat(authentication.getAuthenticatedBy().getDomain(), is(firstDomain)); // TODO implement equals
+            assertThat(authentication.getAuthenticatingSubject().getRealm().getName(), is(firstRealm.name())); // TODO implement equals
+            assertThat(authentication.getAuthenticatingSubject().getRealm().getDomain(), is(firstDomain)); // TODO implement equals
             assertThreadContextContainsAuthentication(authentication);
             String reqId = expectAuditRequestId(threadContext);
             verify(auditTrail).authenticationSuccess(reqId, authentication, restRequest);
@@ -1889,8 +1889,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(result, notNullValue());
                 assertThat(result.getEffectiveSubject().getUser(), is(user));
                 assertThat(result.getLookedUpBy(), is(nullValue()));
-                assertThat(result.getAuthenticatedBy(), is(notNullValue()));
-                assertThat(result.getAuthenticatedBy().getName(), is("realm")); // TODO implement equals
+                assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue()));
+                assertThat(result.getAuthenticatingSubject().getRealm().getName(), is("realm")); // TODO implement equals
                 assertThat(result.getAuthenticationType(), is(AuthenticationType.TOKEN));
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
@@ -1932,7 +1932,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(result, notNullValue());
                 assertThat(result.getEffectiveSubject().getUser(), is(user));
                 assertThat(result.getLookedUpBy(), is(nullValue()));
-                assertThat(result.getAuthenticatedBy(), is(notNullValue()));
+                assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue()));
                 assertThreadContextContainsAuthentication(result);
                 assertEquals(expected, result);
                 if (requestIdAlreadyPresent) {

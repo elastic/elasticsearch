@@ -664,7 +664,7 @@ public class AuthorizationService {
         final ActionListener<AuthorizationResult> listener
     ) {
         final Authentication authentication = requestInfo.getAuthentication();
-        assert authentication.isRunAs() : "authentication does not have a run-as";
+        assert authentication.isRunAs() : "authentication must have run-as for run-as to be authorized";
         if (authentication.getEffectiveSubject().getRealm() == null) {
             // this user did not really exist
             // TODO(jaymode) find a better way to indicate lookup failed for a user and we need to fail authz

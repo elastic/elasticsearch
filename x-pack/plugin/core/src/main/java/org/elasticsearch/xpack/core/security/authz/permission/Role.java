@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 public interface Role {
 
@@ -344,6 +345,10 @@ public interface Role {
         }
 
         for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : roleDescriptor.getApplicationPrivileges()) {
+            // We don't support concrete privilege names here, only patterns, since these would require looking up the corresponding actions
+            // from the security index
+            assert Stream.of(applicationPrivilege.getPrivileges()).noneMatch(ApplicationPrivilege::isValidPrivilegeName)
+                : "building role from static role descriptor with concrete application privilege names is not supported";
             builder.addApplicationPrivilege(
                 new ApplicationPrivilege(
                     applicationPrivilege.getApplication(),

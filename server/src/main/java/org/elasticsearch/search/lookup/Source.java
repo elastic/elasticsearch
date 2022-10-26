@@ -10,6 +10,7 @@ package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -93,7 +94,6 @@ public interface Source {
                 Tuple<XContentType, Map<String, Object>> t = XContentHelper.convertToMap(bytes, true);
                 this.xContentType = t.v1();
                 this.asMap = t.v2();
-                assert (this.asMap = Collections.unmodifiableMap(this.asMap)) != null;
             }
 
             @Override

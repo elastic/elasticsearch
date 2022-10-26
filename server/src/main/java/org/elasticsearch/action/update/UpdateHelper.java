@@ -332,7 +332,7 @@ public class UpdateHelper {
             return null;
         }
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
+        if (request.fetchSource().hasFilter()) {
             sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(request.fetchSource().filter()).internalSourceRef();
         }
 

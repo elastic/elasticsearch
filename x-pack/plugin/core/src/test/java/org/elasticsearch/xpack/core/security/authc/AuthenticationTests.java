@@ -224,7 +224,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         } else {
             authentication = randomValueOtherThanMany(
-                authc -> "_service_account".equals(authc.getAuthenticatedBy().getName()),
+                authc -> "_service_account".equals(authc.getAuthenticatingSubject().getRealm().getName()),
                 () -> AuthenticationTestHelper.builder().build()
             );
         }

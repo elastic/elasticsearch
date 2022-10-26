@@ -247,7 +247,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(), equalTo(user));
-        assertThat(secondaryAuthentication.getAuthentication().getAuthenticatedBy().getName(), equalTo(realm.name()));
+        assertThat(secondaryAuthentication.getAuthentication().getAuthenticatingSubject().getRealm().getName(), equalTo(realm.name()));
 
         listenerContext.get().restore();
         return secondaryAuthentication;

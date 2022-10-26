@@ -163,7 +163,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final Authentication authentication = result.getValue();
         assertThat(authentication.getEffectiveSubject().getUser(), is(user));
         assertThat(
-            authentication.getAuthenticatedBy(),
+            authentication.getAuthenticatingSubject().getRealm(),
             is(
                 new Authentication.RealmRef(
                     successfulRealm.name(),

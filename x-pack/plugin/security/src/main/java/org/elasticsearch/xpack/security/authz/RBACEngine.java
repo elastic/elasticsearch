@@ -866,7 +866,7 @@ public class RBACEngine implements AuthorizationEngine {
         if (isRunAs) {
             realmType = authentication.getLookedUpBy().getType();
         } else {
-            realmType = authentication.getAuthenticatedBy().getType();
+            realmType = authentication.getAuthenticatingSubject().getRealm().getType();
         }
 
         assert realmType != null;

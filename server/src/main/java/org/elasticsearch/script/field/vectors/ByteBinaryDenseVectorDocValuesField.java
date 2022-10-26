@@ -10,6 +10,8 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 
 import java.io.IOException;
@@ -20,8 +22,8 @@ public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesFie
     protected final int dims;
     protected BytesRef value;
 
-    public ByteBinaryDenseVectorDocValuesField(BinaryDocValues input, String name, int dims) {
-        super(name);
+    public ByteBinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims) {
+        super(name, elementType);
         this.input = input;
         this.dims = dims;
     }

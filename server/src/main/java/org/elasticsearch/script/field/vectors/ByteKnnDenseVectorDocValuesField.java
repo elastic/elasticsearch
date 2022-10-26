@@ -11,6 +11,8 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 
 import java.io.IOException;
@@ -22,8 +24,8 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
     protected BytesRef vector;
     protected final int dims;
 
-    public ByteKnnDenseVectorDocValuesField(@Nullable VectorValues input, String name, int dims) {
-        super(name);
+    public ByteKnnDenseVectorDocValuesField(@Nullable VectorValues input, String name, ElementType elementType, int dims) {
+        super(name, elementType);
         this.dims = dims;
         this.input = input;
     }

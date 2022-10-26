@@ -170,7 +170,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    enum ElementType {
+    public enum ElementType {
 
         BYTE(1) {
 
@@ -186,20 +186,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext) {
-                throw new IllegalArgumentException(
-                    "Fielddata is not supported on field ["
-                        + name()
-                        + "] of type ["
-                        + denseVectorFieldType.typeName()
-                        + "] "
-                        + "with element_type ["
-                        + this
-                        + "]"
+                return new VectorIndexFieldData.Builder(
+                    denseVectorFieldType.name(),
+                    CoreValuesSourceType.KEYWORD,
+                    denseVectorFieldType.indexVersionCreated,
+                    this,
+                    denseVectorFieldType.dims,
+                    denseVectorFieldType.indexed
                 );
             }
 
             @Override
-            void checkVectorBounds(float[] vector) {
+            public void checkVectorBounds(float[] vector) {
                 checkNanAndInfinite(vector);
 
                 StringBuilder errorBuilder = null;
@@ -277,13 +275,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     denseVectorFieldType.name(),
                     CoreValuesSourceType.KEYWORD,
                     denseVectorFieldType.indexVersionCreated,
+                    this,
                     denseVectorFieldType.dims,
                     denseVectorFieldType.indexed
                 );
             }
 
             @Override
-            void checkVectorBounds(float[] vector) {
+            public void checkVectorBounds(float[] vector) {
                 checkNanAndInfinite(vector);
             }
 
@@ -317,7 +316,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext);
 
-        abstract void checkVectorBounds(float[] vector);
+        public abstract void checkVectorBounds(float[] vector);
 
         abstract void checkVectorMagnitude(VectorSimilarity similarity, float[] vector, float squaredMagnitude);
 

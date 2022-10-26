@@ -168,14 +168,6 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * Use {@code getAuthenticatingSubject().getRealm()} instead.
-     */
-    @Deprecated
-    public RealmRef getAuthenticatedBy() {
-        return authenticatingSubject.getRealm();
-    }
-
-    /**
      * The use case for this method is largely trying to tell whether there is a run-as user
      * and can be replaced by {@code isRunAs}
      */
@@ -367,7 +359,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     public boolean isAuthenticatedWithServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType());
     }
 
     /**
@@ -568,12 +560,12 @@ public final class Authentication implements ToXContentObject {
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
-        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
         // domain name is generally ambiguous, because it can change during the lifetime of the authentication,
         // but it is good enough for display purposes (including auditing)
-        if (getAuthenticatedBy().getDomain() != null) {
-            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+        if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
         }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
@@ -584,10 +576,10 @@ public final class Authentication implements ToXContentObject {
                 builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
             }
         } else {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
-            if (getAuthenticatedBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
+            if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
             }
         }
         builder.endObject();

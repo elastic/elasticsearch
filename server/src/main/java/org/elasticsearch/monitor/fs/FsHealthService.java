@@ -45,6 +45,11 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
+
+    private static final StatusInfo HEALTHY_DISABLED = new StatusInfo(HEALTHY, "health check disabled");
+    private static final StatusInfo UNHEALTHY_BROKEN_NODE_LOCK = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
+    private static final StatusInfo HEALTHY_SUCCESS = new StatusInfo(HEALTHY, "health check passed");
+
     private final ThreadPool threadPool;
     private volatile boolean enabled;
     private volatile boolean brokenLock;
@@ -112,11 +117,11 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     @Override
     public StatusInfo getHealth() {
         if (enabled == false) {
-            return new StatusInfo(HEALTHY, "health check disabled");
+            return HEALTHY_DISABLED;
         }
 
         if (brokenLock) {
-            return new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
+            return UNHEALTHY_BROKEN_NODE_LOCK;
         }
 
         var unhealthyPaths = this.unhealthyPaths; // single volatile read
@@ -128,7 +133,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             );
         }
 
-        return new StatusInfo(HEALTHY, "health check passed");
+        return HEALTHY_SUCCESS;
     }
 
     class FsHealthMonitor extends AbstractRunnable {

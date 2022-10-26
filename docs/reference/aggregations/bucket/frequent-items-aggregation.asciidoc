@@ -259,7 +259,7 @@ POST /kibana_sample_data_ecommerce/_async_search
         "filter": {
           "term": {
             "geoip.continent_name": "Europe"
-          }}
+          }
         }
       }
     }

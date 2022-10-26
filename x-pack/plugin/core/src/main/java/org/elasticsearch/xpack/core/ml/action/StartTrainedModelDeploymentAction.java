@@ -371,8 +371,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this(
                 modelId,
                 modelBytes,
-                threadsPerAllocation == null ? legacyInferenceThreads : threadsPerAllocation,
                 numberOfAllocations == null ? legacyModelThreads : numberOfAllocations,
+                threadsPerAllocation == null ? legacyInferenceThreads : threadsPerAllocation,
                 queueCapacity,
                 cacheSizeValue
             );
@@ -381,8 +381,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public TaskParams(
             String modelId,
             long modelBytes,
-            int threadsPerAllocation,
             int numberOfAllocations,
+            int threadsPerAllocation,
             int queueCapacity,
             @Nullable ByteSizeValue cacheSize
         ) {

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script.field.vectors;
 
+import org.apache.lucene.util.BytesRef;
+
 import java.util.List;
 
 /**
@@ -23,9 +25,14 @@ import java.util.List;
         class of the argument and checks dimensionality.
  */
 public interface DenseVector {
+
     float[] getVector();
 
+    byte[] asBytes();
+
     float getMagnitude();
+
+    double dotProduct(byte[] queryVector);
 
     double dotProduct(float[] queryVector);
 
@@ -33,17 +40,21 @@ public interface DenseVector {
 
     @SuppressWarnings("unchecked")
     default double dotProduct(Object queryVector) {
-        if (queryVector instanceof float[] array) {
-            checkDimensions(getDims(), array.length);
-            return dotProduct(array);
-
+        if (queryVector instanceof float[] floats) {
+            checkDimensions(getDims(), floats.length);
+            return dotProduct(floats);
         } else if (queryVector instanceof List<?> list) {
             checkDimensions(getDims(), list.size());
             return dotProduct((List<Number>) list);
+        } else if (queryVector instanceof byte[] bytes) {
+            checkDimensions(getDims(), bytes.length);
+            return dotProduct(bytes);
         }
 
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
+
+    double l1Norm(byte[] queryVector);
 
     double l1Norm(float[] queryVector);
 
@@ -51,17 +62,21 @@ public interface DenseVector {
 
     @SuppressWarnings("unchecked")
     default double l1Norm(Object queryVector) {
-        if (queryVector instanceof float[] array) {
-            checkDimensions(getDims(), array.length);
-            return l1Norm(array);
-
+        if (queryVector instanceof float[] floats) {
+            checkDimensions(getDims(), floats.length);
+            return l1Norm(floats);
         } else if (queryVector instanceof List<?> list) {
             checkDimensions(getDims(), list.size());
             return l1Norm((List<Number>) list);
+        } else if (queryVector instanceof byte[] bytes) {
+            checkDimensions(getDims(), bytes.length);
+            return l1Norm(bytes);
         }
 
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
+
+    double l2Norm(byte[] queryVector);
 
     double l2Norm(float[] queryVector);
 
@@ -69,17 +84,25 @@ public interface DenseVector {
 
     @SuppressWarnings("unchecked")
     default double l2Norm(Object queryVector) {
-        if (queryVector instanceof float[] array) {
-            checkDimensions(getDims(), array.length);
-            return l2Norm(array);
-
+        if (queryVector instanceof float[] floats) {
+            checkDimensions(getDims(), floats.length);
+            return l2Norm(floats);
         } else if (queryVector instanceof List<?> list) {
             checkDimensions(getDims(), list.size());
             return l2Norm((List<Number>) list);
+        } else if (queryVector instanceof byte[] bytes) {
+            checkDimensions(getDims(), bytes.length);
+            return l2Norm(bytes);
         }
 
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
+
+    default double cosineSimilarity(byte[] queryVector) {
+        return cosineSimilarity(queryVector, true);
+    }
+
+    double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector);
 
     /**
      * Get the cosine similarity with the un-normalized query vector
@@ -104,13 +127,15 @@ public interface DenseVector {
      */
     @SuppressWarnings("unchecked")
     default double cosineSimilarity(Object queryVector) {
-        if (queryVector instanceof float[] array) {
-            checkDimensions(getDims(), array.length);
-            return cosineSimilarity(array);
-
+        if (queryVector instanceof float[] floats) {
+            checkDimensions(getDims(), floats.length);
+            return cosineSimilarity(floats);
         } else if (queryVector instanceof List<?> list) {
             checkDimensions(getDims(), list.size());
             return cosineSimilarity((List<Number>) list);
+        } else if (queryVector instanceof byte[] bytes) {
+            checkDimensions(getDims(), bytes.length);
+            return cosineSimilarity(bytes);
         }
 
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
@@ -121,6 +146,24 @@ public interface DenseVector {
     int getDims();
 
     int size();
+
+    static float getMagnitude(byte[] vector) {
+        int mag = 0;
+        for (int elem : vector) {
+            mag += elem;
+        }
+        return (float) Math.sqrt(mag);
+    }
+
+    static float getMagnitude(BytesRef vector) {
+        int mag = 0;
+        int i = 0;
+        int j = vector.offset;
+        while (i++ < vector.length) {
+            mag += vector.bytes[j++];
+        }
+        return (float) Math.sqrt(mag);
+    }
 
     static float getMagnitude(float[] vector) {
         double mag = 0.0f;
@@ -161,6 +204,11 @@ public interface DenseVector {
         }
 
         @Override
+        public double dotProduct(byte[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
         public double dotProduct(float[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
@@ -171,12 +219,22 @@ public interface DenseVector {
         }
 
         @Override
-        public double l1Norm(List<Number> queryVector) {
+        public double l1Norm(byte[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 
         @Override
         public double l1Norm(float[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double l1Norm(List<Number> queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double l2Norm(byte[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 
@@ -187,6 +245,16 @@ public interface DenseVector {
 
         @Override
         public double l2Norm(float[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double cosineSimilarity(byte[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 
@@ -207,6 +275,11 @@ public interface DenseVector {
 
         @Override
         public float[] getVector() {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public byte[] asBytes() {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

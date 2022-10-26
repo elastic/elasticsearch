@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class KnnDenseVector implements DenseVector {
+
     protected final float[] docVector;
 
     public KnnDenseVector(float[] docVector) {
@@ -28,8 +29,22 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
+    public byte[] asBytes() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public float getMagnitude() {
         return DenseVector.getMagnitude(docVector);
+    }
+
+    @Override
+    public double dotProduct(byte[] queryVector) {
+        double dotProduct = 0;
+        for (int i = 0; i < docVector.length; i++) {
+            dotProduct += docVector[i] * queryVector[i];
+        }
+        return dotProduct;
     }
 
     @Override
@@ -44,6 +59,15 @@ public class KnnDenseVector implements DenseVector {
             dotProduct += docVector[i] * queryVector.get(i).floatValue();
         }
         return dotProduct;
+    }
+
+    @Override
+    public double l1Norm(byte[] queryVector) {
+        double result = 0.0;
+        for (int i = 0; i < docVector.length; i++) {
+            result += Math.abs(docVector[i] - queryVector[i]);
+        }
+        return result;
     }
 
     @Override
@@ -65,6 +89,16 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
+    public double l2Norm(byte[] queryVector) {
+        double l2norm = 0;
+        for (int i = 0; i < docVector.length; i++) {
+            double diff = docVector[i] - queryVector[i];
+            l2norm += diff * diff;
+        }
+        return Math.sqrt(l2norm);
+    }
+
+    @Override
     public double l2Norm(float[] queryVector) {
         return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
     }
@@ -77,6 +111,15 @@ public class KnnDenseVector implements DenseVector {
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
+    }
+
+    @Override
+    public double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector) {
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
+        }
+
+        return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override

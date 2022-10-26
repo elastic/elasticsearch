@@ -16,6 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 public class BinaryDenseVector implements DenseVector {
+
     protected final BytesRef docVector;
     protected final int dims;
     protected final Version indexVersion;
@@ -38,8 +39,24 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public byte[] asBytes() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public float getMagnitude() {
         return VectorEncoderDecoder.getMagnitude(indexVersion, docVector);
+    }
+
+    @Override
+    public double dotProduct(byte[] queryVector) {
+        ByteBuffer byteBuffer = wrap(docVector);
+
+        double dotProduct = 0;
+        for (float v : queryVector) {
+            dotProduct += byteBuffer.getFloat() * v;
+        }
+        return dotProduct;
     }
 
     @Override
@@ -65,6 +82,17 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public double l1Norm(byte[] queryVector) {
+        ByteBuffer byteBuffer = wrap(docVector);
+
+        double l1norm = 0;
+        for (float v : queryVector) {
+            l1norm += Math.abs(v - byteBuffer.getFloat());
+        }
+        return l1norm;
+    }
+
+    @Override
     public double l1Norm(float[] queryVector) {
         ByteBuffer byteBuffer = wrap(docVector);
 
@@ -87,6 +115,17 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public double l2Norm(byte[] queryVector) {
+        ByteBuffer byteBuffer = wrap(docVector);
+        double l2norm = 0;
+        for (float queryValue : queryVector) {
+            double diff = byteBuffer.getFloat() - queryValue;
+            l2norm += diff * diff;
+        }
+        return Math.sqrt(l2norm);
+    }
+
+    @Override
     public double l2Norm(float[] queryVector) {
         ByteBuffer byteBuffer = wrap(docVector);
         double l2norm = 0;
@@ -106,6 +145,14 @@ public class BinaryDenseVector implements DenseVector {
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
+    }
+
+    @Override
+    public double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector) {
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
+        }
+        return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override

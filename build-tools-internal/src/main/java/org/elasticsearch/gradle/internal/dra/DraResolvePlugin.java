@@ -27,13 +27,15 @@ public class DraResolvePlugin implements Plugin<Project> {
     private final ProviderFactory providerFactory;
     private BuildLayout buildLayout;
 
-    private Provider<String> repositoryPrefix;
+    private final Provider<String> snapshotRepositoryPrefix;
+    private final Provider<String> releaseRepositoryPrefix;
 
     @Inject
     public DraResolvePlugin(ProviderFactory providerFactory, BuildLayout buildLayout) {
         this.providerFactory = providerFactory;
         this.buildLayout = buildLayout;
-        this.repositoryPrefix = providerFactory.systemProperty("dra.artifacts.url.prefix");
+        this.snapshotRepositoryPrefix = providerFactory.systemProperty("dra.artifacts.url.repo.snapshot.prefix");
+        this.releaseRepositoryPrefix = providerFactory.systemProperty("dra.artifacts.url.repo.release.prefix");
     }
 
     @Override
@@ -41,22 +43,25 @@ public class DraResolvePlugin implements Plugin<Project> {
         if (providerFactory.systemProperty("dra.artifacts").isPresent()) {
             Properties buildIdProperties = resolveBuildIdProperties();
             buildIdProperties.forEach((key, buildId) -> {
-                project.getRepositories().ivy(repo -> {
-                    repo.setName("dra-artifacts-" + key.toString());
-                    // TODO handle releases
-                    repo.setUrl(repositoryPrefix.getOrElse("https://artifacts-snapshot.elastic.co/"));
-                    repo.patternLayout(patternLayout -> patternLayout.artifact(calculateArtifactPattern(key, buildId)));
-                    repo.metadataSources(metadataSources -> metadataSources.artifact());
-
-                    // TODO handle content filtering
-                    // repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeGroup(key.toString()));
-                });
+                configureDraRepository(project, "dra-snapshot-artifacts-" + key,key.toString(), buildId.toString(), snapshotRepositoryPrefix.orElse("https://artifacts-snapshot.elastic.co/"), ".*SNAPSHOT");
+                configureDraRepository(project, "dra-release-artifacts-" + key, key.toString(), buildId.toString(), releaseRepositoryPrefix.orElse("https://artifacts.elastic.co/"), "^(.(?!SNAPSHOT))*$");
             });
         }
     }
 
-    private static String calculateArtifactPattern(Object key, Object buildId) {
-        return String.format("/%s/%s/downloads/%s/[module]-[revision]-[classifier].[ext]", key, buildId, key);
+    private void configureDraRepository(Project project, String repositoryName, String draKey, String buildId, Provider<String> repoPrefix,  String includeVersionRegex) {
+        project.getRepositories().ivy(repo -> {
+            repo.setName(repositoryName);
+            repo.setUrl(repoPrefix.get());
+            repo.patternLayout( patternLayout -> {
+                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey));
+                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey));
+            });
+            repo.metadataSources(metadataSources -> metadataSources.artifact());
+            repo.content(
+                repositoryContentDescriptor -> repositoryContentDescriptor.includeVersionByRegex(".*", ".*", includeVersionRegex)
+            );
+        });
     }
 
     private Properties resolveBuildIdProperties() {

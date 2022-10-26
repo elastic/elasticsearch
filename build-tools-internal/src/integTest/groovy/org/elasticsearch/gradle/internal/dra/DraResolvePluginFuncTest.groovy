@@ -9,11 +9,17 @@
 package org.elasticsearch.gradle.internal.dra
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.fixtures.WiremockFixture
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.ClassRule
+import spock.lang.Shared
 
 class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
 
+    @Shared
+    @ClassRule
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setup() {
         configurationCacheCompatible = false
@@ -30,37 +36,48 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         """
     }
 
-    def "configures repositories to resolve dra snapshot artifacts"(){
+    def "configures repositories to resolve #draKey like dra #artifactType artifacts"() {
         setup:
+        repository.generateJar("some.group", "bar", "1.0.0")
+        repository.generateJar("some.group", "baz", "1.0.0-SNAPSHOT")
+        repository.configureBuild(buildFile)
         file('buildIds.properties') << """
-foo-bar=8.6.0-f633b1d7
+$draKey=${buildId}
         """
         buildFile << """
         configurations {
-            dras
+            someConfig
         }
         
         dependencies {
-            dras "org.acme:foo-bar:8.6.0-SNAPSHOT:deps@zip"
+            someConfig "some.group:bar:1.0.0"
+            someConfig "some.group:baz:1.0.0-SNAPSHOT"
+            someConfig "org.acme:$draArtifact:$draVersion:deps@zip"
         }
         
-        tasks.register('resolveDraArtifacts') {
+        tasks.register('resolveArtifacts') {
             doLast {
-                configurations.dras.files.each { println it }
+                configurations.someConfig.files.each { println it }
             }
         }
         """
 
         when:
-        def result = WiremockFixture.withWireMock("/foo-bar/8.6.0-f633b1d7/downloads/foo-bar/foo-bar-8.6.0-SNAPSHOT-deps.zip",
-                "content".getBytes('UTF-8')) { server ->
-            gradleRunner("resolveDraArtifacts",
+        // /beats/8.6.0-f576b4a9/downloads/beats/auditbeat/auditbeat-8.6.0-SNAPSHOT-windows-x86_64.zip
+        def result = WiremockFixture.withWireMock(expectedRequest, "content".getBytes('UTF-8')) { server ->
+            gradleRunner("resolveArtifacts",
                     '-Ddra.artifacts=true',
-                    "-Ddra.artifacts.url.prefix=${server.baseUrl()}",
-                    '-g', gradleUserHome, '--refresh-dependencies').build()
+                    "-Ddra.artifacts.url.repo.${artifactType}.prefix=${server.baseUrl()}").build()
         }
 
         then:
-        result.task(":resolveDraArtifacts").outcome == TaskOutcome.SUCCESS
+        result.task(":resolveArtifacts").outcome == TaskOutcome.SUCCESS
+
+        where:
+        artifactType | buildId          | draVersion       | draKey   | draArtifact  | expectedRequest
+        "snapshot"   | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "release"    | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "snapshot"   | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "release"    | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
     }
 }

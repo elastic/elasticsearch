@@ -39,16 +39,21 @@ class LocalRepositoryFixture extends ExternalResource {
         targetFolder.mkdirs()
 
         def jarFile = new File(targetFolder, "${module}-${version}.jar")
-        clazzNames.each {clazzName ->
-            DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
-                    .name(clazzName)
-                    .make()
-            if(jarFile.exists()) {
-                dynamicType.inject(jarFile);
-            }else {
-                dynamicType.toJar(jarFile);
+        if(clazzNames.size() == 0 ) {
+            jarFile.write("blubb")
+        } else {
+            clazzNames.each {clazzName ->
+                DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+                        .name(clazzName)
+                        .make()
+                if(jarFile.exists()) {
+                    dynamicType.inject(jarFile);
+                }else {
+                    dynamicType.toJar(jarFile);
+                }
             }
         }
+
     }
 
     void configureBuild(File buildFile) {

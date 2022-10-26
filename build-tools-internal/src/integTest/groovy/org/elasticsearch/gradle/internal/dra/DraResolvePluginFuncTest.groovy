@@ -41,9 +41,6 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         repository.generateJar("some.group", "bar", "1.0.0")
         repository.generateJar("some.group", "baz", "1.0.0-SNAPSHOT")
         repository.configureBuild(buildFile)
-        file('buildIds.properties') << """
-$draKey=${buildId}
-        """
         buildFile << """
         configurations {
             someConfig
@@ -66,6 +63,7 @@ $draKey=${buildId}
         def result = WiremockFixture.withWireMock(expectedRequest, "content".getBytes('UTF-8')) { server ->
             gradleRunner("resolveArtifacts",
                     '-Ddra.artifacts=true',
+                    "-Ddra.artifacts.dependency.${draKey}=$buildId",
                     "-Ddra.artifacts.url.repo.${artifactType}.prefix=${server.baseUrl()}").build()
         }
 

@@ -8,7 +8,8 @@
 
 package org.elasticsearch.gradle.internal.dra;
 
-import org.gradle.api.GradleException;
+import com.google.common.collect.Maps;
+
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
@@ -16,15 +17,20 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.initialization.layout.BuildLayout;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
+import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
+
+import static java.nio.file.Files.newInputStream;
+import static java.util.Map.Entry;
 
 public class DraResolvePlugin implements Plugin<Project> {
 
     public static final String USE_DRA_ARTIFACTS_FLAG = "dra.artifacts";
+    public static final String DRA_ARTIFACTS_DEPENDENCY_PREFIX = "dra.artifacts.dependency";
     private final ProviderFactory providerFactory;
     private BuildLayout buildLayout;
 
@@ -42,36 +48,70 @@ public class DraResolvePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         if (providerFactory.systemProperty(USE_DRA_ARTIFACTS_FLAG).isPresent()) {
-            Properties buildIdProperties = resolveBuildIdProperties();
-            buildIdProperties.forEach((key, buildId) -> {
-                configureDraRepository(project, "dra-snapshot-artifacts-" + key,key.toString(), buildId.toString(), snapshotRepositoryPrefix.orElse("https://artifacts-snapshot.elastic.co/"), ".*SNAPSHOT");
-                configureDraRepository(project, "dra-release-artifacts-" + key, key.toString(), buildId.toString(), releaseRepositoryPrefix.orElse("https://artifacts.elastic.co/"), "^(.(?!SNAPSHOT))*$");
+            resolveBuildIdProperties().get().forEach((key, buildId) -> {
+                configureDraRepository(
+                    project,
+                    "dra-snapshot-artifacts-" + key,
+                    key,
+                    buildId,
+                    snapshotRepositoryPrefix.orElse("https://artifacts-snapshot.elastic.co/"),
+                    ".*SNAPSHOT"
+                );
+                configureDraRepository(
+                    project,
+                    "dra-release-artifacts-" + key,
+                    key,
+                    buildId,
+                    releaseRepositoryPrefix.orElse("https://artifacts.elastic.co/"),
+                    "^(.(?!SNAPSHOT))*$"
+                );
             });
         }
     }
 
-    private void configureDraRepository(Project project, String repositoryName, String draKey, String buildId, Provider<String> repoPrefix,  String includeVersionRegex) {
+    private void configureDraRepository(
+        Project project,
+        String repositoryName,
+        String draKey,
+        String buildId,
+        Provider<String> repoPrefix,
+        String includeVersionRegex
+    ) {
         project.getRepositories().ivy(repo -> {
             repo.setName(repositoryName);
             repo.setUrl(repoPrefix.get());
-            repo.patternLayout( patternLayout -> {
-                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey));
-                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey));
+            repo.patternLayout(patternLayout -> {
+                patternLayout.artifact(
+                    String.format("/%s/%s/downloads/%s/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey)
+                );
+                patternLayout.artifact(
+                    String.format("/%s/%s/downloads/%s/[module]/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey)
+                );
             });
             repo.metadataSources(metadataSources -> metadataSources.artifact());
-            repo.content(
-                repositoryContentDescriptor -> repositoryContentDescriptor.includeVersionByRegex(".*", ".*", includeVersionRegex)
-            );
+            repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeVersionByRegex(".*", ".*", includeVersionRegex));
         });
     }
 
-    private Properties resolveBuildIdProperties() {
-        Properties draProperties = new Properties();
-        try {
-            draProperties.load(Files.newInputStream(new File(buildLayout.getRootDirectory(), "buildIds.properties").toPath()));
-        } catch (IOException e) {
-            throw new GradleException("Cannot resolve buildIds properties file", e);
-        }
-        return draProperties;
+    private Provider<Map<String, String>> resolveBuildIdProperties() {
+        return providerFactory.systemPropertiesPrefixedBy(DRA_ARTIFACTS_DEPENDENCY_PREFIX)
+            .map(
+                stringStringMap -> stringStringMap.entrySet()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(entry -> entry.getKey().substring(DRA_ARTIFACTS_DEPENDENCY_PREFIX.length() + 1), Entry::getValue)
+                    )
+            )
+            .zip(providerFactory.provider(() -> {
+                Properties draProperties = new Properties();
+                File buildIdsFile = new File(buildLayout.getRootDirectory(), "buildIds.properties");
+                if (buildIdsFile.exists()) {
+                    draProperties.load(newInputStream(buildIdsFile.toPath()));
+                }
+                return Maps.newHashMap(Maps.fromProperties(draProperties));
+            }),
+                (sysPropMap, fromFileMap) -> Stream.concat(sysPropMap.entrySet().stream(), fromFileMap.entrySet().stream())
+                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue, (value1, value2) -> value1))
+            );
     }
 }

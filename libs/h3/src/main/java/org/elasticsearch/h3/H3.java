@@ -272,7 +272,7 @@ public final class H3 {
      * returns whether or not the provided hexagons border
      *
      * @param origin the first index
-     * @param destination the second  index
+     * @param destination the second index
      * @return whether or not the provided hexagons border
      */
     public static boolean areNeighborCells(String origin, String destination) {
@@ -283,7 +283,7 @@ public final class H3 {
      * returns whether or not the provided hexagons border
      *
      * @param origin the first index
-     * @param destination the second  index
+     * @param destination the second index
      * @return whether or not the provided hexagons border
      */
     public static boolean areNeighborCells(long origin, long destination) {

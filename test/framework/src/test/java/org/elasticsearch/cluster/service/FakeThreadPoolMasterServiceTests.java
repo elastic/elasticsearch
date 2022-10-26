@@ -142,8 +142,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
 
         runnableTasks.remove(0).run(); // schedule again
 
-        // run tasks for computing routing nodes and indices lookup
-        runnableTasks.remove(0).run();
+        // run task for computing missing indices lookup
         runnableTasks.remove(0).run();
 
         runnableTasks.remove(0).run(); // publish again

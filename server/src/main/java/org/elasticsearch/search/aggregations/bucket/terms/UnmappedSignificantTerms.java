@@ -115,7 +115,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return false;
     }
 

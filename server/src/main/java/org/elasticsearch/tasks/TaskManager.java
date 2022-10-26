@@ -120,6 +120,15 @@ public class TaskManager implements ClusterStateApplier {
      * Registers a task without parent task
      */
     public Task register(String type, String action, TaskAwareRequest request) {
+        return register(type, action, request, true);
+    }
+
+    /**
+     * Registers a task without a parent task, and specifies whether to trace the request. You should prefer
+     * to call {@link #register(String, String, TaskAwareRequest)}, since it is rare to want to avoid
+     * tracing a task.
+     */
+    public Task register(String type, String action, TaskAwareRequest request, boolean traceRequest) {
         Map<String, String> headers = new HashMap<>();
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
@@ -145,16 +154,19 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task instanceof CancellableTask) {
-            registerCancellableTask(task);
+            registerCancellableTask(task, traceRequest);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
-            startTrace(threadContext, task);
+            if (traceRequest) {
+                startTrace(threadContext, task);
+            }
         }
         return task;
     }
 
-    private void startTrace(ThreadContext threadContext, Task task) {
+    // package private for testing
+    void startTrace(ThreadContext threadContext, Task task) {
         TaskId parentTask = task.getParentTaskId();
         Map<String, Object> attributes = Map.of(
             Tracer.AttributeKeys.TASK_ID,
@@ -219,14 +231,15 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    private void registerCancellableTask(Task task) {
+    private void registerCancellableTask(Task task, boolean traceRequest) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
-        startTrace(threadPool.getThreadContext(), task);
-        // Check if this task was banned before we start it. The empty check is used to avoid
-        // computing the hash code of the parent taskId as most of the time bannedParents is empty.
-        if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {
+        if (traceRequest) {
+            startTrace(threadPool.getThreadContext(), task);
+        }
+        // Check if this task was banned before we start it.
+        if (task.getParentTaskId().isSet()) {
             final Ban ban = bannedParents.get(task.getParentTaskId());
             if (ban != null) {
                 try {

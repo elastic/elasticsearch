@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -78,22 +79,17 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
     }
 
     @Override
-    protected void doExecute(Task task, GrantApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
-        executeWithGrantAuthentication(
-            request,
-            listener.delegateFailure(
-                (l, authentication) -> resolver.resolveUserRoleDescriptors(
-                    authentication,
-                    ActionListener.wrap(
-                        roleDescriptors -> apiKeyService.createApiKey(
-                            authentication,
-                            request.getApiKeyRequest(),
-                            roleDescriptors,
-                            listener
-                        ),
-                        listener::onFailure
-                    )
-                )
+    protected void doExecuteWithGrantAuthentication(
+        Task task,
+        GrantApiKeyRequest request,
+        Authentication authentication,
+        ActionListener<CreateApiKeyResponse> listener
+    ) {
+        resolver.resolveUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.createApiKey(authentication, request.getApiKeyRequest(), roleDescriptors, listener),
+                listener::onFailure
             )
         );
     }

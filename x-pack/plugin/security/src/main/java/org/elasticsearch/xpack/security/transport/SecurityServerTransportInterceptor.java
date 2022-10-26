@@ -117,7 +117,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         )
                     );
                 } else if (securityContext.getAuthentication() != null
-                    && securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
+                    && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(
                             original -> sendWithUser(
@@ -277,7 +277,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) {
-            try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
+            try (ThreadContext.StoredContext ctx = threadContext.newStoredContextPreservingResponseHeaders()) {
                 String profile = channel.getProfileName();
                 ServerTransportFilter filter = profileFilters.get(profile);
 

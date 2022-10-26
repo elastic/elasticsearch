@@ -48,6 +48,12 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     @Override
+    protected ScriptScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        return new ScriptScoreQueryBuilder(queryBuilder, script);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
         Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);

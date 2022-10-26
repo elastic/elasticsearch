@@ -556,9 +556,15 @@ public class RecoverySourceHandler {
                     );
                 }
             }
-            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+            // When sync ids were used we could use them to check if two shard copies were equivalent,
+            // if that's the case we can skip sending files from the source shard to the target shard.
+            // If the shard uses the current replication mechanism, we have to compute the recovery plan,
+            // and it is still possible to skip the sending files from the source shard to the target shard
+            // using a different mechanism to determine it.
+            // TODO: is this still relevant today?
+            if (hasSameLegacySyncId(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
+                final boolean canUseSnapshots = canUseSnapshots();
                 recoveryPlannerService.computeRecoveryPlan(
                     shard.shardId(),
                     shardStateIdentifier,
@@ -596,6 +602,12 @@ public class RecoverySourceHandler {
         } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), 0, new ByteSizeValue(0L), e);
         }
+    }
+
+    private boolean canUseSnapshots() {
+        return useSnapshots && request.canDownloadSnapshotFiles()
+        // Avoid using snapshots for searchable snapshots as these are implicitly recovered from a snapshot
+            && shard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
     }
 
     void recoverFilesFromSourceAndSnapshot(
@@ -990,7 +1002,7 @@ public class RecoverySourceHandler {
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
     }
 
-    boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
+    boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
         if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
             return false;
         }

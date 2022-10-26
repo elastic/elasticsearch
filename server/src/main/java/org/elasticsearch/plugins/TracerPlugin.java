@@ -8,10 +8,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tracing.Tracer;
 
 public interface TracerPlugin {
-    Tracer getTracer(ClusterService clusterService, Settings settings);
+    Tracer getTracer(Settings settings);
 }

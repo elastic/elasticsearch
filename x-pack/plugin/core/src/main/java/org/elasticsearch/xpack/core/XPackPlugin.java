@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -305,7 +306,8 @@ public class XPackPlugin extends XPackClientPlugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         List<Object> components = new ArrayList<>();
 

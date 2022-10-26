@@ -452,7 +452,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 RandomNumbers.randomIntBetween(random, 1, 15) + "ms"
             );
         }
-
+        if (randomBoolean()) {
+            builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
+        }
         return builder;
     }
 

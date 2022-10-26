@@ -51,7 +51,7 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         assertThat(tokenizationResult.getTokenization(0).seqPairOffset(), equalTo(7));
         double[][][] scores = { { { 42 } } };
         NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(textSimilarityConfig);
-        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, false);
+        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(scores);
         TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             tokenizationResult,
             pyTorchResult
@@ -74,7 +74,7 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer);
         NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(textSimilarityConfig);
         double[][][] scores = { { { 42 }, { 12 }, { 100 } } };
-        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, false);
+        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(scores);
         TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             new BertTokenizationResult(List.of(), List.of(), 1),
             pyTorchResult

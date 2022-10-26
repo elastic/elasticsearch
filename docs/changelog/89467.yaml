@@ -1,0 +1,6 @@
+pr: 89467
+summary: Remove unexpected meta param in agg's response
+area: Aggregations
+type: bug
+issues:
+  - 89455

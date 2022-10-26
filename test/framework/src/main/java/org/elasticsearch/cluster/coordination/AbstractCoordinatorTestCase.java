@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
+import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
@@ -67,6 +68,7 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -208,13 +210,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
     // Updating the cluster state involves up to 7 delays:
     // 1. submit the task to the master service
-    // 2. send PublishRequest
-    // 3. receive PublishResponse
-    // 4. send ApplyCommitRequest
-    // 5. apply committed cluster state
-    // 6. receive ApplyCommitResponse
-    // 7. apply committed state on master (last one to apply cluster state)
-    public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 7 * DEFAULT_DELAY_VARIABILITY;
+    // 2. state publisher task on master
+    // 3. master sends out PublishRequests to nodes
+    // 4. master receives PublishResponses from nodes
+    // 5. master sends ApplyCommitRequests to nodes
+    // 6. nodes apply committed cluster state
+    // 7. master receives ApplyCommitResponses
+    // 8. apply committed state on master (last one to apply cluster state)
+    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 8;
+    public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;
 
@@ -1249,7 +1253,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     Randomness.get(),
                     (s, p, r) -> {},
                     getElectionStrategy(),
-                    nodeHealthService
+                    nodeHealthService,
+                    new NoneCircuitBreakerService()
+                );
+                coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+                    clusterService,
+                    transportService,
+                    coordinator,
+                    masterHistoryService
                 );
                 client.initialize(
                     Map.of(
@@ -1258,7 +1269,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         MasterHistoryAction.INSTANCE,
                         new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),
                         ClusterFormationInfoAction.INSTANCE,
-                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator)
+                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator),
+                        CoordinationDiagnosticsAction.INSTANCE,
+                        new CoordinationDiagnosticsAction.TransportAction(
+                            transportService,
+                            new ActionFilters(Set.of()),
+                            coordinationDiagnosticsService
+                        )
                     ),
                     transportService.getTaskManager(),
                     localNode::getId,
@@ -1266,13 +1283,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     null,
                     getNamedWriteableRegistry()
                 );
-                coordinationDiagnosticsService = new CoordinationDiagnosticsService(
-                    clusterService,
-                    transportService,
-                    coordinator,
-                    masterHistoryService
-                );
-                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService);
+                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
@@ -1287,6 +1298,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 coordinator.start();
                 gatewayService.start();
                 clusterService.start();
+                coordinationDiagnosticsService.start();
                 coordinator.startInitialJoin();
             }
 
@@ -1425,7 +1437,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return submitUpdateTask(
                     "new value [" + key + "=" + value + "]",
                     cs -> setValue(cs, key, value),
-                    new ClusterStateTaskListener() {
+                    new CoordinatorTestClusterStateUpdateTask() {
                         @Override
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             history.respond(eventId, value(oldState, key));
@@ -1450,7 +1462,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void readValue(int key) {
                 final int eventId = history.invoke(new Tuple<>(key, null));
-                submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
+                submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new CoordinatorTestClusterStateUpdateTask() {
                     @Override
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(newState, key));
@@ -1468,7 +1480,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             AckCollector submitUpdateTask(
                 String source,
                 UnaryOperator<ClusterState> clusterStateUpdate,
-                ClusterStateTaskListener taskListener
+                CoordinatorTestClusterStateUpdateTask taskListener
             ) {
                 final AckCollector ackCollector = new AckCollector();
                 onNode(() -> {
@@ -1945,5 +1957,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             assert trackedRefs.isEmpty() : trackedRefs;
         }
 
+    }
+
+    public interface CoordinatorTestClusterStateUpdateTask extends ClusterStateTaskListener {
+        default void clusterStateProcessed(ClusterState oldState, ClusterState newState) {}
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +53,8 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths)
+                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    new SourceLookup.ReaderSourceProvider()
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
@@ -62,7 +64,7 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
     }

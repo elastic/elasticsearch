@@ -99,6 +99,16 @@ specified, the name of the timestamp field in the Grok pattern must match
 "timestamp". If `grok_pattern` is not specified, the structure finder creates a
 Grok pattern.
 
+`ecs_compatibility`::
+(Optional, string) The mode of compatibility with ECS compliant Grok patterns.
+Use this parameter to specify whether to use ECS Grok patterns instead of
+legacy ones when the structure finder creates a Grok pattern. Valid values
+are `disabled` and `v1`. The default value is `disabled`. This setting primarily
+has an impact when a whole message Grok pattern such as `%{CATALINALOG}`
+matches the input. If the structure finder identifies a common structure but
+has no idea of meaning then generic field names such as `path`, `ipaddress`,
+`field1` and `field2` are used in the `grok_pattern` output, with the intention
+that a user who knows the meanings rename these fields before using it.
 `has_header_row`::
 (Optional, Boolean) If you have set `format` to `delimited`, you can use this
 parameter to indicate whether the column names are in the first row of the text.
@@ -209,6 +219,11 @@ structure finder does not consider by default.
 If this parameter is not specified, the structure finder chooses the best
 format from a built-in set.
 
+If the special value `null` is specified the structure finder will not look
+for a primary timestamp in the text. When the format is semi-structured text
+this will result in the structure finder treating the text as single-line
+messages.
+
 The following table provides the appropriate `timeformat` values for some example timestamps:
 
 |===
@@ -286,15 +301,16 @@ If the request does not encounter errors, you receive the following result:
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
   "format" : "ndjson", <6>
-  "timestamp_field" : "release_date", <7>
-  "joda_timestamp_formats" : [ <8>
+  "ecs_compatibility" : "disabled", <7>
+  "timestamp_field" : "release_date", <8>
+  "joda_timestamp_formats" : [ <9>
     "ISO8601"
   ],
-  "java_timestamp_formats" : [ <9>
+  "java_timestamp_formats" : [ <10>
     "ISO8601"
   ],
-  "need_client_timezone" : true, <10>
-  "mappings" : { <11>
+  "need_client_timezone" : true, <11>
+  "mappings" : { <12>
     "properties" : {
       "@timestamp" : {
         "type" : "date"
@@ -328,7 +344,7 @@ If the request does not encounter errors, you receive the following result:
       }
     ]
   },
-  "field_stats" : { <12>
+  "field_stats" : { <13>
     "author" : {
       "count" : 24,
       "cardinality" : 20,
@@ -536,19 +552,20 @@ may help diagnose parse errors or accidental uploads of the wrong text.
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
 text begins with a byte order marker.
 <6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
-<7> The `timestamp_field` names the field considered most likely to be the
+<7> `ecs_compatibility` is either `disabled` or `v1`, defaults to `disabled`.
+<8> The `timestamp_field` names the field considered most likely to be the
 primary timestamp of each document.
-<8> `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
-<9> `java_timestamp_formats` are the Java time formats recognized in the time
+<9> `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
+<10> `java_timestamp_formats` are the Java time formats recognized in the time
 fields. {es} mappings and ingest pipelines use this format.
-<10> If a timestamp format is detected that does not include a timezone,
+<11> If a timestamp format is detected that does not include a timezone,
 `need_client_timezone` will be `true`. The server that parses the text must
 therefore be told the correct timezone by the client.
-<11> `mappings` contains some suitable mappings for an index into which the data
+<12> `mappings` contains some suitable mappings for an index into which the data
 could be ingested. In this case, the `release_date` field has been given a
 `keyword` type as it is not considered specific enough to convert to the `date`
 type.
-<12> `field_stats` contains the most common values of each field, plus basic
+<13> `field_stats` contains the most common values of each field, plus basic
 numeric statistics for the numeric `page_count` field. This information may
 provide clues that the data needs to be cleaned or transformed prior to use by
 other {stack} functionality.
@@ -1534,7 +1551,8 @@ This is an example of analyzing an {es} log file:
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST
+"localhost:9200/_text_structure/find_structure?pretty&ecs_compatibility=disabled" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1553,6 +1571,7 @@ this:
   "format" : "semi_structured_text", <1>
   "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", <2>
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*", <3>
+  "ecs_compatibility" : "disabled", <4>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
@@ -1679,6 +1698,8 @@ in the first line of each multi-line log message.
 <3> A very simple `grok_pattern` has been created, which extracts the timestamp
 and recognizable fields that appear in every analyzed message. In this case the
 only field that was recognized beyond the timestamp was the log level.
+<4> The ECS Grok pattern compatibility mode used, may be one of either `disabled`
+(the default if not specified in the request) or `v1`
 
 [discrete]
 [[find-structure-example-grok]]
@@ -1715,6 +1736,7 @@ this:
   "format" : "semi_structured_text",
   "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", <1>
+  "ecs_compatibility" : "disabled", <2>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
@@ -1769,7 +1791,7 @@ this:
       }
     ]
   },
-  "field_stats" : { <2>
+  "field_stats" : { <3>
     "class" : {
       "count" : 53,
       "cardinality" : 14,
@@ -1945,7 +1967,9 @@ this:
 
 <1> The `grok_pattern` in the output is now the overridden one supplied in the
 query parameter.
-<2> The returned `field_stats` include entries for the fields from the
+<2> The ECS Grok pattern compatibility mode used, may be one of either `disabled`
+(the default if not specified in the request) or `v1`
+<3> The returned `field_stats` include entries for the fields from the
 overridden `grok_pattern`.
 
 The URL escaping is hard, so if you are working interactively it is best to use

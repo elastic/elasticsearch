@@ -160,7 +160,11 @@ setup:
 
 ---
 "kNN search in _knn_search endpoint":
+  - skip:
+      features: ["allowed_warnings"]
   - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
         index: test
         body:
@@ -182,7 +186,10 @@ setup:
   - skip:
       version: ' - 8.1.99'
       reason: 'kNN with filtering added in 8.2'
+      features: ["allowed_warnings"]
   - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
         index: test
         body:
@@ -201,6 +208,8 @@ setup:
   - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
 
   - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
         index: test
         body:

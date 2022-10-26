@@ -1,0 +1,7 @@
+pr: 89993
+summary: Fail when rebuilding scorer in `breadth_first` mode and query context has
+  changed
+area: Aggregations
+type: bug
+issues:
+ - 37650

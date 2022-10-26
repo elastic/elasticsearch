@@ -171,6 +171,13 @@ public class ItemSetBitSetTests extends ESTestCase {
         set.reset(set2);
         assertEquals(0, set.cardinality());
         set.clear(999);
+
+        set.set(54);
+        set.set(20);
+        assertEquals(2, set.cardinality());
+
+        set.clear();
+        assertEquals(0, set.cardinality());
     }
 
     public void testHashCode() {

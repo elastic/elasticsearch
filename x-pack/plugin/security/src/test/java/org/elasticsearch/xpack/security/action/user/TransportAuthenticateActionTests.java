@@ -64,7 +64,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<AuthenticateResponse>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<AuthenticateResponse>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -101,7 +101,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<AuthenticateResponse>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<AuthenticateResponse>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -122,13 +122,13 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         final AnonymousUser anonymousUser = prepareAnonymousUser();
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         final Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
-        final User effectiveUser = authentication.getUser();
+        final User effectiveUser = authentication.getEffectiveSubject().getUser();
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, effectiveUser, authentication);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -143,20 +143,20 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         assertThat(responseRef.get(), notNullValue());
         if (anonymousUser.enabled() && false == authentication.isApiKey()) {
             final Authentication auth = responseRef.get().authentication();
-            final User userInResponse = auth.getUser();
+            final User userInResponse = auth.getEffectiveSubject().getUser();
             assertThat(
                 userInResponse.roles(),
-                arrayContainingInAnyOrder(ArrayUtils.concat(authentication.getUser().roles(), anonymousUser.roles()))
+                arrayContainingInAnyOrder(ArrayUtils.concat(authentication.getEffectiveSubject().getUser().roles(), anonymousUser.roles()))
             );
             assertThat(auth.isRunAs(), is(authentication.isRunAs()));
             if (auth.isRunAs()) {
                 assertThat(auth.getAuthenticatingSubject().getUser(), sameInstance(authentication.getAuthenticatingSubject().getUser()));
             }
-            assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
+            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(auth.getAuthenticatingSubject().getRealm()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
+            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
             assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
-            assertThat(auth.getMetadata(), sameInstance(auth.getMetadata()));
+            assertThat(auth.getAuthenticatingSubject().getMetadata(), sameInstance(auth.getAuthenticatingSubject().getMetadata()));
         } else {
             assertThat(responseRef.get().authentication(), sameInstance(authentication));
         }
@@ -173,13 +173,13 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         } else {
             authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         }
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, user, authentication);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -194,13 +194,13 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         assertThat(responseRef.get(), notNullValue());
         if (anonymousUser.enabled()) {
             final Authentication auth = responseRef.get().authentication();
-            final User authUser = auth.getUser();
+            final User authUser = auth.getEffectiveSubject().getUser();
             assertThat(authUser.roles(), emptyArray());
-            assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
+            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(auth.getAuthenticatingSubject().getRealm()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
+            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
             assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
-            assertThat(auth.getMetadata(), sameInstance(auth.getMetadata()));
+            assertThat(auth.getAuthenticatingSubject().getMetadata(), sameInstance(auth.getAuthenticatingSubject().getMetadata()));
         } else {
             assertThat(responseRef.get().authentication(), sameInstance(authentication));
         }

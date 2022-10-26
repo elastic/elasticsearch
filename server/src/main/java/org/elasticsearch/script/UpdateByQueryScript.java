@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * A script used by the update by query api
  */
-public abstract class UpdateByQueryScript {
+public abstract class UpdateByQueryScript extends WriteScript {
 
     public static final String[] PARAMETERS = {};
 
@@ -24,27 +24,14 @@ public abstract class UpdateByQueryScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** The context map for the script */
-    private final CtxMap<UpdateByQueryMetadata> ctxMap;
-
     public UpdateByQueryScript(Map<String, Object> params, CtxMap<UpdateByQueryMetadata> ctxMap) {
+        super(ctxMap);
         this.params = params;
-        this.ctxMap = ctxMap;
     }
 
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    /** Return the context map for this script */
-    public Map<String, Object> getCtx() {
-        return ctxMap;
-    }
-
-    /** Return the update metadata for this script */
-    public Metadata metadata() {
-        return ctxMap.getMetadata();
     }
 
     public abstract void execute();

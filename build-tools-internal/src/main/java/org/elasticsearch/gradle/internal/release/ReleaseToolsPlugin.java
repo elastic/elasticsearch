@@ -19,7 +19,6 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
@@ -52,21 +51,13 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             .getAsFileTree()
             .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
-        final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsAgainstYamlTask = project.getTasks()
-            .register("validateChangelogsAgainstSchema", ValidateYamlAgainstSchemaTask.class, task -> {
+        final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsTask = project.getTasks()
+            .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {
                 task.setGroup("Documentation");
                 task.setDescription("Validate that the changelog YAML files comply with the changelog schema");
                 task.setInputFiles(yamlFiles);
                 task.setJsonSchema(new File(project.getRootDir(), RESOURCES + "changelog-schema.json"));
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
-            });
-
-        final TaskProvider<ValidateChangelogEntryTask> validateChangelogsTask = project.getTasks()
-            .register("validateChangelogs", ValidateChangelogEntryTask.class, task -> {
-                task.setGroup("Documentation");
-                task.setDescription("Validate that all changelog YAML files are well-formed");
-                task.setChangelogs(yamlFiles);
-                task.dependsOn(validateChangelogsAgainstYamlTask);
             });
 
         final Function<Boolean, Action<GenerateReleaseNotesTask>> configureGenerateTask = shouldConfigureYamlFiles -> task -> {

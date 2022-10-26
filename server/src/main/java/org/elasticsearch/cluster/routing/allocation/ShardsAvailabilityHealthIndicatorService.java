@@ -42,11 +42,11 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,9 +68,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName;
 
 /**
  * This indicator reports health for shards.
@@ -105,7 +108,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -121,15 +124,20 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
         return createIndicator(
             status.getStatus(),
-            status.getSummary(),
+            status.getSymptom(),
             status.getDetails(explain),
             status.getImpacts(),
-            status.getUserActions(explain)
+            status.getDiagnosis(explain)
         );
     }
 
+    // Impact IDs
+    public static final String PRIMARY_UNASSIGNED_IMPACT_ID = "primary_unassigned";
+    public static final String REPLICA_UNASSIGNED_IMPACT_ID = "replica_unassigned";
+
     public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "http://ela.st/restore-snapshot";
     public static final Diagnosis.Definition ACTION_RESTORE_FROM_SNAPSHOT = new Diagnosis.Definition(
+        NAME,
         "restore_from_snapshot",
         "Elasticsearch isn't allowed to allocate some shards because there are no copies of the shards in the cluster. Elasticsearch will "
             + "allocate these shards when nodes holding good copies of the data join the cluster.",
@@ -139,6 +147,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "http://ela.st/diagnose-shards";
     public static final Diagnosis.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new Diagnosis.Definition(
+        NAME,
         "explain_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the cluster.",
         "Diagnose the issue by calling the allocation explain API for an index [GET _cluster/allocation/explain]. Choose a node to which "
@@ -147,8 +156,20 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
+    public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
+    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
+        NAME,
+        "delayed_shard_allocations",
+        "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that have become "
+            + "unavailable are usually marked for delayed allocation because it is more efficient to wait and see if the shards return "
+            + "on their own than to recover the shard immediately.",
+        "Elasticsearch will reallocate the shards when the delay has elapsed. No action is required by the user.",
+        FIX_DELAYED_SHARDS_GUIDE
+    );
+
     public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
+        NAME,
         "enable_index_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
             + "the index level.",
@@ -161,6 +182,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     );
     public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "http://ela.st/fix-cluster-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new Diagnosis.Definition(
+        NAME,
         "enable_cluster_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
             + "the cluster level.",
@@ -178,7 +200,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "enable_data_tiers_" + tier,
+                    NAME,
+                    "enable_data_tiers:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because the indices expect to be allocated to "
                         + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster.",
                     "Add nodes with the [" + tier + "] role to the cluster.",
@@ -189,6 +212,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/index-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new Diagnosis.Definition(
+        NAME,
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the index "
             + "shard limit. ",
@@ -204,7 +228,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "increase_shard_limit_index_setting_" + tier,
+                    NAME,
+                    "increase_shard_limit_index_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
                         + "] tier has reached the index shard limit. ",
@@ -218,6 +243,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/cluster-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new Diagnosis.Definition(
+        NAME,
         "increase_shard_limit_cluster_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the "
             + "cluster shard limit.",
@@ -233,7 +259,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "increase_shard_limit_cluster_setting_" + tier,
+                    NAME,
+                    "increase_shard_limit_cluster_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
                         + "] tier has reached the cluster shard limit. ",
@@ -247,6 +274,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "http://ela.st/migrate-to-tiers";
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new Diagnosis.Definition(
+        NAME,
         "migrate_data_tiers_require_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier.",
@@ -263,7 +291,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "migrate_data_tiers_require_data_" + tier,
+                    NAME,
+                    "migrate_data_tiers_require_data:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
                         + tier
                         + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
@@ -279,6 +308,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         );
 
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA = new Diagnosis.Definition(
+        NAME,
         "migrate_data_tiers_include_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. ",
@@ -295,7 +325,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "migrate_data_tiers_include_data_" + tier,
+                    NAME,
+                    "migrate_data_tiers_include_data:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
                         + tier
                         + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
@@ -312,6 +343,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String TIER_CAPACITY_ACTION_GUIDE = "http://ela.st/tier-capacity";
     public static final Diagnosis.Definition ACTION_INCREASE_NODE_CAPACITY = new Diagnosis.Definition(
+        NAME,
         "increase_node_capacity_for_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because there are not enough nodes in the cluster to "
             + "allocate each shard copy on a different node.",
@@ -324,7 +356,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "increase_tier_capacity_for_allocations_" + tier,
+                    NAME,
+                    "increase_tier_capacity_for_allocations:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the desired data tier "
                         + "because there are not enough nodes in the ["
                         + tier
@@ -413,10 +446,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     actions.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 }
                 break;
+            case NO_ATTEMPT:
+                if (shardRouting.unassignedInfo().isDelayed()) {
+                    actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
+                } else {
+                    actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+                }
+                break;
             case DECIDERS_NO:
                 actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
-            default:
+            case DELAYED_ALLOCATION:
+                actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 break;
         }
         if (actions.isEmpty()) {
@@ -748,7 +789,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        public String getSummary() {
+        public String getSymptom() {
             var builder = new StringBuilder("This cluster has ");
             if (primaries.unassigned > 0
                 || primaries.unassigned_new > 0
@@ -757,11 +798,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
-                        createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
-                        createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
+                        createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
+                        createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
+                        createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {
@@ -815,9 +856,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
                     primaries.indicesWithUnavailableShards.size(),
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(primaries.indicesWithUnavailableShards, clusterMetadata)
+                    getTruncatedIndices(primaries.indicesWithUnavailableShards, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(1, impactDescription, List.of(ImpactArea.INGEST, ImpactArea.SEARCH)));
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        NAME,
+                        PRIMARY_UNASSIGNED_IMPACT_ID,
+                        1,
+                        impactDescription,
+                        List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                    )
+                );
             }
             /*
              * It is possible that we're working with an intermediate cluster state, and that for an index we have no primary but a replica
@@ -832,19 +881,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Searches might be slower than usual. Fewer redundant copies of the data exist on %d %s [%s].",
                     indicesWithUnavailableReplicasOnly.size(),
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
+                    getTruncatedIndices(indicesWithUnavailableReplicasOnly, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(2, impactDescription, List.of(ImpactArea.SEARCH)));
+                impacts.add(
+                    new HealthIndicatorImpact(NAME, REPLICA_UNASSIGNED_IMPACT_ID, 2, impactDescription, List.of(ImpactArea.SEARCH))
+                );
             }
             return impacts;
         }
 
         /**
-         * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
+         * Returns the diagnosis for unassigned primary and replica shards.
          * @param explain true if user actions should be generated, false if they should be omitted.
          * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
          */
-        public List<Diagnosis> getUserActions(boolean explain) {
+        public List<Diagnosis> getDiagnosis(boolean explain) {
             if (explain) {
                 Map<Diagnosis.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
                 replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
@@ -863,7 +914,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                e.getValue().stream().sorted(byPriorityThenByName(clusterMetadata)).collect(Collectors.toList())
+                                List.of(
+                                    new Diagnosis.Resource(
+                                        INDEX,
+                                        e.getValue()
+                                            .stream()
+                                            .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                            .collect(Collectors.toList())
+                                    )
+                                )
                             )
                         )
                         .collect(Collectors.toList());
@@ -872,31 +931,5 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 return Collections.emptyList();
             }
         }
-    }
-
-    private static String getTruncatedIndicesString(Set<String> indices, Metadata clusterMetadata) {
-        final int maxIndices = 10;
-        String truncatedIndicesString = indices.stream()
-            .sorted(byPriorityThenByName(clusterMetadata))
-            .limit(maxIndices)
-            .collect(joining(", "));
-        if (maxIndices < indices.size()) {
-            truncatedIndicesString = truncatedIndicesString + ", ...";
-        }
-        return truncatedIndicesString;
-    }
-
-    /**
-     * Sorts index names by their priority first, then alphabetically by name. If the priority cannot be determined for an index then
-     * a priority of -1 is used to sort it behind other index names.
-     * @param clusterMetadata Used to look up index priority.
-     * @return Comparator instance
-     */
-    private static Comparator<String> byPriorityThenByName(Metadata clusterMetadata) {
-        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
-        return Comparator.comparingInt((String indexName) -> {
-            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
-            return indexMetadata == null ? -1 : indexMetadata.priority();
-        }).reversed().thenComparing(Comparator.naturalOrder());
     }
 }

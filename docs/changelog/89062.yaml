@@ -1,0 +1,5 @@
+pr: 89062
+summary: Optimize frequent items transaction lookup
+area: Machine Learning
+type: enhancement
+issues: []

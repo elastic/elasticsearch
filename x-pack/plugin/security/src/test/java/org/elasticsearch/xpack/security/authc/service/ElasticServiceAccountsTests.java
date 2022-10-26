@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -145,21 +147,24 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticFleetServerPrivileges() {
-        final Role role = Role.builder(
+        final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
-            null,
+            new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
-        ).build();
+        );
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         assertThat(
             role.cluster()
                 .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
             is(true)
         );
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(
+            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
+            is(true)
+        );
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
 
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, randomFrom(GetApiKeyRequest.forAllApiKeys()), authentication), is(false));
+        assertThat(role.cluster().check(GetApiKeyAction.NAME, randomFrom(GetApiKeyRequest.builder().build()), authentication), is(false));
         assertThat(
             role.cluster()
                 .check(
@@ -302,11 +307,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticEnterpriseSearchServerAccount() {
-        final Role role = Role.builder(
+        final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
-            null,
+            new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
-        ).build();
+        );
 
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final TransportRequest request = mock(TransportRequest.class);
@@ -320,7 +325,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                 .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
             is(true)
         );
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(
+            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
+            is(true)
+        );
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
 
         assertThat(role.cluster().check(PutUserAction.NAME, request, authentication), is(true));
@@ -341,17 +349,21 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         List.of(
             "search-" + randomAlphaOfLengthBetween(1, 20),
+            ".elastic-analytics-collections",
             ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
             ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
             "logs-app_search.analytics-default",
+            "logs-elastic_analytics.events-" + randomAlphaOfLengthBetween(1, 20),
             "logs-enterprise_search.api-default",
             "logs-enterprise_search.audit-default",
             "logs-app_search.search_relevance_suggestions-default",
             "logs-crawler-default",
             "logs-workplace_search.analytics-default",
-            "logs-workplace_search.content_events-default"
+            "logs-workplace_search.content_events-default",
+            ".elastic-connectors*",
+            "logs-elastic_crawler-default"
         ).forEach(index -> {
             final IndexAbstraction enterpriseSearchIndex = mockIndexAbstraction(index);
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(enterpriseSearchIndex), is(true));

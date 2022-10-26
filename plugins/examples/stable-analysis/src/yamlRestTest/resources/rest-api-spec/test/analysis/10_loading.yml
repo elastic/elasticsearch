@@ -1,5 +1,4 @@
-# TODO guide mention about directory structure
-#
+---
 "Plugin loaded":
   - skip:
       reason: "contains is a newly added assertion"

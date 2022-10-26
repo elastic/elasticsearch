@@ -152,7 +152,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             if (auth.isRunAs()) {
                 assertThat(auth.getAuthenticatingSubject().getUser(), sameInstance(authentication.getAuthenticatingSubject().getUser()));
             }
-            assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
+            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(auth.getAuthenticatingSubject().getRealm()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
             assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
             assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
@@ -196,7 +196,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             final Authentication auth = responseRef.get().authentication();
             final User authUser = auth.getEffectiveSubject().getUser();
             assertThat(authUser.roles(), emptyArray());
-            assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
+            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(auth.getAuthenticatingSubject().getRealm()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
             assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
             assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));

@@ -20,14 +20,14 @@ public class SourceFilterTests extends ESTestCase {
 
     public void testEmptyFiltering() {
         Source s = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
-        Source filtered = s.filter(new SourceFilter(new String[]{}, new String[]{}));
+        Source filtered = s.filter(new SourceFilter(new String[] {}, new String[] {}));
         assertSame(s, filtered);
     }
 
     public void testSimpleInclude() {
         Source s = Source.fromBytes(new BytesArray("""
             { "field1" : "value1", "field2" : "value2" }"""));
-        Source filtered = s.filter(new SourceFilter(new String[]{ "field2" }, new String[]{}));
+        Source filtered = s.filter(new SourceFilter(new String[] { "field2" }, new String[] {}));
         assertTrue(filtered.source().containsKey("field2"));
         assertEquals("value2", filtered.source().get("field2"));
         assertFalse(filtered.source().containsKey("field1"));
@@ -36,7 +36,7 @@ public class SourceFilterTests extends ESTestCase {
     public void testSimpleExclude() {
         Source s = Source.fromBytes(new BytesArray("""
             { "field1" : "value1", "field2" : "value2" }"""));
-        Source filtered = s.filter(new SourceFilter(new String[]{}, new String[]{ "field1" }));
+        Source filtered = s.filter(new SourceFilter(new String[] {}, new String[] { "field1" }));
         assertTrue(filtered.source().containsKey("field2"));
         assertEquals("value2", filtered.source().get("field2"));
         assertFalse(filtered.source().containsKey("field1"));
@@ -60,20 +60,19 @@ public class SourceFilterTests extends ESTestCase {
             }
             """));
         SourceFilter sourceFilter = new SourceFilter(
-            new String[]{ "*.count", "meta.*" },
-            new String[]{ "meta.description", "meta.other.*" }
+            new String[] { "*.count", "meta.*" },
+            new String[] { "meta.description", "meta.other.*" }
         );
 
         s = s.filter(sourceFilter);
-        Map<String, Object> expected
-            = Map.of("requests", Map.of("count", 10), "meta", Map.of("name", "Some metric", "other", Map.of()));
+        Map<String, Object> expected = Map.of("requests", Map.of("count", 10), "meta", Map.of("name", "Some metric", "other", Map.of()));
         assertEquals(expected, s.source());
     }
 
     public void testExcludeWithWildcards() {
         Source s = Source.fromBytes(new BytesArray("""
             { "field1" : "value1", "array_field" : [ "value2" ] }"""));
-        Source filtered = s.filter(new SourceFilter(new String[]{}, new String[]{"array*"}));
+        Source filtered = s.filter(new SourceFilter(new String[] {}, new String[] { "array*" }));
         assertTrue(filtered.source().containsKey("field1"));
         assertEquals("value1", filtered.source().get("field1"));
         assertFalse(filtered.source().containsKey("array_field"));
@@ -105,11 +104,10 @@ public class SourceFilterTests extends ESTestCase {
             }
         };
 
-        Source filtered = s.filter(new SourceFilter(new String[]{}, new String[]{"array*"}));
+        Source filtered = s.filter(new SourceFilter(new String[] {}, new String[] { "array*" }));
         assertTrue(filtered.source().containsKey("field"));
         assertEquals("value", filtered.source().get("field"));
         assertFalse(filtered.source().containsKey("array_field"));
-
 
     }
 

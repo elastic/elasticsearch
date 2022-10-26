@@ -10,13 +10,11 @@ package org.elasticsearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -35,8 +33,6 @@ import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.script.UpsertCtxMap;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;

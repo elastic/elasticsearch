@@ -158,7 +158,7 @@ public final class ClientHelper {
     ) {
         try {
             final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
-            if (authentication != null && authentication.getVersion().after(minNodeVersion)) {
+            if (authentication != null && authentication.getEffectiveSubject().getVersion().after(minNodeVersion)) {
                 return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
             }
         } catch (IOException e) {

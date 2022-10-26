@@ -158,10 +158,10 @@ public class SecurityContextTests extends ESTestCase {
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertEquals(original.getUser(), authentication.getUser());
-            assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
+            assertEquals(original.getEffectiveSubject().getUser(), authentication.getEffectiveSubject().getUser());
+            assertEquals(original.getAuthenticatingSubject().getRealm(), authentication.getAuthenticatingSubject().getRealm());
             assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
-            assertEquals(VersionUtils.getPreviousVersion(), authentication.getVersion());
+            assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getVersion());
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
             // Other request headers should be preserved
@@ -194,18 +194,18 @@ public class SecurityContextTests extends ESTestCase {
             Authentication authentication = securityContext.getAuthentication();
             assertEquals(
                 Map.of("a role", Map.of("cluster", List.of("all"))),
-                authentication.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
             );
             assertEquals(
                 Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
-                authentication.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
             );
         }, Version.V_7_8_0);
 
         // If target is new node, no need to rewrite the new style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertSame(original.getMetadata(), authentication.getMetadata());
+            assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 
@@ -213,15 +213,21 @@ public class SecurityContextTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder().apiKey().version(Version.V_7_8_0).build();
 
         // original authentication has the old style of role descriptor maps
-        assertThat(original.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), instanceOf(Map.class));
-        assertThat(original.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY), instanceOf(Map.class));
+        assertThat(
+            original.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY),
+            instanceOf(Map.class)
+        );
+        assertThat(
+            original.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+            instanceOf(Map.class)
+        );
 
         original.writeToContext(threadContext);
 
         // If target is old node, no need to rewrite old style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertSame(original.getMetadata(), authentication.getMetadata());
+            assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
         }, Version.V_7_8_0);
 
         // If target is new node, ensure old map style API key metadata is rewritten to bytesreference
@@ -229,11 +235,15 @@ public class SecurityContextTests extends ESTestCase {
             Authentication authentication = securityContext.getAuthentication();
             List.of(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 .forEach(key -> {
-                    assertThat(authentication.getMetadata().get(key), instanceOf(BytesReference.class));
+                    assertThat(authentication.getAuthenticatingSubject().getMetadata().get(key), instanceOf(BytesReference.class));
 
                     assertThat(
-                        XContentHelper.convertToMap((BytesReference) authentication.getMetadata().get(key), false, XContentType.JSON).v2(),
-                        equalTo(original.getMetadata().get(key))
+                        XContentHelper.convertToMap(
+                            (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(key),
+                            false,
+                            XContentType.JSON
+                        ).v2(),
+                        equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));

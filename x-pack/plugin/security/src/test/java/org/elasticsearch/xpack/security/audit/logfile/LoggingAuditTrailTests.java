@@ -2100,10 +2100,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         if (authentication.isAuthenticatedWithServiceAccount()) {
-            checkedFields.put(LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
+            checkedFields.put(
+                LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME,
+                (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
+            )
                 .put(
                     LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,
-                    ServiceAccountSettings.REALM_TYPE + "_" + authentication.getMetadata().get(TOKEN_SOURCE_FIELD)
+                    ServiceAccountSettings.REALM_TYPE
+                        + "_"
+                        + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                 );
         }
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
@@ -2449,7 +2454,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationSuccess(requestId, authentication, request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
-            .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
+            .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
             .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
@@ -2869,24 +2874,26 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
-        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
         if (authentication.isApiKey()) {
             assert false == authentication.isRunAs();
             checkedFields.put(
                 LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
-                (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
             );
-            String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            String apiKeyName = (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName != null) {
                 checkedFields.put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME, apiKeyName);
             }
-            String creatorRealmName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+            String creatorRealmName = (String) authentication.getAuthenticatingSubject()
+                .getMetadata()
+                .get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
             if (creatorRealmName != null) {
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
             }
         } else {
-            final RealmRef authenticatedBy = authentication.getAuthenticatedBy();
+            final RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
             if (authentication.isRunAs()) {
                 final RealmRef lookedUpBy = authentication.getLookedUpBy();
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName())
@@ -2906,10 +2913,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             }
         }
         if (authentication.isAuthenticatedWithServiceAccount()) {
-            checkedFields.put(LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
+            checkedFields.put(
+                LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME,
+                (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
+            )
                 .put(
                     LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,
-                    ServiceAccountSettings.REALM_TYPE + "_" + authentication.getMetadata().get(TOKEN_SOURCE_FIELD)
+                    ServiceAccountSettings.REALM_TYPE
+                        + "_"
+                        + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                 );
         }
     }

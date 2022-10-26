@@ -255,7 +255,7 @@ public class AuthorizationService {
                 return;
             }
 
-            if (SystemUser.is(authentication.getUser())) {
+            if (SystemUser.is(authentication.getEffectiveSubject().getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
             } else {
@@ -297,7 +297,7 @@ public class AuthorizationService {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            if (isInternal(authentication.getUser())) {
+            if (isInternal(authentication.getEffectiveSubject().getUser())) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
@@ -305,7 +305,7 @@ public class AuthorizationService {
                     "Attempt to authorize action ["
                         + action
                         + "] for ["
-                        + authentication.getUser().principal()
+                        + authentication.getEffectiveSubject().getUser().principal()
                         + "] without an existing request-id"
                 );
             }

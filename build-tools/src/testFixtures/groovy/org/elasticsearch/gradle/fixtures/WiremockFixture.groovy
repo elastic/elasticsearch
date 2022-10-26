@@ -67,6 +67,7 @@ class WiremockFixture {
             return buildRunClosure.call(wireMock);
         } catch (Exception e) {
             // for debugging
+            e.printStackTrace()
             System.err.println("missed requests: " + wireMock.findUnmatchedRequests().getRequests());
             throw e;
         } finally {

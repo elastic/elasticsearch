@@ -63,7 +63,6 @@ $draKey=${buildId}
         """
 
         when:
-        // /beats/8.6.0-f576b4a9/downloads/beats/auditbeat/auditbeat-8.6.0-SNAPSHOT-windows-x86_64.zip
         def result = WiremockFixture.withWireMock(expectedRequest, "content".getBytes('UTF-8')) { server ->
             gradleRunner("resolveArtifacts",
                     '-Ddra.artifacts=true',

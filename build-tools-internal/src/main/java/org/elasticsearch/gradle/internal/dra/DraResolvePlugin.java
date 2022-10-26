@@ -24,6 +24,7 @@ import javax.inject.Inject;
 
 public class DraResolvePlugin implements Plugin<Project> {
 
+    public static final String USE_DRA_ARTIFACTS_FLAG = "dra.artifacts";
     private final ProviderFactory providerFactory;
     private BuildLayout buildLayout;
 
@@ -40,7 +41,7 @@ public class DraResolvePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        if (providerFactory.systemProperty("dra.artifacts").isPresent()) {
+        if (providerFactory.systemProperty(USE_DRA_ARTIFACTS_FLAG).isPresent()) {
             Properties buildIdProperties = resolveBuildIdProperties();
             buildIdProperties.forEach((key, buildId) -> {
                 configureDraRepository(project, "dra-snapshot-artifacts-" + key,key.toString(), buildId.toString(), snapshotRepositoryPrefix.orElse("https://artifacts-snapshot.elastic.co/"), ".*SNAPSHOT");
@@ -54,8 +55,8 @@ public class DraResolvePlugin implements Plugin<Project> {
             repo.setName(repositoryName);
             repo.setUrl(repoPrefix.get());
             repo.patternLayout( patternLayout -> {
-                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey));
                 patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey));
+                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey));
             });
             repo.metadataSources(metadataSources -> metadataSources.artifact());
             repo.content(

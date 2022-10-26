@@ -168,20 +168,6 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * The use case for this method is largely trying to tell whether there is a run-as user
-     * and can be replaced by {@code isRunAs}
-     */
-    @Deprecated
-    public RealmRef getLookedUpBy() {
-        if (isRunAs()) {
-            return effectiveSubject.getRealm();
-        } else {
-            // retain the behaviour of returning null for lookup realm for if the authentication is not run-as
-            return null;
-        }
-    }
-
-    /**
      * Get the realm where the effective user comes from.
      * The effective user is the es-security-runas-user if present or the authenticated user.
      *
@@ -472,9 +458,7 @@ public final class Authentication implements ToXContentObject {
             AuthenticationSerializationHelper.writeUserTo(user, out);
         }
         authenticatingSubject.getRealm().writeTo(out);
-        final RealmRef lookedUpBy = getLookedUpBy();
-        // See detailed comment on the same assertion in the Constructor with StreamInput
-        assert isRunAs() || lookedUpBy == null : "Authentication has no inner-user, but looked-up-by is [" + lookedUpBy + "]";
+        final RealmRef lookedUpBy = isRunAs() ? effectiveSubject.getRealm() : null;
 
         if (lookedUpBy != null) {
             out.writeBoolean(true);
@@ -569,11 +553,12 @@ public final class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
-        if (getLookedUpBy() != null) {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
-            if (getLookedUpBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
+        final RealmRef lookedUpBy = isRunAs() ? getEffectiveSubject().getRealm() : null;
+        if (lookedUpBy != null) {
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), lookedUpBy.getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), lookedUpBy.getType());
+            if (lookedUpBy.getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), lookedUpBy.getDomain().name());
             }
         } else {
             builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ssl;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -18,6 +19,7 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.BeforeClass;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -44,7 +46,8 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
 
     /**
      * Called for each node. Copy the original testnode.jks file into each node's config directory.
-     * @param nodeOrdinal Number of the node in the cluster.
+     *
+     * @param nodeOrdinal   Number of the node in the cluster.
      * @param otherSettings Pass through settings for this test.
      * @return Node settings with overrides for Transport SSL, so the test can update the Transport keystore file twice.
      */
@@ -82,6 +85,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
      * This class start a cluster. For this test, restart a random node.
      * While stopped, replace the Transport keystore with a bad one, so the node cannot rejoin the cluster.
      * While restarting, replace the keystore with a good one, and verify if ES reloaded it by checking it if rejoined the cluster.
+     *
      * @throws Exception Compare ES startup logs to diagnostic and timing logs for the test, to narrow down why ES startup failed.
      */
     // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77490")
@@ -118,23 +122,14 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
                 return super.onNodeStopped(nodeName); // ASSUME: RestartCallback will do ES start next
             }
         });
-        final long awaitNanos = System.nanoTime();
-        try {
+        try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Verifying the cluster...")) {
             afterKeystoreFix.await(); // SYNC: Verify cluster after cert update
-        } finally {
-            LOGGER.info("Awaited {}ms. Verifying the cluster...", TimeValue.timeValueNanos(System.nanoTime() - awaitNanos).millisFrac());
         }
-        final long numNanos = System.nanoTime();
-        try {
+        try (Timed t = new Timed(LOGGER, Level.INFO, "Ensure cluster size consistency took {}ms.")) {
             ensureClusterSizeConsistency();
-        } finally {
-            LOGGER.info("Ensure cluster size consistency took {}ms.", TimeValue.timeValueNanos(System.nanoTime() - numNanos).millisFrac());
         }
-        final long connNanos = System.nanoTime();
-        try {
+        try (Timed t = new Timed(LOGGER, Level.INFO, "Ensure fully connected cluster took {}ms.")) {
             ensureFullyConnectedCluster();
-        } finally {
-            LOGGER.info("Ensure fully connected cluster took {}ms.", TimeValue.timeValueNanos(System.nanoTime() - connNanos).millisFrac());
         }
     }
 
@@ -142,25 +137,11 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
         try {
             final long sleepMillis = randomLongBetween(200L, 600L); // intended sleepMillis
-            final long awaitNanos = System.nanoTime();
-            try {
-                beforeKeystoreFix.await();
-            } finally {
-                LOGGER.info(
-                    "Awaited {}ms. Sleeping {}ms before fixing...",
-                    TimeValue.timeValueNanos(System.nanoTime() - awaitNanos).millisFrac(),
-                    sleepMillis
-                );
+            try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...")) {
+                beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
             }
-            long sleepNanos = System.nanoTime();
-            try {
-                Thread.sleep(sleepMillis);
-            } finally {
-                LOGGER.info(
-                    "Slept {}ms, intended {}ms. Fixing can start now...",
-                    TimeValue.timeValueNanos(System.nanoTime() - sleepNanos).millisFrac(),
-                    sleepMillis
-                );
+            try (Timed t = new Timed(LOGGER, Level.INFO, "Slept {}ms, intended " + sleepMillis + "ms. Fixing can start now...")) {
+                Thread.sleep(sleepMillis); // Simulate cert update delay relative to ES start
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -168,14 +149,9 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     }
 
     private void waitUntilFixKeystoreIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
-        beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
-        try {
-            long awaitNanos = System.nanoTime();
-            try {
-                beforeKeystoreFix.await();
-            } finally {
-                LOGGER.info("Awaited {}ms. Node can start now...", TimeValue.timeValueNanos(System.nanoTime() - awaitNanos).millisFrac());
-            }
+        beforeKeystoreFix.countDown();
+        try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Node can start now...")) {
+            beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -202,6 +178,24 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
             LOGGER.warn("Atomic move failed from [{}] to [{}]", tmp, target, e);
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             LOGGER.info("Non-atomic move succeeded from [{}] to [{}]", tmp, target);
+        }
+    }
+
+    public static class Timed implements Closeable {
+        private final long n = System.currentTimeMillis();
+        private final Logger log;
+        private final Level lvl;
+        private final String msg;
+
+        Timed(final Logger log, final Level lvl, final String msg) {
+            this.log = log;
+            this.lvl = lvl;
+            this.msg = msg;
+        }
+
+        @Override
+        public void close() {
+            this.log.log(this.lvl, this.msg, TimeValue.timeValueNanos(System.nanoTime() - this.n).millisFrac());
         }
     }
 }

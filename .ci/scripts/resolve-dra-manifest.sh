@@ -1,10 +1,7 @@
 #!/bin/bash
 set -e
-WORKSPACE="${WORKSPACE:-$PWD}"
 ARTIFACT="${ARTIFACT:-$1}"
-BRANCH='master'
-RELEASE_VERSION="8.6.0-SNAPSHOT"
-LOCAL_MANIFEST_FILE="$WORKSPACE/release-manifest-${ARTIFACT}.json"
+BRANCH="${BRANCH:-$2}"
 
 curl -sS https://artifacts-snapshot.elastic.co/$ARTIFACT/latest/$BRANCH.json \
   | grep build_id \
@@ -13,3 +10,5 @@ curl -sS https://artifacts-snapshot.elastic.co/$ARTIFACT/latest/$BRANCH.json \
   | sed 's/,//' \
   | sed 's/ : /=/' \
   | xargs
+
+# https://artifacts-snapshot.elastic.co/beats/0.1.0-283a66b2/manifest-0.1.0-SNAPSHOT.json

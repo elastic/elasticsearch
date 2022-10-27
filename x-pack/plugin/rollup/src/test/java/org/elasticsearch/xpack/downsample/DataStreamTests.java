@@ -54,7 +54,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -75,9 +74,8 @@ public class DataStreamTests extends ESSingleNodeTestCase {
         // GIVEN
         final String dataStreamName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         putComposableIndexTemplate("1", List.of(dataStreamName));
-        final CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
-        client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
-        indexDocs(dataStreamName, 10, 0L);
+        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        indexDocs(dataStreamName, 10, Instant.now().toEpochMilli());
         final RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         // NOTE: here we calculate a delay to index documents because the next data stream write index is created with a start time of
         // (about) two hours in the future. As a result, we need to have documents whose @timestamp is in the future to avoid documents
@@ -87,11 +85,7 @@ public class DataStreamTests extends ESSingleNodeTestCase {
             .prepareGetSettings(rolloverResponse.getNewIndex())
             .get()
             .getSetting(rolloverResponse.getNewIndex(), IndexSettings.TIME_SERIES_START_TIME.getKey());
-        indexDocs(
-            dataStreamName,
-            10,
-            Instant.parse(newIndexStartTime).minus(Instant.now().toEpochMilli(), ChronoUnit.MILLIS).toEpochMilli() + 1
-        );
+        indexDocs(dataStreamName, 10, Instant.parse(newIndexStartTime).toEpochMilli());
         client().admin()
             .indices()
             .updateSettings(
@@ -213,7 +207,7 @@ public class DataStreamTests extends ESSingleNodeTestCase {
     private void indexDocs(final String dataStream, int numDocs, long startTime) {
         final BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
-            final String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis() + i + delay);
+            final String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(startTime + i);
             bulkRequest.add(
                 new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
                     .source(

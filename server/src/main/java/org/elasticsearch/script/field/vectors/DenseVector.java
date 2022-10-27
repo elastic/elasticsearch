@@ -99,10 +99,10 @@ public interface DenseVector {
     }
 
     default double cosineSimilarity(byte[] queryVector) {
-        return cosineSimilarity(queryVector, true);
+        return cosineSimilarity(queryVector, getMagnitude(queryVector));
     }
 
-    double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector);
+    double cosineSimilarity(byte[] queryVector, float qvMagnitude);
 
     /**
      * Get the cosine similarity with the un-normalized query vector
@@ -150,17 +150,18 @@ public interface DenseVector {
     static float getMagnitude(byte[] vector) {
         int mag = 0;
         for (int elem : vector) {
-            mag += elem;
+            mag += elem * elem;
         }
         return (float) Math.sqrt(mag);
     }
 
-    static float getMagnitude(BytesRef vector) {
+    static float getMagnitude(BytesRef vector, int dims) {
         int mag = 0;
         int i = 0;
         int j = vector.offset;
-        while (i++ < vector.length) {
-            mag += vector.bytes[j++];
+        while (i++ < dims) {
+            int elem = vector.bytes[j++];
+            mag += elem * elem;
         }
         return (float) Math.sqrt(mag);
     }
@@ -254,7 +255,7 @@ public interface DenseVector {
         }
 
         @Override
-        public double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector) {
+        public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

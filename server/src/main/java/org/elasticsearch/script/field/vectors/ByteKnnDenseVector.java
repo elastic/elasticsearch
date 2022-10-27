@@ -54,7 +54,7 @@ public class ByteKnnDenseVector implements DenseVector {
     @Override
     public float getMagnitude() {
         if (magnitudeCalculated == false) {
-            magnitude = DenseVector.getMagnitude(docVector);
+            magnitude = DenseVector.getMagnitude(docVector, docVector.length);
             magnitudeCalculated = true;
         }
         return magnitude;
@@ -78,6 +78,16 @@ public class ByteKnnDenseVector implements DenseVector {
         int j = docVector.offset;
         while (i < docVector.length) {
             result += docVector.bytes[j++] * (int) queryVector[i++];
+        }
+        return result;
+    }
+
+    protected double dotProductNormalized(float[] normalizedQueryVector) {
+        float result = 0;
+        int i = 0;
+        int j = docVector.offset;
+        while (i < docVector.length) {
+            result += docVector.bytes[j++] * normalizedQueryVector[i++];
         }
         return result;
     }
@@ -163,12 +173,8 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector) {
-        if (normalizeQueryVector) {
-            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
-        }
-
-        return dotProduct(queryVector) / getMagnitude();
+    public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
+        return dotProduct(queryVector) / (qvMagnitude * getMagnitude());
     }
 
     @Override
@@ -177,7 +183,7 @@ public class ByteKnnDenseVector implements DenseVector {
             return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
         }
 
-        return dotProduct(queryVector) / getMagnitude();
+        return dotProductNormalized(queryVector) / getMagnitude();
     }
 
     @Override

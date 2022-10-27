@@ -148,11 +148,8 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector) {
-        if (normalizeQueryVector) {
-            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
-        }
-        return dotProduct(queryVector) / getMagnitude();
+    public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
+        return dotProduct(queryVector) / (qvMagnitude * getMagnitude());
     }
 
     @Override

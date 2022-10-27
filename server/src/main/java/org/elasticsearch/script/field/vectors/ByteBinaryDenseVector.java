@@ -15,6 +15,8 @@ import java.util.List;
 
 public class ByteBinaryDenseVector implements DenseVector {
 
+    public static final int MAGNITUDE_BYTES = 4;
+
     protected final BytesRef docVector;
     protected final int dims;
 
@@ -35,7 +37,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
             int i = 0;
             int j = docVector.offset;
-            while (i < docVector.length) {
+            while (i < dims) {
                 floatDocVector[i++] = docVector.bytes[j++];
             }
         }
@@ -56,7 +58,7 @@ public class ByteBinaryDenseVector implements DenseVector {
     @Override
     public float getMagnitude() {
         if (magnitudeDecoded == false) {
-            magnitude = ByteBuffer.wrap(docVector.bytes, docVector.offset + dims, docVector.length).getFloat();
+            magnitude = ByteBuffer.wrap(docVector.bytes, docVector.offset + dims, MAGNITUDE_BYTES).getFloat();
             magnitudeDecoded = true;
         }
         return magnitude;
@@ -78,8 +80,18 @@ public class ByteBinaryDenseVector implements DenseVector {
         int result = 0;
         int i = 0;
         int j = docVector.offset;
-        while (i < docVector.length) {
+        while (i < dims) {
             result += docVector.bytes[j++] * (int) queryVector[i++];
+        }
+        return result;
+    }
+
+    protected double dotProductNormalized(float[] normalizedQueryVector) {
+        float result = 0;
+        int i = 0;
+        int j = docVector.offset;
+        while (i < dims) {
+            result += docVector.bytes[j++] * normalizedQueryVector[i++];
         }
         return result;
     }
@@ -165,11 +177,8 @@ public class ByteBinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double cosineSimilarity(byte[] queryVector, boolean normalizeQueryVector) {
-        if (normalizeQueryVector) {
-            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
-        }
-        return dotProduct(queryVector) / getMagnitude();
+    public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
+        return dotProduct(queryVector) / (qvMagnitude * getMagnitude());
     }
 
     @Override
@@ -177,7 +186,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         if (normalizeQueryVector) {
             return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
         }
-        return dotProduct(queryVector) / getMagnitude();
+        return dotProductNormalized(queryVector) / getMagnitude();
     }
 
     @Override

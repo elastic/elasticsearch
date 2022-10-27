@@ -69,7 +69,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<ElementType> elementType;
+        private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {
+            ElementType elementType = namesToElementType.get((String) o);
+            if (elementType == null) {
+                throw new MapperParsingException(
+                    "invalid element_type [" + o + "]; available types are " + namesToElementType.keySet()
+                );
+            }
+            return elementType;
+        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
+        ;
         private final Parameter<Integer> dims = new Parameter<>(
             "dims",
             false,
@@ -124,20 +133,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity.requiresParameter(indexed);
             this.indexOptions.requiresParameter(indexed);
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
-
-            this.elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {
-                ElementType elementType = namesToElementType.get((String) o);
-                if (elementType == null) {
-                    throw new MapperParsingException(
-                        "invalid element_type [" + o + "]; available types are " + namesToElementType.keySet()
-                    );
-                }
-                return elementType;
-            }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString).addValidator(e -> {
-                if (e == ElementType.BYTE && indexed.getValue() == false) {
-                    throw new IllegalArgumentException("index must be [true] when element_type is [" + e + "]");
-                }
-            });
         }
 
         @Override
@@ -177,6 +172,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public String toString() {
                 return "byte";
+            }
+
+            @Override
+            public void writeElement(ByteBuffer byteBuffer, float value) {
+                byteBuffer.put((byte)value);
             }
 
             @Override
@@ -265,6 +265,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void writeElement(ByteBuffer byteBuffer, float value) {
+                byteBuffer.putFloat(value);
+            }
+
+            @Override
             KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
                 return new KnnVectorField(name, vector, function);
             }
@@ -311,6 +316,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ElementType(int elementBytes) {
             this.elementBytes = elementBytes;
         }
+
+        public abstract void writeElement(ByteBuffer byteBuffer, float value);
 
         abstract KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function);
 
@@ -624,10 +631,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
-        // ensure byte vectors are always indexed
-        // (should be caught during mapping creation)
-        assert elementType != ElementType.BYTE;
-
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
         byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0)
@@ -638,15 +641,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         double dotProduct = 0f;
 
         int index = 0;
+        float[] vector = new float[dims];
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             checkDimensionExceeded(index, context);
             ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
             float value = context.parser().floatValue(true);
-            byteBuffer.putFloat(value);
+            vector[index] = value;
+            elementType.writeElement(byteBuffer, value);
             dotProduct += value * value;
             index++;
         }
         checkDimensionMatches(index, context);
+        elementType.checkVectorBounds(vector);
 
         if (indexCreatedVersion.onOrAfter(Version.V_7_5_0)) {
             // encode vector magnitude at the end

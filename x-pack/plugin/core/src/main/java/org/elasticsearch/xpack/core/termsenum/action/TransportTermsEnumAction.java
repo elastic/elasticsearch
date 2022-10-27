@@ -432,7 +432,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
                 // Current user has potentially many roles and therefore potentially many queries
                 // defining sets of docs accessible
-                final List<Set<BytesReference>> listOfRawQueries = indexAccessControl.getDocumentPermissions().getListOfRawQueries();
+                final List<Set<BytesReference>> listOfRawQueries = indexAccessControl.getDocumentPermissions().getListOfQueries();
 
                 return listOfRawQueries.stream().allMatch(queries -> {
                     for (BytesReference querySource : queries) {

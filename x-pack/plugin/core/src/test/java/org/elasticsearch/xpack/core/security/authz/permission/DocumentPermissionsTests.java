@@ -24,8 +24,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -41,27 +41,38 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(documentPermissions1.hasDocumentLevelPermissions(), is(false));
         assertThat(documentPermissions1.filter(null, null, null, null), is(nullValue()));
 
-        Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
+        final Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
         final DocumentPermissions documentPermissions2 = DocumentPermissions.filteredBy(queries);
         assertThat(documentPermissions2, is(notNullValue()));
         assertThat(documentPermissions2.hasDocumentLevelPermissions(), is(true));
-        assertThat(documentPermissions2.getListOfRawQueries(), equalTo(List.of(queries)));
+        assertThat(documentPermissions2.getListOfQueries(), equalTo(List.of(queries)));
 
         final DocumentPermissions documentPermissions3 = documentPermissions1.limitDocumentPermissions(documentPermissions2);
         assertThat(documentPermissions3, is(notNullValue()));
         assertThat(documentPermissions3.hasDocumentLevelPermissions(), is(true));
-        assertThat(documentPermissions3.getListOfRawQueries(), equalTo(List.of(queries)));
+        assertThat(documentPermissions3.getListOfQueries(), equalTo(List.of(queries)));
 
         final DocumentPermissions documentPermissions4 = DocumentPermissions.allowAll()
             .limitDocumentPermissions(DocumentPermissions.allowAll());
         assertThat(documentPermissions4, is(notNullValue()));
         assertThat(documentPermissions4.hasDocumentLevelPermissions(), is(false));
 
-        AssertionError ae = expectThrows(
-            AssertionError.class,
-            () -> DocumentPermissions.allowAll().limitDocumentPermissions(documentPermissions3)
-        );
-        assertThat(ae.getMessage(), containsString("nested scoping for document permissions is not permitted"));
+        final DocumentPermissions documentPermissions5 = DocumentPermissions.allowAll().limitDocumentPermissions(documentPermissions3);
+        assertThat(documentPermissions5, is(notNullValue()));
+        assertThat(documentPermissions5.hasDocumentLevelPermissions(), is(true));
+        assertThat(documentPermissions5.getListOfQueries(), equalTo(List.of(queries)));
+    }
+
+    public void testMultipleSetsOfQueries() {
+        final Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
+        DocumentPermissions documentPermissions = DocumentPermissions.allowAll();
+        final int nSets = randomIntBetween(2, 8);
+        for (int i = 0; i < nSets; i++) {
+            documentPermissions = documentPermissions.limitDocumentPermissions(DocumentPermissions.filteredBy(queries));
+        }
+
+        assertThat(documentPermissions.hasDocumentLevelPermissions(), is(true));
+        assertThat(documentPermissions.getListOfQueries(), equalTo(IntStream.range(0, nSets).mapToObj(i -> queries).toList()));
     }
 
     public void testFailIfQueryUsesClient() throws Exception {
@@ -106,23 +117,9 @@ public class DocumentPermissionsTests extends ESTestCase {
         );
         documentPermissions2.buildCacheKey(out2, BytesReference::utf8ToString);
 
-        final BytesStreamOutput out3 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions3 = new DocumentPermissions(
-            Set.of(
-                new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
-                new BytesArray("{\"term\":{\"q2\":\"v2\"}}"),
-                new BytesArray("{\"term\":{\"q3\":\"v3\"}}")
-            )
-        );
-        documentPermissions3.buildCacheKey(out3, BytesReference::utf8ToString);
-
-        // TODO: out0 and out3 should be equal
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
-        assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
-        assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
-        assertThat(Arrays.equals(BytesReference.toBytes(out2.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
     }
 
     public void testHasStoredScript() throws IOException {

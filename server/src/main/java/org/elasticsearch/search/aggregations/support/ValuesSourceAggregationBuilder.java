@@ -109,14 +109,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
-        ValuesSourceAggregationBuilder<AB> {
+    public abstract static class LeafOnly<AB extends ValuesSourceAggregationBuilder<AB>> extends ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name) {
             super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException(
@@ -146,13 +145,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     public abstract static class MetricsAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
-        LeafOnly<VS, AB> {
+        LeafOnly<AB> {
 
         protected MetricsAggregationBuilder(String name) {
             super(name);
         }
 
-        protected MetricsAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected MetricsAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
         }
 
@@ -174,7 +173,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             super(name);
         }
 
-        protected SingleMetricAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected SingleMetricAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
         }
 

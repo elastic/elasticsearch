@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -431,21 +432,29 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
                 // Current user has potentially many roles and therefore potentially many queries
                 // defining sets of docs accessible
-                Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
-                for (BytesReference querySource : queries) {
-                    QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
-                        querySource,
-                        scriptService,
-                        queryShardContext.getParserConfig().registry(),
-                        securityContext.getUser()
-                    );
-                    QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
-                    if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                        // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
-                        return true;
+                final List<Set<BytesReference>> listOfRawQueries = indexAccessControl.getDocumentPermissions().getListOfRawQueries();
+
+                return listOfRawQueries.stream().allMatch(queries -> {
+                    for (BytesReference querySource : queries) {
+                        QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
+                            querySource,
+                            scriptService,
+                            queryShardContext.getParserConfig().registry(),
+                            securityContext.getUser()
+                        );
+                        QueryBuilder rewrittenQueryBuilder;
+                        try {
+                            rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                            // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                            return true;
+                        }
                     }
-                }
-                return false;
+                    return false;
+                });
             }
         }
         return true;

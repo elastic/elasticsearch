@@ -68,7 +68,7 @@ public class SimpleRoleTests extends ESTestCase {
         final boolean wildcardResources = randomBoolean();
         final RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege = RoleDescriptor.ApplicationResourcePrivileges.builder()
             .application(wildcardApplication ? "*" : randomAlphaOfLengthBetween(5, 12))
-            // concrete privileges need to be prefixed with lower case letter, so use "app"
+            // concrete privileges need to be prefixed with lower case letters to be considered valid, so use "app"
             .privileges(wildcardPrivileges ? "*" : "app" + randomAlphaOfLengthBetween(5, 12))
             .resources(wildcardResources ? new String[] { "*" } : generateRandomStringArray(6, randomIntBetween(4, 8), false, false))
             .build();

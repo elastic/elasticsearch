@@ -43,6 +43,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
@@ -51,6 +53,9 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -76,11 +81,19 @@ public class DataStreamTests extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
         indexDocs(dataStreamName, 10, 0L);
         final RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
-        // NOTE: here delay = 10_000_000 because the next data stream write index is created with a start time of (about) two hours in the
-        // future.
-        // 10_000_000 milliseconds is a bit more than 3 hours, which is more than enough to make sure we are not writing documents to the
-        // old data stream index.
-        indexDocs(dataStreamName, 10, A_BIT_MORE_THAN_3_HOURS_MILLIS);
+        // NOTE: here we calculate a delay to index documents because the next data stream write index is created with a start time of
+        // (about) two hours in the future. As a result, we need to have documents whose @timestamp is in the future to avoid documents
+        // being indexed in the old data stream backing index.
+        final String newIndexStartTime = client().admin()
+            .indices()
+            .prepareGetSettings(rolloverResponse.getNewIndex())
+            .get()
+            .getSetting(rolloverResponse.getNewIndex(), IndexSettings.TIME_SERIES_START_TIME.getKey());
+        indexDocs(
+            dataStreamName,
+            10,
+            Instant.parse(newIndexStartTime).minus(Instant.now().toEpochMilli(), ChronoUnit.MILLIS).toEpochMilli() + 1
+        );
         client().admin()
             .indices()
             .updateSettings(
@@ -135,13 +148,18 @@ public class DataStreamTests extends ESIntegTestCase {
 
         final SearchRequest searchRequest = new SearchRequest().indices(dataStreamName)
             .source(
-                new SearchSourceBuilder().size(0)
+                new SearchSourceBuilder().size(20)
                     .query(new MatchAllQueryBuilder())
+                    .sort(SortBuilders.fieldSort("@timestamp").order(SortOrder.DESC))
                     .aggregation(
                         new DateHistogramAggregationBuilder("dateHistogram").field("@timestamp").fixedInterval(DateHistogramInterval.MINUTE)
                     )
             );
         final SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        Arrays.stream(searchResponse.getHits().getHits())
+            .limit(10)
+            .forEach(hit -> assertThat(hit.getIndex(), equalTo(rolloverResponse.getNewIndex())));
+        assertThat(searchResponse.getHits().getHits()[10].getIndex(), equalTo(downsampleTargetIndex));
         final InternalDateHistogram dateHistogram = searchResponse.getAggregations().get("dateHistogram");
         // NOTE: due to unpredictable values for the @timestamp field we don't know how many buckets we have in the
         // date histogram. We know, anyway, that we will have 10 documents in the first bucket, 10 documents in the last bucket

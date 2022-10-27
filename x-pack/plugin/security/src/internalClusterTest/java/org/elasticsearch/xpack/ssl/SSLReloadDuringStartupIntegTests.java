@@ -182,7 +182,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     }
 
     public static class Timed implements Closeable {
-        private final long n = System.currentTimeMillis();
+        private final long n = System.nanoTime();
         private final Logger log;
         private final Level lvl;
         private final String msg;

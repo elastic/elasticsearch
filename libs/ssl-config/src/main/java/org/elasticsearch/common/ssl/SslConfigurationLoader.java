@@ -266,7 +266,16 @@ public abstract class SslConfigurationLoader {
             throw new SslConfigException("no cipher suites configured in [" + settingPrefix + CIPHERS + "]");
         }
         final boolean isExplicitlyConfigured = hasSettings(settingPrefix);
-        return new SslConfiguration(isExplicitlyConfigured, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+        return new SslConfiguration(
+            settingPrefix,
+            isExplicitlyConfigured,
+            trustConfig,
+            keyConfig,
+            verificationMode,
+            clientAuth,
+            ciphers,
+            protocols
+        );
     }
 
     protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {

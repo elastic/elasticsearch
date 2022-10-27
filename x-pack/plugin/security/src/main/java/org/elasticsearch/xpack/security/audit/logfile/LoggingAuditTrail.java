@@ -1536,10 +1536,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (authentication.getAuthenticatingSubject().getRealm().getDomain() != null) {
                 logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getDomain().name());
             }
-            if (authentication.getLookedUpBy() != null) {
-                logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, authentication.getLookedUpBy().getName());
-                if (authentication.getLookedUpBy().getDomain() != null) {
-                    logEntry.with(PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME, authentication.getLookedUpBy().getDomain().name());
+            final Authentication.RealmRef lookedUpBy = authentication.isRunAs() ? authentication.getEffectiveSubject().getRealm() : null;
+            if (lookedUpBy != null) {
+                logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookedUpBy.getName());
+                if (lookedUpBy.getDomain() != null) {
+                    logEntry.with(PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
                 }
             }
             return this;
@@ -1627,7 +1628,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             } else {
                 final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
                 if (authentication.isRunAs()) {
-                    final Authentication.RealmRef lookedUpBy = authentication.getLookedUpBy();
+                    final Authentication.RealmRef lookedUpBy = authentication.getEffectiveSubject().getRealm();
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName())
                         .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                         // API key can run-as, when that happens, the following field will be _es_api_key,

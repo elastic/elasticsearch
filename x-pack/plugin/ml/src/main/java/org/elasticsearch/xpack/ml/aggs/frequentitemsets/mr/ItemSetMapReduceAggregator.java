@@ -115,7 +115,6 @@ public abstract class ItemSetMapReduceAggregator<
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext ctx, LeafBucketCollector sub) throws IOException {
 
-        SetOnce<IOException> firstException = new SetOnce<>();
         final Bits bits = weightFilter != null
             ? Lucene.asSequentialAccessBits(
                 ctx.getLeafReaderContext().reader().maxDoc(),
@@ -126,7 +125,7 @@ public abstract class ItemSetMapReduceAggregator<
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                firstException.set(null);
+                SetOnce<IOException> firstException = new SetOnce<>();
                 if (bits == null || bits.get(doc)) {
                     mapReducer.map(extractors.stream().map(extractor -> {
                         try {

@@ -66,8 +66,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamTests extends ESIntegTestCase {
 
-    private static final long A_BIT_MORE_THAN_3_HOURS_MILLIS = 10_000_000L;
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(Rollup.class, DataStreamsPlugin.class);

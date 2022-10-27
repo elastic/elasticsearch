@@ -141,6 +141,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
     private static final String TARGET_INDEX_NAME = "target";
     private long startTime;
     private long endTime;
+    private TestClusterHelper testCluster;
 
     private final List<String> DOCUMENTS = new ArrayList<>(
         List.of(
@@ -176,9 +177,24 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws IOException, ExecutionException, InterruptedException {
         startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         endTime = LocalDateTime.parse("2020-09-09T18:59:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+        testCluster = new TestClusterHelper(internalCluster());
+        assert testCluster.size() == 3;
+        ensureStableCluster(internalCluster().size());
+        assertTrue(createTimeSeriesIndex(SOURCE_INDEX_NAME));
+        ensureGreen(SOURCE_INDEX_NAME);
+        assertTrue(indexDocuments(SOURCE_INDEX_NAME, DOCUMENTS));
+        assertTrue(blockIndexWrites(SOURCE_INDEX_NAME));
+
+        logger.info(
+            "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
+            testCluster.size(),
+            testCluster.masterName(),
+            testCluster.coordinatorName(),
+            testCluster.workerName()
+        );
     }
 
     @Override
@@ -267,21 +283,6 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
     public void testNoDisruption() throws IOException, ExecutionException, InterruptedException {
         // GIVEN
-        final TestClusterHelper testCluster = new TestClusterHelper(internalCluster());
-        assert testCluster.size() == 3;
-        ensureStableCluster(internalCluster().size());
-        assertTrue(createTimeSeriesIndex(SOURCE_INDEX_NAME));
-        ensureGreen(SOURCE_INDEX_NAME);
-        assertTrue(indexDocuments(SOURCE_INDEX_NAME, DOCUMENTS));
-        assertTrue(blockIndexWrites(SOURCE_INDEX_NAME));
-
-        logger.info(
-            "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
-            testCluster.size(),
-            testCluster.masterName(),
-            testCluster.coordinatorName(),
-            testCluster.workerName()
-        );
 
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
@@ -308,22 +309,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
     public void testDownsampleActionExceptionDisruption() throws IOException, ExecutionException, InterruptedException {
         // GIVEN
-        final TestClusterHelper testCluster = new TestClusterHelper(internalCluster());
-        assert testCluster.size() == 3;
-        ensureStableCluster(testCluster.size());
-        assertTrue(createTimeSeriesIndex(SOURCE_INDEX_NAME));
-        ensureGreen(SOURCE_INDEX_NAME);
-        assertTrue(indexDocuments(SOURCE_INDEX_NAME, DOCUMENTS));
-        assertTrue(blockIndexWrites(SOURCE_INDEX_NAME));
-
         final MockTransportService coordinator = testCluster.coordinatorMockTransportService();
-        logger.info(
-            "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
-            testCluster.size(),
-            testCluster.masterName(),
-            testCluster.coordinatorName(),
-            testCluster.workerName()
-        );
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
@@ -362,22 +348,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
     public void testRollupIndexerActionExceptionDisruption() throws IOException, ExecutionException, InterruptedException {
         // GIVEN
-        final TestClusterHelper testCluster = new TestClusterHelper(internalCluster());
-        assert testCluster.size() == 3;
-        ensureStableCluster(testCluster.size());
-        assertTrue(createTimeSeriesIndex(SOURCE_INDEX_NAME));
-        ensureGreen(SOURCE_INDEX_NAME);
-        assertTrue(indexDocuments(SOURCE_INDEX_NAME, DOCUMENTS));
-        assertTrue(blockIndexWrites(SOURCE_INDEX_NAME));
-
         final MockTransportService master = testCluster.masterMockTransportService();
-        logger.info(
-            "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
-            testCluster.size(),
-            testCluster.masterName(),
-            testCluster.coordinatorName(),
-            testCluster.workerName()
-        );
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,

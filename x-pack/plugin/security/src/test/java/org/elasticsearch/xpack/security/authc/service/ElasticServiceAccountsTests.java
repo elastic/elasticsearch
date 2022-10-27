@@ -149,11 +149,14 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticFleetServerPrivileges() {
+        final String allowedApplicationActionPattern = "example/custom/action/*";
         final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
-            List.of(new ApplicationPrivilegeDescriptor("kibana-*", "reserved_fleet-setup", Set.of("reserved_fleet-setup"), Map.of()))
+            List.of(
+                new ApplicationPrivilegeDescriptor("kibana-*", "reserved_fleet-setup", Set.of(allowedApplicationActionPattern), Map.of())
+            )
         );
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         assertThat(
@@ -242,7 +245,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);
         assertThat(
-            role.application().grants(new ApplicationPrivilege(kibanaApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            role.application().grants(new ApplicationPrivilege(kibanaApplication, privilegeName, allowedApplicationActionPattern), "*"),
             is(true)
         );
 
@@ -250,7 +253,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             + "-"
             + randomAlphaOfLengthBetween(8, 24);
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            role.application().grants(new ApplicationPrivilege(otherApplication, privilegeName, allowedApplicationActionPattern), "*"),
             is(false)
         );
 

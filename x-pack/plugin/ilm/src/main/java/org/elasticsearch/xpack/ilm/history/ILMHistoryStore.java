@@ -155,19 +155,7 @@ public class ILMHistoryStore implements Closeable {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
             IndexRequest request = new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
-            // TODO: remove the threadpool wrapping when the .add call is non-blocking
-            // (it can currently execute the bulk request occasionally)
-            // see: https://github.com/elastic/elasticsearch/issues/50440
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                try {
-                    processor.add(request);
-                } catch (Exception e) {
-                    logger.error(
-                        () -> format("failed add ILM history item to queue for index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item),
-                        e
-                    );
-                }
-            });
+            processor.add(request);
         } catch (IOException exception) {
             logger.error(() -> format("failed to queue ILM history item in index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item), exception);
         }

@@ -154,7 +154,13 @@ public final class SSLConfigurationReloader {
                 }
             }
             final Level lvl = (reloaded > 0) ? Level.INFO : Level.TRACE;
-            logger.log(lvl, "reloaded [{}], updated {} ssl contexts in {}ms", file, reloaded,(System.nanoTime() - reloadedNanos)/1000000F);
+            logger.log(
+                lvl,
+                "reloaded [{}], updated {} ssl contexts in {}ms",
+                file,
+                reloaded,
+                (System.nanoTime() - reloadedNanos) / 1000000F
+            );
         }
     }
 }

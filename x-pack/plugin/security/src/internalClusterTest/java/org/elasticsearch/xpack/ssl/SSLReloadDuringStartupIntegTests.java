@@ -83,7 +83,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
      * The test will verify that the node recovers and rejoins the cluster, and that the cluster is healthy.
      * @throws Exception Unexpected error during node startup.
      */
-//    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77490")
+    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77490")
     public void testReloadDuringStartup() throws Exception {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Environment env = internalCluster().getInstance(Environment.class, nodeName);
@@ -98,7 +98,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         internalCluster().restartNode(nodeName, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                LOGGER.info("Node [{}] stopped in {}ms.", nodeName, (System.nanoTime() - stopNanos)/1000000F);
+                LOGGER.info("Node [{}] stopped in {}ms.", nodeName, (System.nanoTime() - stopNanos) / 1000000F);
                 atomicCopyIfPossible(badKeystorePath, nodeKeystorePath);
                 final Thread fixKeystoreThread = new Thread(() -> {
                     waitUntilNodeStartupIsReadyToBegin(beforeKeystoreFix); // SYNCHRONIZED TASK
@@ -119,19 +119,19 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         try {
             afterKeystoreFix.await(); // Wait until keystore is fixed
         } finally {
-            LOGGER.info("Awaited {}ms. Verifying the cluster...", (System.nanoTime() - awaitNanos)/1000000F);
+            LOGGER.info("Awaited {}ms. Verifying the cluster...", (System.nanoTime() - awaitNanos) / 1000000F);
         }
         final long ensureClusterSizeConsistencyNanos = System.nanoTime(); // actual verify nanos
         try {
             ensureClusterSizeConsistency();
         } finally {
-            LOGGER.info("Ensure cluster size consistency took {}ms.", (System.nanoTime() - ensureClusterSizeConsistencyNanos)/1000000F);
+            LOGGER.info("Ensure cluster size consistency took {}ms.", (System.nanoTime() - ensureClusterSizeConsistencyNanos) / 1000000F);
         }
         final long ensureFullyConnectedClusterNanos = System.nanoTime(); // actual verify nanos
         try {
             ensureFullyConnectedCluster();
         } finally {
-            LOGGER.info("Ensure fully connected cluster took {}ms.", (System.nanoTime() - ensureFullyConnectedClusterNanos)/1000000F);
+            LOGGER.info("Ensure fully connected cluster took {}ms.", (System.nanoTime() - ensureFullyConnectedClusterNanos) / 1000000F);
         }
     }
 
@@ -143,13 +143,13 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
             try {
                 beforeKeystoreFix.await(); // Wait for Main thread to be ready for concurrent start
             } finally {
-                LOGGER.info("Awaited {}ms. Sleeping {}ms before fixing...", (System.nanoTime() - awaitNanos)/1000000F, sleepMillis);
+                LOGGER.info("Awaited {}ms. Sleeping {}ms before fixing...", (System.nanoTime() - awaitNanos) / 1000000F, sleepMillis);
             }
             long sleepNanos = System.nanoTime(); // actual sleep nanos
             try {
                 Thread.sleep(sleepMillis); // Note: nodeSettings() => `resource.reload.interval.high: 1s`
             } finally {
-                LOGGER.info("Slept {}ms, intended {}ms. Fixing can start now...",(System.nanoTime() - sleepNanos)/1000000F, sleepMillis);
+                LOGGER.info("Slept {}ms, intended {}ms. Fixing can start now...", (System.nanoTime() - sleepNanos) / 1000000F, sleepMillis);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -169,7 +169,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        LOGGER.info("Awaited {}ms. Node can start now...", awaitNanos/1000000F);
+        LOGGER.info("Awaited {}ms. Node can start now...", awaitNanos / 1000000F);
     }
 
     /**
@@ -183,9 +183,9 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     private void atomicCopyIfPossible(Path source, Path target) throws IOException {
         LOGGER.info("Copying [{}] to [{}]", source, target);
         Path tmp = createTempFile();
-//        LOGGER.info("Temporary file [{}] created", tmp);
+        // LOGGER.info("Temporary file [{}] created", tmp);
         Files.copy(source, tmp, StandardCopyOption.REPLACE_EXISTING);
-//        LOGGER.info("Copy succeeded from [{}] to [{}]", source, tmp);
+        // LOGGER.info("Copy succeeded from [{}] to [{}]", source, tmp);
         try {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             LOGGER.info("Atomic move succeeded from [{}] to [{}]", tmp, target);

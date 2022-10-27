@@ -14,8 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,11 +41,11 @@ public class CompoundProcessor implements Processor {
     private final boolean isAsync;
 
     CompoundProcessor(LongSupplier relativeTimeProvider, boolean ignoreFailure, Processor... processor) {
-        this(ignoreFailure, Arrays.asList(processor), Collections.emptyList(), relativeTimeProvider);
+        this(ignoreFailure, List.of(processor), List.of(), relativeTimeProvider);
     }
 
     public CompoundProcessor(Processor... processor) {
-        this(false, Arrays.asList(processor), Collections.emptyList());
+        this(false, List.of(processor), List.of());
     }
 
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {

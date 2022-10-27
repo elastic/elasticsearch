@@ -82,6 +82,15 @@ public final class DocumentPermissions implements CacheKey {
         return listOfRawQueries;
     }
 
+    public Set<BytesReference> getSingleSetOfRawQueries() {
+        if (listOfRawQueries != null && listOfRawQueries.size() == 1) {
+            return listOfRawQueries.get(0);
+        } else {
+            assert false;
+            throw new IllegalArgumentException("the list of raw queries does not have a single member: [" + listOfRawQueries + "]");
+        }
+    }
+
     /**
      * @return {@code true} if either queries or scoped queries are present for document level security else returns {@code false}
      */

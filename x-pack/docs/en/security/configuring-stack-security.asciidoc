@@ -143,6 +143,10 @@ If any of those checks fail, there's a good indication that you
 security to be configured automatically. In these cases, the node starts
 normally using the existing configuration. 
 
+Security auto configuration is also skipped if output is directed.
+If log redirection is needed, start {es} for the first time without redirection.
+Auto configured credentials are intended to be seen once on a terminal, and not captured in a log file.
+
 [discrete]
 [[stack-existing-environment-detected]]
 ==== Existing environment detected

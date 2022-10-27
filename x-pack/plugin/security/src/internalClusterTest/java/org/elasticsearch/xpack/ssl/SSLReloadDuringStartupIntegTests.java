@@ -136,7 +136,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     private void waitUntilNodeStartupIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
         try {
-            final long sleepMillis = randomLongBetween(200L, 600L); // intended sleepMillis
+            final long sleepMillis = randomLongBetween(1L, 2000L); // intended sleepMillis
             try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...")) {
                 beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
             }

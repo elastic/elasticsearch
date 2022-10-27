@@ -64,21 +64,9 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
 
     public TransformTaskParams(StreamInput in) throws IOException {
         this.transformId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            this.version = Version.readVersion(in);
-        } else {
-            this.version = Version.V_7_2_0;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            this.frequency = in.readOptionalTimeValue();
-        } else {
-            this.frequency = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.requiresRemote = in.readBoolean();
-        } else {
-            this.requiresRemote = false;
-        }
+        this.version = Version.readVersion(in);
+        this.frequency = in.readOptionalTimeValue();
+        this.requiresRemote = in.readBoolean();
     }
 
     @Override
@@ -88,21 +76,15 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_2_0;
+        return Version.V_7_17_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(transformId);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            Version.writeVersion(version, out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalTimeValue(frequency);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeBoolean(requiresRemote);
-        }
+        Version.writeVersion(version, out);
+        out.writeOptionalTimeValue(frequency);
+        out.writeBoolean(requiresRemote);
     }
 
     @Override

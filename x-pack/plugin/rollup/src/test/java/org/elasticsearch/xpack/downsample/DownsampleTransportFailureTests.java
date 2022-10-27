@@ -283,7 +283,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         assertEquals("no such index [" + indexName + "]", targetIndexNotFoundException.getMessage());
     }
 
-    public void testNoDisruption() throws IOException, ExecutionException, InterruptedException {
+    public void testNoDisruption() {
         // GIVEN
 
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
@@ -309,7 +309,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         ensureStableCluster(internalCluster().size());
     }
 
-    public void testDownsampleActionExceptionDisruption() throws IOException, ExecutionException, InterruptedException {
+    public void testDownsampleActionExceptionDisruption() {
         // GIVEN
         final MockTransportService coordinator = testCluster.coordinatorMockTransportService();
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
@@ -348,7 +348,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         assertDownsampleFailure(testCluster.coordinatorName());
     }
 
-    public void testRollupIndexerActionExceptionDisruption() throws IOException, ExecutionException, InterruptedException {
+    public void testRollupIndexerActionExceptionDisruption() {
         // GIVEN
         final MockTransportService master = testCluster.masterMockTransportService();
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(

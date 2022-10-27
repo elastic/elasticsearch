@@ -50,7 +50,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -249,7 +248,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
             .addIndices(indexName)
             .addFeatures(GetIndexRequest.Feature.values())
             .get();
-        assertEquals(Collections.singletonList(indexName), Arrays.stream(getIndexResponse.indices()).toList());
+        assertEquals(List.of(indexName), Arrays.stream(getIndexResponse.indices()).toList());
     }
 
     private void assertIndexDoesNotExist(final String nodeName, final String indexName) {

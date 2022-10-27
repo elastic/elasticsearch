@@ -68,7 +68,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < dims) {
-            result +=  docVector.bytes[j++] * queryVector[i++];
+            result += docVector.bytes[j++] * queryVector[i++];
         }
         return result;
     }
@@ -79,7 +79,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < docVector.length) {
-            result +=  docVector.bytes[j++] * (int)queryVector[i++];
+            result += docVector.bytes[j++] * (int) queryVector[i++];
         }
         return result;
     }
@@ -90,7 +90,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < dims) {
-            result +=  docVector.bytes[j++] * queryVector.get(i++).intValue();
+            result += docVector.bytes[j++] * queryVector.get(i++).intValue();
         }
         return result;
     }
@@ -112,7 +112,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < dims) {
-            result += Math.abs(docVector.bytes[j++] - (int)queryVector[i++]);
+            result += Math.abs(docVector.bytes[j++] - (int) queryVector[i++]);
         }
         return result;
     }
@@ -146,7 +146,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < dims) {
-            int diff = docVector.bytes[j++] - (int)queryVector[i++];
+            int diff = docVector.bytes[j++] - (int) queryVector[i++];
             result += diff * diff;
         }
         return Math.sqrt(result);

@@ -66,7 +66,7 @@ public class ByteKnnDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < docVector.length) {
-            result += docVector.bytes[j++] * (int)queryVector[i++];
+            result += docVector.bytes[j++] * (int) queryVector[i++];
         }
         return result;
     }
@@ -77,7 +77,7 @@ public class ByteKnnDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < docVector.length) {
-            result += docVector.bytes[j++] * (int)queryVector[i++];
+            result += docVector.bytes[j++] * (int) queryVector[i++];
         }
         return result;
     }
@@ -110,7 +110,7 @@ public class ByteKnnDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < docVector.length) {
-            result += Math.abs(docVector.bytes[j++] - (int)queryVector[i++]);
+            result += Math.abs(docVector.bytes[j++] - (int) queryVector[i++]);
         }
         return result;
     }
@@ -144,7 +144,7 @@ public class ByteKnnDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < docVector.length) {
-            int diff = docVector.bytes[j++] - (int)queryVector[i++];
+            int diff = docVector.bytes[j++] - (int) queryVector[i++];
             result += diff * diff;
         }
         return Math.sqrt(result);

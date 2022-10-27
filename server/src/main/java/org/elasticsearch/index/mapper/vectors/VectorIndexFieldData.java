@@ -33,7 +33,14 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     private final int dims;
     private final boolean indexed;
 
-    public VectorIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, Version indexVersion, ElementType elementType, int dims, boolean indexed) {
+    public VectorIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        Version indexVersion,
+        ElementType elementType,
+        int dims,
+        boolean indexed
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.indexVersion = indexVersion;
@@ -91,7 +98,14 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
         private final int dims;
         private final boolean indexed;
 
-        public Builder(String name, ValuesSourceType valuesSourceType, Version indexVersion, ElementType elementType, int dims, boolean indexed) {
+        public Builder(
+            String name,
+            ValuesSourceType valuesSourceType,
+            Version indexVersion,
+            ElementType elementType,
+            int dims,
+            boolean indexed
+        ) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.indexVersion = indexVersion;

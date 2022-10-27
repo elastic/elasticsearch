@@ -434,7 +434,14 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 // defining sets of docs accessible
                 final List<Set<BytesReference>> listOfRawQueries = indexAccessControl.getDocumentPermissions().getListOfQueries();
 
+                // When the user is an API Key, its role is a limitedRole and its effective document permissions
+                // are intersections of the two sets of queries, one belongs to the API key itself and the other belongs
+                // to the owner user. To allow unfiltered access to termsDict, both sets of the queries must have
+                // the "all" permission, i.e. the query can be rewritten into a MatchAll query.
+                // The following code loop through both sets queries and returns true only when both of them
+                // have the "all" permission.
                 return listOfRawQueries.stream().allMatch(queries -> {
+                    // Within a single set of queries, the "all" permission is allowed if any of them can be rewritten to MatchAll.
                     for (BytesReference querySource : queries) {
                         QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
                             querySource,
@@ -449,7 +456,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                             throw new UncheckedIOException(e);
                         }
                         if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                            // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
                             return true;
                         }
                     }

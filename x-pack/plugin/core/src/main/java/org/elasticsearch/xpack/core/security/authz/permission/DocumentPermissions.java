@@ -56,7 +56,7 @@ public final class DocumentPermissions implements CacheKey {
 
     private static final DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
-    DocumentPermissions() {
+    private DocumentPermissions() {
         this.listOfQueries = null;
     }
 
@@ -87,12 +87,8 @@ public final class DocumentPermissions implements CacheKey {
     }
 
     public Set<BytesReference> getSingleSetOfQueries() {
-        if (listOfQueries != null && listOfQueries.size() == 1) {
-            return listOfQueries.get(0);
-        } else {
-            assert false;
-            throw new IllegalArgumentException("the list of queries does not have a single member: [" + listOfQueries + "]");
-        }
+        assert listOfQueries != null && listOfQueries.size() == 1 : "the list of queries does not have a single member";
+        return listOfQueries.get(0);
     }
 
     /**

@@ -60,22 +60,15 @@ public final class DocumentPermissions implements CacheKey {
         this.listOfQueries = null;
     }
 
-    DocumentPermissions(Set<BytesReference> queries) {
-        if (queries == null || queries.isEmpty()) {
-            throw new IllegalArgumentException("null or empty queries not permitted");
-        }
+    private DocumentPermissions(Set<BytesReference> queries) {
+        assert queries != null && false == queries.isEmpty() : "null or empty queries not permitted";
         this.listOfQueries = List.of(new TreeSet<>(queries));
     }
 
-    DocumentPermissions(List<Set<BytesReference>> listOfQueries) {
-        if (listOfQueries == null || listOfQueries.isEmpty()) {
-            throw new IllegalArgumentException("null or empty list of queries not permitted");
-        }
-        listOfQueries.forEach(queries -> {
-            if (queries == null || queries.isEmpty()) {
-                throw new IllegalArgumentException("null or empty queries not permitted");
-            }
-        });
+    private DocumentPermissions(List<Set<BytesReference>> listOfQueries) {
+        assert listOfQueries != null && false == listOfQueries.isEmpty() : "null or empty list of queries not permitted";
+        assert listOfQueries.stream().allMatch(queries -> queries != null && false == queries.isEmpty())
+            : "null or empty queries not permitted";
         // SortedSet because orders are important when they get serialised for request cache key
         this.listOfQueries = listOfQueries.stream()
             .map(queries -> queries instanceof SortedSet<BytesReference> ? queries : new TreeSet<>(queries))

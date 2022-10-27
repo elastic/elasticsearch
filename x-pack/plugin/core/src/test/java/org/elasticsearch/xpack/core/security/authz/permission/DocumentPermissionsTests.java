@@ -90,7 +90,7 @@ public class DocumentPermissionsTests extends ESTestCase {
 
     public void testWriteCacheKeyWillDistinguishBetweenQueriesAndLimitedByQueries() throws IOException {
         final BytesStreamOutput out0 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions0 = new DocumentPermissions(
+        final DocumentPermissions documentPermissions0 = DocumentPermissions.filteredBy(
             Set.of(
                 new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
                 new BytesArray("{\"term\":{\"q2\":\"v2\"}}"),
@@ -100,21 +100,20 @@ public class DocumentPermissionsTests extends ESTestCase {
         documentPermissions0.buildCacheKey(out0, BytesReference::utf8ToString);
 
         final BytesStreamOutput out1 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions1 = new DocumentPermissions(
-            List.of(
-                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"), new BytesArray("{\"term\":{\"q2\":\"v2\"}}")),
-                Set.of(new BytesArray("{\"term\":{\"q3\":\"v3\"}}"))
-            )
-        );
+        final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"), new BytesArray("{\"term\":{\"q2\":\"v2\"}}"))
+        ).limitDocumentPermissions(DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"term\":{\"q3\":\"v3\"}}"))));
         documentPermissions1.buildCacheKey(out1, BytesReference::utf8ToString);
 
         final BytesStreamOutput out2 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions2 = new DocumentPermissions(
-            List.of(
-                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}")),
-                Set.of(new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}"))
-            )
-        );
+        final DocumentPermissions documentPermissions2 = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"))
+        )
+            .limitDocumentPermissions(
+                DocumentPermissions.filteredBy(
+                    Set.of(new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}"))
+                )
+            );
         documentPermissions2.buildCacheKey(out2, BytesReference::utf8ToString);
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
@@ -131,7 +130,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         if (hasStoredScript) {
             queries.add(new BytesArray("{\"template\":{\"id\":\"my-script\"}}"));
         }
-        final DocumentPermissions documentPermissions0 = new DocumentPermissions(queries);
+        final DocumentPermissions documentPermissions0 = DocumentPermissions.filteredBy(queries);
         assertThat(documentPermissions0.hasStoredScript(), is(hasStoredScript));
     }
 }

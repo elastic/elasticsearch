@@ -26,8 +26,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Start a 3 node cluster, with one node having a bad Transport keystore setting.
- * Fix the Transport keystore setting, and verify the node successfully reloads it.
+ * Start a cluster. Restart a node with a bad Transport keystore to it can't rejoin.
+ * Update the Transport keystore, so ES can reload it at runtime. Verify reload was OK
+ * by verifying if the cluster goes back to normal.
  */
 public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     private final Logger LOGGER = LogManager.getLogger(SSLReloadDuringStartupIntegTests.class);
@@ -42,9 +43,9 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
 
     /**
      * Called for each node. Copy the original testnode.jks file into each node's config directory.
-     * @param nodeOrdinal Number of nodes in the cluster.
-     * @param otherSettings Other settings injected into this test.
-     * @return Node settings with overridden Transport keystore file path.
+     * @param nodeOrdinal Number of the node in the cluster.
+     * @param otherSettings Pass through settings for this test.
+     * @return Node settings with overrides for Transport SSL, so the test can update the Transport keystore file twice.
      */
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -77,13 +78,13 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     }
 
     /**
-     * Update Transport keystore while node is starting, and verify the node reloads it successfully.
-     * This is implemented by starting a cluster, stopping a random node, using a bad keystore, and starting it again.
-     * While the node is starting, a Thread will replace the keystore with the original working one.
-     * The test will verify that the node recovers and rejoins the cluster, and that the cluster is healthy.
-     * @throws Exception Unexpected error during node startup.
+     * This class start a cluster. For this test, restart a random node.
+     * While stopped, replace the Transport keystore with a bad one, so the node cannot rejoin the cluster.
+     * While restarting, replace the keystore with a good one, and verify if ES reloaded it by checking it if rejoined the cluster.
+     * @throws Exception Compare ES startup logs to diagnostic and timing logs for the test, to narrow down why ES startup failed.
      */
     // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77490")
+    // Unmuted by https://github.com/elastic/elasticsearch/pull/91147
     public void testReloadDuringStartup() throws Exception {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Environment env = internalCluster().getInstance(Environment.class, nodeName);

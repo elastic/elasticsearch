@@ -145,7 +145,7 @@ public final class DocumentPermissions implements CacheKey {
                 buildRoleQuery(shardId, searchExecutionContextProvider, listOfEvaluatedQueries.get(i), scopedFilter);
                 filter.add(scopedFilter.build(), FILTER);
             }
-            // TODO: All role queries should be filter since scoring is not needed
+            // TODO: All role queries can be filters
             buildRoleQuery(shardId, searchExecutionContextProvider, listOfEvaluatedQueries.get(0), filter);
             return filter.build();
         }
@@ -258,7 +258,10 @@ public final class DocumentPermissions implements CacheKey {
 
     @Override
     public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
-        assert hasDocumentLevelPermissions() : "should not build cache key when there is no DLS query";
+        if (false == hasDocumentLevelPermissions()) {
+            assert false;
+            throw new IllegalArgumentException("document permissions should not contribute to cache key when there is no DLS query");
+        }
         evaluateQueries(context);
         out.writeCollection(listOfEvaluatedQueries, StreamOutput::writeStringCollection);
     }

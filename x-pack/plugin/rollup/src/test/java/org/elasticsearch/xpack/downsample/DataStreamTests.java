@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
@@ -64,10 +64,10 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamTests extends ESIntegTestCase {
+public class DataStreamTests extends ESSingleNodeTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
+    protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(Rollup.class, DataStreamsPlugin.class);
     }
 
@@ -176,7 +176,7 @@ public class DataStreamTests extends ESIntegTestCase {
         assertThat(dateHistogram.getBuckets().get(totalBuckets - 1).getDocCount(), equalTo(10L));
     }
 
-    static void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
+    private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
         final PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         final Template template = new Template(
             Settings.builder()
@@ -210,7 +210,7 @@ public class DataStreamTests extends ESIntegTestCase {
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
-    static void indexDocs(final String dataStream, int numDocs, long delay) {
+    private void indexDocs(final String dataStream, int numDocs, long startTime) {
         final BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
             final String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis() + i + delay);

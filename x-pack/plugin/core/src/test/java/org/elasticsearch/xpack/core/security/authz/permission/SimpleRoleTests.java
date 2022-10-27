@@ -111,7 +111,8 @@ public class SimpleRoleTests extends ESTestCase {
                 ),
             is(true)
         );
-        // This gives decent but not complete coverage of denial cases; for any non-wildcard field we pick a mismatched value
+        // This gives decent but not complete coverage of denial cases; for any non-wildcard field we pick a mismatched value to force a
+        // denial
         assertThat(
             "expected grant for role with application privilege to be: " + applicationPrivilege,
             role.application()

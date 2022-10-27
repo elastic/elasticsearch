@@ -59,8 +59,10 @@ public final class Allocators {
         }
 
         @Override
-        public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard,
-                                                                           RoutingAllocation routingAllocation) {
+        public AllocateUnassignedDecision explainUnassignedShardAllocation(
+            ShardRouting unassignedShard,
+            RoutingAllocation routingAllocation
+        ) {
             return NOT_TAKEN;
         }
     }

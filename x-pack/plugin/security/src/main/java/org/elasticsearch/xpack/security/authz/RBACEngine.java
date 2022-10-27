@@ -864,7 +864,7 @@ public class RBACEngine implements AuthorizationEngine {
         final boolean isRunAs = authentication.isRunAs();
         final String realmType;
         if (isRunAs) {
-            realmType = authentication.getLookedUpBy().getType();
+            realmType = authentication.getEffectiveSubject().getRealm().getType();
         } else {
             realmType = authentication.getAuthenticatingSubject().getRealm().getType();
         }

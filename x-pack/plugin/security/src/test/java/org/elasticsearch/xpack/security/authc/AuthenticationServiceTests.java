@@ -480,7 +480,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
-            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.isRunAs(), is(false));
             assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue())); // TODO implement equals
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(result);
@@ -520,7 +520,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
-            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.isRunAs(), is(false));
             assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue())); // TODO implement equals
             assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME));
             assertThat(result.getAuthenticatingSubject().getRealm().getType(), is(SECOND_REALM_TYPE));
@@ -541,7 +541,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
-            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.isRunAs(), is(false));
             assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue())); // TODO implement equals
             assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME));
             assertThat(result.getAuthenticatingSubject().getRealm().getType(), is(SECOND_REALM_TYPE));
@@ -575,7 +575,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
-            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.isRunAs(), is(false));
             assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue()));
             assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(FIRST_REALM_NAME));
             assertThat(result.getAuthenticatingSubject().getRealm().getType(), is(FIRST_REALM_TYPE));
@@ -663,7 +663,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
-            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.isRunAs(), is(false));
             assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
             assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(secondDomain));
             assertThreadContextContainsAuthentication(result);
@@ -679,7 +679,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             assertThat(result, notNullValue());
             assertThat(result.getEffectiveSubject().getUser(), is(user));
-            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.isRunAs(), is(false));
             assertThat(result.getAuthenticatingSubject().getRealm().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
             assertThat(result.getAuthenticatingSubject().getRealm().getDomain(), is(secondDomain));
             assertThreadContextContainsAuthentication(result);
@@ -1888,7 +1888,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getEffectiveSubject().getUser(), is(user));
-                assertThat(result.getLookedUpBy(), is(nullValue()));
+                assertThat(result.isRunAs(), is(false));
                 assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue()));
                 assertThat(result.getAuthenticatingSubject().getRealm().getName(), is("realm")); // TODO implement equals
                 assertThat(result.getAuthenticationType(), is(AuthenticationType.TOKEN));
@@ -1931,7 +1931,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getEffectiveSubject().getUser(), is(user));
-                assertThat(result.getLookedUpBy(), is(nullValue()));
+                assertThat(result.isRunAs(), is(false));
                 assertThat(result.getAuthenticatingSubject().getRealm(), is(notNullValue()));
                 assertThreadContextContainsAuthentication(result);
                 assertEquals(expected, result);

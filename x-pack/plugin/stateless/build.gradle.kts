@@ -8,6 +8,7 @@ esplugin {
     name = "stateless"
     description = "Stateless module for Elasticsearch"
     classname = "co.elastic.elasticsearch.stateless.Stateless"
+    extendedPlugins = listOf("x-pack-core")
 }
 
 dependencies {

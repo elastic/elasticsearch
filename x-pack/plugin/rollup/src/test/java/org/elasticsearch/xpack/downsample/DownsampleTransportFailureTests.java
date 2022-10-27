@@ -183,10 +183,10 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         testCluster = new TestClusterHelper(internalCluster());
         assert testCluster.size() == 3;
         ensureStableCluster(internalCluster().size());
-        assertTrue(createTimeSeriesIndex(SOURCE_INDEX_NAME));
+        createTimeSeriesIndex(SOURCE_INDEX_NAME);
         ensureGreen(SOURCE_INDEX_NAME);
-        assertTrue(indexDocuments(SOURCE_INDEX_NAME, DOCUMENTS));
-        assertTrue(blockIndexWrites(SOURCE_INDEX_NAME));
+        indexDocuments(SOURCE_INDEX_NAME, DOCUMENTS);
+        blockIndexWrites(SOURCE_INDEX_NAME);
 
         logger.info(
             "Cluster size {}, master node {}, coordinator node {}, worker node {}}",
@@ -227,19 +227,21 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         return mapping;
     }
 
-    public boolean indexDocuments(final String indexName, final List<String> documentsJson) {
+    public void indexDocuments(final String indexName, final List<String> documentsJson) {
         final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         documentsJson.forEach(document -> bulkRequestBuilder.add(new IndexRequest(indexName).source(document, XContentType.JSON)));
-        return bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures() == false;
+        assertFalse(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures());
     }
 
-    public boolean blockIndexWrites(final String indexName) throws ExecutionException, InterruptedException {
+    public void blockIndexWrites(final String indexName) throws ExecutionException, InterruptedException {
         final Settings blockWritesSetting = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-        return client().admin().indices().updateSettings(new UpdateSettingsRequest(blockWritesSetting, indexName)).get().isAcknowledged();
+        assertTrue(
+            client().admin().indices().updateSettings(new UpdateSettingsRequest(blockWritesSetting, indexName)).get().isAcknowledged()
+        );
     }
 
-    private boolean createTimeSeriesIndex(final String indexName) throws IOException {
-        return prepareCreate(indexName).setMapping(indexMapping()).get().isShardsAcknowledged();
+    private void createTimeSeriesIndex(final String indexName) throws IOException {
+        assertTrue(prepareCreate(indexName).setMapping(indexMapping()).get().isShardsAcknowledged());
     }
 
     private void assertDownsampleFailure(final String nodeName) {

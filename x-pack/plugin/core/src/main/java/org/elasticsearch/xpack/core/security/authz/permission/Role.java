@@ -319,7 +319,7 @@ public interface Role {
         final FieldPermissionsCache fieldPermissionsCache,
         final RestrictedIndices restrictedIndices
     ) {
-        return Role.buildFromRoleDescriptor(roleDescriptor, fieldPermissionsCache, restrictedIndices, List.of());
+        return buildFromRoleDescriptor(roleDescriptor, fieldPermissionsCache, restrictedIndices, List.of());
     }
 
     static SimpleRole buildFromRoleDescriptor(

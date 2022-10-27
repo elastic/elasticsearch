@@ -487,8 +487,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             result.symptom(),
             equalTo(
                 (numberOfRedNodes == 1 ? "1 node " : numberOfRedNodes + " nodes ")
-                    + "with roles: [data, data_cold, data_content, data_frozen, data_hot, data_warm, ingest, master, ml, "
-                    + "remote_cluster_client, transform, voting_only] "
+                    + "with roles: [data, data_cold, data_content, data_frozen, data_hot, data_warm, index, ingest, master, ml, "
+                    + "remote_cluster_client, search, transform, voting_only] "
                     + (numberOfRedNodes == 1 ? "is" : "are")
                     + " out of disk or running low on disk space."
             )

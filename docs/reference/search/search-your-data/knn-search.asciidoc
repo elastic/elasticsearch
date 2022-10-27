@@ -249,6 +249,76 @@ Similarly, you can decrease `num_candidates` for faster searches with
 potentially less accurate results.
 
 [discrete]
+[[approximate-knn-using-byte-vectors]]
+==== Approximate kNN using byte vectors
+
+The approximate kNN search API supports `byte` value vectors in
+addition to `float` value vectors. Use the <<search-api-knn, `knn` option>>
+to search a `dense_vector` field with <<dense-vector-params, `element_type`>> set to
+`byte` and indexing enabled.
+
+. Explicitly map one or more `dense_vector` fields with
+<<dense-vector-params, `element_type`>> set to `byte` and indexing enabled.
++
+[source,console]
+----
+PUT byte-image-index
+{
+  "mappings": {
+    "properties": {
+      "byte-image-vector": {
+        "type": "dense_vector",
+        "element_type": "byte",
+        "dims": 2,
+        "index": true,
+        "similarity": "cosine"
+      },
+      "title": {
+        "type": "text"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+. Index your data ensuring all vector values
+are integers within the range [-128, 127].
++
+[source,console]
+----
+POST byte-image-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "byte-image-vector": [5, -20], "title": "moose family" }
+{ "index": { "_id": "2" } }
+{ "byte-image-vector": [8, -15], "title": "alpine lake" }
+{ "index": { "_id": "3" } }
+{ "byte-image-vector": [11, 23], "title": "full moon" }
+----
+//TEST[continued]
+
+. Run the search using the <<search-api-knn, `knn` option>>
+ensuring the `query_vector` values are integers within the
+range [-128, 127].
++
+[source,console]
+----
+POST byte-image-index/_search
+{
+  "knn": {
+    "field": "byte-image-vector",
+    "query_vector": [-5, 9],
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
+[discrete]
 [[knn-search-filter-example]]
 ==== Filtered kNN search
 

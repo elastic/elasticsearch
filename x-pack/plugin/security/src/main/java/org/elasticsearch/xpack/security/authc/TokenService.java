@@ -1513,17 +1513,20 @@ public final class TokenService {
                     clientAuthentication.getEffectiveSubject().getUser().principal()
                 );
                 return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-            } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
-                logger.warn(
-                    "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                    refreshToken.getAssociatedUser(),
-                    refreshToken.getAssociatedRealm(),
-                    clientAuthentication.getAuthenticatedBy().getName()
-                );
-                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-            } else {
-                return Optional.empty();
-            }
+            } else if (clientAuthentication.getAuthenticatingSubject()
+                .getRealm()
+                .getName()
+                .equals(refreshToken.getAssociatedRealm()) == false) {
+                    logger.warn(
+                        "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                        refreshToken.getAssociatedUser(),
+                        refreshToken.getAssociatedRealm(),
+                        clientAuthentication.getAuthenticatingSubject().getRealm().getName()
+                    );
+                    return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+                } else {
+                    return Optional.empty();
+                }
         }
     }
 
@@ -1795,9 +1798,9 @@ public final class TokenService {
                     builder.field("authentication", originatingClientAuth.maybeRewriteForOlderVersion(userToken.getVersion()).encode());
                 } else {
                     builder.field("user", originatingClientAuth.getEffectiveSubject().getUser().principal())
-                        .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
-                    if (originatingClientAuth.getAuthenticatedBy().getDomain() != null) {
-                        builder.field("realm_domain", originatingClientAuth.getAuthenticatedBy().getDomain());
+                        .field("realm", originatingClientAuth.getAuthenticatingSubject().getRealm().getName());
+                    if (originatingClientAuth.getAuthenticatingSubject().getRealm().getDomain() != null) {
+                        builder.field("realm_domain", originatingClientAuth.getAuthenticatingSubject().getRealm().getDomain());
                     }
                 }
                 builder.endObject().endObject();
@@ -2546,7 +2549,7 @@ public final class TokenService {
             this.invalidated = invalidated;
             // not used, filled-in for consistency's sake
             this.associatedUser = associatedAuthentication.getEffectiveSubject().getUser().principal();
-            this.associatedRealm = associatedAuthentication.getAuthenticatedBy().getName();
+            this.associatedRealm = associatedAuthentication.getAuthenticatingSubject().getRealm().getName();
             this.associatedAuthentication = associatedAuthentication;
             this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;

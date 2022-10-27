@@ -118,7 +118,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
                 });
                 fixKeystoreThread.setName("Fix Keystore");
                 fixKeystoreThread.start();
-                waitUntilFixKeystoreIsReadyToBegin(beforeKeystoreFix); // Sync cert update to ES restart
+                waitUntilFixKeystoreIsReadyToBegin(beforeKeystoreFix); // SYNC: Cert update & ES restart
                 return super.onNodeStopped(nodeName); // ASSUME: RestartCallback will do ES start next
             }
         });
@@ -149,7 +149,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     }
 
     private void waitUntilFixKeystoreIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
-        beforeKeystoreFix.countDown();
+        beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
         try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Node can start now...")) {
             beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
         } catch (InterruptedException e) {

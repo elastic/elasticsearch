@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -144,23 +143,17 @@ public final class SSLConfigurationReloader {
 
         @Override
         public void onFileChanged(Path file) {
-            final long reloadedNanos = System.nanoTime();
-            logger.trace("reloading [{}], updating ssl contexts...", file);
-            int reloaded = 0;
+            boolean reloaded = false;
             for (SslConfiguration sslConfiguration : sslConfigurations) {
                 if (sslConfiguration.getDependentFiles().contains(file)) {
                     reloadConsumer.accept(sslConfiguration);
-                    ++reloaded;
+                    reloaded = true;
                 }
             }
-            final Level lvl = (reloaded > 0) ? Level.INFO : Level.TRACE;
-            logger.log(
-                lvl,
-                "reloaded [{}], updated {} ssl contexts in {}ms",
-                file,
-                reloaded,
-                (System.nanoTime() - reloadedNanos) / 1000000F
-            );
+
+            if (reloaded) {
+                logger.info("reloaded [{}] and updated ssl contexts using this file", file);
+            }
         }
     }
 }

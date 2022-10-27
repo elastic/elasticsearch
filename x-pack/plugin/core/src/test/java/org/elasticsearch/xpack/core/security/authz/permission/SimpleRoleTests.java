@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
@@ -21,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.emptyArray;
@@ -71,8 +68,8 @@ public class SimpleRoleTests extends ESTestCase {
         final boolean wildcardResources = randomBoolean();
         final RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege = RoleDescriptor.ApplicationResourcePrivileges.builder()
             .application(wildcardApplication ? "*" : randomAlphaOfLengthBetween(5, 12))
-            // TODO
-            .privileges(wildcardPrivileges ? "*" : "a" + randomAlphaOfLengthBetween(5, 12))
+            // concrete privileges need to be prefixed with lower case letter, so use "app"
+            .privileges(wildcardPrivileges ? "*" : "app" + randomAlphaOfLengthBetween(5, 12))
             .resources(wildcardResources ? new String[] { "*" } : generateRandomStringArray(6, randomIntBetween(4, 8), false, false))
             .build();
 
@@ -114,27 +111,34 @@ public class SimpleRoleTests extends ESTestCase {
                 ),
             is(true)
         );
-        // if (false == (wildcardApplication && wildcardPrivileges && wildcardResources)) {
-        // assertThat(
-        // "unexpected successful grant for role with application privilege: " + applicationPrivilege,
-        // role.application()
-        // .grants(
-        // new ApplicationPrivilege(
-        // randomValueOtherThan(applicationPrivilege.getApplication(), () -> randomAlphaOfLengthBetween(1, 10)),
-        // randomValueOtherThanMany(
-        // it -> Arrays.asList(applicationPrivilege.getPrivileges()).contains(it),
-        // () -> randomAlphaOfLengthBetween(1, 10)
-        // ),
-        // randomValueOtherThan(allowedApplicationActionPattern, () -> randomAlphaOfLengthBetween(1, 10))
-        // ),
-        // randomValueOtherThanMany(
-        // it -> Arrays.asList(applicationPrivilege.getResources()).contains(it),
-        // () -> randomAlphaOfLengthBetween(1, 10)
-        // )
-        // ),
-        // is(false)
-        // );
-        // }
+        // This gives decent but not complete coverage of denial cases; for any non-wildcard field we pick a mismatched value
+        assertThat(
+            "expected grant for role with application privilege to be: " + applicationPrivilege,
+            role.application()
+                .grants(
+                    new ApplicationPrivilege(
+                        false == wildcardApplication
+                            ? randomValueOtherThan(applicationPrivilege.getApplication(), () -> randomAlphaOfLengthBetween(1, 10))
+                            : randomAlphaOfLengthBetween(1, 10),
+                        false == wildcardPrivileges
+                            ? randomValueOtherThan(
+                                Set.of(applicationPrivilege.getPrivileges()),
+                                () -> Set.of(randomAlphaOfLengthBetween(1, 10))
+                            )
+                            : Set.of(randomAlphaOfLengthBetween(1, 10)),
+                        false == wildcardPrivileges
+                            ? randomValueOtherThan(allowedApplicationActionPattern, () -> randomAlphaOfLengthBetween(1, 10))
+                            : randomAlphaOfLengthBetween(1, 10)
+                    ),
+                    false == wildcardResources
+                        ? randomValueOtherThanMany(
+                            it -> List.of(applicationPrivilege.getResources()).contains(it),
+                            () -> randomAlphaOfLengthBetween(1, 10)
+                        )
+                        : randomAlphaOfLengthBetween(1, 10)
+                ),
+            // If all are wildcards, then we necessarily get a grant, otherwise expect a denial
+            is(wildcardApplication && wildcardPrivileges && wildcardResources)
+        );
     }
-
 }

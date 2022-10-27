@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
@@ -46,24 +48,27 @@ public class ShardsCollector extends Collector {
         if (clusterState != null) {
             RoutingTable routingTable = clusterState.routingTable();
             if (routingTable != null) {
-                List<ShardRouting> shards = routingTable.allShards();
-                if (shards != null) {
-                    final String clusterUuid = clusterUuid(clusterState);
-                    final String stateUUID = clusterState.stateUUID();
-                    final long timestamp = timestamp();
+                final String clusterUuid = clusterUuid(clusterState);
+                final String stateUUID = clusterState.stateUUID();
+                final long timestamp = timestamp();
 
-                    final String[] indices = getCollectionIndices();
-                    final boolean isAllIndices = IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices));
+                final String[] indicesToMonitor = getCollectionIndices();
+                final boolean isAllIndices = IndexNameExpressionResolver.isAllIndices(Arrays.asList(indicesToMonitor));
+                final String[] indices = isAllIndices ? routingTable.indicesRouting().keySet().toArray(new String[0]) : indicesToMonitor;
 
-                    for (ShardRouting shard : shards) {
-                        if (isAllIndices || Regex.simpleMatch(indices, shard.getIndexName())) {
-                            MonitoringDoc.Node shardNode = null;
-                            if (shard.assignedToNode()) {
-                                // If the shard is assigned to a node, the shard monitoring document refers to this node
-                                shardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(shard.currentNodeId()));
-                            }
-                            results.add(new ShardMonitoringDoc(clusterUuid, timestamp, interval, shardNode, shard, stateUUID));
+                for (String index : indices) {
+                    int shardCount = 0;
+                    for (ShardRouting shard : routingTable.allShards(index)) {
+                        if (shard.primary()) {
+                            shardCount = 0;
                         }
+                        MonitoringDoc.Node shardNode = null;
+                        if (shard.assignedToNode()) {
+                            // If the shard is assigned to a node, the shard monitoring document refers to this node
+                            shardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(shard.currentNodeId()));
+                        }
+                        results.add(new ShardMonitoringDoc(clusterUuid, timestamp, interval, shardNode, shard, stateUUID, shardCount));
+                        shardCount++;
                     }
                 }
             }

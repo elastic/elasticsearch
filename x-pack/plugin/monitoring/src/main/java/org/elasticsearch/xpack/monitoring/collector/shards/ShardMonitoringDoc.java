@@ -32,10 +32,11 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         final long interval,
         final MonitoringDoc.Node node,
         final ShardRouting shardRouting,
-        final String clusterStateUUID
+        final String clusterStateUUID,
+        final int shardCount
     ) {
 
-        super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting), XCONTENT_FILTERS);
+        super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting, shardCount), XCONTENT_FILTERS);
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.clusterStateUUID = Objects.requireNonNull(clusterStateUUID);
     }
@@ -63,7 +64,7 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
      *
      * {state_uuid}:{node_id || '_na'}:{index}:{shard}:{'p' || 'r'}
      */
-    public static String id(String stateUUID, ShardRouting shardRouting) {
+    public static String id(String stateUUID, ShardRouting shardRouting, int shardCount) {
         StringBuilder builder = new StringBuilder();
         builder.append(stateUUID);
         builder.append(':');
@@ -74,13 +75,14 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         }
         builder.append(':');
         builder.append(shardRouting.getIndexName());
-        builder.append(':');
+        builder.append(":s");
         builder.append(Integer.valueOf(shardRouting.id()));
         builder.append(':');
         if (shardRouting.primary()) {
             builder.append("p");
         } else {
             builder.append("r");
+            builder.append(Integer.valueOf(shardCount));
         }
         return builder.toString();
     }

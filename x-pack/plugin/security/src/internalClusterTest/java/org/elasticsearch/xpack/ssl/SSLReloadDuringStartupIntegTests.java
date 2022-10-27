@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
@@ -85,72 +86,81 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
      */
     // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77490")
     // Unmuted by https://github.com/elastic/elasticsearch/pull/91147
+    // Related to https://github.com/elastic/elasticsearch/pull/91166
     public void testReloadDuringStartup() throws Exception {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Environment env = internalCluster().getInstance(Environment.class, nodeName);
-        final CountDownLatch beforeKeystoreFix = new CountDownLatch(2); // Begin Node startup and Keystore Fix at the same time
-        final CountDownLatch afterKeystoreFix = new CountDownLatch(1); // Begin cluster verify after Keystore Fix is complete
-        final Path nodeKeystorePath = env.configFile().resolve("testnode.jks"); // all nodes have this initial keystore
-        final Path badKeystorePath = getDataPath(badKeyStoreFilePath); // apply after node stop, before start
-        final Path goodKeystorePath = getDataPath(goodKeyStoreFilePath); // apply after node restart begins
+        final CountDownLatch beforeKeystoreFix = new CountDownLatch(2); // SYNC: Cert update & ES restart
+        final CountDownLatch afterKeystoreFix = new CountDownLatch(1); // SYNC: Verify cluster after cert update
+        final Path nodeKeystorePath = env.configFile().resolve("testnode.jks"); // all nodes have good keystore
+        final Path badKeystorePath = getDataPath(badKeyStoreFilePath); // stop a node, and apply this bad keystore
+        final Path goodKeystorePath = getDataPath(goodKeyStoreFilePath); // start the node, and apply this good keystore
         assertTrue(Files.exists(nodeKeystorePath));
         LOGGER.info("Stopping node [{}] in cluster {}...", nodeName, internalCluster().getNodeNames());
         final long stopNanos = System.nanoTime();
         internalCluster().restartNode(nodeName, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                LOGGER.info("Node [{}] stopped in {}ms.", nodeName, (System.nanoTime() - stopNanos) / 1000000F);
+                LOGGER.info("Node [{}] stopped in {}ms.", nodeName, TimeValue.timeValueNanos(System.nanoTime() - stopNanos).millisFrac());
                 atomicCopyIfPossible(badKeystorePath, nodeKeystorePath);
                 final Thread fixKeystoreThread = new Thread(() -> {
-                    waitUntilNodeStartupIsReadyToBegin(beforeKeystoreFix); // SYNCHRONIZED TASK
+                    waitUntilNodeStartupIsReadyToBegin(beforeKeystoreFix); // SYNC: Cert update & ES restart
                     try {
                         atomicCopyIfPossible(goodKeystorePath, nodeKeystorePath);
-                        afterKeystoreFix.countDown(); // Indicate keystore is fixed
+                        afterKeystoreFix.countDown(); // SYNC: Cert update & ES restart
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 });
                 fixKeystoreThread.setName("Fix Keystore");
                 fixKeystoreThread.start();
-                waitUntilFixKeystoreIsReadyToBegin(beforeKeystoreFix); // SYNCHRONIZED TASK
-                return super.onNodeStopped(nodeName); // Return control to RestartCallback to do startup next
+                waitUntilFixKeystoreIsReadyToBegin(beforeKeystoreFix); // Sync cert update to ES restart
+                return super.onNodeStopped(nodeName); // ASSUME: RestartCallback will do ES start next
             }
         });
-        final long awaitNanos = System.nanoTime(); // actual await nanos
+        final long awaitNanos = System.nanoTime();
         try {
-            afterKeystoreFix.await(); // Wait until keystore is fixed
+            afterKeystoreFix.await(); // SYNC: Verify cluster after cert update
         } finally {
-            LOGGER.info("Awaited {}ms. Verifying the cluster...", (System.nanoTime() - awaitNanos) / 1000000F);
+            LOGGER.info("Awaited {}ms. Verifying the cluster...", TimeValue.timeValueNanos(System.nanoTime() - awaitNanos).millisFrac());
         }
-        final long ensureClusterSizeConsistencyNanos = System.nanoTime(); // actual verify nanos
+        final long numNanos = System.nanoTime();
         try {
             ensureClusterSizeConsistency();
         } finally {
-            LOGGER.info("Ensure cluster size consistency took {}ms.", (System.nanoTime() - ensureClusterSizeConsistencyNanos) / 1000000F);
+            LOGGER.info("Ensure cluster size consistency took {}ms.", TimeValue.timeValueNanos(System.nanoTime() - numNanos).millisFrac());
         }
-        final long ensureFullyConnectedClusterNanos = System.nanoTime(); // actual verify nanos
+        final long connNanos = System.nanoTime();
         try {
             ensureFullyConnectedCluster();
         } finally {
-            LOGGER.info("Ensure fully connected cluster took {}ms.", (System.nanoTime() - ensureFullyConnectedClusterNanos) / 1000000F);
+            LOGGER.info("Ensure fully connected cluster took {}ms.", TimeValue.timeValueNanos(System.nanoTime() - connNanos).millisFrac());
         }
     }
 
     private void waitUntilNodeStartupIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
-        beforeKeystoreFix.countDown(); // Fixer thread ready
+        beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
         try {
             final long sleepMillis = randomLongBetween(200L, 600L); // intended sleepMillis
-            final long awaitNanos = System.nanoTime(); // actual await nanos
+            final long awaitNanos = System.nanoTime();
             try {
-                beforeKeystoreFix.await(); // Wait for Main thread to be ready for concurrent start
+                beforeKeystoreFix.await();
             } finally {
-                LOGGER.info("Awaited {}ms. Sleeping {}ms before fixing...", (System.nanoTime() - awaitNanos) / 1000000F, sleepMillis);
+                LOGGER.info(
+                    "Awaited {}ms. Sleeping {}ms before fixing...",
+                    TimeValue.timeValueNanos(System.nanoTime() - awaitNanos).millisFrac(),
+                    sleepMillis
+                );
             }
-            long sleepNanos = System.nanoTime(); // actual sleep nanos
+            long sleepNanos = System.nanoTime();
             try {
-                Thread.sleep(sleepMillis); // Note: nodeSettings() => `resource.reload.interval.high: 1s`
+                Thread.sleep(sleepMillis);
             } finally {
-                LOGGER.info("Slept {}ms, intended {}ms. Fixing can start now...", (System.nanoTime() - sleepNanos) / 1000000F, sleepMillis);
+                LOGGER.info(
+                    "Slept {}ms, intended {}ms. Fixing can start now...",
+                    TimeValue.timeValueNanos(System.nanoTime() - sleepNanos).millisFrac(),
+                    sleepMillis
+                );
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -158,19 +168,17 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     }
 
     private void waitUntilFixKeystoreIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
-        beforeKeystoreFix.countDown(); // Main thread ready
-        long awaitNanos = -1; // actual await nanos
+        beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
         try {
-            awaitNanos = System.nanoTime();
+            long awaitNanos = System.nanoTime();
             try {
-                beforeKeystoreFix.await(); // Wait for Fixer thread to be ready for concurrent start
+                beforeKeystoreFix.await();
             } finally {
-                awaitNanos = System.nanoTime() - awaitNanos;
+                LOGGER.info("Awaited {}ms. Node can start now...", TimeValue.timeValueNanos(System.nanoTime() - awaitNanos).millisFrac());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        LOGGER.info("Awaited {}ms. Node can start now...", awaitNanos / 1000000F);
     }
 
     /**

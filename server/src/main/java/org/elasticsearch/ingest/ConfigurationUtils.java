@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -488,7 +489,7 @@ public final class ConfigurationUtils {
             throw exception;
         }
 
-        return processors;
+        return Collections.unmodifiableList(processors);
     }
 
     public static TemplateScript.Factory readTemplateProperty(

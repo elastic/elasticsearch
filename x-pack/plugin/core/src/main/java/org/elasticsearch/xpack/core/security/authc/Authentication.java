@@ -168,28 +168,6 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * Use {@code getAuthenticatingSubject().getRealm()} instead.
-     */
-    @Deprecated
-    public RealmRef getAuthenticatedBy() {
-        return authenticatingSubject.getRealm();
-    }
-
-    /**
-     * The use case for this method is largely trying to tell whether there is a run-as user
-     * and can be replaced by {@code isRunAs}
-     */
-    @Deprecated
-    public RealmRef getLookedUpBy() {
-        if (isRunAs()) {
-            return effectiveSubject.getRealm();
-        } else {
-            // retain the behaviour of returning null for lookup realm for if the authentication is not run-as
-            return null;
-        }
-    }
-
-    /**
      * Get the realm where the effective user comes from.
      * The effective user is the es-security-runas-user if present or the authenticated user.
      *
@@ -367,7 +345,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     public boolean isAuthenticatedWithServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType());
     }
 
     /**
@@ -480,9 +458,7 @@ public final class Authentication implements ToXContentObject {
             AuthenticationSerializationHelper.writeUserTo(user, out);
         }
         authenticatingSubject.getRealm().writeTo(out);
-        final RealmRef lookedUpBy = getLookedUpBy();
-        // See detailed comment on the same assertion in the Constructor with StreamInput
-        assert isRunAs() || lookedUpBy == null : "Authentication has no inner-user, but looked-up-by is [" + lookedUpBy + "]";
+        final RealmRef lookedUpBy = isRunAs() ? effectiveSubject.getRealm() : null;
 
         if (lookedUpBy != null) {
             out.writeBoolean(true);
@@ -568,26 +544,27 @@ public final class Authentication implements ToXContentObject {
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
-        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
         // domain name is generally ambiguous, because it can change during the lifetime of the authentication,
         // but it is good enough for display purposes (including auditing)
-        if (getAuthenticatedBy().getDomain() != null) {
-            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+        if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
         }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
-        if (getLookedUpBy() != null) {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
-            if (getLookedUpBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
+        final RealmRef lookedUpBy = isRunAs() ? getEffectiveSubject().getRealm() : null;
+        if (lookedUpBy != null) {
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), lookedUpBy.getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), lookedUpBy.getType());
+            if (lookedUpBy.getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), lookedUpBy.getDomain().name());
             }
         } else {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
-            if (getAuthenticatedBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
+            if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
             }
         }
         builder.endObject();

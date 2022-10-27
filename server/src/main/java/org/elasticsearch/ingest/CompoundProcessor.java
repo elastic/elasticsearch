@@ -63,9 +63,8 @@ public class CompoundProcessor implements Processor {
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
         this.relativeTimeProvider = relativeTimeProvider;
-        this.processorsWithMetrics = new ArrayList<>(processors.size());
+        this.processorsWithMetrics = processors.stream().map(p -> new Tuple<>(p, new IngestMetric())).toList();
         this.isAsync = flattenProcessors().stream().anyMatch(Processor::isAsync);
-        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
     }
 
     List<Tuple<Processor, IngestMetric>> getProcessorsWithMetrics() {

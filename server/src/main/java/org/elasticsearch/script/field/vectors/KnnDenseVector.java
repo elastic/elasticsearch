@@ -40,11 +40,11 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public double dotProduct(byte[] queryVector) {
-        double dotProduct = 0;
+        float result = 0;
         for (int i = 0; i < docVector.length; i++) {
-            dotProduct += docVector[i] * queryVector[i];
+            result += docVector[i] * queryVector[i];
         }
-        return dotProduct;
+        return result;
     }
 
     @Override
@@ -54,11 +54,11 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public double dotProduct(List<Number> queryVector) {
-        double dotProduct = 0;
+        double result = 0;
         for (int i = 0; i < docVector.length; i++) {
-            dotProduct += docVector[i] * queryVector.get(i).floatValue();
+            result += docVector[i] * queryVector.get(i).floatValue();
         }
-        return dotProduct;
+        return result;
     }
 
     @Override

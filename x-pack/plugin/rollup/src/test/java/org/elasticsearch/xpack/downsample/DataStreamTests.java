@@ -171,7 +171,7 @@ public class DataStreamTests extends ESSingleNodeTestCase {
             .limit(totalBuckets - 2)
             .map(InternalDateHistogram.Bucket::getDocCount)
             .toList()
-            .forEach(docCount -> { assertThat(docCount, equalTo(0L)); });
+            .forEach(docCount -> assertThat(docCount, equalTo(0L)));
         assertThat(dateHistogram.getBuckets().get(totalBuckets - 1).getDocCount(), equalTo(10L));
     }
 

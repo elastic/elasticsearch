@@ -459,7 +459,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         reason = in.readOptionalString();
         allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            cacheSize = in.readOptionalWriteable(ByteSizeValue::new);
+            cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         } else {
             cacheSize = null;
         }

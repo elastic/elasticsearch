@@ -49,8 +49,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testBasicEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
-            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -94,8 +94,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testAutoEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(200)).getStringRep())
-            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -130,8 +130,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testForceEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
-            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -158,8 +158,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testDecay() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
-            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -211,11 +211,11 @@ public class FrozenCacheServiceTests extends ESTestCase {
 
     public void testCacheSizeRejectedOnNonFrozenNodes() {
         String cacheSize = randomBoolean()
-            ? new ByteSizeValue(size(500)).getStringRep()
+            ? ByteSizeValue.ofBytes(size(500)).getStringRep()
             : (new RatioValue(between(1, 100))).formatNoTrailingZerosPercent();
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
             .build();
         final IllegalArgumentException e = expectThrows(
@@ -238,7 +238,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
 
     public void testMultipleDataPathsRejectedOnFrozenNodes() {
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .putList(Environment.PATH_DATA_SETTING.getKey(), List.of("a", "b"))
             .build();
@@ -254,7 +254,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
                 "setting ["
                     + FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey()
                     + "="
-                    + new ByteSizeValue(size(500)).getStringRep()
+                    + ByteSizeValue.ofBytes(size(500)).getStringRep()
                     + "] is not permitted on nodes with multiple data paths [a,b]"
             )
         );
@@ -305,10 +305,10 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testMaxHeadroomRejectedForAbsoluteCacheSize() {
-        String cacheSize = new ByteSizeValue(size(500)).getStringRep();
+        String cacheSize = ByteSizeValue.ofBytes(size(500)).getStringRep();
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-            .put(FrozenCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
         final IllegalArgumentException e = expectThrows(
@@ -356,7 +356,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), val1.getStringRep())
-            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -380,7 +380,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {
         final String value = randomFrom(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO).getStringRep();
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .put(setting.getKey(), value)
             .build();

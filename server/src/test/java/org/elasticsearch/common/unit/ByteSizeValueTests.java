@@ -217,13 +217,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             }
             return new ByteSizeValue(size, unit);
         } else {
-            return new ByteSizeValue(randomNonNegativeLong());
+            return ByteSizeValue.ofBytes(randomNonNegativeLong());
         }
     }
 
     @Override
     protected Reader<ByteSizeValue> instanceReader() {
-        return ByteSizeValue::new;
+        return ByteSizeValue::readFrom;
     }
 
     @Override
@@ -288,11 +288,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseSpecialValues() throws IOException {
-        ByteSizeValue instance = new ByteSizeValue(-1);
+        ByteSizeValue instance = ByteSizeValue.ofBytes(-1);
         assertEquals(instance, ByteSizeValue.parseBytesSizeValue(instance.getStringRep(), null, "test"));
         assertSerialization(instance);
 
-        instance = new ByteSizeValue(0);
+        instance = ByteSizeValue.ofBytes(0);
         assertEquals(instance, ByteSizeValue.parseBytesSizeValue(instance.getStringRep(), null, "test"));
         assertSerialization(instance);
     }
@@ -524,5 +524,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
         e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
         assertThat(e.getMessage(), containsString(exceptionMessage));
+    }
+
+    @Override
+    protected void assertEqualInstances(ByteSizeValue expectedInstance, ByteSizeValue newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

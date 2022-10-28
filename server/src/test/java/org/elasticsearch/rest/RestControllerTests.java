@@ -78,7 +78,7 @@ import static org.mockito.Mockito.when;
 
 public class RestControllerTests extends ESTestCase {
 
-    private static final ByteSizeValue BREAKER_LIMIT = new ByteSizeValue(20);
+    private static final ByteSizeValue BREAKER_LIMIT = ByteSizeValue.ofBytes(20);
     private CircuitBreaker inFlightRequestsBreaker;
     private RestController restController;
     private HierarchyCircuitBreakerService circuitBreakerService;

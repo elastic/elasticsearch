@@ -16,8 +16,10 @@ import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -84,7 +86,7 @@ public class FieldPermissionsTests extends ESTestCase {
 
     public void testMustHaveNonNullFieldPermissionsDefinition() {
         final FieldPermissions fieldPermissions0 = FieldPermissions.DEFAULT;
-        assertThat(fieldPermissions0.getFieldPermissionsDefinition(), notNullValue());
+        assertNonNullFieldPermissionDefinitions(fieldPermissions0.getFieldPermissionsDefinitions());
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null));
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null, Automatons.MATCH_ALL));
 
@@ -92,13 +94,15 @@ public class FieldPermissionsTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }))
         );
-        assertThat(fieldPermissions03.limitFieldPermissions(null).getFieldPermissionsDefinition(), notNullValue());
-        assertThat(fieldPermissions03.limitFieldPermissions(FieldPermissions.DEFAULT).getFieldPermissionsDefinition(), notNullValue());
-        assertThat(
+        assertNonNullFieldPermissionDefinitions(fieldPermissions03.limitFieldPermissions(null).getFieldPermissionsDefinitions());
+        assertNonNullFieldPermissionDefinitions(
+            fieldPermissions03.limitFieldPermissions(FieldPermissions.DEFAULT).getFieldPermissionsDefinitions()
+        );
+        assertNonNullFieldPermissionDefinitions(
             fieldPermissions03.limitFieldPermissions(
                 new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }))
-            ).getFieldPermissionsDefinition(),
-            notNullValue()
+            ).getFieldPermissionsDefinitions(),
+            fieldPermissions03.hasFieldLevelSecurity() ? 2 : 1
         );
     }
 
@@ -180,4 +184,13 @@ public class FieldPermissionsTests extends ESTestCase {
         return new FieldPermissionsDefinition(granted, denied);
     }
 
+    private void assertNonNullFieldPermissionDefinitions(List<FieldPermissionsDefinition> fieldPermissionsDefinitions) {
+        assertNonNullFieldPermissionDefinitions(fieldPermissionsDefinitions, 1);
+    }
+
+    private void assertNonNullFieldPermissionDefinitions(List<FieldPermissionsDefinition> fieldPermissionsDefinitions, int expectedSize) {
+        assertThat(fieldPermissionsDefinitions, notNullValue());
+        assertThat(fieldPermissionsDefinitions, hasSize(expectedSize));
+        fieldPermissionsDefinitions.forEach(fieldPermissionsDefinition -> assertThat(fieldPermissionsDefinition, notNullValue()));
+    }
 }

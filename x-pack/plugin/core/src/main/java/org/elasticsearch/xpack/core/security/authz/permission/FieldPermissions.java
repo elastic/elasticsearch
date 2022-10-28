@@ -99,7 +99,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
             // directly wraps the provided automaton
             throw new IllegalArgumentException("Only accepts deterministic automata");
         }
-        this.fieldPermissionsDefinitions = fieldPermissionsDefinitions;
+        this.fieldPermissionsDefinitions = Objects.requireNonNull(
+            fieldPermissionsDefinitions,
+            "field permission definitions cannot be null"
+        );
         this.originalAutomaton = permittedFieldsAutomaton;
         this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
         // we cache the result of isTotal since this might be a costly operation

@@ -14,8 +14,6 @@ documents matching a filter
 vectors to a query vector
 
 The `dense_vector` type does not support aggregations or sorting.
-When <<dense-vector-params, `element_type`>> is `byte`
-<<query-dsl-script-score-query,`script_score`>> is not supported.
 
 You add a `dense_vector` field as an array of numeric values
 based on <<dense-vector-params, `element_type`>> with
@@ -113,10 +111,9 @@ The following mapping parameters are accepted:
 The data type used to encode vectors. The supported data types are
 `float` (default) and `byte`. `float` indexes a 4-byte floating-point
 value per dimension. `byte` indexes a 1-byte integer value per dimension.
-`byte` requires `index` to be `true`. Using `byte` can result in a
-substantially smaller index size with the trade off of lower
-precision. Vectors using `byte` require dimensions with integer values
-between -128 to 127, inclusive for both indexing and searching.
+Using `byte` can result in a substantially smaller index size with the
+trade off of lower precision. Vectors using `byte` require dimensions with
+integer values between -128 to 127, inclusive for both indexing and searching.
 
 `dims`::
 (Required, integer)

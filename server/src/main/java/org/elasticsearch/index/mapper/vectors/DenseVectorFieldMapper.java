@@ -61,7 +61,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
-    private static final int MAGNITUDE_BYTES = 4;
+    public static final int MAGNITUDE_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -75,7 +75,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
             }
             return elementType;
-        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);;
+        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
         private final Parameter<Integer> dims = new Parameter<>(
             "dims",
             false,
@@ -172,7 +172,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void writeElement(ByteBuffer byteBuffer, float value) {
+            public void writeValue(ByteBuffer byteBuffer, float value) {
                 byteBuffer.put((byte) value);
             }
 
@@ -262,7 +262,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void writeElement(ByteBuffer byteBuffer, float value) {
+            public void writeValue(ByteBuffer byteBuffer, float value) {
                 byteBuffer.putFloat(value);
             }
 
@@ -314,7 +314,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.elementBytes = elementBytes;
         }
 
-        public abstract void writeElement(ByteBuffer byteBuffer, float value);
+        public abstract void writeValue(ByteBuffer byteBuffer, float value);
 
         abstract KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function);
 
@@ -644,7 +644,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
             float value = context.parser().floatValue(true);
             vector[index] = value;
-            elementType.writeElement(byteBuffer, value);
+            elementType.writeValue(byteBuffer, value);
             dotProduct += value * value;
             index++;
         }
@@ -832,7 +832,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
             for (int dim = 0; dim < dims; dim++) {
-                b.value(byteBuffer.getFloat());
+                b.value(elementType == ElementType.FLOAT ? byteBuffer.getFloat() : byteBuffer.get());
             }
             b.endArray();
         }

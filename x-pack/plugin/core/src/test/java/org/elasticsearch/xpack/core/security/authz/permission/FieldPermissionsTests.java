@@ -28,6 +28,16 @@ import static org.mockito.ArgumentMatchers.same;
 
 public class FieldPermissionsTests extends ESTestCase {
 
+    public void test() {
+        FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;
+        fieldPermissions = fieldPermissions.limitFieldPermissions(
+            new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f2" }, new String[] { "" }))
+        );
+
+        assertThat(fieldPermissions.grantsAccessTo("f1"), is(true));
+        assertThat(fieldPermissions.grantsAccessTo("f2"), is(true));
+    }
+
     public void testFieldPermissionsIntersection() {
 
         final FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;

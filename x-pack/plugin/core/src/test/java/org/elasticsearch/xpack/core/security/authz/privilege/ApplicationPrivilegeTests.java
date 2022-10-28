@@ -266,10 +266,6 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             patterns[i] = randomAlphaOfLengthBetween(2, 5) + "/" + suffix;
         }
 
-        final Map<String, Object> metadata = new HashMap<>();
-        for (int i = randomInt(3); i > 0; i--) {
-            metadata.put(randomAlphaOfLengthBetween(2, 5), randomFrom(randomBoolean(), randomInt(10), randomAlphaOfLength(5)));
-        }
         return createPrivilege(applicationName, privilegeName, patterns);
     }
 

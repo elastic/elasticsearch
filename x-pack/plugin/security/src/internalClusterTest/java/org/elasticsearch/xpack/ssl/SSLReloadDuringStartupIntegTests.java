@@ -199,7 +199,6 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             LOGGER.debug("Atomic move succeeded from [{}] to [{}]", tmp, target);
         } catch (AtomicMoveNotSupportedException e) {
-            LOGGER.trace("Atomic move failed from [{}] to [{}]", tmp, target);
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             LOGGER.debug("Non-atomic move succeeded from [{}] to [{}]", tmp, target);
         }

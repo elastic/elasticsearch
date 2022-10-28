@@ -209,12 +209,6 @@ public final class DocumentPermissions implements CacheKey {
         return new DocumentPermissions(queries);
     }
 
-    /**
-     * Create {@link DocumentPermissions} with no restriction. The {@link #getListOfQueries()}
-     * will return {@code null} in this case and {@link #hasDocumentLevelPermissions()}
-     * will be {@code false}
-     * @return {@link DocumentPermissions}
-     */
     public static DocumentPermissions allowAll() {
         return ALLOW_ALL;
     }
@@ -247,10 +241,7 @@ public final class DocumentPermissions implements CacheKey {
 
     @Override
     public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
-        if (false == hasDocumentLevelPermissions()) {
-            assert false;
-            throw new IllegalArgumentException("document permissions should not contribute to cache key when there is no DLS query");
-        }
+        assert hasDocumentLevelPermissions() : "document permissions should not contribute to cache key when there is no DLS query";
         evaluateQueries(context);
         out.writeCollection(listOfEvaluatedQueries, StreamOutput::writeStringCollection);
     }

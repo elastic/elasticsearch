@@ -422,11 +422,11 @@ public class JvmInfo implements ReportingService.Info {
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
-        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, new ByteSizeValue(mem.heapInit));
-        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, new ByteSizeValue(mem.heapMax));
-        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, new ByteSizeValue(mem.nonHeapInit));
-        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, new ByteSizeValue(mem.nonHeapMax));
-        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, new ByteSizeValue(mem.directMemoryMax));
+        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, ByteSizeValue.ofBytes(mem.heapInit));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, ByteSizeValue.ofBytes(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, ByteSizeValue.ofBytes(mem.nonHeapInit));
+        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, ByteSizeValue.ofBytes(mem.nonHeapMax));
+        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, ByteSizeValue.ofBytes(mem.directMemoryMax));
         builder.endObject();
 
         builder.array(Fields.GC_COLLECTORS, gcCollectors);
@@ -502,11 +502,11 @@ public class JvmInfo implements ReportingService.Info {
         }
 
         public ByteSizeValue getHeapInit() {
-            return new ByteSizeValue(heapInit);
+            return ByteSizeValue.ofBytes(heapInit);
         }
 
         public ByteSizeValue getHeapMax() {
-            return new ByteSizeValue(heapMax);
+            return ByteSizeValue.ofBytes(heapMax);
         }
 
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
 
 import java.io.Closeable;
@@ -88,11 +89,10 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
      *
      * @throws Exception Compare ES startup logs to diagnostic and timing logs for the test, to narrow down why ES startup failed.
      */
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77490")
-    // Unmuted by https://github.com/elastic/elasticsearch/pull/91147
-    // Related to https://github.com/elastic/elasticsearch/pull/91166
+    @TestLogging(value = "org.elasticsearch.xpack.ssl.SSLReloadDuringStartupIntegTests:TRACE", reason = "See Keystore update vs ES restart")
     public void testReloadDuringStartup() throws Exception {
-        final String nodeName = randomFrom(internalCluster().getNodeNames());
+        final String[] nodeNames = internalCluster().getNodeNames();
+        final String nodeName = randomFrom(nodeNames);
         final Environment env = internalCluster().getInstance(Environment.class, nodeName);
         final CountDownLatch beforeKeystoreFix = new CountDownLatch(2); // SYNC: Cert update & ES restart
         final CountDownLatch afterKeystoreFix = new CountDownLatch(1); // SYNC: Verify cluster after cert update
@@ -100,17 +100,18 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         final Path badKeystorePath = getDataPath(badKeyStoreFilePath); // stop a node, and apply this bad keystore
         final Path goodKeystorePath = getDataPath(goodKeyStoreFilePath); // start the node, and apply this good keystore
         assertTrue(Files.exists(nodeKeystorePath));
-        LOGGER.info("Stopping node [{}] in cluster {}...", nodeName, internalCluster().getNodeNames());
+        LOGGER.trace("Stopping node [{}] in {}-node cluster {}...", nodeName, nodeNames.length, nodeNames);
         final long stopNanos = System.nanoTime();
         internalCluster().restartNode(nodeName, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                LOGGER.info("Node [{}] stopped in {}ms.", nodeName, TimeValue.timeValueNanos(System.nanoTime() - stopNanos).millisFrac());
+                LOGGER.debug("Node [{}] stopped in {}ms.", nodeName, TimeValue.timeValueNanos(System.nanoTime() - stopNanos).millisFrac());
                 atomicCopyIfPossible(badKeystorePath, nodeKeystorePath);
                 final Thread fixKeystoreThread = new Thread(() -> {
                     waitUntilNodeStartupIsReadyToBegin(beforeKeystoreFix); // SYNC: Cert update & ES restart
                     try {
                         atomicCopyIfPossible(goodKeystorePath, nodeKeystorePath);
+                        LOGGER.trace("Waiting for ES restart...");
                         afterKeystoreFix.countDown(); // SYNC: Cert update & ES restart
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -122,25 +123,27 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
                 return super.onNodeStopped(nodeName); // ASSUME: RestartCallback will do ES start next
             }
         });
-        try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Verifying the cluster...")) {
+        LOGGER.trace("Waiting for keystore fix...");
+        try (Timed t = new Timed(LOGGER, Level.TRACE, "Awaited {}ms. Verifying the cluster...")) {
             afterKeystoreFix.await(); // SYNC: Verify cluster after cert update
         }
-        try (Timed t = new Timed(LOGGER, Level.INFO, "Ensure cluster size consistency took {}ms.")) {
+        try (Timed t = new Timed(LOGGER, Level.TRACE, "Ensure cluster size consistency took {}ms.")) {
             ensureClusterSizeConsistency();
         }
-        try (Timed t = new Timed(LOGGER, Level.INFO, "Ensure fully connected cluster took {}ms.")) {
+        try (Timed t = new Timed(LOGGER, Level.TRACE, "Ensure fully connected cluster took {}ms.")) {
             ensureFullyConnectedCluster();
         }
     }
 
     private void waitUntilNodeStartupIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
+        LOGGER.trace("Waiting for ES start to begin...");
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
         try {
             final long sleepMillis = randomLongBetween(1L, 2000L); // intended sleepMillis
-            try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...")) {
+            try (Timed t = new Timed(LOGGER, Level.TRACE, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...")) {
                 beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
             }
-            try (Timed t = new Timed(LOGGER, Level.INFO, "Slept {}ms, intended " + sleepMillis + "ms. Fixing can start now...")) {
+            try (Timed t = new Timed(LOGGER, Level.TRACE, "Slept {}ms, intended " + sleepMillis + "ms. Fixing can start now...")) {
                 Thread.sleep(sleepMillis); // Simulate cert update delay relative to ES start
             }
         } catch (InterruptedException e) {
@@ -149,8 +152,9 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     }
 
     private void waitUntilFixKeystoreIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
+        LOGGER.trace("Waiting for keystore fix to begin...");
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
-        try (Timed t = new Timed(LOGGER, Level.INFO, "Awaited {}ms. Node can start now...")) {
+        try (Timed t = new Timed(LOGGER, Level.TRACE, "Awaited {}ms. Node can start now...")) {
             beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -166,18 +170,17 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
      * @throws IOException Cannot create temp file, or copy source file to temp file, or non-atomic move temp file to target file.
      */
     private void atomicCopyIfPossible(Path source, Path target) throws IOException {
-        LOGGER.info("Copying [{}] to [{}]", source, target);
+        LOGGER.trace("Copying [{}] to [{}]", source, target);
         Path tmp = createTempFile();
-        // LOGGER.info("Temporary file [{}] created", tmp);
+        LOGGER.trace("Created temporary file [{}]", tmp);
         Files.copy(source, tmp, StandardCopyOption.REPLACE_EXISTING);
-        // LOGGER.info("Copy succeeded from [{}] to [{}]", source, tmp);
         try {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            LOGGER.info("Atomic move succeeded from [{}] to [{}]", tmp, target);
+            LOGGER.trace("Atomic move succeeded from [{}] to [{}]", tmp, target);
         } catch (AtomicMoveNotSupportedException e) {
-            LOGGER.warn("Atomic move failed from [{}] to [{}]", tmp, target, e);
+            LOGGER.debug("Atomic move failed from [{}] to [{}]", tmp, target);
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            LOGGER.info("Non-atomic move succeeded from [{}] to [{}]", tmp, target);
+            LOGGER.trace("Non-atomic move succeeded from [{}] to [{}]", tmp, target);
         }
     }
 

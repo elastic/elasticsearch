@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ilm.history;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -134,7 +135,7 @@ public class ILMHistoryStore implements Closeable {
             .setBulkActions(-1)
             .setBulkSize(ByteSizeValue.ofBytes(ILM_HISTORY_BULK_SIZE))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
-            .setConcurrentRequests(1)
+            .setConcurrentRequests(30)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .build();
     }
@@ -143,6 +144,10 @@ public class ILMHistoryStore implements Closeable {
      * Attempts to asynchronously index an ILM history entry
      */
     public void putAsync(ILMHistoryItem item) {
+        putAsync(item, null);
+    }
+
+    public void putAsync(ILMHistoryItem item, ActionListener<BulkItemResponse> listener) {
         if (ilmHistoryEnabled == false) {
             logger.trace(
                 "not recording ILM history item because [{}] is [false]: [{}]",
@@ -154,8 +159,9 @@ public class ILMHistoryStore implements Closeable {
         logger.trace("queueing ILM history item for indexing [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest request = new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
-            processor.add(request);
+            IndexRequest request =
+                new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).id(item.getId()).opType(DocWriteRequest.OpType.CREATE);
+            processor.add(request, listener);
         } catch (IOException exception) {
             logger.error(() -> format("failed to queue ILM history item in index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item), exception);
         }

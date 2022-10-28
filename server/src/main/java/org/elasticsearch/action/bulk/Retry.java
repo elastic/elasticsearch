@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,10 +27,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates synchronous and asynchronous retry logic.
@@ -43,6 +46,7 @@ public class Retry {
     private final Semaphore requestsInFlightSemaphore;
     private final int maxNumberOfConcurrentRequests;
     private Scheduler.Cancellable flushCancellable;
+    private final Map<String, ActionListener<BulkItemResponse>> idToListenerMap = new ConcurrentHashMap<>();
 
     public Retry(BackoffPolicy backoffPolicy, Scheduler scheduler) {
         this(backoffPolicy, scheduler, 1000, 10);
@@ -193,6 +197,8 @@ public class Retry {
                 bulkRequest,
                 scheduler.schedule(
                     () -> {
+                        this.idToListenerMap.putAll(bulkRequest.requests.stream().collect(Collectors.toMap(tuple -> tuple.v1().id(),
+                            Tuple::v2)));
                         consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, backoff));
                     },
                     isRetry ? backoff.next() : TimeValue.ZERO,
@@ -264,13 +270,18 @@ public class Retry {
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
             BulkRequest requestToReissue = new BulkRequest();
             int index = 0;
+            List<DocWriteRequest<?>> realRequests = bulkRequest.requests();
             for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
                 if (bulkItemResponse.isFailed()) {
-                    DocWriteRequest<?> originalBulkItemRequest = bulkRequest.requests().get(index);
+                    DocWriteRequest<?> originalBulkItemRequest = realRequests.get(index);
                     if (originalBulkItemRequest instanceof IndexRequest item) {
                         item.reset();
                     }
-                    requestToReissue.add(originalBulkItemRequest);
+                    ActionListener<BulkItemResponse> listener = idToListenerMap.get(originalBulkItemRequest.id());
+                    if (listener == null) {
+                        throw new RuntimeException("Got a null listener for " + originalBulkItemRequest.id());
+                    }
+                    requestToReissue.add(listener, originalBulkItemRequest);
                 }
                 index++;
             }
@@ -310,8 +321,14 @@ public class Retry {
                     // (based on how many retries we have to issue) and relying that the response handling code will be
                     // scheduled on the same thread is fragile.
                     synchronized (responsesAccumulator) {
+                        ActionListener<BulkItemResponse> listener = idToListenerMap.get(bulkItemResponse.getItemId() + "");
+                        idToListenerMap.remove(bulkItemResponse.getItemId() + "");
+                        if (listener != null ) listener.onResponse(bulkItemResponse);
                         responsesAccumulator.add(bulkItemResponse);
                     }
+                } else {
+                    ActionListener<BulkItemResponse> listener = idToListenerMap.get(bulkItemResponse.getItemId() + "");
+                    if (listener != null ) listener.onFailure(bulkItemResponse.getFailure().getCause());
                 }
             }
         }

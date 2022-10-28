@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ssl;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -20,7 +21,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -124,40 +124,61 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
             }
         });
         LOGGER.trace("Waiting for keystore fix...");
-        try (Timed t = new Timed(LOGGER, Level.TRACE, "Awaited {}ms. Verifying the cluster...")) {
-            afterKeystoreFix.await(); // SYNC: Verify cluster after cert update
-        }
-        try (Timed t = new Timed(LOGGER, Level.TRACE, "Ensure cluster size consistency took {}ms.")) {
-            ensureClusterSizeConsistency();
-        }
-        try (Timed t = new Timed(LOGGER, Level.TRACE, "Ensure fully connected cluster took {}ms.")) {
-            ensureFullyConnectedCluster();
-        }
+        timed(LOGGER, Level.DEBUG, "Awaited {}ms. Verifying the cluster...", () -> {
+            try {
+                afterKeystoreFix.await(); // SYNC: Verify cluster after cert update
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        timed(LOGGER, Level.TRACE, "Ensure cluster size consistency took {}ms.", this::ensureClusterSizeConsistency);
+        timed(LOGGER, Level.TRACE, "Ensure fully connected cluster took {}ms.", this::ensureFullyConnectedCluster);
     }
 
     private void waitUntilNodeStartupIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
         LOGGER.trace("Waiting for ES start to begin...");
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
-        try {
-            final long sleepMillis = randomLongBetween(1L, 2000L); // intended sleepMillis
-            try (Timed t = new Timed(LOGGER, Level.TRACE, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...")) {
+        final long sleepMillis = randomLongBetween(1L, 2000L); // intended sleepMillis
+        timed(LOGGER, Level.DEBUG, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...", () -> {
+            try {
                 beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
-            try (Timed t = new Timed(LOGGER, Level.TRACE, "Slept {}ms, intended " + sleepMillis + "ms. Fixing can start now...")) {
+        });
+        timed(LOGGER, Level.DEBUG, "Slept {}ms, intended " + sleepMillis + "ms. Fixing can start now...", () -> {
+            try {
                 Thread.sleep(sleepMillis); // Simulate cert update delay relative to ES start
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        });
     }
 
     private void waitUntilFixKeystoreIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
         LOGGER.trace("Waiting for keystore fix to begin...");
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
-        try (Timed t = new Timed(LOGGER, Level.TRACE, "Awaited {}ms. Node can start now...")) {
-            beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        timed(LOGGER, Level.DEBUG, "Awaited {}ms. Node can start now...", () -> {
+            try {
+                beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    static void timed(final Logger LOGGER, final Level level, final String message, final Runnable runnable) {
+        assert LOGGER != null;
+        assert level != null;
+        assert Strings.isEmpty(message) == false;
+        assert message.contains("{}ms") : "Message must contain {}ms";
+        assert message.replace("{}", "").contains("{}") == false : "Message can only contain one binding.";
+        assert runnable != null;
+        final long startNanos = System.nanoTime();
+        try {
+            runnable.run();
+        } finally {
+            LOGGER.log(level, message, TimeValue.timeValueNanos(System.nanoTime() - startNanos).millisFrac());
         }
     }
 
@@ -176,29 +197,11 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         Files.copy(source, tmp, StandardCopyOption.REPLACE_EXISTING);
         try {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            LOGGER.trace("Atomic move succeeded from [{}] to [{}]", tmp, target);
+            LOGGER.debug("Atomic move succeeded from [{}] to [{}]", tmp, target);
         } catch (AtomicMoveNotSupportedException e) {
-            LOGGER.debug("Atomic move failed from [{}] to [{}]", tmp, target);
+            LOGGER.trace("Atomic move failed from [{}] to [{}]", tmp, target);
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            LOGGER.trace("Non-atomic move succeeded from [{}] to [{}]", tmp, target);
-        }
-    }
-
-    public static class Timed implements Closeable {
-        private final long n = System.nanoTime();
-        private final Logger log;
-        private final Level lvl;
-        private final String msg;
-
-        Timed(final Logger log, final Level lvl, final String msg) {
-            this.log = log;
-            this.lvl = lvl;
-            this.msg = msg;
-        }
-
-        @Override
-        public void close() {
-            this.log.log(this.lvl, this.msg, TimeValue.timeValueNanos(System.nanoTime() - this.n).millisFrac());
+            LOGGER.debug("Non-atomic move succeeded from [{}] to [{}]", tmp, target);
         }
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -107,13 +108,18 @@ public class ByteBinaryDenseVector implements DenseVector {
         return result;
     }
 
+    @SuppressForbidden(reason="used only for bytes so it cannot overflow")
+    private int abs(int value) {
+        return Math.abs(value);
+    }
+
     @Override
     public double l1Norm(byte[] queryVector) {
         int result = 0;
         int i = 0;
         int j = docVector.offset;
         while (i < dims) {
-            result += Math.abs(docVector.bytes[j++] - queryVector[i++]);
+            result += abs(docVector.bytes[j++] - queryVector[i++]);
         }
         return result;
     }
@@ -124,7 +130,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < dims) {
-            result += Math.abs(docVector.bytes[j++] - (int) queryVector[i++]);
+            result += abs(docVector.bytes[j++] - (int) queryVector[i++]);
         }
         return result;
     }
@@ -135,7 +141,7 @@ public class ByteBinaryDenseVector implements DenseVector {
         int i = 0;
         int j = docVector.offset;
         while (i < dims) {
-            result += Math.abs(docVector.bytes[j++] - queryVector.get(i++).intValue());
+            result += abs(docVector.bytes[j++] - queryVector.get(i++).intValue());
         }
         return result;
     }

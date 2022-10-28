@@ -270,7 +270,6 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         assertEquals("Cannot iterate over single valued dense_vector field, use get() instead", e.getMessage());
     }
 
-
     public static VectorValues wrap(float[][] vectors, ElementType elementType) {
         return new VectorValues() {
             int index = 0;

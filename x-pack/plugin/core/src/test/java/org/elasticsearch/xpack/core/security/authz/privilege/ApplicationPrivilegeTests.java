@@ -35,6 +35,14 @@ import static org.hamcrest.Matchers.iterableWithSize;
 
 public class ApplicationPrivilegeTests extends ESTestCase {
 
+    public static ApplicationPrivilege createPrivilege(String applicationName, String privilegeName, String... patterns) {
+        return createPrivilege(applicationName, Collections.singleton(privilegeName), patterns);
+    }
+
+    public static ApplicationPrivilege createPrivilege(String application, Set<String> name, String... patterns) {
+        return new ApplicationPrivilege(application, name, patterns);
+    }
+
     public void testValidationOfApplicationName() {
         final String specialCharacters = ":;$#%()+='.{}[]!@^&'";
         final Supplier<Character> specialCharacter = () -> specialCharacters.charAt(randomInt(specialCharacters.length() - 1));
@@ -203,17 +211,13 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final EqualsHashCodeTestUtils.MutateFunction<ApplicationPrivilege> mutate = randomFrom(
             orig -> createPrivilege("x" + orig.getApplication(), getPrivilegeName(orig), orig.getPatterns()),
             orig -> createPrivilege(orig.getApplication(), "x" + getPrivilegeName(orig), orig.getPatterns()),
-            orig -> new ApplicationPrivilege(orig.getApplication(), getPrivilegeName(orig), "*")
+            orig -> createPrivilege(orig.getApplication(), getPrivilegeName(orig), "*")
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             privilege,
             original -> createPrivilege(original.getApplication(), getPrivilegeName(original), original.getPatterns()),
             mutate
         );
-    }
-
-    private ApplicationPrivilege createPrivilege(String applicationName, String privilegeName, String... patterns) {
-        return new ApplicationPrivilege(applicationName, privilegeName, patterns);
     }
 
     private String getPrivilegeName(ApplicationPrivilege privilege) {

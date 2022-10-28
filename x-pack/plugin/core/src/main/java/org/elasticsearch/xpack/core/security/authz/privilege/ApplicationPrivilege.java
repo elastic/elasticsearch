@@ -48,7 +48,7 @@ public final class ApplicationPrivilege extends Privilege {
     private final String application;
     private final String[] patterns;
 
-    // TODO make this private once ApplicationPrivilegeTests.createPrivilege use ApplicationPrivilege.get()
+    // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
     ApplicationPrivilege(String application, Set<String> name, String... patterns) {
         super(name, patterns);
         this.application = application;

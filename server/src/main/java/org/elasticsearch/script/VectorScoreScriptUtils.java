@@ -60,10 +60,10 @@ public class VectorScoreScriptUtils {
             for (int i = 0; i < queryVector.size(); i++) {
                 float value = queryVector.get(i).floatValue();
                 vector[i] = value;
-                this.queryVector[i] = (byte)value;
+                this.queryVector[i] = (byte) value;
                 queryMagnitude += value * value;
             }
-            this.qvMagnitude = (float)Math.sqrt(queryMagnitude);
+            this.qvMagnitude = (float) Math.sqrt(queryMagnitude);
             field.getElementType().checkVectorBounds(vector);
         }
     }
@@ -79,7 +79,12 @@ public class VectorScoreScriptUtils {
          * @param queryVector The query vector.
          * @param normalizeQuery Whether the provided query should be normalized to unit length.
          */
-        public FloatDenseVectorFunction(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector, boolean normalizeQuery) {
+        public FloatDenseVectorFunction(
+            ScoreScript scoreScript,
+            DenseVectorDocValuesField field,
+            List<Number> queryVector,
+            boolean normalizeQuery
+        ) {
             super(scoreScript, field);
             DenseVector.checkDimensions(field.get().getDims(), queryVector.size());
 

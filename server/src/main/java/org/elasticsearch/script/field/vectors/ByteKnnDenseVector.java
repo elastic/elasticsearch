@@ -27,7 +27,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public float[] getVector() {
-        if (floatDocVector != null) {
+        if (floatDocVector == null) {
             floatDocVector = new float[docVector.length];
 
             int i = 0;

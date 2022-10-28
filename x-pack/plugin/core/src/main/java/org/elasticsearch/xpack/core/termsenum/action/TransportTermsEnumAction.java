@@ -429,26 +429,42 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     Collections.emptyMap()
                 );
 
-                // Current user has potentially many roles and therefore potentially many queries
-                // defining sets of docs accessible
-                Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
-                for (BytesReference querySource : queries) {
-                    QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
-                        querySource,
-                        scriptService,
-                        queryShardContext.getParserConfig().registry(),
-                        securityContext.getUser()
+                // Unfiltered access is allowed when both base role and limiting role allow it.
+                return hasMatchAllEquivalent(indexAccessControl.getDocumentPermissions().getQueries(), securityContext, queryShardContext)
+                    && hasMatchAllEquivalent(
+                        indexAccessControl.getDocumentPermissions().getLimitedByQueries(),
+                        securityContext,
+                        queryShardContext
                     );
-                    QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
-                    if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                        // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
-                        return true;
-                    }
-                }
-                return false;
             }
         }
         return true;
+    }
+
+    private boolean hasMatchAllEquivalent(
+        Set<BytesReference> queries,
+        SecurityContext securityContext,
+        SearchExecutionContext queryShardContext
+    ) throws IOException {
+        if (queries == null) {
+            return true;
+        }
+        // Current user has potentially many roles and therefore potentially many queries
+        // defining sets of docs accessible
+        for (BytesReference querySource : queries) {
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
+                querySource,
+                scriptService,
+                queryShardContext.getParserConfig().registry(),
+                securityContext.getUser()
+            );
+            QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+            if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) throws IOException {

@@ -100,7 +100,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertNonNullFieldPermissionDefinitions(fieldPermissionsDefinitions, nSets);
         fieldPermissionsDefinitions.forEach(fpd -> assertThat(fpd, equalTo(fieldPermissionsDefinition)));
         assertThat(fieldPermissions.grantsAccessTo(randomFrom("f1", "f2", "f31")), is(true));
-        assertThat(fieldPermissions.grantsAccessTo(randomFrom("f1", "f2", "f3")), is(false));
+        assertThat(fieldPermissions.grantsAccessTo("f3"), is(false));
 
         // More realistic intersection
         fieldPermissions = FieldPermissions.DEFAULT;

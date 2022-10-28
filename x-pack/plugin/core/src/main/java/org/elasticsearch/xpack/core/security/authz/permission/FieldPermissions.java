@@ -198,7 +198,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
      */
     public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
         if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
-            // TODO: the automaton computation is not cached
+            // TODO: cache the automaton computation with FieldPermissionsCache
             Automaton _permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
             return new FieldPermissions(
                 CollectionUtils.concatLists(fieldPermissionsDefinitions, limitedBy.fieldPermissionsDefinitions),

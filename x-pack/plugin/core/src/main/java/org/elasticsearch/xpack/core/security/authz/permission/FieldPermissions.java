@@ -75,7 +75,6 @@ public final class FieldPermissions implements Accountable, CacheKey {
         this(new FieldPermissionsDefinition(null, null), Automatons.MATCH_ALL);
     }
 
-    // TODO: This constructor is only used by tests. We should remove it in future
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
     public FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition) {

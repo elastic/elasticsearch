@@ -750,7 +750,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), is(username));
         assertThat(authenticateResponse.authentication().getAuthenticatingSubject().getRealm().getName(), equalTo("reserved"));
         assertThat(authenticateResponse.authentication().getAuthenticatingSubject().getRealm().getType(), equalTo("reserved"));
-        assertNull(authenticateResponse.authentication().getLookedUpBy());
+        assertFalse(authenticateResponse.authentication().isRunAs());
     }
 
     public void testOperationsOnReservedRoles() throws Exception {

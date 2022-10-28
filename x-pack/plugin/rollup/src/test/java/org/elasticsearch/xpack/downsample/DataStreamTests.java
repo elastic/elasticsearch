@@ -136,7 +136,7 @@ public class DataStreamTests extends ESSingleNodeTestCase {
             .stream()
             .map(Index::getName)
             .toList();
-        assertThat(backingIndices, Matchers.containsInAnyOrder(downsampleTargetIndex, rolloverResponse.getNewIndex()));
+        assertThat(backingIndices, Matchers.contains(downsampleTargetIndex, rolloverResponse.getNewIndex()));
 
         final SearchRequest searchRequest = new SearchRequest().indices(dataStreamName)
             .source(

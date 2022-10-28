@@ -420,7 +420,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(3));
-        final Authentication.RealmRef lookedUpRealmRef = auth.getLookedUpBy();
+        final Authentication.RealmRef lookedUpRealmRef = auth.getEffectiveSubject().getRealm();
         assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
         assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }

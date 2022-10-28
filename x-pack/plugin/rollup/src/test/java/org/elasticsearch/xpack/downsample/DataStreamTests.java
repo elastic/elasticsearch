@@ -106,6 +106,11 @@ public class DataStreamTests extends ESSingleNodeTestCase {
             .execute(DownsampleAction.INSTANCE, downsampleRequest)
             .actionGet();
 
+        /**
+         * Force an index update to avoid failing with "Index updates are expected as index settings version has changed",
+         * due to a possible bug while checking settings versions and actual settings/metadata changes.
+         * See {@link IndexSettings#updateIndexMetadata}.
+         */
         client().admin()
             .indices()
             .updateSettings(

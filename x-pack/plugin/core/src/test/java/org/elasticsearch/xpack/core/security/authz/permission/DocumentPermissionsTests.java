@@ -130,6 +130,9 @@ public class DocumentPermissionsTests extends ESTestCase {
         if (hasStoredScript) {
             queries.add(new BytesArray("{\"template\":{\"id\":\"my-script\"}}"));
         }
+        if (queries.isEmpty() || randomBoolean()) {
+            queries.add(new BytesArray("{\"term\":{\"tag\":\"prod\"}}"));
+        }
         final DocumentPermissions documentPermissions0 = DocumentPermissions.filteredBy(queries);
         assertThat(documentPermissions0.hasStoredScript(), is(hasStoredScript));
     }

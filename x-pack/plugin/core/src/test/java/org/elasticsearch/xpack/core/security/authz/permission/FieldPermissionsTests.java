@@ -36,13 +36,13 @@ public class FieldPermissionsTests extends ESTestCase {
         );
 
         {
-            FieldPermissions result = fieldPermissions.limitFieldPermissions(randomFrom(new FieldPermissions(), null));
+            FieldPermissions result = fieldPermissions.limitFieldPermissions(randomFrom(FieldPermissions.DEFAULT, null));
             assertThat(result, is(notNullValue()));
             assertThat(result, IsSame.sameInstance(FieldPermissions.DEFAULT));
         }
 
         {
-            FieldPermissions result = fieldPermissions1.limitFieldPermissions(new FieldPermissions());
+            FieldPermissions result = fieldPermissions1.limitFieldPermissions(FieldPermissions.DEFAULT);
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions)));
             assertThat(result, not(same(fieldPermissions1)));
@@ -83,7 +83,7 @@ public class FieldPermissionsTests extends ESTestCase {
     }
 
     public void testMustHaveNonNullFieldPermissionsDefinition() {
-        final FieldPermissions fieldPermissions0 = new FieldPermissions();
+        final FieldPermissions fieldPermissions0 = FieldPermissions.DEFAULT;
         assertThat(fieldPermissions0.getFieldPermissionsDefinition(), notNullValue());
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null));
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null, Automatons.MATCH_ALL));
@@ -154,7 +154,7 @@ public class FieldPermissionsTests extends ESTestCase {
 
         // Just limited by
         final BytesStreamOutput out3 = new BytesStreamOutput();
-        final FieldPermissions fieldPermissions3 = new FieldPermissions().limitFieldPermissions(
+        final FieldPermissions fieldPermissions3 = FieldPermissions.DEFAULT.limitFieldPermissions(
             new FieldPermissions(
                 new FieldPermissionsDefinition(
                     Set.of(

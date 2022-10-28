@@ -1255,12 +1255,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         Role monitoringUserRole = Role.buildFromRoleDescriptor(
             roleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
             List.of(
-                new ApplicationPrivilegeDescriptor("kibana-*", "reserved_monitoring", Set.of(allowedApplicationActionPattern), Map.of())
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_monitoring",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
             )
         );
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
@@ -1323,7 +1329,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(monitoringUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(monitoringUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(
             monitoringUserRole.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
             is(false)
@@ -2170,12 +2175,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         Role role = Role.buildFromRoleDescriptor(
             roleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
             List.of(
-                new ApplicationPrivilegeDescriptor("kibana-*", "reserved_ml_apm_user", Set.of(allowedApplicationActionPattern), Map.of())
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_ml_apm_user",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
             )
         );
 
@@ -2202,7 +2213,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertOnlyReadAllowed(role, "observability-annotations");
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(
             role.application()
@@ -2231,11 +2241,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         Role role = Role.buildFromRoleDescriptor(
             roleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
-            List.of(new ApplicationPrivilegeDescriptor("kibana-*", "reserved_ml_admin", Set.of(allowedApplicationActionPattern), Map.of()))
+            List.of(
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_ml_admin",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
+            )
         );
         assertRoleHasManageMl(role);
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
@@ -2253,7 +2271,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(
             role.application()
@@ -2350,11 +2367,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         Role role = Role.buildFromRoleDescriptor(
             roleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
-            List.of(new ApplicationPrivilegeDescriptor("kibana-*", "reserved_ml_user", Set.of(allowedApplicationActionPattern), Map.of()))
+            List.of(
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_ml_user",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
+            )
         );
         assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(false));
@@ -2425,7 +2450,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(
             role.application()
@@ -2462,9 +2486,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
 
             final String allowedApplicationActionPattern = "example/custom/action/*";
+            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             List<ApplicationPrivilegeDescriptor> lookup = roleDescriptor.getName().equals("data_frame_transforms_admin")
                 ? List.of(
-                    new ApplicationPrivilegeDescriptor("kibana-*", "reserved_ml_user", Set.of(allowedApplicationActionPattern), Map.of())
+                    new ApplicationPrivilegeDescriptor(
+                        kibanaApplicationWithRandomIndex,
+                        "reserved_ml_user",
+                        Set.of(allowedApplicationActionPattern),
+                        Map.of()
+                    )
                 )
                 : List.of();
             Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
@@ -2488,7 +2518,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             assertThat(
                 role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
                 is(false)
@@ -2535,9 +2564,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
 
             final String allowedApplicationActionPattern = "example/custom/action/*";
+            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             List<ApplicationPrivilegeDescriptor> lookup = roleDescriptor.getName().equals("data_frame_transforms_user")
                 ? List.of(
-                    new ApplicationPrivilegeDescriptor("kibana-*", "reserved_ml_user", Set.of(allowedApplicationActionPattern), Map.of())
+                    new ApplicationPrivilegeDescriptor(
+                        kibanaApplicationWithRandomIndex,
+                        "reserved_ml_user",
+                        Set.of(allowedApplicationActionPattern),
+                        Map.of()
+                    )
                 )
                 : List.of();
             Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
@@ -2566,7 +2601,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             assertThat(
                 role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
                 is(false)

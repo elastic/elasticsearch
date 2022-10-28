@@ -40,6 +40,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
     }
 
     public static ApplicationPrivilege createPrivilege(String application, Set<String> name, String... patterns) {
+        // TODO rewrite this to use `ApplicationPrivilege.get()`
         return new ApplicationPrivilege(application, name, patterns);
     }
 

@@ -708,13 +708,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, new ByteSizeValue(length));
+            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, ByteSizeValue.ofBytes(length));
             builder.field(Fields.REUSED, reused);
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recovered));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recovered));
             builder.humanReadableField(
                 Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
                 Fields.RECOVERED_FROM_SNAPSHOT,
-                new ByteSizeValue(recoveredFromSnapshot)
+                ByteSizeValue.ofBytes(recoveredFromSnapshot)
             );
             builder.endObject();
             return builder;
@@ -1102,13 +1102,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // stream size first, as it matters more and the files section can be long
             builder.startObject(Fields.SIZE);
-            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalBytes()));
-            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, new ByteSizeValue(reusedBytes()));
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recoveredBytes()));
+            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, ByteSizeValue.ofBytes(totalBytes()));
+            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, ByteSizeValue.ofBytes(reusedBytes()));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recoveredBytes()));
             builder.humanReadableField(
                 Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
                 Fields.RECOVERED_FROM_SNAPSHOT,
-                new ByteSizeValue(recoveredFromSnapshotBytes())
+                ByteSizeValue.ofBytes(recoveredFromSnapshotBytes())
             );
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();

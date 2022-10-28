@@ -491,6 +491,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Role role = future.actionGet();
         assertThat(role.names(), arrayContaining("superuser"));
         assertThat(role.application().getApplicationNames(), containsInAnyOrder("*"));
+        assertThat(
+            role.application()
+                .grants(
+                    new ApplicationPrivilege(
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10)
+                    ),
+                    "*"
+                ),
+            is(true)
+        );
+
         assertThat(role.cluster().privileges(), containsInAnyOrder(ClusterPrivilegeResolver.ALL));
         assertThat(role.indices().check(SearchAction.NAME), Matchers.is(true));
         assertThat(role.indices().check(IndexAction.NAME), Matchers.is(true));

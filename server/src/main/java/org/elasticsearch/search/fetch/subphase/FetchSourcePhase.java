@@ -82,7 +82,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
         while (nestedIdentity != null) {
             sourceMap = (Map<String, Object>) sourceMap.get(nestedIdentity.getField().string());
             if (sourceMap == null) {
-                return Source.EMPTY;
+                return Source.empty(in.sourceContentType());
             }
             nestedIdentity = nestedIdentity.getChild();
         }

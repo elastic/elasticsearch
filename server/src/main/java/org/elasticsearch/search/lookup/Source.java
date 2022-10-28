@@ -71,23 +71,34 @@ public interface Source {
     }
 
     /**
-     * An empty Source, represented as an empty json map
+     * An empty Source, represented as an empty map
      */
-    Source EMPTY = Source.fromMap(Map.of(), XContentType.JSON);
+    static Source empty(XContentType xContentType) {
+        return Source.fromMap(Map.of(), xContentType == null ? XContentType.JSON : xContentType);
+    }
 
     /**
-     * Build a Source from a bytes representation
+     * Build a Source from a bytes representation with an unknown XContentType
      */
     static Source fromBytes(BytesReference bytes) {
-        if (bytes == null) {
-            return EMPTY;
+        return fromBytes(bytes, null);
+    }
+
+    /**
+     * Build a Source from a bytes representation with a known XContentType
+     */
+    @SuppressWarnings("deprecation")
+    static Source fromBytes(BytesReference bytes, XContentType type) {
+        if (bytes == null || bytes.length() == 0) {
+            return empty(type);
         }
+        assert type == null || type.xContent() == XContentHelper.xContentType(bytes).xContent()
+            : "unexpected type " + type.xContent() + " expecting " + XContentHelper.xContentType(bytes).xContent();
         return new Source() {
 
             Map<String, Object> asMap = null;
-            XContentType xContentType = null;
+            XContentType xContentType = type;
 
-            @SuppressWarnings("deprecation")
             private void parseBytes() {
                 Tuple<XContentType, Map<String, Object>> t = XContentHelper.convertToMap(bytes, true);
                 this.xContentType = t.v1();
@@ -95,7 +106,6 @@ public interface Source {
             }
 
             @Override
-            @SuppressWarnings("deprecation")
             public XContentType sourceContentType() {
                 if (xContentType == null) {
                     xContentType = XContentHelper.xContentType(bytes);

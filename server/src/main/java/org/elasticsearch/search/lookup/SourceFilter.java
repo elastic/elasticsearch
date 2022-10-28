@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.lookup;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -41,17 +42,17 @@ public final class SourceFilter {
 
     /**
      * Construct a new filter based on a list of includes and excludes
-     * @param includes  an array of fields to include
-     * @param excludes  an array of fields to exclude
+     * @param includes  an array of fields to include (may be null)
+     * @param excludes  an array of fields to exclude (may be null)
      */
     public SourceFilter(String[] includes, String[] excludes) {
-        this.includes = includes;
-        this.excludes = excludes;
+        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
+        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
         // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
         // in exclude filtering if one of the excludes contains a wildcard '*'.
         // see https://github.com/FasterXML/jackson-core/pull/729
         this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
-        if (this.includes.length == 0 && this.excludes.length == 0) {
+        if (CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes)) {
             this.mapFilter = EMPTY_FILTER;
             this.bytesFilter = v -> v;
         }
@@ -96,7 +97,7 @@ public final class SourceFilter {
                 XContentBuilder builder = new XContentBuilder(xContent, streamOutput);
                 XContentParser parser = xContent.createParser(parserConfig, in.internalSourceRef().streamInput());
                 if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
-                    return Source.EMPTY;
+                    return Source.empty(in.sourceContentType());
                 }
                 builder.copyCurrentStructure(parser);
                 return Source.fromBytes(BytesReference.bytes(builder));

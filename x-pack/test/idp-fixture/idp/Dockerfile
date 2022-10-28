@@ -28,13 +28,10 @@ RUN wget -q https://repo.maven.apache.org/maven2/org/eclipse/jetty/jetty-distrib
     && tar -zxvf jetty-distribution-$jetty_version.tar.gz -C /opt \
     && ln -s /opt/jetty-distribution-$jetty_version/ /opt/jetty-home
 
-
-# These are custom
-RUN mkdir -p /opt/shib-jetty-base/modules && mkdir -p /opt/shib-jetty-base/etc
-COPY idp/shib-jetty-base/modules/ssl.mod /opt/shib-jetty-base/modules/ssl.mod
-COPY idp/shib-jetty-base/etc/keystore /opt/shib-jetty-base/etc/keystore
-
-
+## Copy files
+COPY idp/shib-jetty-base/ /opt/shib-jetty-base/
+COPY idp/shibboleth-idp/ /opt/shibboleth-idp/
+COPY idp/bin/ /usr/local/bin/
 
 # Config Jetty
 RUN mkdir -p /opt/shib-jetty-base/modules /opt/shib-jetty-base/lib/ext  /opt/shib-jetty-base/lib/logging /opt/shib-jetty-base/resources \
@@ -73,22 +70,12 @@ RUN wget -q https://repo.maven.apache.org/maven2/ch/qos/logback/logback-access/$
     && echo "$logback_access_hash logback-access-$logback_version.jar" | sha1sum -c - \
     && mv logback-access-$logback_version.jar /opt/shib-jetty-base/lib/logging/
 
-# Setting owner ownership and permissions on new items in this command
+# Setting owner ownership and permissions
 RUN useradd jetty -U -s /bin/false \
     && chown -R root:jetty /opt \
     && chmod -R 640 /opt
-
-
-COPY idp/shib-jetty-base/ /opt/shib-jetty-base/
-COPY idp/shibboleth-idp/ /opt/shibboleth-idp/
-
-
-
-COPY idp/bin/ /usr/local/bin/
-
 RUN chmod 750 /usr/local/bin/run-jetty.sh /usr/local/bin/init-idp.sh
 RUN chmod +x /opt/jetty-home/bin/jetty.sh
-
 
 # Opening 4443 (browser TLS), 8443 (mutual auth TLS)
 EXPOSE 4443 8443

@@ -7,8 +7,6 @@
 
 Retrieves the configuration, stats, and status of {rollup-jobs}.
 
-experimental[]
-
 IMPORTANT: The <<indices-downsample-data-stream,Downsample index API>> is being developed to replace the {rollup-cap} API and should be used instead.
 
 [[rollup-get-job-request]]

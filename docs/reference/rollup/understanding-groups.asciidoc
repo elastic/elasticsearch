@@ -2,8 +2,6 @@
 [role="exclude",id="rollup-understanding-groups"]
 === Understanding groups
 
-experimental[]
-
 IMPORTANT: Index downsampling is being developed to replace rollups. Refer to <<downsampling,Downsampling a time series data stream>> to learn more.
 
 To preserve flexibility, Rollup Jobs are defined based on how future queries may need to use the data. Traditionally, systems force

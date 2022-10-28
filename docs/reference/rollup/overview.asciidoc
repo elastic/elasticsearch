@@ -5,8 +5,6 @@
 <titleabbrev>Overview</titleabbrev>
 ++++
 
-experimental[]
-
 IMPORTANT: Index downsampling is being developed to replace rollups. Refer to <<downsampling,Downsampling a time series data stream>> to learn more.
 
 Time-based data (documents that are predominantly identified by their timestamp) often have associated retention policies

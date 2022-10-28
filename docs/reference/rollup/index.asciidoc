@@ -2,8 +2,6 @@
 ["appendix",role="exclude",id="xpack-rollup"]
 == Rolling up historical data
 
-experimental[]
-
 IMPORTANT: Index downsampling is being developed to replace rollups. Refer to <<downsampling,Downsampling a time series data stream>> to learn more.
 
 Keeping historical data around for analysis is extremely useful but often avoided due to the financial cost of

@@ -35,13 +35,17 @@ import static org.hamcrest.Matchers.iterableWithSize;
 
 public class ApplicationPrivilegeTests extends ESTestCase {
 
-    public static ApplicationPrivilege createPrivilege(String applicationName, String privilegeName, String... patterns) {
+    public static ApplicationPrivilege createPrivilege(final String applicationName, final String privilegeName, final String... patterns) {
         return createPrivilege(applicationName, Collections.singleton(privilegeName), patterns);
     }
 
-    public static ApplicationPrivilege createPrivilege(String application, Set<String> name, String... patterns) {
+    public static ApplicationPrivilege createPrivilege(
+        final String applicationName,
+        final Set<String> privilegeNames,
+        final String... patterns
+    ) {
         // TODO rewrite this to use `ApplicationPrivilege.get()`
-        return new ApplicationPrivilege(application, name, patterns);
+        return new ApplicationPrivilege(applicationName, privilegeNames, patterns);
     }
 
     public void testValidationOfApplicationName() {

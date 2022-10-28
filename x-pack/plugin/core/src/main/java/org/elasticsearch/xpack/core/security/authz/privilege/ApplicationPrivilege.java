@@ -250,7 +250,7 @@ public final class ApplicationPrivilege extends Privilege {
         }
 
         patterns.addAll(actions);
-        return new ApplicationPrivilege(application, names, patterns.toArray(new String[0]));
+        return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]));
     }
 
     @Override

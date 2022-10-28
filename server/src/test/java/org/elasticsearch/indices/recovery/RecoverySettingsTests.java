@@ -413,11 +413,11 @@ public class RecoverySettingsTests extends ESTestCase {
     }
 
     private static ByteSizeValue randomByteSizeValue() {
-        return new ByteSizeValue(randomLongBetween(0L, Long.MAX_VALUE >> 16));
+        return ByteSizeValue.ofBytes(randomLongBetween(0L, Long.MAX_VALUE >> 16));
     }
 
     private static ByteSizeValue randomNonZeroByteSizeValue() {
-        return new ByteSizeValue(randomLongBetween(1L, Long.MAX_VALUE >> 16));
+        return ByteSizeValue.ofBytes(randomLongBetween(1L, Long.MAX_VALUE >> 16));
     }
 
     private static Set<String> randomDataNodeRoles() {

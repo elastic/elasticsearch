@@ -1,0 +1,5 @@
+pr: 91191
+summary: when using the /_cluster/allocation/explain api, it supports the request body to set only the index parameters
+area: cluster allocation explain api
+type: enhancement
+issues: []

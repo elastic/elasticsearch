@@ -108,7 +108,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             allocation,
             request.includeDiskInfo() ? clusterInfo : null,
             request.includeYesDecisions(),
-            request.useAnyUnassignedShard() == false,
+            request.useAnyUnassignedShard() == false || request.useIndexAnyUnassignedShard() == false,
             allocationService
         );
         listener.onResponse(new ClusterAllocationExplainResponse(cae));
@@ -162,6 +162,26 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
                         + "but there are no unassigned shards in this cluster. To explain the allocation of an assigned shard you must "
                         + "specify the target shard in the request."
                 );
+            }
+        } else if (request.useIndexAnyUnassignedShard()){
+            String index = request.getIndex();
+            List<ShardRouting> shardRoutingList = allocation.routingTable().allShards(index);
+            int primaryShardsUnassigned = allocation.routingTable().index(index).primaryShardsUnassigned();
+            for (ShardRouting shardRouting:shardRoutingList){
+                if (shardRouting.unassigned()){
+                    if (shardRouting.primary()) {
+                        foundShard = shardRouting;
+                        break;
+                    }
+                    if (primaryShardsUnassigned > 0) continue;
+                    foundShard = shardRouting;
+                    break;
+                }
+            }
+            if (foundShard == null) {
+                throw new IllegalArgumentException(
+                    "No shard was specified in the request which means the response should explain a randomly-chosen unassigned shard, "
+                        + "but there are no unassigned shards in index:[" +request.getIndex()+"]");
             }
         } else {
             String index = request.getIndex();

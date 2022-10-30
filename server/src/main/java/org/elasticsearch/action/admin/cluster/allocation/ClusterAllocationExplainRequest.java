@@ -97,11 +97,13 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
             if (this.index == null) {
                 validationException = addValidationError("index must be specified", validationException);
             }
-            if (this.shard == null) {
-                validationException = addValidationError("shard must be specified", validationException);
-            }
-            if (this.primary == null) {
-                validationException = addValidationError("primary must be specified", validationException);
+            if (this.useIndexAnyUnassignedShard() == false) {
+               if (this.shard == null) {
+                  validationException = addValidationError("shard must be specified", validationException);
+               }
+               if (this.primary == null) {
+                 validationException = addValidationError("primary must be specified", validationException);
+               }
             }
         }
         return validationException;
@@ -112,6 +114,13 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      */
     public boolean useAnyUnassignedShard() {
         return this.index == null && this.shard == null && this.primary == null && this.currentNode == null;
+    }
+
+    /**
+     * Returns {@code true} iff the index unassigned shard is to be used
+     */
+    public boolean useIndexAnyUnassignedShard() {
+        return this.index != null && this.shard == null && this.primary == null && this.currentNode == null;
     }
 
     /**
@@ -219,10 +228,12 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
             sb.append("useAnyUnassignedShard=true");
         } else {
             sb.append("index=").append(index);
-            sb.append(",shard=").append(shard);
-            sb.append(",primary?=").append(primary);
-            if (currentNode != null) {
-                sb.append(",currentNode=").append(currentNode);
+            if (this.useAnyUnassignedShard() == false) {
+                sb.append(",shard=").append(shard);
+                sb.append(",primary?=").append(primary);
+                if (currentNode != null) {
+                    sb.append(",currentNode=").append(currentNode);
+                }
             }
         }
         sb.append(",includeYesDecisions?=").append(includeYesDecisions);

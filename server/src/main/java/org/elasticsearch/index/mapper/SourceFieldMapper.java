@@ -236,11 +236,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (stored() && originalSource != null && sourceFilter != null) {
+        if (stored() == false) {
+            return null;
+        }
+        if (originalSource != null && sourceFilter != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             return Source.fromBytes(originalSource, contentType).filter(sourceFilter).internalSourceRef();
         } else {
-            return null;
+            return originalSource;
         }
     }
 

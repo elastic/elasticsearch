@@ -53,7 +53,10 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         }
         SourceFilter filter = new SourceFilter(sourceIncludes, sourceExcludes);
         Source filtered = Source.fromBytes(toBytesReference(actual, xContentType, humanReadable), xContentType).filter(filter);
-        assertMap(XContentHelper.convertToMap(filtered.internalSourceRef(), true, xContentType).v2(), matchesMap(toMap(expected, xContentType, humanReadable)));
+        assertMap(
+            XContentHelper.convertToMap(filtered.internalSourceRef(), true, xContentType).v2(),
+            matchesMap(toMap(expected, xContentType, humanReadable))
+        );
     }
 
     private void testFilter(String expectedJson, String actualJson, Collection<String> includes, Collection<String> excludes)
@@ -536,7 +539,7 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
 
     public void testEmptySource() throws IOException {
         SourceFilter empty = new SourceFilter(new String[0], new String[0]);
-        SourceFilter excludeWildcard = new SourceFilter(new String[0], new String[] { "test* "});
+        SourceFilter excludeWildcard = new SourceFilter(new String[0], new String[] { "test* " });
         for (XContentType xContentType : XContentType.values()) {
             assertEquals(Map.of(), Source.fromBytes(null, xContentType).filter(empty).source());
             assertEquals(Map.of(), Source.fromBytes(null, xContentType).filter(excludeWildcard).source());

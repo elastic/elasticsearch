@@ -143,10 +143,10 @@ If any of those checks fail, there's a good indication that you
 security to be configured automatically. In these cases, the node starts
 normally using the existing configuration.
 
-IMPORTANT: Security auto configuration is also skipped if output is redirected.
-If log redirection is needed, start {es} without redirection for the first time,
-and with redirection for all subsequent starts.
-Auto configured credentials are only intended to be seen once on a terminal, and not captured in a log file.
+IMPORTANT: If you redirect {es} output to a file, security autoconfiguration is skipped.
+Autoconfigured credentials can only be viewed on the terminal the first time you start {es}.
+If you need to redirect output to a file, start {es} without redirection the first time
+and use redirection on all subsequent starts.
 
 [discrete]
 [[stack-existing-environment-detected]]

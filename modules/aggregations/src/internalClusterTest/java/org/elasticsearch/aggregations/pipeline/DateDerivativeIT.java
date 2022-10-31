@@ -6,18 +6,21 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
@@ -31,11 +34,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
@@ -54,6 +57,11 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
     private ZonedDateTime date(int month, int day) {
         return ZonedDateTime.of(2012, month, day, 0, 0, 0, 0, ZoneOffset.UTC);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(AggregationsPlugin.class);
     }
 
     private static IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
@@ -113,7 +121,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 dateHistogram("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count"))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
             )
             .get();
 
@@ -158,7 +166,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 dateHistogram("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.DAY))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.DAY))
             )
             .get();
 
@@ -223,7 +231,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                     .calendarInterval(DateHistogramInterval.DAY)
                     .timeZone(timezone)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.HOUR))
             )
             .get();
 
@@ -281,7 +289,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                     .calendarInterval(DateHistogramInterval.DAY)
                     .timeZone(timezone)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.HOUR))
             )
             .get();
 
@@ -341,7 +349,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                     .calendarInterval(DateHistogramInterval.HOUR)
                     .timeZone(timezone)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.MINUTE))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.MINUTE))
             )
             .get();
 
@@ -409,7 +417,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                     .calendarInterval(DateHistogramInterval.MONTH)
                     .minDocCount(0)
                     .subAggregation(sum("sum").field("value"))
-                    .subAggregation(derivative("deriv", "sum"))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum"))
             )
             .get();
 
@@ -492,7 +500,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 dateHistogram("histo").field("dates")
                     .calendarInterval(DateHistogramInterval.MONTH)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count"))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
             )
             .get();
 
@@ -550,7 +558,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 dateHistogram("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count"))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
             )
             .get();
 
@@ -568,7 +576,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 dateHistogram("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
                     .minDocCount(0)
-                    .subAggregation(derivative("deriv", "_count"))
+                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
             )
             .get();
 

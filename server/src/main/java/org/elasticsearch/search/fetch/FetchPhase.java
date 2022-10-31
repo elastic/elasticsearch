@@ -429,7 +429,7 @@ public class FetchPhase {
             }
             return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.fromMap(nestedSourceAsMap, rootSourceContentType));
         }
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.EMPTY);
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.empty(rootSourceContentType));
     }
 
     public static List<Object> processStoredField(Function<String, MappedFieldType> fieldTypeLookup, String field, List<Object> input) {

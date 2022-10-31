@@ -152,7 +152,9 @@ services:
     environment:
       - JETTY_MAX_HEAP=64m
     ports:
-      - 4443:4443
+      - 4443
+    expose:
+      - 4443
     links:
       - openldap:openldap
 

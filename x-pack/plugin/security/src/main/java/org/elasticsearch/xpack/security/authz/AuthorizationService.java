@@ -255,7 +255,7 @@ public class AuthorizationService {
                 return;
             }
 
-            if (SystemUser.is(authentication.getUser())) {
+            if (SystemUser.is(authentication.getEffectiveSubject().getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
             } else {
@@ -297,7 +297,7 @@ public class AuthorizationService {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            if (isInternal(authentication.getUser())) {
+            if (isInternal(authentication.getEffectiveSubject().getUser())) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
@@ -305,7 +305,7 @@ public class AuthorizationService {
                     "Attempt to authorize action ["
                         + action
                         + "] for ["
-                        + authentication.getUser().principal()
+                        + authentication.getEffectiveSubject().getUser().principal()
                         + "] without an existing request-id"
                 );
             }
@@ -664,7 +664,8 @@ public class AuthorizationService {
         final ActionListener<AuthorizationResult> listener
     ) {
         final Authentication authentication = requestInfo.getAuthentication();
-        if (authentication.getLookedUpBy() == null) {
+        assert authentication.isRunAs() : "authentication must have run-as for run-as to be authorized";
+        if (authentication.getEffectiveSubject().getRealm() == null) {
             // this user did not really exist
             // TODO(jaymode) find a better way to indicate lookup failed for a user and we need to fail authz
             listener.onResponse(AuthorizationResult.deny());

@@ -2540,7 +2540,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                    () -> RoleDescriptorTests.randomRoleDescriptor(false, false)
                 )
             );
             case 2 -> null;

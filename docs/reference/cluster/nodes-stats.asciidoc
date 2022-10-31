@@ -2751,3 +2751,4 @@ For example, the following request only returns ingest pipeline statistics.
 --------------------------------------------------
 GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest.pipelines
 --------------------------------------------------
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]

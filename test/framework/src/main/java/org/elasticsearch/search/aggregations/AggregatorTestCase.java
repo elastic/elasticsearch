@@ -633,8 +633,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
             doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             assertRoundTrip(internalAgg);
-            if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
-                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
+            if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
+                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) builder, internalAgg);
             }
             return internalAgg;
         } finally {
@@ -861,7 +861,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private void verifyMetricNames(
-        ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?> aggregationBuilder,
+        ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?> aggregationBuilder,
         InternalAggregation agg
     ) {
         for (String metric : aggregationBuilder.metricNames()) {

@@ -713,7 +713,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     .append(recoveryResponse.phase1FileNames.size())
                     .append("]")
                     .append(" with total_size of [")
-                    .append(new ByteSizeValue(recoveryResponse.phase1TotalSize))
+                    .append(ByteSizeValue.ofBytes(recoveryResponse.phase1TotalSize))
                     .append("]")
                     .append(", took [")
                     .append(timeValueMillis(recoveryResponse.phase1Time))
@@ -724,7 +724,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 sb.append("         : reusing_files   [")
                     .append(recoveryResponse.phase1ExistingFileNames.size())
                     .append("] with total_size of [")
-                    .append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize))
+                    .append(ByteSizeValue.ofBytes(recoveryResponse.phase1ExistingTotalSize))
                     .append("]\n");
                 sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
                 sb.append("         : recovered [")

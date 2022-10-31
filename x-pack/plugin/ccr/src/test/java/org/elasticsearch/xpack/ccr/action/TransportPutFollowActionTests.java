@@ -120,6 +120,7 @@ public class TransportPutFollowActionTests extends ESTestCase {
         DataStream localDataStream = new DataStream(
             "logs-foobar",
             initialLocalBackingIndices,
+            initialLocalBackingIndices.get(initialLocalBackingIndices.size() - 1),
             initialLocalBackingIndices.size(),
             Map.of(),
             false,
@@ -171,12 +172,34 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .mapToObj(value -> DataStream.getDefaultBackingIndexName(name, value))
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, backingIndices, backingIndices.size(), Map.of(), false, replicate, false, false, null);
+        return new DataStream(
+            name,
+            backingIndices,
+            backingIndices.get(backingIndices.size() - 1),
+            backingIndices.size(),
+            Map.of(),
+            false,
+            replicate,
+            false,
+            false,
+            null
+        );
     }
 
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
-        return new DataStream(name, backingIndices, generation, Map.of(), false, replicate, false, false, null);
+        return new DataStream(
+            name,
+            backingIndices,
+            backingIndices.get(backingIndices.size() - 1),
+            generation,
+            Map.of(),
+            false,
+            replicate,
+            false,
+            false,
+            null
+        );
     }
 
 }

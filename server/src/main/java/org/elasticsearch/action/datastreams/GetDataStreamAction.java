@@ -205,6 +205,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
                 builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
                 builder.xContentList(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
+                builder.field(DataStream.WRITE_INDEX.getPreferredName(), dataStream.getWriteIndex());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());

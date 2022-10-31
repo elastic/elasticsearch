@@ -333,6 +333,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             return new DataStream(
                 localDataStreamName,
                 List.of(backingIndexToFollow),
+                backingIndexToFollow,
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
                 remoteDataStream.isHidden(),
@@ -383,6 +384,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             return new DataStream(
                 localDataStream.getName(),
                 backingIndices,
+                localDataStream.getWriteIndex(),
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
                 localDataStream.isHidden(),

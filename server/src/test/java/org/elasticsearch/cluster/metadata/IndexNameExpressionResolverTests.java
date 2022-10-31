@@ -2717,6 +2717,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                         new DataStream(
                             dataStream1,
                             List.of(index1.getIndex(), index2.getIndex()),
+                            index2.getIndex(),
                             2,
                             Collections.emptyMap(),
                             true,

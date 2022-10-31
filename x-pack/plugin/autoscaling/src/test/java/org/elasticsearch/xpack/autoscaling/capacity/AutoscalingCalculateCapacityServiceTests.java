@@ -175,12 +175,11 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91085")
     public void testContext() {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterInfo info = ClusterInfo.EMPTY;
         SortedSet<String> roleNames = randomRoles();
-        boolean hasDataRole = roleNames.stream().anyMatch(r -> r.equals("data") || r.startsWith("data_"));
+        boolean hasDataRole = roleNames.stream().anyMatch(r -> DiscoveryNodeRole.getRoleFromRoleName(r).canContainData());
 
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(Map.of());

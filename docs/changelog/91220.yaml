@@ -1,0 +1,7 @@
+pr: 91220
+summary: Better behavior for Nested aggregations around Scores
+area: Aggregations
+type: bug
+issues:
+ - 82640
+ - 90955

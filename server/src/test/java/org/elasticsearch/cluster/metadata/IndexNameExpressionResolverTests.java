@@ -473,13 +473,31 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals("hidden-closed", results[0]);
 
         // only hidden
-        options = IndicesOptions.fromOptions(false, true, false, false, true);
+        options = IndicesOptions.fromOptions(true, true, false, false, true);
         context = new IndexNameExpressionResolver.Context(state, options, SystemIndexAccessLevel.NONE);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertThat(results, emptyArray());
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "h*");
         assertThat(results, emptyArray());
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden");
+        assertThat(results, arrayContainingInAnyOrder("hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden-closed");
+        assertThat(results, arrayContainingInAnyOrder("hidden-closed"));
+
+        options = IndicesOptions.fromOptions(false, randomBoolean(), false, false, true);
+        context = new IndexNameExpressionResolver.Context(state, options, SystemIndexAccessLevel.NONE);
+        IndexNameExpressionResolver.Context context3 = context;
+        infe = expectThrows(
+            IndexNotFoundException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(context3, Strings.EMPTY_ARRAY)
+        );
+        assertThat(infe.getResourceId().toString(), equalTo("[_all]"));
+
+        infe = expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(context3, "h*"));
+        assertThat(infe.getResourceId().toString(), equalTo("[h*]"));
 
         results = indexNameExpressionResolver.concreteIndexNames(context, "hidden");
         assertThat(results, arrayContainingInAnyOrder("hidden"));
@@ -829,7 +847,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndexNotFoundException.class,
             () -> indexNameExpressionResolver.concreteIndices(context, new String[] {})
         );
-        assertThat(infe.getMessage(), is("no such index [null] and no indices exist"));
+        assertThat(infe.getMessage(), is("no such index [_all] and no indices exist"));
     }
 
     public void testConcreteIndicesNoIndicesErrorMessageNoExpand() {
@@ -2471,7 +2489,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false)
             );
-            assertThat(e.getMessage(), equalTo("no such index [null]"));
+            assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
         }
     }
 

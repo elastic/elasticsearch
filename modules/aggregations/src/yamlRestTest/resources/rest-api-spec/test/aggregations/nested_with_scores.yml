@@ -50,6 +50,55 @@ setup:
 ---
 "Query, Composite, Scripted Metric":
   - do:
+      catch: /Nested aggregation is incompatible with sub aggregations requiring scores/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                -
+                  range:
+                    "@timestamp":
+                      from: "2022-09-01"
+                      to: "2022-09-30"
+                      include_lower: true
+                      include_upper: true
+                      time_zone: "Europe/Paris"
+                      boost: 1
+              adjust_pure_negative: true
+              boost: 1
+          _source: true
+          track_total_hits: -1
+          aggregations:
+            data:
+              nested:
+                path: "lines"
+              aggregations:
+                my_buckets:
+                  composite:
+                    size: 20
+                    sources:
+                      -
+                        prod_name:
+                          terms:
+                            field: "lines.name"
+                  aggregations:
+                    catalog_price:
+                      scripted_metric:
+                        init_script:
+                          source: "state.transactions = []"
+                        map_script:
+                          source: "state.transactions.add(doc['lines.value'].value)"
+                        combine_script:
+                          source: "double sum = 0; for (t in state.transactions) { sum += t } return sum"
+                        reduce_script:
+                          source: "double sum = 0; for (a in states) { if (a != null) { sum += a } } return sum"
+---
+"Query, Composite, Scripted Metric (scores disabled)":
+  - do:
       search:
         rest_total_hits_as_int: true
         index: test

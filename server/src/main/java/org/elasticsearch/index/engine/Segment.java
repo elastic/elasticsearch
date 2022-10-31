@@ -96,7 +96,7 @@ public class Segment implements Writeable {
     }
 
     public ByteSizeValue getSize() {
-        return new ByteSizeValue(sizeInBytes);
+        return ByteSizeValue.ofBytes(sizeInBytes);
     }
 
     public org.apache.lucene.util.Version getVersion() {

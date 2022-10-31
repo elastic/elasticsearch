@@ -454,15 +454,15 @@ public class ClientHelperTests extends ESTestCase {
             final Authentication rewrittenAuth = AuthenticationContextSerializer.decode(
                 headers2.get(AuthenticationField.AUTHENTICATION_KEY)
             );
-            assertThat(rewrittenAuth.getVersion(), equalTo(previousVersion));
-            assertThat(rewrittenAuth.getUser(), equalTo(authentication.getUser()));
+            assertThat(rewrittenAuth.getEffectiveSubject().getVersion(), equalTo(previousVersion));
+            assertThat(rewrittenAuth.getEffectiveSubject().getUser(), equalTo(authentication.getEffectiveSubject().getUser()));
         }
         if (hasSecondaryAuthHeader) {
             final Authentication rewrittenSecondaryAuth = AuthenticationContextSerializer.decode(
                 headers2.get(SecondaryAuthentication.THREAD_CTX_KEY)
             );
-            assertThat(rewrittenSecondaryAuth.getVersion(), equalTo(previousVersion));
-            assertThat(rewrittenSecondaryAuth.getUser(), equalTo(authentication.getUser()));
+            assertThat(rewrittenSecondaryAuth.getEffectiveSubject().getVersion(), equalTo(previousVersion));
+            assertThat(rewrittenSecondaryAuth.getEffectiveSubject().getUser(), equalTo(authentication.getEffectiveSubject().getUser()));
         }
     }
 }

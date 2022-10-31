@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -102,11 +101,7 @@ public final class Pipeline {
         if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
-        CompoundProcessor compoundProcessor = new CompoundProcessor(
-            false,
-            Collections.unmodifiableList(processors),
-            Collections.unmodifiableList(onFailureProcessors)
-        );
+        CompoundProcessor compoundProcessor = new CompoundProcessor(false, processors, onFailureProcessors);
         return new Pipeline(id, description, version, metadata, compoundProcessor);
     }
 

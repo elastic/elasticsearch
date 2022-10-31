@@ -26,7 +26,6 @@ import java.util.function.Supplier;
  */
 public final class MappingParser {
     private final Supplier<MappingParserContext> parserContextSupplier;
-    private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
@@ -96,7 +95,7 @@ public final class MappingParser {
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
+        RootObjectMapper rootObjectMapper = RootObjectMapper.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;

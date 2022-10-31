@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -47,8 +47,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -530,22 +528,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 transportService.getLocalNode(),
                 SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
                 req,
-                new TransportResponseHandler<ActionResponse.Empty>() {
-                    @Override
-                    public ActionResponse.Empty read(StreamInput in) {
-                        return ActionResponse.Empty.INSTANCE;
-                    }
-
-                    @Override
-                    public void handleResponse(ActionResponse.Empty response) {
-                        reqListener.onResponse(null);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        reqListener.onFailure(exp);
-                    }
-                }
+                new ActionListenerResponseHandler<>(reqListener.map(res -> null), in -> ActionResponse.Empty.INSTANCE)
             )
         );
     }

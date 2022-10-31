@@ -162,15 +162,14 @@ public class CompoundProcessor implements Processor {
         Tuple<Processor, IngestMetric> processorWithMetric;
         Processor processor;
         IngestMetric metric;
-        long startTimeInNanos = 0;
         // iteratively execute any sync processors
         while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();
             metric = processorWithMetric.v2();
-            startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
 
+            final long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 ingestDocument = processor.execute(ingestDocument);
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
@@ -180,7 +179,8 @@ public class CompoundProcessor implements Processor {
                     return;
                 }
             } catch (Exception e) {
-                metric.postIngest(relativeTimeProvider.getAsLong() - startTimeInNanos);
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
                 executeOnFailureOuter(currentProcessor, ingestDocument, handler, processor, metric, e);
                 return;
             }
@@ -194,9 +194,10 @@ public class CompoundProcessor implements Processor {
             return;
         }
 
+        // n.b. read 'final' on these variable names as hungarian notation -- we need final variables because of the lambda
         final int finalCurrentProcessor = currentProcessor;
         final int nextProcessor = currentProcessor + 1;
-        final long finalStartTimeInNanos = startTimeInNanos;
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
         final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
         final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
         final IngestDocument finalIngestDocument = ingestDocument;
@@ -215,7 +216,7 @@ public class CompoundProcessor implements Processor {
                     logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
                     assert false : "A listener was unexpectedly called more than once";
                 } else {
-                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
+                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
                     finalMetric.postIngest(ingestTimeInNanos);
                     postIngestHasBeenCalled.set(true);
                     if (e != null) {

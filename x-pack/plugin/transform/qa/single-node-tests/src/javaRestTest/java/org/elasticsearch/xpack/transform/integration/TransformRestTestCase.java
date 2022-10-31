@@ -107,6 +107,18 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             if ((user == userWithMissingBuckets && missingBucketField.equals("stars")) == false) {
                 bulk.append("\"stars\":").append(stars).append(",");
             }
+            if ((user == userWithMissingBuckets && missingBucketField.equals("stars_stats")) == false) {
+                bulk.append("\"stars_stats\": { ")
+                    .append("\"min\": ")
+                    .append(stars - 1)
+                    .append(",")
+                    .append("\"max\": ")
+                    .append(stars + 1)
+                    .append(",")
+                    .append("\"sum\": ")
+                    .append(10 * stars)
+                    .append("},");
+            }
             if ((user == userWithMissingBuckets && missingBucketField.equals("location")) == false) {
                 bulk.append("\"location\":\"").append(location).append("\",");
             }
@@ -176,6 +188,11 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     .endObject()
                     .startObject("stars")
                     .field("type", randomFrom("integer", "long")) // gh#64347 unsigned_long disabled
+                    .endObject()
+                    .startObject("stars_stats")
+                    .field("type", "aggregate_metric_double")
+                    .field("metrics", List.of("min", "max", "sum"))
+                    .field("default_metric", "max")
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")

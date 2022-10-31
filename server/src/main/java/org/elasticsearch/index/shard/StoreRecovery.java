@@ -328,19 +328,19 @@ public final class StoreRecovery {
                     sb.append("    index    : files           [")
                         .append(index.totalFileCount())
                         .append("] with total_size [")
-                        .append(new ByteSizeValue(index.totalBytes()))
+                        .append(ByteSizeValue.ofBytes(index.totalBytes()))
                         .append("], took[")
                         .append(TimeValue.timeValueMillis(index.time()))
                         .append("]\n");
                     sb.append("             : recovered_files [")
                         .append(index.recoveredFileCount())
                         .append("] with total_size [")
-                        .append(new ByteSizeValue(index.recoveredBytes()))
+                        .append(ByteSizeValue.ofBytes(index.recoveredBytes()))
                         .append("]\n");
                     sb.append("             : reusing_files   [")
                         .append(index.reusedFileCount())
                         .append("] with total_size [")
-                        .append(new ByteSizeValue(index.reusedBytes()))
+                        .append(ByteSizeValue.ofBytes(index.reusedBytes()))
                         .append("]\n");
                     sb.append("    verify_index    : took [")
                         .append(TimeValue.timeValueMillis(recoveryState.getVerifyIndex().time()))

@@ -1502,8 +1502,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         return new StartTrainedModelDeploymentAction.TaskParams(
             modelId,
             modelSize,
-            threadsPerAllocation,
             numberOfAllocations,
+            threadsPerAllocation,
             1024,
             ByteSizeValue.ofBytes(modelSize)
         );

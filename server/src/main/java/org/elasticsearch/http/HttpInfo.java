@@ -58,7 +58,7 @@ public class HttpInfo implements ReportingService.Info {
             publishAddressString = hostString + '/' + publishAddress;
         }
         builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);
-        builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, new ByteSizeValue(maxContentLength));
+        builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, ByteSizeValue.ofBytes(maxContentLength));
         builder.endObject();
         return builder;
     }

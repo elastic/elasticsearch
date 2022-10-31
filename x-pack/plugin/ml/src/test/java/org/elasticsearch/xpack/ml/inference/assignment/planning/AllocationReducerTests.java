@@ -172,8 +172,8 @@ public class AllocationReducerTests extends ESTestCase {
             new StartTrainedModelDeploymentAction.TaskParams(
                 modelId,
                 randomNonNegativeLong(),
-                randomIntBetween(1, 16),
                 numberOfAllocations,
+                randomIntBetween(1, 16),
                 1024,
                 null
             )

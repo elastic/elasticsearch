@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -19,11 +19,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -36,7 +38,9 @@ import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -49,7 +53,6 @@ import static org.hamcrest.core.IsNull.nullValue;
 import static org.hamcrest.number.IsCloseTo.closeTo;
 
 public class DerivativeAggregatorTests extends AggregatorTestCase {
-
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static int interval = 5;
     private static int numValueBuckets;
@@ -68,6 +71,11 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
     private static Long[] valueCounts_empty_rnd;
     private static Double[] firstDerivValueCounts_empty_rnd;
     private static long numDocsEmptyIdx_rnd;
+
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AggregationsPlugin());
+    }
 
     private void setupValueCounts() {
         numDocsEmptyIdx = 0L;

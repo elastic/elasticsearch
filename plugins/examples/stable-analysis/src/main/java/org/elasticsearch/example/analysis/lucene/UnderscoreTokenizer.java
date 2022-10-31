@@ -6,15 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.example.analysis.lucene;
 
-public interface Derivative extends SimpleValue {
+import org.apache.lucene.analysis.util.CharTokenizer;
 
-    /**
-     * Returns the normalized value. If no normalised factor has been specified
-     * this method will return {@link #value()}
-     *
-     * @return the normalized value
-     */
-    double normalizedValue();
+public class UnderscoreTokenizer extends CharTokenizer {
+
+    @Override
+    protected boolean isTokenChar(int c) {
+        return c != '_';
+    }
 }

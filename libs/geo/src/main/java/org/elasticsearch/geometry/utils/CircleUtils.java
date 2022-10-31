@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-package org.elasticsearch.xpack.spatial;
+package org.elasticsearch.geometry.utils;
 
-import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 
 /**
  * Utility class for storing different helpful re-usable spatial functions
  */
-public class SpatialUtils {
+public class CircleUtils {
 
-    private SpatialUtils() {}
+    static final int CIRCLE_TO_POLYGON_MINIMUM_NUMBER_OF_SIDES = 4;
+    static final int CIRCLE_TO_POLYGON_MAXIMUM_NUMBER_OF_SIDES = 1000;
+
+    private CircleUtils() {}
 
     /**
      * Makes an n-gon, centered at the provided circle's center, and each vertex approximately
@@ -25,18 +27,18 @@ public class SpatialUtils {
      *
      * It throws an IllegalArgumentException if the circle contains a pole.
      *
-     * This does not split the polygon across the date-line. Relies on {@link GeoShapeIndexer} to
+     * This does not split the polygon across the date-line. Relies on org.elasticsearch.index.mapper.GeoShapeIndexer to
      * split prepare polygon for indexing.
      *
      * Adapted from from org.apache.lucene.tests.geo.GeoTestUtil
      * */
     public static Polygon createRegularGeoShapePolygon(Circle circle, int gons) {
-        if (SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), 90, 0) < circle.getRadiusMeters()) {
+        if (slowHaversin(circle.getLat(), circle.getLon(), 90, 0) < circle.getRadiusMeters()) {
             throw new IllegalArgumentException(
                 "circle [" + circle.toString() + "] contains the north pole. " + "It cannot be translated to a polygon"
             );
         }
-        if (SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), -90, 0) < circle.getRadiusMeters()) {
+        if (slowHaversin(circle.getLat(), circle.getLon(), -90, 0) < circle.getRadiusMeters()) {
             throw new IllegalArgumentException(
                 "circle [" + circle.toString() + "] contains the south pole. " + "It cannot be translated to a polygon"
             );
@@ -57,7 +59,7 @@ public class SpatialUtils {
             while (true) {
                 double lat = circle.getLat() + y * factor;
                 double lon = circle.getLon() + x * factor;
-                double distanceMeters = SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), lat, lon);
+                double distanceMeters = slowHaversin(circle.getLat(), circle.getLon(), lat, lon);
 
                 if (Math.abs(distanceMeters - circle.getRadiusMeters()) < 0.1) {
                     // Within 10 cm: close enough!
@@ -111,5 +113,21 @@ public class SpatialUtils {
         result[0][gons] = result[0][0];
         result[1][gons] = result[1][0];
         return new Polygon(new LinearRing(result[0], result[1]));
+    }
+
+    public static int circleToPolygonNumSides(double radiusMeters, double errorDistance) {
+        int val = (int) Math.ceil(2 * Math.PI / Math.acos(1 - errorDistance / radiusMeters));
+        return Math.min(CIRCLE_TO_POLYGON_MAXIMUM_NUMBER_OF_SIDES, Math.max(CIRCLE_TO_POLYGON_MINIMUM_NUMBER_OF_SIDES, val));
+    }
+
+    // simple incorporation of the wikipedia formula
+    // Improved method implementation for better performance can be found in `SloppyMath.haversinMeters` which
+    // is included in `org.apache.lucene:lucene-core`.
+    // Do not use this method for performance critical cases
+    private static double slowHaversin(double lat1, double lon1, double lat2, double lon2) {
+        double h1 = (1 - StrictMath.cos(StrictMath.toRadians(lat2) - StrictMath.toRadians(lat1))) / 2;
+        double h2 = (1 - StrictMath.cos(StrictMath.toRadians(lon2) - StrictMath.toRadians(lon1))) / 2;
+        double h = h1 + StrictMath.cos(StrictMath.toRadians(lat1)) * StrictMath.cos(StrictMath.toRadians(lat2)) * h2;
+        return 2 * 6371008.7714 * StrictMath.asin(Math.min(1, Math.sqrt(h)));
     }
 }

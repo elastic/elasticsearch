@@ -6,11 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -18,10 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalDerivative extends InternalSimpleValue implements Derivative {
+public class Derivative extends InternalSimpleValue {
     private final double normalizationFactor;
 
-    InternalDerivative(String name, double value, double normalizationFactor, DocValueFormat formatter, Map<String, Object> metadata) {
+    Derivative(String name, double value, double normalizationFactor, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, value, formatter, metadata);
         this.normalizationFactor = normalizationFactor;
     }
@@ -29,7 +30,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
     /**
      * Read from a stream.
      */
-    public InternalDerivative(StreamInput in) throws IOException {
+    public Derivative(StreamInput in) throws IOException {
         super(in);
         normalizationFactor = in.readDouble();
     }
@@ -45,7 +46,12 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
         return DerivativePipelineAggregationBuilder.NAME;
     }
 
-    @Override
+    /**
+     * Returns the normalized value. If no normalised factor has been specified
+     * this method will return {@link #value()}
+     *
+     * @return the normalized value
+     */
     public double normalizedValue() {
         return normalizationFactor > 0 ? (value() / normalizationFactor) : value();
     }
@@ -95,7 +101,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        InternalDerivative other = (InternalDerivative) obj;
+        Derivative other = (Derivative) obj;
         return Objects.equals(value, other.value) && Objects.equals(normalizationFactor, other.normalizationFactor);
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
@@ -78,6 +79,10 @@ public class IndexPrivilegeTests extends ESTestCase {
             findPrivilegesThatGrant(GetCheckpointAction.NAME),
             containsInAnyOrder("monitor", "view_index_metadata", "manage", "all")
         );
+    }
+
+    public void testPrivilegesForSemanticSearchAction() {
+        assertThat(findPrivilegesThatGrant(SemanticSearchAction.NAME), equalTo(List.of("read", "all")));
     }
 
     public void testRelationshipBetweenPrivileges() {

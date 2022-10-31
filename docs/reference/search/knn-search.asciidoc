@@ -5,7 +5,7 @@
 ++++
 
 deprecated::[8.4.0,"The kNN search API has been replaced by the <<<<search-api-knn, `knn` option>> in the search API."]
-experimental::[]
+
 Performs a k-nearest neighbor (kNN) search and returns the matching documents.
 
 ////

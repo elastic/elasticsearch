@@ -493,6 +493,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.meta = new HashMap<>();
         }
 
+        /**
+         * Collect the field capabilities for an index.
+         */
         void add(
             String index,
             boolean isMetadataField,
@@ -505,10 +508,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             add(new IndexCaps(index, search, agg, isDimension, metricType), isMetadataField, meta);
         }
 
-        /**
-         * Collect the field capabilities for an index.
-         */
-        void add(IndexCaps indexCaps, boolean isMetadataField, Map<String, String> meta) {
+        private void add(IndexCaps indexCaps, boolean isMetadataField, Map<String, String> meta) {
             assert indiceList.isEmpty() || indiceList.get(indiceList.size() - 1).name.compareTo(indexCaps.name) < 0
                 : "indices aren't sorted; previous [" + indiceList.get(indiceList.size() - 1).name + "], current [" + indexCaps.name + "]";
             if (indexCaps.isSearchable) {
@@ -629,7 +629,26 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
     }
 
-    record IndexCaps(
+    /**
+     * Helper class to create unmapped field capabilities, which can share a lot of underlying data
+     */
+    static class UnmappedBuilderFactory {
+        private final Map<String, IndexCaps> indexCapCache = new HashMap<>();
+
+        FieldCapabilities.Builder createBuilder(String field, Set<String> indices) {
+            FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
+            for (String index : indices) {
+                FieldCapabilities.IndexCaps caps = indexCapCache.computeIfAbsent(
+                    index,
+                    i -> new FieldCapabilities.IndexCaps(i, false, false, false, null)
+                );
+                unmapped.add(caps, false, Collections.emptyMap());
+            }
+            return unmapped;
+        }
+    }
+
+    private record IndexCaps(
         String name,
         boolean isSearchable,
         boolean isAggregatable,

@@ -183,7 +183,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .putRolloverInfo(
                 new RolloverInfo(
                     rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
+                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )

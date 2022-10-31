@@ -18,17 +18,15 @@ import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
 import java.util.Collections;
 import java.util.Map;
 
-public class MlWithSecurityIT extends AbstractXPackRestTest {
+public abstract class AbstractSemanticSearchPermissionsIT extends AbstractXPackRestTest {
 
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 
-    public MlWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public AbstractSemanticSearchPermissionsIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
-    protected String[] getCredentials() {
-        return new String[] { "ml_admin", "x-pack-test-password" };
-    }
+    protected abstract String[] getCredentials();
 
     @Override
     protected Settings restClientSettings() {

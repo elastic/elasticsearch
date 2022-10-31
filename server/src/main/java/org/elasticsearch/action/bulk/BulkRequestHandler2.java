@@ -22,14 +22,14 @@ import java.util.function.BiConsumer;
 public final class BulkRequestHandler2 {
     private final Logger logger;
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
-    private final BulkProcessor.Listener listener;
-    private final Retry retry;
+    private final BulkProcessor2.Listener listener;
+    private final Retry2 retry;
     private final int concurrentRequests;
 
     BulkRequestHandler2(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         BackoffPolicy backoffPolicy,
-        BulkProcessor.Listener listener,
+        BulkProcessor2.Listener listener,
         Scheduler scheduler,
         int concurrentRequests
     ) {
@@ -38,7 +38,7 @@ public final class BulkRequestHandler2 {
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
-        this.retry = new Retry(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), concurrentRequests);
+        this.retry = new Retry2(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), concurrentRequests);
         retry.init();
     }
 

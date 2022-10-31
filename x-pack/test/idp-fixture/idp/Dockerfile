@@ -19,8 +19,12 @@ ENV jetty_version=9.3.27.v20190418 \
 ENV JETTY_HOME=/opt/jetty-home \
     JETTY_BASE=/opt/shib-jetty-base \
     PATH=$PATH:$JAVA_HOME/bin \
-    JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=changeme \
-    JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=changeme
+    JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=secret \
+    JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret
+
+RUN mkdir -p /opt/shib-jetty-base/modules
+COPY ./idp/ssl.mod /opt/shib-jetty-base/modules/ssl.mod
+COPY ./idp/keystore /opt/shib-jetty-base/etc/keystore
 
 # Download Jetty, verify the hash, and install, initialize a new base
 RUN wget -q https://repo.maven.apache.org/maven2/org/eclipse/jetty/jetty-distribution/$jetty_version/jetty-distribution-$jetty_version.tar.gz \
@@ -28,10 +32,6 @@ RUN wget -q https://repo.maven.apache.org/maven2/org/eclipse/jetty/jetty-distrib
     && tar -zxvf jetty-distribution-$jetty_version.tar.gz -C /opt \
     && ln -s /opt/jetty-distribution-$jetty_version/ /opt/jetty-home
 
-## Copy files
-COPY idp/shib-jetty-base/ /opt/shib-jetty-base/
-COPY idp/shibboleth-idp/ /opt/shibboleth-idp/
-COPY idp/bin/ /usr/local/bin/
 
 # Config Jetty
 RUN mkdir -p /opt/shib-jetty-base/modules /opt/shib-jetty-base/lib/ext  /opt/shib-jetty-base/lib/logging /opt/shib-jetty-base/resources \
@@ -70,10 +70,19 @@ RUN wget -q https://repo.maven.apache.org/maven2/ch/qos/logback/logback-access/$
     && echo "$logback_access_hash logback-access-$logback_version.jar" | sha1sum -c - \
     && mv logback-access-$logback_version.jar /opt/shib-jetty-base/lib/logging/
 
+## Copy files
+COPY idp/shib-jetty-base/ /opt/shib-jetty-base/
+COPY idp/shibboleth-idp/ /opt/shibboleth-idp/
+COPY idp/bin/ /usr/local/bin/
+
 # Setting owner ownership and permissions
 RUN useradd jetty -U -s /bin/false \
     && chown -R root:jetty /opt \
-    && chmod -R 640 /opt
+    && chmod -R 640 /opt \
+    && chown -R root:jetty /opt/shib-jetty-base \
+    && chmod -R 640 /opt/shib-jetty-base \
+    && chmod -R 750 /opt/shibboleth-idp/bin
+
 RUN chmod 750 /usr/local/bin/run-jetty.sh /usr/local/bin/init-idp.sh
 RUN chmod +x /opt/jetty-home/bin/jetty.sh
 

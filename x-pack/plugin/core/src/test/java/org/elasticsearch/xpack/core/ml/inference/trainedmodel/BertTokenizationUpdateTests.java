@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
+import static org.hamcrest.Matchers.sameInstance;
+
 public class BertTokenizationUpdateTests extends AbstractBWCWireSerializationTestCase<BertTokenizationUpdate> {
 
     public static BertTokenizationUpdate randomInstance() {
@@ -43,6 +45,9 @@ public class BertTokenizationUpdateTests extends AbstractBWCWireSerializationTes
             new BertTokenization(true, true, 512, Tokenization.Truncate.SECOND, null)
         );
         assertEquals(new BertTokenization(true, true, 512, Tokenization.Truncate.NONE, null), updatedNone);
+
+        var unmodified = new BertTokenization(true, true, 512, Tokenization.Truncate.NONE, null);
+        assertThat(new BertTokenizationUpdate(null, null).apply(unmodified), sameInstance(unmodified));
     }
 
     public void testNoop() {

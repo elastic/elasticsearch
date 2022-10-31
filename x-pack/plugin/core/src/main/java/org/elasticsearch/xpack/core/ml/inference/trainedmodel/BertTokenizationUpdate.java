@@ -7,21 +7,17 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.Optional;
 
-public class BertTokenizationUpdate implements TokenizationUpdate {
+public class BertTokenizationUpdate extends AbstractTokenizationUpdate {
 
     public static final ParseField NAME = BertTokenization.NAME;
 
@@ -39,21 +35,12 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
         return PARSER.apply(parser, null);
     }
 
-    private final Tokenization.Truncate truncate;
-    private final Integer span;
-
     public BertTokenizationUpdate(@Nullable Tokenization.Truncate truncate, @Nullable Integer span) {
-        this.truncate = truncate;
-        this.span = span;
+        super(truncate, span);
     }
 
     public BertTokenizationUpdate(StreamInput in) throws IOException {
-        this.truncate = in.readOptionalEnum(Tokenization.Truncate.class);
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
-            this.span = in.readOptionalInt();
-        } else {
-            this.span = null;
-        }
+        super(in);
     }
 
     @Override
@@ -66,13 +53,13 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
             );
         }
 
-        Tokenization.validateSpanAndTruncate(truncate, span);
+        Tokenization.validateSpanAndTruncate(getTruncate(), getSpan());
 
         if (isNoop()) {
             return originalConfig;
         }
 
-        if (truncate != null && truncate.isInCompatibleWithSpan() == false) {
+        if (getTruncate() != null && getTruncate().isInCompatibleWithSpan() == false) {
             // When truncate value is incompatible with span wipe out
             // the existing span setting to avoid an invalid combination of settings.
             // This avoids the user have to set span to the special unset value
@@ -80,7 +67,7 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
                 originalConfig.doLowerCase(),
                 originalConfig.withSpecialTokens(),
                 originalConfig.maxSequenceLength(),
-                truncate,
+                getTruncate(),
                 null
             );
         }
@@ -89,27 +76,9 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
             originalConfig.doLowerCase(),
             originalConfig.withSpecialTokens(),
             originalConfig.maxSequenceLength(),
-            Optional.ofNullable(truncate).orElse(originalConfig.getTruncate()),
-            Optional.ofNullable(span).orElse(originalConfig.getSpan())
+            Optional.ofNullable(getTruncate()).orElse(originalConfig.getTruncate()),
+            Optional.ofNullable(getSpan()).orElse(originalConfig.getSpan())
         );
-    }
-
-    @Override
-    public boolean isNoop() {
-        return truncate == null && span == null;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (truncate != null) {
-            builder.field(Tokenization.TRUNCATE.getPreferredName(), truncate.toString());
-        }
-        if (span != null) {
-            builder.field(Tokenization.SPAN.getPreferredName(), span);
-        }
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -118,36 +87,7 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalEnum(truncate);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
-            out.writeOptionalInt(span);
-        }
-    }
-
-    @Override
     public String getName() {
         return BertTokenization.NAME.getPreferredName();
-    }
-
-    public Integer getSpan() {
-        return span;
-    }
-
-    public Tokenization.Truncate getTruncate() {
-        return truncate;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BertTokenizationUpdate that = (BertTokenizationUpdate) o;
-        return Objects.equals(truncate, that.truncate) && Objects.equals(span, that.span);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(truncate, span);
     }
 }

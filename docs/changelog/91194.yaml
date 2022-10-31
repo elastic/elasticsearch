@@ -1,0 +1,5 @@
+pr: 91194
+summary: Correct handling of `ignore_unavailable` for single item index expressions
+area: Infra/Core
+type: bug
+issues: []

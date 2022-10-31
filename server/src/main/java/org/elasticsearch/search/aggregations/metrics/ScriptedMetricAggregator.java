@@ -55,6 +55,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     private final Map<String, Object> combineScriptParams;
     private final Script reduceScript;
     private ObjectArray<State> states;
+    private final boolean needsScores;
 
     ScriptedMetricAggregator(
         String name,
@@ -62,11 +63,12 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         Map<String, Object> aggParams,
         @Nullable ScriptedMetricAggContexts.InitScript.Factory initScriptFactory,
         Map<String, Object> initScriptParams,
-        ScriptedMetricAggContexts.MapScript.Factory mapScriptFactory,
+        MapScript.Factory mapScriptFactory,
         Map<String, Object> mapScriptParams,
         ScriptedMetricAggContexts.CombineScript.Factory combineScriptFactory,
         Map<String, Object> combineScriptParams,
         Script reduceScript,
+        boolean needsScores,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -81,12 +83,14 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         this.combineScriptFactory = combineScriptFactory;
         this.combineScriptParams = combineScriptParams;
         this.reduceScript = reduceScript;
+        this.needsScores = needsScores;
         states = context.bigArrays().newObjectArray(1);
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return ScoreMode.COMPLETE; // TODO: how can we know if the script relies on scores?
+        // TODO: how can we know if the script relies on scores? Right now, we just rely on the user to tell us
+        return needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override

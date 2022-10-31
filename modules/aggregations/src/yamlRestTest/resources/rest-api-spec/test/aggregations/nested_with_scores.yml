@@ -144,13 +144,13 @@ setup:
                           source: "double sum = 0; for (t in state.transactions) { sum += t } return sum"
                         reduce_script:
                           source: "double sum = 0; for (a in states) { if (a != null) { sum += a } } return sum"
+                        needs_scores: false
 
-  - match: {hits.total: 1}
-  - match: {aggregations.my_buckets.doc_count: 3}
-  - length: { aggregations.my_buckets.buckets: 2 }
-  - match: { aggregations.my_buckets.buckets.0.key: "bar" }
-  - match: { aggregations.courses.names.buckets.0.doc_count: 1}
-  - match: { aggregations.courses.names.buckets.0.catalog_price.value: 2.3}
-  - match: { aggregations.my_buckets.buckets.1.key: "foo" }
-  - match: { aggregations.courses.names.buckets.1.doc_count: 2}
-  - match: { aggregations.courses.names.buckets.1.catalog_price.value: 2.4}
+  - match: {aggregations.data.doc_count: 3}
+  - length: { aggregations.data.my_buckets.buckets: 2 }
+  - match: { aggregations.data.my_buckets.buckets.0.key.prod_name: "bar" }
+  - match: { aggregations.data.my_buckets.buckets.0.doc_count: 1}
+  - match: { aggregations.data.my_buckets.buckets.0.catalog_price.value: 2.0}
+  - match: { aggregations.data.my_buckets.buckets.1.key.prod_name: "foo" }
+  - match: { aggregations.data.my_buckets.buckets.1.doc_count: 2}
+  - match: { aggregations.data.my_buckets.buckets.1.catalog_price.value: 2.0}

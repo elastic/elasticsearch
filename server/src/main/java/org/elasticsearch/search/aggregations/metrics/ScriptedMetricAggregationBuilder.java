@@ -37,6 +37,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     private static final ParseField COMBINE_SCRIPT_FIELD = new ParseField("combine_script");
     private static final ParseField REDUCE_SCRIPT_FIELD = new ParseField("reduce_script");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
+    private static final ParseField NEEDS_SCORES = new ParseField("needs_scores");
 
     public static final ConstructingObjectParser<ScriptedMetricAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -53,6 +54,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         Script.declareScript(PARSER, ScriptedMetricAggregationBuilder::combineScript, COMBINE_SCRIPT_FIELD);
         Script.declareScript(PARSER, ScriptedMetricAggregationBuilder::reduceScript, REDUCE_SCRIPT_FIELD);
         PARSER.declareObject(ScriptedMetricAggregationBuilder::params, (p, name) -> p.map(), PARAMS_FIELD);
+        PARSER.declareBoolean(ScriptedMetricAggregationBuilder::needsScores, NEEDS_SCORES);
     }
 
     private Script initScript;
@@ -60,9 +62,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     private Script combineScript;
     private Script reduceScript;
     private Map<String, Object> params;
+    private boolean needsScores;
 
     public ScriptedMetricAggregationBuilder(String name) {
         super(name);
+        needsScores = true; // Default for BWC
     }
 
     protected ScriptedMetricAggregationBuilder(
@@ -75,6 +79,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         this.mapScript = clone.mapScript;
         this.combineScript = clone.combineScript;
         this.reduceScript = clone.reduceScript;
+        this.needsScores = clone.needsScores;
         this.params = clone.params;
     }
 
@@ -92,6 +97,9 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         mapScript = in.readOptionalWriteable(Script::new);
         combineScript = in.readOptionalWriteable(Script::new);
         reduceScript = in.readOptionalWriteable(Script::new);
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            needsScores = in.readBoolean();
+        }
         if (in.readBoolean()) {
             params = in.readMap();
         }
@@ -103,6 +111,9 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         out.writeOptionalWriteable(mapScript);
         out.writeOptionalWriteable(combineScript);
         out.writeOptionalWriteable(reduceScript);
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeBoolean(needsScores);
+        }
         boolean hasParams = params != null;
         out.writeBoolean(hasParams);
         if (hasParams) {
@@ -207,6 +218,12 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         return params;
     }
 
+    public ScriptedMetricAggregationBuilder needsScores(boolean needsScores) {
+        this.needsScores = needsScores;
+        return this;
+    }
+
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
@@ -258,12 +275,12 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             compiledCombineScript,
             combineScriptParams,
             reduceScript,
+            needsScores,
             params,
             context,
             parent,
             subfactoriesBuilder,
-            metadata
-        );
+            metadata);
     }
 
     @Override

@@ -66,16 +66,31 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
             );
         }
 
+        Tokenization.validateSpanAndTruncate(truncate, span);
+
         if (isNoop()) {
             return originalConfig;
+        }
+
+        if (truncate != null && truncate.isInCompatibleWithSpan() == false) {
+            // When truncate value is incompatible with span wipe out
+            // the existing span setting to avoid an invalid combination of settings.
+            // This avoids the user have to set span to the special unset value
+            return new BertTokenization(
+                originalConfig.doLowerCase(),
+                originalConfig.withSpecialTokens(),
+                originalConfig.maxSequenceLength(),
+                truncate,
+                null
+            );
         }
 
         return new BertTokenization(
             originalConfig.doLowerCase(),
             originalConfig.withSpecialTokens(),
             originalConfig.maxSequenceLength(),
-            Optional.ofNullable(this.truncate).orElse(originalConfig.getTruncate()),
-            Optional.ofNullable(this.span).orElse(originalConfig.getSpan())
+            Optional.ofNullable(truncate).orElse(originalConfig.getTruncate()),
+            Optional.ofNullable(span).orElse(originalConfig.getSpan())
         );
     }
 
@@ -113,6 +128,14 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
     @Override
     public String getName() {
         return BertTokenization.NAME.getPreferredName();
+    }
+
+    public Integer getSpan() {
+        return span;
+    }
+
+    public Tokenization.Truncate getTruncate() {
+        return truncate;
     }
 
     @Override

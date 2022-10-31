@@ -31,12 +31,11 @@ import java.util.function.Function;
  */
 public final class SourceFilter {
 
-    private static final Function<Map<String, Object>, Map<String, Object>> EMPTY_FILTER = v -> v;
-
     private Function<Map<String, Object>, Map<String, Object>> mapFilter = null;
     private Function<Source, Source> bytesFilter = null;
 
     private final boolean canFilterBytes;
+    private final boolean empty;
     private final String[] includes;
     private final String[] excludes;
 
@@ -52,21 +51,18 @@ public final class SourceFilter {
         // in exclude filtering if one of the excludes contains a wildcard '*'.
         // see https://github.com/FasterXML/jackson-core/pull/729
         this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
-        if (CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes)) {
-            this.mapFilter = EMPTY_FILTER;
-            this.bytesFilter = v -> v;
-        }
+        this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }
 
     /**
      * Filter a Source using its map representation
      */
     public Source filterMap(Source in) {
+        if (this.empty) {
+            return in;
+        }
         if (mapFilter == null) {
             mapFilter = XContentMapValues.filter(includes, excludes);
-        }
-        if (mapFilter == EMPTY_FILTER) {
-            return in;
         }
         return Source.fromMap(mapFilter.apply(in.source()), in.sourceContentType());
     }
@@ -75,6 +71,9 @@ public final class SourceFilter {
      * Filter a Source using its bytes representation
      */
     public Source filterBytes(Source in) {
+        if (this.empty) {
+            return in;
+        }
         if (bytesFilter == null) {
             bytesFilter = buildBytesFilter();
         }

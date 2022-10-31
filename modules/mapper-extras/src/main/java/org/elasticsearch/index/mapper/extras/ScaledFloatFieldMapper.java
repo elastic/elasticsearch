@@ -45,7 +45,6 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ScaledFloatDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -288,11 +287,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
+            ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter
+                ? TimeSeriesValuesSourceType.COUNTER
+                : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return (cache, breakerService) -> {
-                    ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter
-                        ? TimeSeriesValuesSourceType.COUNTER
-                        : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
                     final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
                         name(),
                         IndexNumericFieldData.NumericType.LONG,
@@ -309,7 +308,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name(),
-                    CoreValuesSourceType.NUMERIC,
+                    valuesSourceType,
                     sourceValueFetcher(sourcePaths),
                     searchLookup.source(),
                     ScaledFloatDocValuesField::new

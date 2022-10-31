@@ -159,20 +159,28 @@ public class DataStreamTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getHits()[10].getIndex(), equalTo(downsampleTargetIndex));
         final InternalDateHistogram dateHistogram = searchResponse.getAggregations().get("dateHistogram");
         // NOTE: due to unpredictable values for the @timestamp field we don't know how many buckets we have in the
-        // date histogram. We know, anyway, that we will have 10 documents in the first bucket, 10 documents in the last bucket
-        // and a variable number of intermediate buckets with exactly 0 documents. This is a result of the way downsampling deals
-        // with a fixed interval granularity that is larger than the date histogram fixed interval (1 minute (date histogram fixed_interval)
+        // date histogram. We know, anyway, that we will have 10 documents in the first two buckets, 10 documents in the last two buckets.
+        // The actual number of documents on each of the first two and last two buckets depends on the timestamp value generated when
+        // indexing
+        // documents, which might cross the minute boundary of the fixed_interval date histogram aggregation.
+        // Then we check there is a variable number of intermediate buckets with exactly 0 documents. This is a result of the way
+        // downsampling
+        // deals with a fixed interval granularity that is larger than the date histogram fixed interval (1 minute (date histogram
+        // fixed_interval)
         // < 1 hour (downsample fixed_interval)).
         final int totalBuckets = dateHistogram.getBuckets().size();
-        assertThat(dateHistogram.getBuckets().get(0).getDocCount(), equalTo(10L));
+        assertThat(dateHistogram.getBuckets().get(0).getDocCount() + dateHistogram.getBuckets().get(1).getDocCount(), equalTo(10L));
         dateHistogram.getBuckets()
             .stream()
-            .skip(1)
-            .limit(totalBuckets - 2)
+            .skip(2)
+            .limit(totalBuckets - 3)
             .map(InternalDateHistogram.Bucket::getDocCount)
             .toList()
             .forEach(docCount -> assertThat(docCount, equalTo(0L)));
-        assertThat(dateHistogram.getBuckets().get(totalBuckets - 1).getDocCount(), equalTo(10L));
+        assertThat(
+            dateHistogram.getBuckets().get(totalBuckets - 2).getDocCount() + dateHistogram.getBuckets().get(totalBuckets - 1).getDocCount(),
+            equalTo(10L)
+        );
     }
 
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {

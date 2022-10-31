@@ -361,7 +361,13 @@ public final class SamlRealm extends Realm implements Releasable {
             if (added.isEmpty() && removed.isEmpty()) {
                 logger.debug("Signing credentials did not change, current: [{}]", newCredentials.size());
             } else {
-                logger.info("Signing credentials changed, added: [{}], removed: [{}]", added.size(), removed.size());
+                logger.info(
+                    "Signing credentials changed, new: [{}], previous: [{}], added: [{}], removed: [{}]",
+                    newCredentials.size(),
+                    previousPublicKeys.size(),
+                    added.size(),
+                    removed.size()
+                );
             }
         }
     }

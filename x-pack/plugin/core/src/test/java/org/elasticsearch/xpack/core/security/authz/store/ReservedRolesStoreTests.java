@@ -218,6 +218,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
@@ -278,7 +279,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role snapshotUserRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        Role snapshotUserRole = Role.buildFromRoleDescriptor(roleDescriptor, fieldPermissionsCache, RESTRICTED_INDICES);
         assertThat(snapshotUserRole.cluster().check(GetRepositoriesAction.NAME, request, authentication), is(true));
         assertThat(snapshotUserRole.cluster().check(CreateSnapshotAction.NAME, request, authentication), is(true));
         assertThat(snapshotUserRole.cluster().check(SnapshotsStatusAction.NAME, request, authentication), is(true));
@@ -352,7 +354,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role ingestAdminRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role ingestAdminRole = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
         assertThat(ingestAdminRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(DeleteIndexTemplateAction.NAME, request, authentication), is(true));
@@ -394,7 +396,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role kibanaRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role kibanaRole = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
         assertThat(kibanaRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -1141,7 +1143,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
 
-        Role kibanaAdminRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        Role kibanaAdminRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "all", Set.of(allowedApplicationActionPattern), Map.of()))
+        );
         assertThat(kibanaAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(kibanaAdminRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(kibanaAdminRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -1165,7 +1173,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         final String application = "kibana-.kibana";
         assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
-        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(true));
+        assertThat(
+            kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-all", allowedApplicationActionPattern), "*"),
+            is(true)
+        );
 
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
@@ -1185,7 +1196,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
-        Role kibanaUserRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        Role kibanaUserRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "all", Set.of(allowedApplicationActionPattern), Map.of()))
+        );
         assertThat(kibanaUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(kibanaUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(kibanaUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -1205,15 +1222,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"), is(false));
+        assertThat(
+            kibanaUserRole.application()
+                .grants(new ApplicationPrivilege(randomApplication, "app-random", allowedApplicationActionPattern), "*"),
+            is(false)
+        );
 
         final String application = "kibana-.kibana";
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
-        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(true));
+        assertThat(
+            kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-all", allowedApplicationActionPattern), "*"),
+            is(true)
+        );
 
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
-            kibanaUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
+            kibanaUserRole.application()
+                .grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", allowedApplicationActionPattern), "*"),
             is(false)
         );
 
@@ -1229,7 +1254,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role monitoringUserRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        Role monitoringUserRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_monitoring",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
+            )
+        );
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(RemoteInfoAction.NAME, request, authentication), is(true));
@@ -1290,14 +1329,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(monitoringUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(monitoringUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(
             monitoringUserRole.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
             is(false)
         );
         assertThat(
             monitoringUserRole.application()
-                .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_monitoring", "reserved_monitoring"), "*"),
+                .grants(
+                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_monitoring", allowedApplicationActionPattern),
+                    "*"
+                ),
             is(true)
         );
 
@@ -1305,7 +1346,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(
             monitoringUserRole.application()
-                .grants(new ApplicationPrivilege(otherApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"),
+                .grants(new ApplicationPrivilege(otherApplication, "app-reserved_monitoring", allowedApplicationActionPattern), "*"),
             is(false)
         );
     }
@@ -1318,7 +1359,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role remoteMonitoringAgentRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role remoteMonitoringAgentRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -1493,7 +1538,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role remoteMonitoringCollectorRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role remoteMonitoringCollectorRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
         assertThat(remoteMonitoringCollectorRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringCollectorRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringCollectorRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -1759,7 +1808,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
-        Role reportingUserRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role reportingUserRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
         assertThat(reportingUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(reportingUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(reportingUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -1810,7 +1863,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role superuserRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role superuserRole = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
         assertThat(superuserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(superuserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(true));
         assertThat(superuserRole.cluster().check(PutUserAction.NAME, request, authentication), is(true));
@@ -1937,7 +1990,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role logstashSystemRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role logstashSystemRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
         assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -1971,7 +2028,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        final Role beatsAdminRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final Role beatsAdminRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
         assertThat(beatsAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -2018,7 +2079,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role beatsSystemRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role beatsSystemRole = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
         assertThat(beatsSystemRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(beatsSystemRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(beatsSystemRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -2060,7 +2121,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role APMSystemRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role APMSystemRole = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
         assertThat(APMSystemRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(APMSystemRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(APMSystemRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -2113,7 +2174,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        Role role = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_ml_apm_user",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
+            )
+        );
 
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
@@ -2138,12 +2213,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertOnlyReadAllowed(role, "observability-annotations");
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(
             role.application()
                 .grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml_apm_user", "reserved_ml_apm_user"),
+                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml_apm_user", allowedApplicationActionPattern),
                     "*"
                 ),
             is(true)
@@ -2152,7 +2226,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml_apm_user", "reserved_ml_apm_user"), "*"),
+            role.application()
+                .grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml_apm_user", allowedApplicationActionPattern), "*"),
             is(false)
         );
     }
@@ -2165,7 +2240,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        Role role = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_ml_admin",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
+            )
+        );
         assertRoleHasManageMl(role);
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
@@ -2182,18 +2271,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(
             role.application()
-                .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_admin"), "*"),
+                .grants(
+                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                    "*"
+                ),
             is(true)
         );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_admin"), "*"),
+            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
             is(false)
         );
     }
@@ -2275,7 +2366,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        Role role = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplicationWithRandomIndex,
+                    "reserved_ml_user",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
+            )
+        );
         assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request, authentication), is(false));
@@ -2345,18 +2450,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(
             role.application()
-                .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"),
+                .grants(
+                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                    "*"
+                ),
             is(true)
         );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"),
+            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
             is(false)
         );
     }
@@ -2378,7 +2485,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
             }
 
-            Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+            final String allowedApplicationActionPattern = "example/custom/action/*";
+            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+            List<ApplicationPrivilegeDescriptor> lookup = roleDescriptor.getName().equals("data_frame_transforms_admin")
+                ? List.of(
+                    new ApplicationPrivilegeDescriptor(
+                        kibanaApplicationWithRandomIndex,
+                        "reserved_ml_user",
+                        Set.of(allowedApplicationActionPattern),
+                        Map.of()
+                    )
+                )
+                : List.of();
+            Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
             assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
@@ -2399,7 +2518,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             assertThat(
                 role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
                 is(false)
@@ -2408,7 +2526,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
                 assertThat(
                     role.application()
-                        .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"),
+                        .grants(
+                            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                            "*"
+                        ),
                     is(true)
                 );
             }
@@ -2417,7 +2538,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
             if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
                 assertThat(
-                    role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"),
+                    role.application()
+                        .grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
                     is(false)
                 );
             }
@@ -2441,7 +2563,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
             }
 
-            Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+            final String allowedApplicationActionPattern = "example/custom/action/*";
+            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+            List<ApplicationPrivilegeDescriptor> lookup = roleDescriptor.getName().equals("data_frame_transforms_user")
+                ? List.of(
+                    new ApplicationPrivilegeDescriptor(
+                        kibanaApplicationWithRandomIndex,
+                        "reserved_ml_user",
+                        Set.of(allowedApplicationActionPattern),
+                        Map.of()
+                    )
+                )
+                : List.of();
+            Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES, lookup);
             assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
@@ -2467,7 +2601,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-            final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
             assertThat(
                 role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
                 is(false)
@@ -2476,7 +2609,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
                 assertThat(
                     role.application()
-                        .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"),
+                        .grants(
+                            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                            "*"
+                        ),
                     is(true)
                 );
             }
@@ -2485,7 +2621,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
             if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
                 assertThat(
-                    role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"),
+                    role.application()
+                        .grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
                     is(false)
                 );
             }
@@ -2500,7 +2637,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
         assertThat(role.cluster().check(PutWatchAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetWatchAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DeleteWatchAction.NAME, request, authentication), is(true));
@@ -2531,7 +2668,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
         assertThat(role.cluster().check(PutWatchAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(GetWatchAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DeleteWatchAction.NAME, request, authentication), is(false));
@@ -2566,7 +2703,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        Role role = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "read", Set.of(allowedApplicationActionPattern), Map.of()))
+        );
         // No cluster privileges
         assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
@@ -2610,7 +2753,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
         // Check application privileges
-        assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-read", "read"), "*"), is(true));
+        assertThat(
+            role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-read", allowedApplicationActionPattern), "*"),
+            is(true)
+        );
         assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", "all"), "*"), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
@@ -2624,7 +2770,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        Role role = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "all", Set.of(allowedApplicationActionPattern), Map.of()))
+        );
 
         // No cluster privileges
         assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
@@ -2674,7 +2826,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
 
         // Check application privileges
-        assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", "all"), "*"), is(true));
+        assertThat(
+            role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", allowedApplicationActionPattern), "*"),
+            is(true)
+        );
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
     }
@@ -2778,7 +2933,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role logstashAdminRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES).build();
+        Role logstashAdminRole = Role.buildFromRoleDescriptor(
+            roleDescriptor,
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
         assertThat(logstashAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(logstashAdminRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
         assertThat(logstashAdminRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));

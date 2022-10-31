@@ -111,7 +111,7 @@ public class ReaderContext implements Releasable {
     }
 
     private void tryUpdateKeepAlive(long keepAlive) {
-        this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
+        this.keepAlive.accumulateAndGet(keepAlive, Math::max);
     }
 
     /**

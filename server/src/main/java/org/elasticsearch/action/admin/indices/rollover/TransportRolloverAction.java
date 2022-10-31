@@ -228,8 +228,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             return new Condition.Stats(
                 docsStats == null ? 0 : docsStats.getCount(),
                 metadata.getCreationDate(),
-                new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
-                new ByteSizeValue(maxPrimaryShardSize),
+                ByteSizeValue.ofBytes(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
+                ByteSizeValue.ofBytes(maxPrimaryShardSize),
                 maxPrimaryShardDocs
             );
         }

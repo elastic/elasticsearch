@@ -1,0 +1,28 @@
+apply plugin: 'elasticsearch.stable-esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
+
+esplugin {
+  name 'stable-analysis-plugin'
+  description 'An example analysis plugin using stable plugin api'
+}
+//TODO write module-info
+
+dependencies {
+
+  //TODO transitive dependency off and plugin-api dependency?
+  compileOnly "org.elasticsearch:elasticsearch-plugin-api:${elasticsearchVersion}"
+  compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+  //TODO for testing this also have to be declared
+  testImplementation "org.elasticsearch:elasticsearch-plugin-api:${elasticsearchVersion}"
+  testImplementation "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  testImplementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+  testImplementation ('junit:junit:4.13.2'){
+    exclude group: 'org.hamcrest'
+  }
+  testImplementation 'org.hamcrest:hamcrest:2.2'
+
+}
+

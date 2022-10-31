@@ -78,10 +78,10 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
             followParameters.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            followParameters.setMaxWriteRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            followParameters.setMaxWriteBufferSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             followParameters.setMaxRetryDelay(TimeValue.timeValueMillis(500));

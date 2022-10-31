@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -81,7 +82,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
             processor.setNextReader(context);
             for (int doc = 0; doc < context.reader().maxDoc(); doc++) {
                 SearchHit searchHit = new SearchHit(doc + context.docBase);
-                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc));
+                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Source.empty(null)));
                 assertNotNull(searchHit.getFields().get("field"));
             }
         }

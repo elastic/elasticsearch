@@ -229,7 +229,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             );
         }
 
-        ByteSizeValue freeBytesValue = new ByteSizeValue(freeBytes);
+        ByteSizeValue freeBytesValue = ByteSizeValue.ofBytes(freeBytes);
         if (logger.isTraceEnabled()) {
             logger.trace("node [{}] has {}% used disk", node.nodeId(), usedDiskPercentage);
         }
@@ -319,7 +319,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 diskThresholdSettings.getFreeBytesThresholdHighStage(total),
                 freeBytesValue,
                 Strings.format1Decimals(usedDiskPercentage, "%"),
-                new ByteSizeValue(shardSize)
+                ByteSizeValue.ofBytes(shardSize)
             );
             return allocation.decision(
                 Decision.NO,
@@ -331,7 +331,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 diskThresholdSettings.getFreeBytesThresholdHighStage(total),
                 freeBytesValue,
                 Strings.format1Decimals(usedDiskPercentage, "%"),
-                new ByteSizeValue(shardSize)
+                ByteSizeValue.ofBytes(shardSize)
             );
         }
 
@@ -342,8 +342,8 @@ public class DiskThresholdDecider extends AllocationDecider {
             "enough disk for shard on node, free: [%s], used: [%s], shard size: [%s], free after allocating shard: [%s]",
             freeBytesValue,
             Strings.format1Decimals(usedDiskPercentage, "%"),
-            new ByteSizeValue(shardSize),
-            new ByteSizeValue(freeBytesAfterShard)
+            ByteSizeValue.ofBytes(shardSize),
+            ByteSizeValue.ofBytes(freeBytesAfterShard)
         );
     }
 
@@ -466,7 +466,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     + "and there is less than the required [%s] free space on node, actual free: [%s], actual used: [%s]",
                 diskThresholdSettings.describeHighThreshold(total, true),
                 diskThresholdSettings.getFreeBytesThresholdHighStage(total),
-                new ByteSizeValue(freeBytes),
+                ByteSizeValue.ofBytes(freeBytes),
                 Strings.format1Decimals(usedDiskPercentage, "%")
             );
         }
@@ -475,7 +475,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             Decision.YES,
             NAME,
             "there is enough disk on this node for the shard to remain, free: [%s]",
-            new ByteSizeValue(freeBytes)
+            ByteSizeValue.ofBytes(freeBytes)
         );
     }
 

@@ -62,7 +62,7 @@ public class HttpSettings {
     static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting(
         "xpack.http.max_response_size",
         new ByteSizeValue(10, ByteSizeUnit.MB),   // default
-        new ByteSizeValue(1, ByteSizeUnit.BYTES), // min
+        ByteSizeValue.ONE, // min
         new ByteSizeValue(50, ByteSizeUnit.MB),   // max
         Property.NodeScope
     );

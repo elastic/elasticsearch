@@ -148,11 +148,16 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination
+The _destination index_ for the {transform}.
+
+In the case of a `pivot` transform, the mappings of the destination
 index are deduced based on the source fields when possible. If alternate
-mappings are required, use the
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
+mappings are required, use the <<indices-create-index,Create index API>>
 prior to starting the {transform}.
+
+In the case of a `latest` transform, the mappings are never deduced. If dynamic
+mappings for the destination index are undesirable, use the
+<<indices-create-index,Create index API>> prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]

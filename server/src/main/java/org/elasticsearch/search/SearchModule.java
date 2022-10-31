@@ -192,11 +192,9 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -204,7 +202,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
@@ -696,13 +693,6 @@ public class SearchModule {
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {
         registerPipelineAggregation(
             new PipelineAggregationSpec(
-                DerivativePipelineAggregationBuilder.NAME,
-                DerivativePipelineAggregationBuilder::new,
-                DerivativePipelineAggregationBuilder::parse
-            ).addResultReader(InternalDerivative::new)
-        );
-        registerPipelineAggregation(
-            new PipelineAggregationSpec(
                 MaxBucketPipelineAggregationBuilder.NAME,
                 MaxBucketPipelineAggregationBuilder::new,
                 MaxBucketPipelineAggregationBuilder.PARSER
@@ -789,13 +779,6 @@ public class SearchModule {
                 SerialDiffPipelineAggregationBuilder.NAME,
                 SerialDiffPipelineAggregationBuilder::new,
                 SerialDiffPipelineAggregationBuilder::parse
-            )
-        );
-        registerPipelineAggregation(
-            new PipelineAggregationSpec(
-                MovFnPipelineAggregationBuilder.NAME,
-                MovFnPipelineAggregationBuilder::new,
-                MovFnPipelineAggregationBuilder.PARSER
             )
         );
         if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {

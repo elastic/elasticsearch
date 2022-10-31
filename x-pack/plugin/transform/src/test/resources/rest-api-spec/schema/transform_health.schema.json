@@ -1,0 +1,56 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/elastic/elasticsearch/master/x-pack/plugin/core/src/test/resources/rest-api-spec/schema/transform_health.schema.json",
+  "description": "schema definition for transform health",
+  "additionalProperties": false,
+  "title": "Root",
+  "type": "object",
+  "required": [
+    "status"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "green",
+        "yellow",
+        "red",
+        "unknown"
+        ],
+      "description": "The transform health status"
+    },
+    "issues": {
+      "type": "array",
+      "description":  "reason for the health status",
+      "items": [
+        {
+          "type": "object",
+          "description": "describes a single issue",
+          "additionalProperties": false,
+          "required": [
+            "issue"
+          ],
+          "properties": {
+            "issue": {
+              "type": "string",
+              "description": "single issue description"
+            },
+            "details": {
+              "type": "string",
+              "description": "single issue details"
+            },
+            "first_occurrence": {
+              "type": "integer",
+              "description": "time the issue appeared for the first time"
+            },
+            "count": {
+              "type": "integer",
+              "description": "number of times the issue appeared"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -63,7 +63,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     private final Client client;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public TransportPutFollowAction(
@@ -92,7 +91,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         this.client = client;
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
     @Override
@@ -305,12 +303,12 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
             ActionListener.wrap(
-                r -> activeShardsObserver.waitForActiveShards(
+                r -> ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
                     request.timeout(),
-                    result -> listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),
-                    listener::onFailure
+                    listener.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
                 ),
                 listener::onFailure
             )

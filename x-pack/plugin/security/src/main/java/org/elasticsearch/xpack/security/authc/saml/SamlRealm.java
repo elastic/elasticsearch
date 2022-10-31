@@ -141,8 +141,6 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 public final class SamlRealm extends Realm implements Releasable {
     private static final Logger logger = LogManager.getLogger(SamlRealm.class);
 
-    private static final AtomicReference<Set<PublicKey>> PREVIOUS_CREDENTIALS_REF = new AtomicReference<>(null);
-
     public static final String USER_METADATA_NAMEID_VALUE = "saml_" + SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
     public static final String USER_METADATA_NAMEID_FORMAT = USER_METADATA_NAMEID_VALUE + "_format";
 
@@ -179,6 +177,8 @@ public final class SamlRealm extends Realm implements Releasable {
     private final AttributeParser mailAttribute;
 
     private DelegatedAuthorizationSupport delegatedRealms;
+
+    private final AtomicReference<Set<PublicKey>> previousCredentialsRef = new AtomicReference<>(null);
 
     /**
      * Factory for SAML realm.
@@ -343,7 +343,7 @@ public final class SamlRealm extends Realm implements Releasable {
         });
     }
 
-    private static void logDiff(final List<Credential> newCredentials) {
+    private void logDiff(final List<Credential> newCredentials) {
         if (newCredentials == null) {
             logger.warn("Signing credentials missing, null");
             return;
@@ -352,7 +352,7 @@ public final class SamlRealm extends Realm implements Releasable {
             return;
         }
         final Set<PublicKey> newPublicKeys = newCredentials.stream().map(Credential::getPublicKey).collect(Collectors.toSet());
-        final Set<PublicKey> previousPublicKeys = PREVIOUS_CREDENTIALS_REF.getAndSet(newPublicKeys);
+        final Set<PublicKey> previousPublicKeys = previousCredentialsRef.getAndSet(newPublicKeys);
         if (previousPublicKeys == null) {
             logger.trace("Signing credentials initialized, added: [{}]", newCredentials.size());
         } else {

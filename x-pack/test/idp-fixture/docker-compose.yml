@@ -157,6 +157,7 @@ services:
       - 4443
     links:
       - openldap:openldap
+    restart: always #ensure ephemeral port mappings are properly updated
 
   oidc-provider:
     image: "c2id/c2id-server-demo:12.16.1"

@@ -12,10 +12,11 @@ dependencies {
 testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-def copyIdpFiles = tasks.register("copyIdpFiles", Copy) {
+def copyIdpFiles = tasks.register("copyIdpFiles", Sync) {
   from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
     'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
   into outputDir
+  outputs.upToDateWhen { false } //ensure this copy is always done to prevent stale configuration
 }
 
 def setupPorts = tasks.register("setupPorts") {

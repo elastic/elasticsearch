@@ -43,7 +43,7 @@ public interface Scheduler {
      */
     static ScheduledThreadPoolExecutor initScheduler(Settings settings, String schedulerName) {
         final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(
-            1,
+            30,
             EsExecutors.daemonThreadFactory(settings, schedulerName),
             new EsAbortPolicy()
         );

@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -39,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -65,7 +68,7 @@ public class BulkRequest extends ActionRequest
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
      * the one with the least casts.
      */
-    final List<DocWriteRequest<?>> requests = new ArrayList<>();
+    final List<Tuple<DocWriteRequest<?>, ActionListener<BulkItemResponse>>> requests = new ArrayList<>();
     private final Set<String> indices = new HashSet<>();
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -83,7 +86,8 @@ public class BulkRequest extends ActionRequest
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
+        if(true) throw new RuntimeException("null here");
+        requests.addAll(in.readList(i ->(Tuple.tuple(DocWriteRequest.readDocumentRequest(null, i), null))));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
     }
@@ -92,12 +96,19 @@ public class BulkRequest extends ActionRequest
         this.globalIndex = globalIndex;
     }
 
+    public BulkRequest add(DocWriteRequest<?>... requests) {
+        for (DocWriteRequest<?> request : requests) {
+            add(null, request);
+        }
+        return this;
+    }
+
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(DocWriteRequest<?>... requests) {
+    public BulkRequest add(ActionListener<BulkItemResponse> listener, DocWriteRequest<?>... requests) {
         for (DocWriteRequest<?> request : requests) {
-            add(request);
+            add(listener, request);
         }
         return this;
     }
@@ -112,13 +123,13 @@ public class BulkRequest extends ActionRequest
      * @param request Request to add
      * @return the current bulk request
      */
-    public BulkRequest add(DocWriteRequest<?> request) {
+    public BulkRequest add(ActionListener<BulkItemResponse> listener, DocWriteRequest<?> request) {
         if (request instanceof IndexRequest indexRequest) {
-            add(indexRequest);
+            add(listener, indexRequest);
         } else if (request instanceof DeleteRequest deleteRequest) {
-            add(deleteRequest);
+            add(listener, deleteRequest);
         } else if (request instanceof UpdateRequest updateRequest) {
-            add(updateRequest);
+            add(listener, updateRequest);
         } else {
             throw new IllegalArgumentException("No support for request [" + request + "]");
         }
@@ -129,9 +140,9 @@ public class BulkRequest extends ActionRequest
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(Iterable<DocWriteRequest<?>> requests) {
+    public BulkRequest add(ActionListener<BulkItemResponse> listener, Iterable<DocWriteRequest<?>> requests) {
         for (DocWriteRequest<?> request : requests) {
-            add(request);
+            add(listener, request);
         }
         return this;
     }
@@ -140,15 +151,16 @@ public class BulkRequest extends ActionRequest
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
-    public BulkRequest add(IndexRequest request) {
-        return internalAdd(request);
+    public BulkRequest add(ActionListener<BulkItemResponse> listener, IndexRequest request) {
+        return internalAdd(listener, request);
     }
 
-    BulkRequest internalAdd(IndexRequest request) {
+    BulkRequest internalAdd(ActionListener<BulkItemResponse> listener, IndexRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
+        Objects.requireNonNull(listener, "'listener' must not be null");
         applyGlobalMandatoryParameters(request);
 
-        requests.add(request);
+        requests.add(Tuple.tuple(request, listener));
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
         indices.add(request.index());
@@ -158,15 +170,16 @@ public class BulkRequest extends ActionRequest
     /**
      * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
-    public BulkRequest add(UpdateRequest request) {
-        return internalAdd(request);
+    public BulkRequest add(ActionListener<BulkItemResponse> listener, UpdateRequest request) {
+        return internalAdd(listener, request);
     }
 
-    BulkRequest internalAdd(UpdateRequest request) {
+    BulkRequest internalAdd(ActionListener<BulkItemResponse> listener, UpdateRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
+        Objects.requireNonNull(listener, "'listener' must not be null");
         applyGlobalMandatoryParameters(request);
 
-        requests.add(request);
+        requests.add(Tuple.tuple(request, listener));
         if (request.doc() != null) {
             sizeInBytes += request.doc().source().length();
         }
@@ -183,11 +196,12 @@ public class BulkRequest extends ActionRequest
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
-    public BulkRequest add(DeleteRequest request) {
+    public BulkRequest add(ActionListener<BulkItemResponse> listener, DeleteRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
+        Objects.requireNonNull(listener, "'listener' must not be null");
         applyGlobalMandatoryParameters(request);
 
-        requests.add(request);
+        requests.add(Tuple.tuple(request, listener));
         sizeInBytes += REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
@@ -197,7 +211,7 @@ public class BulkRequest extends ActionRequest
      * The list of requests in this bulk request.
      */
     public List<DocWriteRequest<?>> requests() {
-        return this.requests;
+        return this.requests.stream().map(Tuple::v1).collect(Collectors.toList());
     }
 
     /**
@@ -218,6 +232,7 @@ public class BulkRequest extends ActionRequest
      * Adds a framed data in binary format
      */
     public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
+        if(true) throw new RuntimeException("null here");
         return add(data, from, length, null, xContentType);
     }
 
@@ -232,6 +247,7 @@ public class BulkRequest extends ActionRequest
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, XContentType xContentType) throws IOException {
+        if(true) throw new RuntimeException("null here");
         return add(data, defaultIndex, null, null, null, null, true, xContentType, RestApiVersion.current());
     }
 
@@ -240,6 +256,7 @@ public class BulkRequest extends ActionRequest
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex, XContentType xContentType)
         throws IOException {
+        if(true) throw new RuntimeException("null here");
         return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
 
     }
@@ -258,19 +275,20 @@ public class BulkRequest extends ActionRequest
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
-        new BulkRequestParser(true, restApiVersion).parse(
-            data,
-            defaultIndex,
-            routing,
-            defaultFetchSourceContext,
-            pipeline,
-            requireAlias,
-            allowExplicitIndex,
-            xContentType,
-            (indexRequest, type) -> internalAdd(indexRequest),
-            this::internalAdd,
-            this::add
-        );
+        if(true) throw new RuntimeException("Intentional fail");
+//        new BulkRequestParser(true, restApiVersion).parse(
+//            data,
+//            defaultIndex,
+//            routing,
+//            defaultFetchSourceContext,
+//            pipeline,
+//            requireAlias,
+//            allowExplicitIndex,
+//            xContentType,
+//            (indexRequest, type, listener) -> internalAdd(listener, indexRequest),
+//            this::internalAdd,
+//            this::add
+//        );
         return this;
     }
 
@@ -318,12 +336,6 @@ public class BulkRequest extends ActionRequest
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
-     *
-     * - {@link BulkRequest#add(IndexRequest)}
-     * - {@link BulkRequest#add(UpdateRequest)}
-     * - {@link BulkRequest#add(DocWriteRequest)}
-     * - {@link BulkRequest#add(DocWriteRequest[])} )}
-     * - {@link BulkRequest#add(Iterable)}
      * @param globalPipeline the global default setting
      * @return Bulk request with global setting set
      */
@@ -336,11 +348,6 @@ public class BulkRequest extends ActionRequest
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
      *
-      - {@link BulkRequest#add(IndexRequest)}
-      - {@link BulkRequest#add(UpdateRequest)}
-      - {@link BulkRequest#add(DocWriteRequest)}
-      - {@link BulkRequest#add(DocWriteRequest[])} )}
-      - {@link BulkRequest#add(Iterable)}
      * @param globalRouting the global default setting
      * @return Bulk request with global setting set
      */
@@ -376,11 +383,6 @@ public class BulkRequest extends ActionRequest
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
      *
-     * - {@link BulkRequest#add(IndexRequest)}
-     * - {@link BulkRequest#add(UpdateRequest)}
-     * - {@link BulkRequest#add(DocWriteRequest)}
-     * - {@link BulkRequest#add(DocWriteRequest[])} )}
-     * - {@link BulkRequest#add(Iterable)}
      * @param globalRequireAlias the global default setting
      * @return Bulk request with global setting set
      */
@@ -395,15 +397,15 @@ public class BulkRequest extends ActionRequest
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
         }
-        for (DocWriteRequest<?> request : requests) {
+        for (Tuple<DocWriteRequest<?>, ActionListener<BulkItemResponse>> request : requests) {
             // We first check if refresh has been set
-            if (((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
+            if (((WriteRequest<?>) request.v1()).getRefreshPolicy() != RefreshPolicy.NONE) {
                 validationException = addValidationError(
                     "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                     validationException
                 );
             }
-            ActionRequestValidationException ex = ((WriteRequest<?>) request).validate();
+            ActionRequestValidationException ex = ((WriteRequest<?>) request.v1()).validate();
             if (ex != null) {
                 if (validationException == null) {
                     validationException = new ActionRequestValidationException();
@@ -419,7 +421,8 @@ public class BulkRequest extends ActionRequest
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
-        out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
+        out.writeCollection(requests(), DocWriteRequest::writeDocumentRequest);
+        //TODO
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
     }
@@ -449,7 +452,7 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        return SHALLOW_SIZE + requests().stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 
     public Set<String> getIndices() {

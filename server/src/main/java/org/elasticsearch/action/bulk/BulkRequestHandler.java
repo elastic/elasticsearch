@@ -38,7 +38,7 @@ public final class BulkRequestHandler {
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
-        this.retry = new Retry(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), concurrentRequests);
+        this.retry = new Retry(backoffPolicy, scheduler, 100 * Math.max(1, concurrentRequests), concurrentRequests);
         retry.init();
     }
 

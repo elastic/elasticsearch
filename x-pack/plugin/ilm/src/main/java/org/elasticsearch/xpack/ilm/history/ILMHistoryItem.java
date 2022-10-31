@@ -38,6 +38,7 @@ public class ILMHistoryItem implements ToXContentObject {
     private static final ParseField EXECUTION_STATE = new ParseField("state");
     private static final ParseField ERROR = new ParseField("error_details");
 
+    private final String id;
     private final String index;
     private final String policyId;
     private final long timestamp;
@@ -50,6 +51,7 @@ public class ILMHistoryItem implements ToXContentObject {
     private final String errorDetails;
 
     private ILMHistoryItem(
+        String id,
         String index,
         String policyId,
         long timestamp,
@@ -58,6 +60,7 @@ public class ILMHistoryItem implements ToXContentObject {
         @Nullable LifecycleExecutionState executionState,
         @Nullable String errorDetails
     ) {
+        this.id = id;
         this.index = index;
         this.policyId = policyId;
         this.timestamp = timestamp;
@@ -74,7 +77,18 @@ public class ILMHistoryItem implements ToXContentObject {
         @Nullable Long indexAge,
         @Nullable LifecycleExecutionState executionState
     ) {
-        return new ILMHistoryItem(index, policyId, timestamp, indexAge, true, executionState, null);
+        return new ILMHistoryItem("", index, policyId, timestamp, indexAge, true, executionState, null);
+    }
+
+    public static ILMHistoryItem success(
+        String id,
+        String index,
+        String policyId,
+        long timestamp,
+        @Nullable Long indexAge,
+        @Nullable LifecycleExecutionState executionState
+    ) {
+        return new ILMHistoryItem(id, index, policyId, timestamp, indexAge, true, executionState, null);
     }
 
     public static ILMHistoryItem failure(
@@ -86,7 +100,11 @@ public class ILMHistoryItem implements ToXContentObject {
         Exception error
     ) {
         Objects.requireNonNull(error, "ILM failures require an attached exception");
-        return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, exceptionToString(error));
+        return new ILMHistoryItem("", index, policyId, timestamp, indexAge, false, executionState, exceptionToString(error));
+    }
+
+    public String getId() {
+        return id;
     }
 
     @Override

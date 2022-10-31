@@ -379,22 +379,22 @@ public class BulkProcessor implements Closeable {
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
-    public BulkProcessor add(IndexRequest request) {
-        return add((DocWriteRequest<?>) request);
+    public BulkProcessor add(IndexRequest request, ActionListener<BulkItemResponse> listener) {
+        return add((DocWriteRequest<?>) request, listener);
     }
 
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkProcessor add(DeleteRequest request) {
-        return add((DocWriteRequest<?>) request);
+        return add((DocWriteRequest<?>) request, null);
     }
 
     /**
      * Adds either a delete or an index request.
      */
-    public BulkProcessor add(DocWriteRequest<?> request) {
-        internalAdd(request);
+    public BulkProcessor add(DocWriteRequest<?> request, ActionListener<BulkItemResponse> listener) {
+        internalAdd(request, listener);
         return this;
     }
 
@@ -408,14 +408,14 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    private void internalAdd(DocWriteRequest<?> request) {
+    private void internalAdd(DocWriteRequest<?> request, ActionListener<BulkItemResponse> listener) {
         // bulkRequest and instance swapping is not threadsafe, so execute the mutations under a lock.
         // once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(request);
+            bulkRequest.add(listener, request);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
             lock.unlock();

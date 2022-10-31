@@ -174,7 +174,7 @@ public class BulkProcessorTests extends ESTestCase {
         final int simulateWorkTimeInMillis = 5;
         int concurrentClients = 0;
         int concurrentBulkRequests = 0;
-        int expectedExecutions = 0;
+        AtomicInteger expectedExecutions = new AtomicInteger(0);
         int maxBatchSize = 0;
         int maxDocuments = 0;
         int iterations = 0;
@@ -189,8 +189,8 @@ public class BulkProcessorTests extends ESTestCase {
             maxDocuments = randomIntBetween(maxBatchSize, 1_000_000);
             concurrentClients = randomIntBetween(1, 20);
             concurrentBulkRequests = randomIntBetween(0, 20);
-            expectedExecutions = maxDocuments / maxBatchSize;
-            estimatedTimeForTest = (expectedExecutions * simulateWorkTimeInMillis) / Math.min(
+            expectedExecutions.set(maxDocuments / maxBatchSize);
+            estimatedTimeForTest = (expectedExecutions.get() * simulateWorkTimeInMillis) / Math.min(
                 concurrentBulkRequests + 1,
                 concurrentClients
             );
@@ -210,12 +210,15 @@ public class BulkProcessorTests extends ESTestCase {
                 listener.onResponse(bulkResponse);
             } catch (InterruptedException e) {
                 // should never happen
+                if (true) throw new RuntimeException("aaaah");
                 Thread.currentThread().interrupt();
                 failureCount.getAndIncrement();
                 exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
             }
         };
+        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(concurrentClients * concurrentBulkRequests);
         try (
+
             BulkProcessor bulkProcessor = new BulkProcessor(
                 consumer,
                 BackoffPolicy.noBackoff(),
@@ -224,8 +227,20 @@ public class BulkProcessorTests extends ESTestCase {
                 maxBatchSize,
                 new ByteSizeValue(Integer.MAX_VALUE),
                 null,
-                (command, delay, executor) -> null,
-                () -> called.set(true),
+                (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
+                    flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
+                ),
+                () -> {
+                    flushExecutor.shutdown();
+                    try {
+                        flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
+                        if (flushExecutor.isTerminated() == false) {
+                            flushExecutor.shutdownNow();
+                        }
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                },
                 BulkRequest::new
             )
         ) {
@@ -272,8 +287,30 @@ public class BulkProcessorTests extends ESTestCase {
             }
             executorService.shutdown();
             executorService.awaitTermination(10, TimeUnit.SECONDS);
+            flushExecutor.awaitTermination(10, TimeUnit.SECONDS);
+            assertBusy(() -> {
+                String message = """
 
-            if (failureCount.get() > 0 || successCount.get() != expectedExecutions || requestCount.get() != successCount.get()) {
+                    Expected Bulks: %s
+                    Requested Bulks: %s
+                    Successful Bulks: %s
+                    Expected Bulks: %s
+                    Failed Bulks: %ds
+                    """;
+                String formattedMessage = formatted(
+                    message,
+                    expectedExecutions,
+                    requestCount.get(),
+                    successCount.get(),
+                    expectedExecutions.get(),
+                    failureCount.get()
+                );
+                assertTrue(
+                    formattedMessage,
+                    failureCount.get() == 0 && successCount.get() == expectedExecutions.get() && requestCount.get() == successCount.get()
+                );
+            }, 30, TimeUnit.SECONDS);
+            if (failureCount.get() > 0 || successCount.get() != expectedExecutions.get() || requestCount.get() != successCount.get()) {
                 if (exceptionRef.get() != null) {
                     logger.error("exception(s) caught during test", exceptionRef.get());
                 }
@@ -282,6 +319,7 @@ public class BulkProcessorTests extends ESTestCase {
                     Expected Bulks: %s
                     Requested Bulks: %s
                     Successful Bulks: %s
+                    Expected Bulks: %s
                     Failed Bulks: %ds
                     Max Documents: %s
                     Max Batch Size: %s
@@ -294,6 +332,7 @@ public class BulkProcessorTests extends ESTestCase {
                         expectedExecutions,
                         requestCount.get(),
                         successCount.get(),
+                        expectedExecutions.get(),
                         failureCount.get(),
                         maxDocuments,
                         maxBatchSize,
@@ -333,7 +372,7 @@ public class BulkProcessorTests extends ESTestCase {
                 exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
             }
         };
-        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(1);
+        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(5);
         try (
             BulkProcessor bulkProcessor = new BulkProcessor(
                 consumer,
@@ -404,6 +443,36 @@ public class BulkProcessorTests extends ESTestCase {
             executorService.awaitTermination(10, TimeUnit.SECONDS);
         }
 
+        flushExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            String message = """
+
+                Requested Bulks: %d
+                Successful Bulks: %d
+                Failed Bulks: %d
+                Total Documents: %d
+                Max Documents: %d
+                Max Batch Size: %d
+                Concurrent Clients: %d
+                Concurrent Bulk Requests: %d
+                """;
+            String formattedMessage = formatted(
+                message,
+                requestCount.get(),
+                successCount.get(),
+                failureCount.get(),
+                docCount.get(),
+                maxDocuments,
+                maxBatchSize,
+                concurrentClients,
+                concurrentBulkRequests
+            );
+            assertTrue(
+                formattedMessage,
+                failureCount.get() == 0 && requestCount.get() == successCount.get() && maxDocuments == docCount.get()
+            );
+        }, 30, TimeUnit.SECONDS);
+
         if (failureCount.get() > 0 || requestCount.get() != successCount.get() || maxDocuments != docCount.get()) {
             if (exceptionRef.get() != null) {
                 logger.error("exception(s) caught during test", exceptionRef.get());
@@ -456,7 +525,7 @@ public class BulkProcessorTests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    public void testDisableFlush() {
+    public void testDisableFlush() throws Exception {
         final AtomicInteger attemptRef = new AtomicInteger();
 
         BulkResponse bulkResponse = new BulkResponse(
@@ -494,7 +563,7 @@ public class BulkProcessorTests extends ESTestCase {
 
             flushEnabled.set(true);
             bulkProcessor.flush();
-            assertThat(attemptRef.get(), equalTo(1));
+            assertBusy(() -> assertThat(attemptRef.get(), equalTo(1)));
         }
     }
 
@@ -534,6 +603,7 @@ public class BulkProcessorTests extends ESTestCase {
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 if (failure != null) {
+                    failure.printStackTrace();
                     failureCount.incrementAndGet();
                     exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), failure));
 

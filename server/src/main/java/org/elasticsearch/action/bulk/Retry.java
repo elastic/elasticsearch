@@ -193,8 +193,8 @@ public class Retry {
             ActionListener<BulkResponse> listener = queueItem.listener;
             Iterator<TimeValue> backoff = queueItem.backoff;
             boolean isRetry = queueItem.isRetry;
-            bulkRequestCancellableMap.put(
-                bulkRequest,
+//            bulkRequestCancellableMap.put(
+//                bulkRequest,
                 scheduler.schedule(
                     () -> {
                         this.idToListenerMap.putAll(bulkRequest.requests.stream().collect(Collectors.toMap(tuple -> tuple.v1().id(),
@@ -203,8 +203,8 @@ public class Retry {
                     },
                     isRetry ? backoff.next() : TimeValue.ZERO,
                     ThreadPool.Names.SAME
-                )
-            );
+                );
+//            );
         }
     }
 
@@ -321,8 +321,7 @@ public class Retry {
                     // (based on how many retries we have to issue) and relying that the response handling code will be
                     // scheduled on the same thread is fragile.
                     synchronized (responsesAccumulator) {
-                        ActionListener<BulkItemResponse> listener = idToListenerMap.get(bulkItemResponse.getItemId() + "");
-                        idToListenerMap.remove(bulkItemResponse.getItemId() + "");
+                        ActionListener<BulkItemResponse> listener = idToListenerMap.remove(bulkItemResponse.getItemId() + "");
                         if (listener != null ) listener.onResponse(bulkItemResponse);
                         responsesAccumulator.add(bulkItemResponse);
                     }

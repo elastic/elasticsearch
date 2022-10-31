@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -29,7 +30,9 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -39,17 +42,24 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ILMHistoryStoreTests extends ESTestCase {
 
@@ -205,6 +215,133 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
+    // @TestLogging(
+    // value = "org.elasticsearch.action.bulk:trace",
+    // reason = "Logging information about locks useful for tracking down deadlock"
+    // )
+    public void testDeadlock() throws Exception {
+        String policyId = randomAlphaOfLength(5);
+        final long timestamp = randomNonNegativeLong();
+        {
+            ILMHistoryItem record = ILMHistoryItem.success(
+                "index",
+                policyId,
+                timestamp,
+                10L,
+                LifecycleExecutionState.builder().setPhase("phase").build()
+            );
+
+            AtomicInteger batches = new AtomicInteger(0);
+            AtomicLong actions = new AtomicLong(0);
+            long numberOfDocs = 100_000_000;
+            CountDownLatch latch = new CountDownLatch((int)numberOfDocs);
+            client.setVerifier((action, request, listener) -> {
+                batches.incrementAndGet();
+                assertThat(action, instanceOf(BulkAction.class));
+                assertThat(request, instanceOf(BulkRequest.class));
+                BulkRequest bulkRequest = (BulkRequest) request;
+                List<DocWriteRequest<?>> realRequests = bulkRequest.requests();
+                realRequests.forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
+                assertNotNull(listener);
+
+                // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
+                int responses = bulkRequest.numberOfActions();
+//                actions.addAndGet(responses);
+                BulkItemResponse.Failure failure = mock(BulkItemResponse.Failure.class);
+                when(failure.getId()).thenReturn("1");
+                when(failure.getMessage()).thenReturn("message");
+                when(failure.getStatus()).thenAnswer((Answer<RestStatus>) invocation -> {
+                    // Thread.sleep(randomIntBetween(0, 25));
+                    return RestStatus.TOO_MANY_REQUESTS;
+                });
+                DocWriteResponse response = mock(DocWriteResponse.class);
+                BulkResponse bulkItemResponse = new BulkResponse(
+                    IntStream.range(0, responses)
+                        .mapToObj(
+                            i -> randomBoolean()
+                                ? BulkItemResponse.success(Integer.parseInt(realRequests.get(i).id()),
+                                DocWriteRequest.OpType.INDEX,
+                                response)
+                                : BulkItemResponse.failure(Integer.parseInt(realRequests.get(i).id()), DocWriteRequest.OpType.INDEX, failure)
+                        )
+                        .toArray(BulkItemResponse[]::new),
+                    1000L
+                );
+//                actions.addAndGet(bulkItemResponse.getItems().length);
+//                actions.addAndGet(Arrays.stream(bulkItemResponse.getItems()).filter(item -> item.isFailed() == false).count());
+                return bulkItemResponse;
+            });
+            long spentTime = 0;
+            ActionListener<BulkItemResponse> listener = new ActionListener<BulkItemResponse>() {
+            @Override
+            public void onResponse(BulkItemResponse response) {
+//                System.out.println("success");
+                actions.incrementAndGet();
+                latch.countDown();
+                if (actions.get() % 10000 == 0) {
+                    System.out.println("success: " + actions.get());
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+//                System.out.println("failure");
+            }
+        };
+            for (int i = 0; i < numberOfDocs; i++) {
+                long startTime = System.nanoTime();
+                ILMHistoryItem record1 = ILMHistoryItem.success(
+                    i + "",
+                    "index",
+                    policyId,
+                    timestamp,
+                    10L,
+                    LifecycleExecutionState.builder().setPhase("phase").build()
+                );
+                if (i % 1000000 == 0) {
+//                    Thread.sleep(7000);
+                }
+                historyStore.putAsync(record1, listener);
+//                threadPool.generic().execute(() -> historyStore.putAsync(record1, listener));
+                long endTime = System.nanoTime();
+                spentTime = spentTime + (endTime - startTime);
+            }
+//            System.out.println("***** time: " + (spentTime / 1000.0 / 1000.0));
+//            Thread.sleep(120000);
+            // System.out.println("I am here");
+//            assertBusy(() -> assertThat(batches.get(), greaterThanOrEqualTo(2)), 60, TimeUnit.MINUTES);
+            // System.out.println("Now I am here");
+            latch.await(100, TimeUnit.MINUTES);
+            assertThat(actions.get(), equalTo(numberOfDocs));
+//            assertBusy(() -> {System.out.println("docs so far: " + actions.get());
+//                assertThat(actions.get(), equalTo(numberOfDocs));}, 120, TimeUnit.MINUTES);
+        }
+
+        {
+//            final String cause = randomAlphaOfLength(9);
+//            Exception failureException = new RuntimeException(cause);
+//            ILMHistoryItem record = ILMHistoryItem.failure(
+//                "index",
+//                policyId,
+//                timestamp,
+//                10L,
+//                LifecycleExecutionState.builder().setPhase("phase").build(),
+//                failureException
+//            );
+//
+//            AtomicInteger batches = new AtomicInteger(0);
+//            client.setVerifier((action, request, listener) -> {
+//                batches.incrementAndGet();
+//                BulkRequest bulkRequest = (BulkRequest) request;
+//                bulkRequest.requests().forEach(dwr -> { throw new RuntimeException("An Error here is required for deadlock"); });
+//                return null;
+//            });
+//
+//            historyStore.putAsync(record);
+//            assertBusy(() -> assertThat(batches.get(), greaterThanOrEqualTo(1)));
+        }
+    }
+
     /**
      * A client that delegates to a verifying function for action/request/listener
      */
@@ -227,6 +364,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             try {
+                Thread.sleep(500);
                 listener.onResponse((Response) verifier.apply(action, request, listener));
             } catch (Exception e) {
                 listener.onFailure(e);

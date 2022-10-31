@@ -225,7 +225,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
-        for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+        for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
@@ -267,7 +267,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         // Attempt to create all the indices that we're going to need during the bulk before we start.
         // Step 1: collect all the indices in the request
-        final Map<String, Boolean> indices = bulkRequest.requests.stream()
+        final Map<String, Boolean> indices = bulkRequest.requests().stream()
             // delete requests should not attempt to create the index (if the index does not
             // exists), unless an external versioning is used
             .filter(
@@ -325,7 +325,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
                             for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                DocWriteRequest<?> request = bulkRequest.requests().get(i);
                                 if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                     bulkRequest.requests.set(i, null);
                                 }
@@ -518,8 +518,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // Group the requests by ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
-            for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
+            for (int i = 0; i < bulkRequest.requests().size(); i++) {
+                DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(i);
                 // the request can only be null because we set it to null in the previous step, so it gets ignored
                 if (docWriteRequest == null) {
                     continue;
@@ -868,7 +868,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 for (int i = 0; i < requests.size(); i++) {
                     DocWriteRequest<?> request = requests.get(i);
                     if (failedSlots.get(i) == false) {
-                        modifiedBulkRequest.add(request);
+                        modifiedBulkRequest.add(null, request);
                         originalSlots.set(slot++, i);
                     }
                 }

@@ -383,7 +383,7 @@ Array of field patterns. The request returns values for field names matching
 these patterns in the `hits.fields` property of the response.
 +
 You can specify items in the array as a string or object. See
-<<search-fields-param>>.
+<<search-fields-param,the `fields` option>>.
 +
 .Properties of `fields` objects
 [%collapsible%open]

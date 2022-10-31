@@ -22,16 +22,16 @@ ENV JETTY_HOME=/opt/jetty-home \
     JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=secret \
     JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret
 
+# Manually override the jetty keystore otherwise it will attempt to download and fail
 RUN mkdir -p /opt/shib-jetty-base/modules
-COPY ./idp/ssl.mod /opt/shib-jetty-base/modules/ssl.mod
-COPY ./idp/keystore /opt/shib-jetty-base/etc/keystore
+COPY ./idp/jetty-custom/ssl.mod /opt/shib-jetty-base/modules/ssl.mod
+COPY ./idp/jetty-custom/keystore /opt/shib-jetty-base/etc/keystore
 
 # Download Jetty, verify the hash, and install, initialize a new base
 RUN wget -q https://repo.maven.apache.org/maven2/org/eclipse/jetty/jetty-distribution/$jetty_version/jetty-distribution-$jetty_version.tar.gz \
     && echo "$jetty_hash  jetty-distribution-$jetty_version.tar.gz" | sha1sum -c - \
     && tar -zxvf jetty-distribution-$jetty_version.tar.gz -C /opt \
     && ln -s /opt/jetty-distribution-$jetty_version/ /opt/jetty-home
-
 
 # Config Jetty
 RUN mkdir -p /opt/shib-jetty-base/modules /opt/shib-jetty-base/lib/ext  /opt/shib-jetty-base/lib/logging /opt/shib-jetty-base/resources \
@@ -70,7 +70,7 @@ RUN wget -q https://repo.maven.apache.org/maven2/ch/qos/logback/logback-access/$
     && echo "$logback_access_hash logback-access-$logback_version.jar" | sha1sum -c - \
     && mv logback-access-$logback_version.jar /opt/shib-jetty-base/lib/logging/
 
-## Copy files
+## Copy local files
 COPY idp/shib-jetty-base/ /opt/shib-jetty-base/
 COPY idp/shibboleth-idp/ /opt/shibboleth-idp/
 COPY idp/bin/ /usr/local/bin/

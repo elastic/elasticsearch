@@ -141,6 +141,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private final Set<String> roleNames;
     private final String externalId;
+    private String clusterAlias;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -155,7 +156,25 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param version          the version of the node
      */
-    public DiscoveryNode(final String id, TransportAddress address, Version version) {
+    public DiscoveryNode(final String id, TransportAddress address, Version version) { // 340 SniffConnectionStrategy or tests
+        // SniffConnectionStrategy.resolveSeedNode
+        // return new DiscoveryNode(
+        // clusterAlias + "#" + transportAddress.toString(),
+        // transportAddress,
+        // Version.CURRENT.minimumCompatibilityVersion()
+        // );
+        // return new DiscoveryNode(
+        // "",
+        // clusterAlias + "#" + address,
+        // UUIDs.randomBase64UUID(),
+        // hostName,
+        // address,
+        // transportAddress,
+        // Collections.singletonMap("server_name", hostName),
+        // DiscoveryNodeRole.roles(),
+        // Version.CURRENT.minimumCompatibilityVersion()
+        // );
+
         this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
     }
 
@@ -180,7 +199,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) {
+    ) { // 248 ProxyConnectionStrategy, internal, or tests
+        // public DiscoveryNode(final String id, TransportAddress address, Version version) {
+        // this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
+        //
+        // ProxyConnectionStrategy.openConnections
+        // DiscoveryNode node = new DiscoveryNode(
+        // id,
+        // resolved,
+        // attributes,
+        // DiscoveryNodeRole.roles(),
+        // Version.CURRENT.minimumCompatibilityVersion()
+        // );
         this("", id, address, attributes, roles, version);
     }
 
@@ -207,7 +237,16 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) {
+    ) { // 174 Internal or tests
+        // public DiscoveryNode(
+        // String id,
+        // TransportAddress address,
+        // Map<String, String> attributes,
+        // Set<DiscoveryNodeRole> roles,
+        // Version version
+        // ) { // 248
+        // this("", id, address, attributes, roles, version);
+
         this(
             nodeName,
             nodeId,
@@ -246,7 +285,16 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) {
+    ) { // 2 DiscoveryNode or test
+        // return new DiscoveryNode(
+        // Node.NODE_NAME_SETTING.get(settings),
+        // nodeId,
+        // Node.NODE_EXTERNAL_ID_SETTING.get(settings),
+        // publishAddress,
+        // attributes,
+        // roles,
+        // Version.CURRENT
+        // );
         this(
             nodeName,
             nodeId,
@@ -289,7 +337,52 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) {
+    ) { // 54 HandshakingTransportAddressConnector, SniffConnectionStrategy, Internal, or Tests
+        // HandshakingTransportAddressConnector.connectToRemoteMasterNode (PROBLEM)
+        // transportService.openConnection(
+        // new DiscoveryNode(
+        // "",
+        // transportAddress.toString(), // nodeId==address (missing clusterAlias#something)
+        // UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
+        // transportAddress.address().getHostString(),
+        // transportAddress.getAddress(),
+        // transportAddress,
+        // emptyMap(),
+        // emptySet(),
+        // Version.CURRENT.minimumCompatibilityVersion()
+        // ),
+        // SniffConnectionStrategy.resolveSeedNode
+        // return new DiscoveryNode(
+        // "",
+        // clusterAlias + "#" + address,
+        // UUIDs.randomBase64UUID(),
+        // hostName,
+        // address,
+        // transportAddress,
+        // Collections.singletonMap("server_name", hostName),
+        // DiscoveryNodeRole.roles(),
+        // Version.CURRENT.minimumCompatibilityVersion()
+        // );
+        // SniffConnectionStrategy.maybeAddProxyAddress
+        // return new DiscoveryNode(
+        // node.getName(),
+        // node.getId(),
+        // node.getEphemeralId(),
+        // node.getHostName(),
+        // node.getHostAddress(),
+        // new TransportAddress(proxyInetAddress),
+        // node.getAttributes(),
+        // node.getRoles(),
+        // node.getVersion()
+        // );
+        // public DiscoveryNode(
+        // String nodeName,
+        // String nodeId,
+        // TransportAddress address,
+        // Map<String, String> attributes,
+        // Set<DiscoveryNodeRole> roles,
+        // Version version
+        // ) { // 174 Internal or tests
         this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
     }
 
@@ -323,7 +416,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Set<DiscoveryNodeRole> roles,
         Version version,
         String externalId
-    ) {
+    ) { // 2 Tests
         if (nodeName != null) {
             this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
         } else {
@@ -555,6 +648,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public String getHostAddress() {
         return this.hostAddress;
+    }
+
+    public String getClusterAlias() {
+        return this.clusterAlias;
+    }
+
+    public void setClusterAlias(String clusterAlias) {
+        this.clusterAlias = clusterAlias;
     }
 
     @Override

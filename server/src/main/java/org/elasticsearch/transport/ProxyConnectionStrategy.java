@@ -271,6 +271,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     DiscoveryNodeRole.roles(),
                     Version.CURRENT.minimumCompatibilityVersion()
                 );
+                node.setClusterAlias(clusterAlias);
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
                     logger.debug(

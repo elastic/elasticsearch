@@ -45,10 +45,19 @@ public class ModuleSupport {
         throw new AssertionError("Utility class, should not be instantiated");
     }
 
-    static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires, Set<String> uses) {
+    static ModuleFinder ofSyntheticPluginModule(
+        String name,
+        Path[] jarPaths,
+        Set<String> requires,
+        Set<String> uses,
+        Predicate<String> packageInParentLayers
+    ) {
         try {
             return new InMemoryModuleFinder(
-                new InMemoryModuleReference(createModuleDescriptor(name, jarPaths, requires, uses), URI.create("module:/" + name))
+                new InMemoryModuleReference(
+                    createModuleDescriptor(name, jarPaths, requires, uses, packageInParentLayers),
+                    URI.create("module:/" + name)
+                )
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -56,8 +65,13 @@ public class ModuleSupport {
     }
 
     @SuppressForbidden(reason = "need access to the jar file")
-    static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires, Set<String> uses)
-        throws IOException {
+    static ModuleDescriptor createModuleDescriptor(
+        String name,
+        Path[] jarPaths,
+        Set<String> requires,
+        Set<String> uses,
+        Predicate<String> packageInParentLayers
+    ) throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
         uses.stream().forEach(builder::uses);
@@ -89,6 +103,12 @@ public class ModuleSupport {
                     // read providers from the list of service files
                     for (String serviceFileName : scan.serviceFiles()) {
                         String serviceName = getServiceName(serviceFileName);
+                        if (uses.contains(serviceName) == false) {
+                            String packageName = toPackageName(serviceName, ".").orElseThrow();
+                            if (packageInParentLayers.test(packageName) == false) {
+                                pkgs.add(toPackageName(serviceName, ".").orElseThrow());
+                            }
+                        }
                         List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
@@ -246,7 +266,7 @@ public class ModuleSupport {
     @SuppressForbidden(reason = "need access to the jar file")
     private static List<String> getProvidersFromServiceFile(JarFile jf, String sf) throws IOException {
         try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf)), StandardCharsets.UTF_8))) {
-            return bf.lines().toList();
+            return bf.lines().filter(Predicate.not(l -> l.startsWith("#"))).filter(Predicate.not(String::isEmpty)).toList();
         }
     }
 

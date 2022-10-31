@@ -131,7 +131,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         logger.warn(
                             "isMock: [{}], clusterAlias: [{},{}], nodeId: [{}], nodeName: [{}], ephemeralId: [{}]"
                                 + ", externalId: [{}], version: [{}], address: [{}], hostAddress: [{}], hostName: [{}]"
-                                + ", attributes: [{}], senderClass: [{}]",
+                                + ", attributes: [{}], senderClass: [{}], exception: \n{}",
                             isMock,
                             clusterAlias != null,
                             clusterAlias,

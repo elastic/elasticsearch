@@ -246,7 +246,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 (Optional)
 Indicates which <<mapping-source-field,source fields>> are returned for matching
 documents. These fields are returned in the `hits._source` property of
-the search response. Defaults to `true`. See <<source-filtering>>.
+the search response. Defaults to `true`. See <<source-filtering,source filtering>>.
 +
 .Valid values for `_source`
 [%collapsible%open]
@@ -641,7 +641,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 (Optional)
 Indicates which <<mapping-source-field,source fields>> are returned for matching
 documents. These fields are returned in the `hits._source` property of
-the search response. Defaults to `true`. See <<source-filtering>>.
+the search response. Defaults to `true`. See <<source-filtering,source filtering>>.
 +
 .Valid values for `_source`
 [%collapsible%open]

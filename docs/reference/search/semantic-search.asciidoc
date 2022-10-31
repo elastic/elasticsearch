@@ -1,4 +1,4 @@
-[[knn-search-api]]
+[[semantic-search-api]]
 === Semantic search API
 ++++
 <titleabbrev>Semantic search</titleabbrev>

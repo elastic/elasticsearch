@@ -40,6 +40,19 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
     }
 
     @Override
+    public void validateProperties(String fieldName, Object scale, double decay) {
+        if (fieldName == null) {
+            throw new IllegalArgumentException("decay function: field name must not be null");
+        }
+        if (scale == null) {
+            throw new IllegalArgumentException("decay function: scale must not be null");
+        }
+        if (decay < 0 || decay >= 1.0) {
+            throw new IllegalStateException("decay function: decay must be in range [0..1)!");
+        }
+    }
+
+    @Override
     public String getName() {
         return NAME;
     }

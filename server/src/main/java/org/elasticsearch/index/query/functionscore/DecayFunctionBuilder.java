@@ -73,15 +73,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
      * Convenience constructor that converts its parameters into json to parse on the data nodes.
      */
     protected DecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
-        if (fieldName == null) {
-            throw new IllegalArgumentException("decay function: field name must not be null");
-        }
-        if (scale == null) {
-            throw new IllegalArgumentException("decay function: scale must not be null");
-        }
-        if (decay <= 0 || decay >= 1.0) {
-            throw new IllegalStateException("decay function: decay must be in range 0..1!");
-        }
+        validateProperties(fieldName, scale, decay);
         this.fieldName = fieldName;
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -110,6 +102,21 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
         this.fieldName = fieldName;
         this.functionBytes = functionBytes;
+    }
+
+    /**
+    * Validate properties, override this function if you have different validation rules per score function
+    */
+    protected void validateProperties(String fieldName, Object scale, double decay){
+        if (fieldName == null) {
+            throw new IllegalArgumentException("decay function: field name must not be null");
+        }
+        if (scale == null) {
+            throw new IllegalArgumentException("decay function: scale must not be null");
+        }
+        if (decay <= 0 || decay >= 1.0) {
+            throw new IllegalStateException("decay function: decay must be in range 0..1!");
+        }
     }
 
     /**

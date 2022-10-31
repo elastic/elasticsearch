@@ -2895,7 +2895,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         } else {
             final RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
             if (authentication.isRunAs()) {
-                final RealmRef lookedUpBy = authentication.getLookedUpBy();
+                final RealmRef lookedUpBy = authentication.getEffectiveSubject().getRealm();
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName())
                     .put(LoggingAuditTrail.PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                     .put(LoggingAuditTrail.PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());

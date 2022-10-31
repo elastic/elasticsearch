@@ -2914,7 +2914,7 @@ public class InternalEngine extends Engine {
         }
 
         void updateRefreshedCheckpoint(long checkpoint) {
-            refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+            refreshedCheckpoint.accumulateAndGet(checkpoint, Math::max);
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
         }
     }
@@ -2931,9 +2931,9 @@ public class InternalEngine extends Engine {
 
     private void updateAutoIdTimestamp(long newTimestamp, boolean unsafe) {
         assert newTimestamp >= -1 : "invalid timestamp [" + newTimestamp + "]";
-        maxSeenAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
+        maxSeenAutoIdTimestamp.accumulateAndGet(newTimestamp, Math::max);
         if (unsafe) {
-            maxUnsafeAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
+            maxUnsafeAutoIdTimestamp.accumulateAndGet(newTimestamp, Math::max);
         }
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
@@ -2949,7 +2949,7 @@ public class InternalEngine extends Engine {
             assert false : "max_seq_no_of_updates on primary is unassigned";
             throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
         }
-        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
+        this.maxSeqNoOfUpdatesOrDeletes.accumulateAndGet(maxSeqNoOfUpdatesOnPrimary, Math::max);
     }
 
     private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {

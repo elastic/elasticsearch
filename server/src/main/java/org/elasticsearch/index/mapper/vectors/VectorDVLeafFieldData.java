@@ -62,20 +62,17 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                     // values that can be iterated through. Since VectorValues.EMPTY throws on docID(), pass a null instead.
                     values = null;
                 }
-                if (elementType == ElementType.BYTE) {
-                    return new ByteKnnDenseVectorDocValuesField(values, name, elementType, dims);
-                } else if (elementType == ElementType.FLOAT) {
-                    return new KnnDenseVectorDocValuesField(values, name, elementType, dims);
-                }
+                return switch (elementType) {
+                    case BYTE -> new ByteKnnDenseVectorDocValuesField(values, name, elementType, dims);
+                    case FLOAT -> new KnnDenseVectorDocValuesField(values, name, elementType, dims);
+                };
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);
-                if (elementType == ElementType.BYTE) {
-                    return new ByteBinaryDenseVectorDocValuesField(values, name, elementType, dims);
-                } else if (elementType == ElementType.FLOAT) {
-                    return new BinaryDenseVectorDocValuesField(values, name, elementType, dims, indexVersion);
-                }
+                return switch (elementType) {
+                    case BYTE -> new ByteBinaryDenseVectorDocValuesField(values, name, elementType, dims);
+                    case FLOAT -> new BinaryDenseVectorDocValuesField(values, name, elementType, dims, indexVersion);
+                };
             }
-            throw new IllegalStateException("unknown element_type [" + elementType + "]");
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);
         }

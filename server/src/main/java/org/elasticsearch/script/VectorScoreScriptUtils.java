@@ -10,8 +10,10 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 
 import java.io.IOException;
 import java.util.List;
@@ -141,13 +143,10 @@ public class VectorScoreScriptUtils {
 
         public L1Norm(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.BYTE) {
-                function = new ByteL1Norm(scoreScript, field, queryVector);
-            } else if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
-                function = new FloatL1Norm(scoreScript, field, queryVector);
-            } else {
-                throw new IllegalStateException("unknown element_type [" + field.getElementType() + "]");
-            }
+            function = switch (field.getElementType()) {
+                case BYTE ->  new ByteL1Norm(scoreScript, field, queryVector);
+                case FLOAT -> new FloatL1Norm(scoreScript, field, queryVector);
+            };
         }
 
         public double l1norm() {
@@ -190,13 +189,10 @@ public class VectorScoreScriptUtils {
 
         public L2Norm(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.BYTE) {
-                function = new ByteL2Norm(scoreScript, field, queryVector);
-            } else if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
-                function = new FloatL2Norm(scoreScript, field, queryVector);
-            } else {
-                throw new IllegalStateException("unknown element_type [" + field.getElementType() + "]");
-            }
+            function = switch (field.getElementType()) {
+                case BYTE ->  new ByteL2Norm(scoreScript, field, queryVector);
+                case FLOAT -> new FloatL2Norm(scoreScript, field, queryVector);
+            };
         }
 
         public double l2norm() {
@@ -239,13 +235,10 @@ public class VectorScoreScriptUtils {
 
         public DotProduct(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.BYTE) {
-                function = new ByteDotProduct(scoreScript, field, queryVector);
-            } else if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
-                function = new FloatDotProduct(scoreScript, field, queryVector);
-            } else {
-                throw new IllegalStateException("unknown element_type [" + field.getElementType() + "]");
-            }
+            function = switch (field.getElementType()) {
+                case BYTE ->  new ByteDotProduct(scoreScript, field, queryVector);
+                case FLOAT -> new FloatDotProduct(scoreScript, field, queryVector);
+            };
         }
 
         public double dotProduct() {
@@ -288,13 +281,10 @@ public class VectorScoreScriptUtils {
 
         public CosineSimilarity(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.BYTE) {
-                function = new ByteCosineSimilarity(scoreScript, field, queryVector);
-            } else if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
-                function = new FloatCosineSimilarity(scoreScript, field, queryVector);
-            } else {
-                throw new IllegalStateException("unknown element_type [" + field.getElementType() + "]");
-            }
+            function = switch (field.getElementType()) {
+                case BYTE ->  new ByteCosineSimilarity(scoreScript, field, queryVector);
+                case FLOAT -> new FloatCosineSimilarity(scoreScript, field, queryVector);
+            };
         }
 
         public double cosineSimilarity() {

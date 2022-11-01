@@ -47,16 +47,6 @@ public class ByteBinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public byte[] asBytes() {
-        if (byteDocVector == null) {
-            byteDocVector = new byte[dims];
-            System.arraycopy(docVector.bytes, docVector.offset, byteDocVector, 0, dims);
-        }
-
-        return byteDocVector;
-    }
-
-    @Override
     public float getMagnitude() {
         if (magnitudeDecoded == false) {
             magnitude = ByteBuffer.wrap(docVector.bytes, docVector.offset + dims, MAGNITUDE_BYTES).getFloat();
@@ -189,10 +179,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
-        if (normalizeQueryVector) {
-            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
-        }
-        return dotProductNormalized(queryVector) / getMagnitude();
+        throw new UnsupportedOperationException("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
     }
 
     @Override

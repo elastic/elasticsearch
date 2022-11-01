@@ -28,8 +28,6 @@ public interface DenseVector {
 
     float[] getVector();
 
-    byte[] asBytes();
-
     float getMagnitude();
 
     double dotProduct(byte[] queryVector);
@@ -276,11 +274,6 @@ public interface DenseVector {
 
         @Override
         public float[] getVector() {
-            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-        }
-
-        @Override
-        public byte[] asBytes() {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

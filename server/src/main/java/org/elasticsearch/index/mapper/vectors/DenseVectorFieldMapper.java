@@ -177,6 +177,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
+            public float readValue(ByteBuffer byteBuffer) {
+                return byteBuffer.get();
+            }
+
+            @Override
             KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
                 return new KnnVectorField(name, VectorUtil.toBytesRef(vector), function);
             }
@@ -267,6 +272,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
+            public float readValue(ByteBuffer byteBuffer) {
+                return byteBuffer.getFloat();
+            }
+
+            @Override
             KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
                 return new KnnVectorField(name, vector, function);
             }
@@ -315,6 +325,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public abstract void writeValue(ByteBuffer byteBuffer, float value);
+
+        public abstract float readValue(ByteBuffer byteBuffer);
 
         abstract KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function);
 
@@ -832,7 +844,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
             for (int dim = 0; dim < dims; dim++) {
-                b.value(elementType == ElementType.FLOAT ? byteBuffer.getFloat() : byteBuffer.get());
+                b.value(elementType.readValue(byteBuffer));
             }
             b.endArray();
         }

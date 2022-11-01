@@ -34,6 +34,10 @@ import static org.junit.Assume.assumeThat;
  */
 public class GeoRegularConvexPolygonTests extends ESTestCase {
 
+    private final TestGeometryCollector testGeometryCollector = TestGeometryCollector.createGeometryCollector();
+    // Uncomment the following to enable export of WKT output for specific tests when debugging
+    // private final TestGeometryCollector testGeometryCollector = TestGeometryCollector.createWKTExporter(getTestClass().getSimpleName());
+
     public void testSimpleTriangle() {
         GeoPoint left = new GeoPoint(PlanetModel.SPHERE, 0, -0.1);
         GeoPoint right = new GeoPoint(PlanetModel.SPHERE, 0, 0.1);
@@ -61,6 +65,7 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
     }
 
     public void testH3Hexagon() {
+        testGeometryCollector.start("testH3Hexagon");
         double latitude = randomDoubleBetween(-85, 85, false);
         double longitude = randomDoubleBetween(-180, 180, true);
         int resolution = randomIntBetween(0, H3.MAX_H3_RES);
@@ -80,11 +85,18 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
             inner[i] = pointInterpolation(centroid, point, 0.9);
             outer[i] = pointInterpolation(centroid, point, 3.0);
         }
+        // debug geometries
+        testGeometryCollector.normal(c -> {
+            c.addPoint(centroid);
+            c.addPolygon(points);
+            c.addPolygon(inner);
+            c.addPolygon(outer);
+        });
+
+        // Prepare test
         GeoPolygon hexagon = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
         GeoPolygon innerTriangle = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, inner);
         GeoPolygon outerTriangle = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, outer);
-        // TODO: remove debug output
-        // System.out.println(debugH3Data(centroid, hexagon, innerTriangle, outerTriangle));
         GeoPolygon hexGeom = GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.asList(points));
         GeoPolygon innGeom = GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.asList(inner));
         GeoPolygon outGeom = GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.asList(outer));
@@ -107,6 +119,7 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
                 assertThat(name + " relates to " + otherName, polygon.getRelationship(other), equalTo(relates));
             }
         }
+        testGeometryCollector.stop();
     }
 
     private int expectedRelationship(String name, String otherName) {
@@ -153,24 +166,5 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
         assertThat("Expected bounds min latitude", bounds.getMinLatitude(), closeTo(expected.getMinLatitude(), latThreshold));
         assertThat("Expected bounds left longitude", bounds.getLeftLongitude(), closeTo(expected.getLeftLongitude(), lonThreshold));
         assertThat("Expected bounds right longitude", bounds.getRightLongitude(), closeTo(expected.getRightLongitude(), lonThreshold));
-    }
-
-    private StringBuilder debugH3Data(GeoPoint centroid, GeoPolygon... polygons) {
-        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
-        double lat = Math.toDegrees(centroid.getLatitude());
-        double lng = Math.toDegrees(centroid.getLongitude());
-        sb.append("POINT(").append(lng).append(" ").append(lat).append(")");
-        for (GeoPolygon polygon : polygons) {
-            sb.append(", ");
-            addPolygon(sb, polygon);
-        }
-        sb.append(")");
-        return sb;
-    }
-
-    private void addPolygon(StringBuilder sb, GeoPolygon polygon) {
-        if (polygon instanceof GeoRegularConvexPolygon geoRegularConvexPolygon) {
-            sb.append(geoRegularConvexPolygon.toWKT());
-        }
     }
 }

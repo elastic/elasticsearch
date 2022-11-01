@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
-    private static final String FIELD_NAME = "location";
+    protected static final String FIELD_NAME = "location";
 
     /**
      * Generate a random precision according to the rules of the given aggregation.
@@ -256,7 +256,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     }
 
     @SuppressWarnings("unchecked")
-    private void testCase(
+    protected void testCase(
         Query query,
         int precision,
         GeoBoundingBox geoBoundingBox,

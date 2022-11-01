@@ -183,17 +183,6 @@ public class GeoRegularConvexPolygon extends LuceneGeoBaseAreaShape {
         return "GeoRegularConvexPolygon: {planetmodel=" + planetModel + ", points=" + Arrays.toString(points) + "}";
     }
 
-    public String toWKT() {
-        StringBuilder sb = new StringBuilder("POLYGON((");
-        for (int i = 0; i < points.length; i++) {
-            if (i > 0) {
-                sb.append(",");
-            }
-            sb.append(Math.toDegrees(points[i].getLongitude())).append(" ").append(Math.toDegrees(points[i].getLatitude()));
-        }
-        return sb.append("))").toString();
-    }
-
     /**
      * Test if any of the points comprising this convex polygon are inside the provided shape
      */

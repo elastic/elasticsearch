@@ -19,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -100,8 +102,11 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
-                H3LatLonGeometry geometry = new H3LatLonGeometry(id);
                 if (fieldType instanceof GeoShapeQueryable geoShapeQueryable) {
+                    boolean isGeoPoint = fieldType instanceof GeoPointFieldMapper.GeoPointFieldType
+                        || fieldType instanceof GeoPointScriptFieldType;
+                    // We use planar geometries for geo_shape to improve maps visualizations
+                    H3LatLonGeometry geometry = isGeoPoint ? new H3LatLonGeometry.Spherical(id) : new H3LatLonGeometry.Planar(id);
                     return geoShapeQueryable.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
                 }
                 throw new QueryShardException(

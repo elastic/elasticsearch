@@ -20,7 +20,12 @@ public class UnboundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
     }
 
     @Override
-    protected boolean validAddress(String address) {
+    protected boolean cellIntersectsBounds(String address) {
+        return true;
+    }
+
+    @Override
+    protected boolean cellIntersectsBounds(String address, double scaleFactor) {
         return true;
     }
 

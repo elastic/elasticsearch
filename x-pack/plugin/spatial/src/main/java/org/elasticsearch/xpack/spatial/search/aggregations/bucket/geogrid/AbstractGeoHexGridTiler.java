@@ -21,17 +21,20 @@ import java.util.List;
 /**
  * Implements most of the logic for the GeoHex aggregation.
  */
-abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
+public abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     /** Scale factor to inflate an H3 tile by to ensure all children are covered */
-    private static final double INFLATION_FACTOR = 1.17;
+    public static final double INFLATION_FACTOR = 1.17;
 
     AbstractGeoHexGridTiler(int precision) {
         super(precision);
     }
 
     /** check if the provided H3 address is in the solution space of this tiler */
-    protected abstract boolean validAddress(String hash);
+    protected abstract boolean cellIntersectsBounds(String hash);
+
+    /** check if the provided H3 address, after scaling, is in the solution space of this tiler */
+    protected abstract boolean cellIntersectsBounds(String hash, double scaleFactor);
 
     @Override
     public long encode(double x, double y) {
@@ -47,6 +50,8 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
             return setPointValue(values, H3.geoToH3Address(bounds.minY(), bounds.minX(), precision));
         }
+        // TODO: test the H3 cells of the bounds at the specified precision, because we can optimize the search
+        // if the bounds leads to neighbouring H3 cells, we won't need to to the recursive tree search. Using H3.areNeiughborCells.
         return setValuesByRecursion(values, geoValue);
     }
 
@@ -91,6 +96,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             values.resizeCell(values.docValueCount() + 1);
             values.add(values.docValueCount() - 1, H3.stringToH3(h3));
         } else {
+            // TODO: we should not need to search all top level cells, but rather use the bounds to find a subset using H3.asNeighborCells
             for (String child : H3.h3ToChildren(h3)) {
                 setAllValuesByRecursion(values, child, precision + 1);
             }
@@ -116,7 +122,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                 GeoRelation relation = relateTileInflatedToCoverChildren(geoValue, h3);
                 if (relation != GeoRelation.QUERY_DISJOINT) {
                     for (String child : H3.h3ToChildren(h3)) {
-                        // TODO: determine case for optimization, probably only the central child cell
+                        // TODO: determine case for optimization, probably only the central child cell, which is always the first child
                         if (relation == GeoRelation.QUERY_INSIDE && false) {
                             // Without this optimization the unbounded test slows down from 120ms to over 28seconds
                             setAllValuesByRecursion(values, child, precision + 1);
@@ -155,7 +161,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
      * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
     private int setPointValue(GeoShapeCellValues docValues, String addressOfPoint) {
-        if (validAddress(addressOfPoint)) {
+        if (cellIntersectsBounds(addressOfPoint)) {
             docValues.resizeCell(1);
             docValues.add(0, H3.stringToH3(addressOfPoint));
             return 1;
@@ -164,7 +170,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     }
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String addressOfTile) throws IOException {
-        if (validAddress(addressOfTile)) {
+        if (cellIntersectsBounds(addressOfTile)) {
             H3LatLonGeometry hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(addressOfTile);
             return geoValue.relate(hexagon);
         }
@@ -172,7 +178,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     }
 
     private GeoRelation relateTileInflatedToCoverChildren(GeoShapeValues.GeoShapeValue geoValue, String addressOfTile) throws IOException {
-        if (validAddress(addressOfTile)) {
+        if (cellIntersectsBounds(addressOfTile, INFLATION_FACTOR)) {
             H3LatLonGeometry hexagon = new GeoHexBoundedPredicate.H3LatLonGeom.Scaled(addressOfTile, INFLATION_FACTOR);
             return geoValue.relate(hexagon);
         }

@@ -25,9 +25,6 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.h3.CellBoundary;
-import org.elasticsearch.h3.H3;
-import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -129,7 +126,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             int precision = randomIntBetween(0, 3);
             Geometry geometry = GeometryNormalizer.apply(
                 Orientation.CCW,
-                randomValueOtherThanMany(GeoGridTilerTestCase::geometryIsInvalid, () -> boxToGeo(randomBBox()))
+                randomValueOtherThanMany(this::geometryIsInvalid, () -> boxToGeo(randomBBox()))
             );
 
             GeoBoundingBox geoBoundingBox = randomValueOtherThanMany(b -> b.right() == -180 && b.left() == 180, () -> randomBBox());
@@ -168,7 +165,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 1000; i++) {
             int precision = randomIntBetween(0, 3);
-            Geometry geometry = randomValueOtherThanMany(GeoGridTilerTestCase::geometryIsInvalid, () -> boxToGeo(randomBBox()));
+            Geometry geometry = randomValueOtherThanMany(this::geometryIsInvalid, () -> boxToGeo(randomBBox()));
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
             GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
                 makeGeoShapeValues(value),
@@ -178,8 +175,6 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             assertTrue(unboundedCellValues.advanceExact(0));
             int numBuckets = unboundedCellValues.docValueCount();
             int expected = expectedBuckets(value, precision, null);
-            System.out.println("For precision " + precision + " we got " + numBuckets + " buckets while expecting " + expected);
-            System.out.println(geometry);
             assertThat("[" + i + ":" + precision + "] bucket count", numBuckets, equalTo(expected));
         }
     }
@@ -227,35 +222,6 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         }
     }
 
-    public static String valuesToPolygons(final GeoShapeCellValues values) {
-        StringBuilder sb = new StringBuilder();
-        for (int p = 0; p < values.docValueCount(); p++) {
-            long h3 = values.getValues()[p];
-            System.out.println(H3.h3ToString(h3));
-            sb.append(", POLYGON((");
-            CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                LatLng point = boundary.getLatLon(i);
-                if (i > 0) sb.append(", ");
-                sb.append(point.getLonDeg()).append(" ").append(point.getLatDeg());
-            }
-            sb.append("))");
-        }
-        return sb.toString();
-    }
-
-    private static String boxToPolygon(Rectangle box) {
-        StringBuilder sb = new StringBuilder("POLYGON((");
-        sb.append(box.getMinX()).append(" ").append(box.getMinY());
-        sb.append(", ");
-        sb.append(box.getMaxX()).append(" ").append(box.getMinY());
-        sb.append(", ");
-        sb.append(box.getMaxX()).append(" ").append(box.getMaxY());
-        sb.append(", ");
-        sb.append(box.getMinX()).append(" ").append(box.getMaxY());
-        return sb.append("))").toString();
-    }
-
     public void testGridCircuitBreaker() throws IOException {
         GeoGridTiler tiler = getUnboundedGridTiler(randomIntBetween(0, 3));
         Geometry geometry = GeometryTestUtils.randomPolygon(false);
@@ -271,7 +237,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         final long maxNumBytes;
         final long curNumBytes;
         if (byteChangeHistory.size() == 1) {
-            curNumBytes = maxNumBytes = byteChangeHistory.get(byteChangeHistory.size() - 1);
+            curNumBytes = maxNumBytes = byteChangeHistory.get(0);
         } else {
             long oldNumBytes = -byteChangeHistory.get(byteChangeHistory.size() - 1);
             curNumBytes = byteChangeHistory.get(byteChangeHistory.size() - 2);
@@ -294,7 +260,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         });
     }
 
-    private static boolean geometryIsInvalid(Geometry g) {
+    protected boolean geometryIsInvalid(Geometry g) {
         try {
             // make sure is a valid shape
             new GeoShapeIndexer(Orientation.CCW, "test").indexShape(g);

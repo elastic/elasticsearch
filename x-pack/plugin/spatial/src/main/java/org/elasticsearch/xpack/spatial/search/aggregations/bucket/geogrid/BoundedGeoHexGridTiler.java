@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 
 /**
- * Bounded geotile aggregation. It accepts hashes that intersects the provided bounds.
+ * Bounded geohex aggregation. It accepts H3 addresses that intersect the provided bounds.
+ * The additional support for testing intersection with inflated H3 cells is used when testing
+ * parent cells, since child cells can exceed the bounds of their parent. We inflate the parent
+ * cells by 1.17 to encompass all children. This is particularly important when using this for
+ * MVT visualization, as otherwise it can knock out large chunks of polygons when zoomed in.
  */
 public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
     private final GeoHexBoundedPredicate predicate;
@@ -26,7 +30,12 @@ public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
     }
 
     @Override
-    protected boolean validAddress(String address) {
+    protected boolean cellIntersectsBounds(String address) {
         return predicate.validAddress(address);
+    }
+
+    @Override
+    protected boolean cellIntersectsBounds(String address, double scaleFactor) {
+        return predicate.validAddress(address, scaleFactor);
     }
 }

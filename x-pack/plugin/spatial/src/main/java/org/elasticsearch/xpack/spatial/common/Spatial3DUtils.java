@@ -97,4 +97,22 @@ public class Spatial3DUtils {
         centroidZ /= boundary.numPoints();
         return new GeoPoint(centroidX, centroidY, centroidZ);
     }
+
+    /**
+     * Given a collection of GeoPoint, calculate the centroid
+     */
+    public static GeoPoint calculateCentroid(GeoPoint[] boundary) {
+        double centroidX = 0;
+        double centroidY = 0;
+        double centroidZ = 0;
+        for (GeoPoint vertex : boundary) {
+            centroidX += vertex.x;
+            centroidY += vertex.y;
+            centroidZ += vertex.z;
+        }
+        centroidX /= boundary.length;
+        centroidY /= boundary.length;
+        centroidZ /= boundary.length;
+        return new GeoPoint(centroidX, centroidY, centroidZ);
+    }
 }

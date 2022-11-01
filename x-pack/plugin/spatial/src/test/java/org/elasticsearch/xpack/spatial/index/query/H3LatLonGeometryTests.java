@@ -7,99 +7,52 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SerialMergeScheduler;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.spatial3d.geom.GeoPoint;
-import org.apache.lucene.spatial3d.geom.PlanetModel;
-import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.geom.TestGeometryCollector;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.calculateCentroid;
 import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.distance;
 import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.pointInterpolation;
+import static org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.AbstractGeoHexGridTiler.INFLATION_FACTOR;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class H3LatLonGeometryTests extends ESTestCase {
+/**
+ * These tests are run against both H3LatLonGeometry.Spherical and H3LatLonGeometry.Planar.
+ */
+public abstract class H3LatLonGeometryTests extends ESTestCase {
 
-    private static final String FIELD_NAME = "field";
+    private final TestGeometryCollector testGeometryCollector = TestGeometryCollector.createGeometryCollector();
+    // Uncomment the following to enable export of WKT output for specific tests when debugging with -Dtests.security.manager=false
+    // private final TestGeometryCollector testGeometryCollector = TestGeometryCollector.createWKTExporter(getTestClass().getSimpleName());
 
-    public void testIndexPoints() throws Exception {
-        Point queryPoint = GeometryTestUtils.randomPoint();
-        String[] hexes = new String[H3.MAX_H3_RES + 1];
-        for (int res = 0; res < hexes.length; res++) {
-            hexes[res] = H3.geoToH3Address(queryPoint.getLat(), queryPoint.getLon(), res);
-        }
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        // Else seeds may not reproduce:
-        iwc.setMergeScheduler(new SerialMergeScheduler());
-        // Else we can get O(N^2) merging:
-        iwc.setMaxBufferedDocs(10);
-        Directory dir = newDirectory();
-        // RandomIndexWriter is too slow here:
-        int[] counts = new int[H3.MAX_H3_RES + 1];
-        IndexWriter w = new IndexWriter(dir, iwc);
-        for (String hex : hexes) {
-            CellBoundary cellBoundary = H3.h3ToGeoBoundary(hex);
-            for (int i = 0; i < cellBoundary.numPoints(); i++) {
-                Document doc = new Document();
-                LatLng latLng = cellBoundary.getLatLon(i);
-                doc.add(new LatLonPoint(FIELD_NAME, latLng.getLatDeg(), latLng.getLonDeg()));
-                w.addDocument(doc);
-                computeCounts(hexes, latLng.getLonDeg(), latLng.getLatDeg(), counts);
-            }
+    protected static final String FIELD_NAME = "field";
 
-        }
-        final int numDocs = randomIntBetween(1000, 2000);
-        for (int id = 0; id < numDocs; id++) {
-            Document doc = new Document();
-            Point point = GeometryTestUtils.randomPoint();
-            doc.add(new LatLonPoint(FIELD_NAME, point.getLat(), point.getLon()));
-            w.addDocument(doc);
-            computeCounts(hexes, point.getLon(), point.getLat(), counts);
-        }
+    protected abstract H3LatLonGeometry makeGeometry(String h3Address);
 
-        if (random().nextBoolean()) {
-            w.forceMerge(1);
-        }
-        final IndexReader r = DirectoryReader.open(w);
-        w.close();
+    protected abstract H3LatLonGeometry makeGeometry(String h3Address, double scaleFactor);
 
-        IndexSearcher s = newSearcher(r);
-        for (int i = 0; i < H3.MAX_H3_RES + 1; i++) {
-            H3LatLonGeometry geometry = new H3LatLonGeometry(hexes[i]);
-            Query indexQuery = LatLonPoint.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometry);
-            assertEquals(counts[i], s.count(indexQuery));
-        }
-        IOUtils.close(r, dir);
-    }
+    protected abstract double getLatitudeThreshold();
 
     public void testOriginLevelZero() {
         doTestLevelAndPoint(0, new Point(0, 0));
@@ -128,89 +81,38 @@ public class H3LatLonGeometryTests extends ESTestCase {
         }
     }
 
-    public static String debugH3Polygon2D(Component2D component, Point origin, boolean boxPoint) {
-        final StringBuilder sb = new StringBuilder();
-        addH3Polygon(sb, component, origin, true, boxPoint);
-        sb.append(")");
-        return sb.toString();
-    }
-
-    private static void addH3Polygon(StringBuilder sb, Component2D component, Point origin, boolean bbox, boolean boxPoint) {
-        final double BBOX_EDGE_DELTA = 1e-4;
-        if (component instanceof H3LatLonGeometry.H3Polygon2D h3Polygon) {
-            h3Polygon.inspect((h3, res, minX, maxX, minY, maxY, boundary) -> {
-                // System.out.println("H3 Cell: " + H3.h3ToString(h3));
-                if (sb.length() == 0) {
-                    sb.append("GEOMETRYCOLLECTION(");
-                } else {
-                    sb.append(", ");
-                }
-                addPolygon(sb, boundary);
-                if (bbox) {
-                    addBox(sb, minX, maxX, minY, maxY);
-                }
-                if (boxPoint) {
-                    addBox(
-                        sb,
-                        origin.getX() - BBOX_EDGE_DELTA,
-                        origin.getX() + BBOX_EDGE_DELTA,
-                        origin.getY() - BBOX_EDGE_DELTA,
-                        origin.getY() + BBOX_EDGE_DELTA
-                    );
-                }
-                sb.append(",");
-                addPoint(sb, origin);
-            });
-        }
-    }
-
-    private static void addPoint(StringBuilder sb, Point point) {
-        sb.append("POINT(");
-        sb.append(point.getX()).append(" ").append(point.getY());
-        sb.append(")");
-    }
-
-    private static void addPolygon(StringBuilder sb, List<Point> points) {
-        sb.append("POLYGON((");
-        for (int i = 0; i < points.size(); i++) {
-            final Point point = points.get(i);
-            if (i > 0) sb.append(", ");
-            double x = point.getX();
-            if (x < -160) x += 360;
-            sb.append(x);
-            sb.append(" ");
-            sb.append(point.getY());
-        }
-        sb.append("))");
-    }
-
-    private static void addBox(StringBuilder sb, double minX, double maxX, double minY, double maxY) {
-        sb.append(",POLYGON((");
-        sb.append(minX).append(" ").append(minY).append(", ");
-        sb.append(maxX).append(" ").append(minY).append(", ");
-        sb.append(maxX).append(" ").append(maxY).append(", ");
-        sb.append(minX).append(" ").append(maxY).append(", ");
-        sb.append(minX).append(" ").append(minY);
-        sb.append("))");
-    }
-
     public void testChildCoverage() {
+        // To use this test to determine the scale factor to use in the H3 grid tiler,
+        // increase the cellsPerLevel to 1000 and uncomment the System.out lines at the end of the test.
+        int cellPerLevel = 10;
         double totalFactor = 0;
         double maxFactor = 0;
         double minFactor = Float.MAX_VALUE;
-        int totalCount = 100;
-        for (int i = 0; i < totalCount; i++) {
-            Point point = GeometryTestUtils.randomPoint(false);
+        for (int i = 0; i < cellPerLevel; i++) {
+            Point point = randomSafePoint();
             for (int level = 0; level < H3.MAX_H3_RES; level++) {
-                double factor = doTestChildCoverage(level, point);
+                double factor = doTestChildCoverage("testChildCoverage" + level, level, point);
                 totalFactor += factor;
                 if (factor > maxFactor) maxFactor = factor;
                 if (factor < minFactor) minFactor = factor;
             }
         }
-        System.out.println("Average factor " + (totalFactor / (totalCount * H3.MAX_H3_RES)));
-        System.out.println("Max factor " + maxFactor);
-        System.out.println("Min factor " + minFactor);
+        double averageFactor = (totalFactor / (cellPerLevel * H3.MAX_H3_RES));
+        assertThat("Expected average factor", averageFactor, closeTo(INFLATION_FACTOR, 0.05));
+        assertThat("Expected minimum factor", minFactor, greaterThan(1.1));
+        assertThat("Expected maximum factor", maxFactor, lessThan(1.2));
+        // Uncomment the following to get the measured scale factor to use in the H3 grid tiler
+        // System.out.println("Average factor " + averageFactor);
+        // System.out.println("Max factor " + maxFactor);
+        // System.out.println("Min factor " + minFactor);
+    }
+
+    private Point randomSafePoint() {
+        Point point;
+        do {
+            point = GeometryTestUtils.randomPoint(false);
+        } while (point.getY() > getLatitudeThreshold() || point.getY() < -getLatitudeThreshold());
+        return point;
     }
 
     private int collectOutsidePoints(long[] children, Component2D component, ArrayList<Point> outsideParent) {
@@ -219,78 +121,94 @@ public class H3LatLonGeometryTests extends ESTestCase {
             CellBoundary childBoundary = H3.h3ToGeoBoundary(child);
             for (int i = 0; i < childBoundary.numPoints(); i++, totalChildVertices++) {
                 LatLng vertex = childBoundary.getLatLon(i);
-                if (component.contains(vertex.getLonDeg(), vertex.getLatDeg()) == false) {
-                    outsideParent.add(new Point(vertex.getLonDeg(), vertex.getLatDeg()));
+                Point outside = new Point(vertex.getLonDeg(), vertex.getLatDeg());
+                if (outside.getY() < getLatitudeThreshold() && outside.getY() > -getLatitudeThreshold()) {
+                    if (component.contains(vertex.getLonDeg(), vertex.getLatDeg()) == false) {
+                        outsideParent.add(outside);
+                    }
                 }
             }
         }
         return totalChildVertices;
     }
 
-    private double doTestChildCoverage(int level, Point point) {
+    private double doTestChildCoverage(String test, int level, Point point) {
+        testGeometryCollector.start(test, 0, 10);
+        TestGeometryCollector.Collector collector = testGeometryCollector.normal();
+        double maxLat = getLatitudeThreshold();
+        double minLat = -maxLat;
         long h3 = H3.geoToH3(point.getLat(), point.getLon(), level);
-        H3LatLonGeometry h3geom = new H3LatLonGeometry(H3.h3ToString(h3));
+        String h3Address = H3.h3ToString(h3);
+        collector.addH3Cell(h3Address);
+        H3LatLonGeometry h3geom = makeGeometry(h3Address);
         Component2D component = h3geom.toComponent2D();
         CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-        Point centroid = calculateCentroid(boundary);
         ArrayList<Point> vertices = new ArrayList<>();
         for (int i = 0; i < boundary.numPoints(); i++) {
             LatLng vertex = boundary.getLatLon(i);
             vertices.add(new Point(vertex.getLonDeg(), vertex.getLatDeg()));
         }
         long[] children = H3.h3ToChildren(h3);
+        for (long child : children) {
+            collector.addH3Cell(H3.h3ToString(child));
+        }
         ArrayList<Point> outsideParent = new ArrayList<>();
         int totalChildVertices = collectOutsidePoints(children, component, outsideParent);
-        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
-        addPolygon(sb, vertices);
+        assertThat(
+            "Few child vertices outside the parent",
+            1.0 * outsideParent.size() / totalChildVertices,
+            both(lessThan(0.35)).and(greaterThan(0.10))
+        );
         for (Point childVertex : outsideParent) {
-            sb.append(", ");
-            addPoint(sb, childVertex);
+            collector.addPoint(childVertex.getX(), childVertex.getY());
         }
         int countOutside = outsideParent.size();
         double factor = 1.10;
-        while (countOutside > 0 && factor < 1.2) {
+        while (countOutside > 0 && factor < 1.5) {
             factor += 0.001;
-            H3LatLonGeometry h3geomScaled = new H3LatLonGeometry.Scaled(H3.h3ToString(h3), factor);
+            H3LatLonGeometry h3geomScaled = makeGeometry(H3.h3ToString(h3), factor);
             Component2D component2DScaled = h3geomScaled.toComponent2D();
-//            assertThat("Scaled minX should be smaller", component2DScaled.getMinX(), lessThan(component.getMinX()));
-//            assertThat("Scaled maxX should be bigger", component2DScaled.getMaxX(), greaterThan(component.getMaxX()));
-//            assertThat("Scaled minY should be smaller", component2DScaled.getMinY(), lessThan(component.getMinY()));
-//            assertThat("Scaled maxY should be bigger", component2DScaled.getMaxY(), greaterThan(component.getMaxY()));
+            assertThat("Scaled minX", component2DScaled.getMinX(), either(is(-180d)).or(lessThan(component.getMinX())));
+            assertThat("Scaled maxX", component2DScaled.getMaxX(), either(is(180d)).or(greaterThan(component.getMaxX())));
+            assertThat("Scaled minY", component2DScaled.getMinY(), either(is(minLat)).or(lessThan(component.getMinY())));
+            assertThat("Scaled maxY", component2DScaled.getMaxY(), either(is(maxLat)).or(greaterThan(component.getMaxY())));
             ArrayList<Point> outsideParentScaled = new ArrayList<>();
             collectOutsidePoints(children, component2DScaled, outsideParentScaled);
             countOutside = outsideParentScaled.size();
         }
+        Point centroid = calculateCentroid(boundary);
+        centroid = new Point(centroid.getX(), centroid.getY());
         ArrayList<Point> verticesScaled = new ArrayList<>();
         for (Point vertex : vertices) {
             verticesScaled.add(pointInterpolation(centroid, vertex, factor));
+            collector.addLine(centroid, verticesScaled.get(verticesScaled.size() - 1));
         }
-        sb.append(", ");
-        addPolygon(sb, verticesScaled);
-        // System.out.println(sb.append(")"));
-        // System.out.println(outsideParent.size() + "/" + totalChildVertices + " of child vertices were outside the parent");
-        //System.out.println("Got factor " + factor);
+        collector.addPolygon(verticesScaled);
+        testGeometryCollector.stop((normal, special) -> {
+            assertThat(
+                String.format(
+                    Locale.ROOT,
+                    "Two polygons, %d child cells, %d lines and %d child external vertices",
+                    children.length,
+                    vertices.size(),
+                    outsideParent.size()
+                ),
+                normal.size(),
+                is(outsideParent.size() + vertices.size() + children.length + 2)
+            );
+            assertThat("No special", special.size(), is(0));
+        });
         return factor;
     }
 
-    private double calculateAngles(Point centroid, List<Point> points) {
-        double totalAngle = 0;
-        GeoPoint centroid3d = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(centroid.getLat()), Math.toRadians(centroid.getLon()));
-        for (Point point : points) {
-            GeoPoint point3d = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(point.getLat()), Math.toRadians(point.getLon()));
-            double arcDistance = point3d.arcDistance(centroid3d);
-            totalAngle += arcDistance;
-            System.out.println("Got angle " + arcDistance);
-        }
-        return totalAngle / points.size();
-    }
-
     private void doTestLevelAndPoint(int level, Point point) {
+        String name = "testPoint_" + point.getX() + "_" + point.getY() + "_Level" + level;
+        testGeometryCollector.start(name);
         long h3 = H3.geoToH3(point.getLat(), point.getLon(), level);
-        H3LatLonGeometry h3geom = new H3LatLonGeometry(H3.h3ToString(h3));
+        H3LatLonGeometry h3geom = makeGeometry(H3.h3ToString(h3));
         Component2D component = h3geom.toComponent2D();
         // Uncomment this line to get WKT printout of H3 cell and origin point
-        // System.out.println(debugH3Polygon2D(component, point, false));
+        addH3Polygon(component, point, true, false);
         CellBoundary boundary = H3.h3ToGeoBoundary(h3);
         String cellName = "H3[l" + level + ":b" + boundary.numPoints() + "]";
         // assumeThat("We only test convex hexagons for now", boundary.numPoints(), lessThanOrEqualTo(6));
@@ -347,6 +265,28 @@ public class H3LatLonGeometryTests extends ESTestCase {
                 assertLineAndTriangleOutsideHexagon(cellName, component, pointOutside, d, a, true);
                 assertLineAndTriangleOutsideHexagon(cellName, component, pointOutside, d, a, false);
             }
+        }
+    }
+
+    private void addH3Polygon(Component2D component, Point origin, boolean bbox, boolean boxPoint) {
+        final double BBOX_EDGE_DELTA = 1e-4;
+        if (component instanceof H3Polygon2D h3Polygon) {
+            h3Polygon.inspect((h3, res, minX, maxX, minY, maxY, boundary) -> {
+                TestGeometryCollector.Collector collector = testGeometryCollector.normal();
+                collector.addPolygon(boundary);
+                if (bbox) {
+                    collector.addBox(minX, maxX, minY, maxY);
+                }
+                if (boxPoint) {
+                    collector.addBox(
+                        origin.getX() - BBOX_EDGE_DELTA,
+                        origin.getX() + BBOX_EDGE_DELTA,
+                        origin.getY() - BBOX_EDGE_DELTA,
+                        origin.getY() + BBOX_EDGE_DELTA
+                    );
+                }
+                collector.addPoint(origin);
+            });
         }
     }
 

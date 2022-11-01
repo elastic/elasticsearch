@@ -273,7 +273,6 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
         );
     }
 
-    // TODO For H3
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             GeoHashGridAggregationBuilder.REGISTRY_KEY,
@@ -315,7 +314,6 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
             true
         );
 
-        // TODO: Make for H3
         builder.register(
             GeoTileGridAggregationBuilder.REGISTRY_KEY,
             GeoShapeValuesSourceType.instance(),

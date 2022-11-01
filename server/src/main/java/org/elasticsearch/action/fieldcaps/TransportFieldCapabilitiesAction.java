@@ -112,12 +112,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
-        final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {
-                Map<String, IndexFieldCapabilities> curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp.get());
+                FieldCapabilitiesIndexResponse curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp);
                 if (curr != null) {
-                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), resp.getIndexMappingHash(), curr, true);
+                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
                 }
             }
             indexResponses.putIfAbsent(resp.getIndexName(), resp);
@@ -226,6 +226,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return remoteRequest;
     }
 
+    private static boolean hasSameMappingHash(FieldCapabilitiesIndexResponse r1, FieldCapabilitiesIndexResponse r2) {
+        return r1.getIndexMappingHash() != null
+            && r2.getIndexMappingHash() != null
+            && r1.getIndexMappingHash().equals(r2.getIndexMappingHash());
+    }
+
     private FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         FieldCapabilitiesRequest request,
@@ -239,8 +245,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         int lastPendingIndex = 0;
         for (int i = 1; i <= indexResponses.length; i++) {
-            // use object equality to avoid expensive string comparison of mapping hashes.
-            if (i == indexResponses.length || indexResponses[lastPendingIndex].get() != indexResponses[i].get()) {
+            if (i == indexResponses.length || hasSameMappingHash(indexResponses[lastPendingIndex], indexResponses[i]) == false) {
                 final String[] subIndices;
                 if (lastPendingIndex == 0 && i == indexResponses.length) {
                     subIndices = indices;

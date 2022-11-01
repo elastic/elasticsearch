@@ -6,27 +6,52 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.pipeline.ParsedDerivative;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
-public class InternalDerivativeTests extends InternalAggregationTestCase<InternalDerivative> {
+public class DerivativeResultTests extends InternalAggregationTestCase<Derivative> {
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AggregationsPlugin();
+    }
 
     @Override
-    protected InternalDerivative createTestInstance(String name, Map<String, Object> metadata) {
+    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
+        return Stream.concat(
+            super.getNamedXContents().stream(),
+            Stream.of(
+                new NamedXContentRegistry.Entry(
+                    Aggregation.class,
+                    new ParseField(DerivativePipelineAggregationBuilder.NAME),
+                    (p, c) -> ParsedDerivative.fromXContent(p, (String) c)
+                )
+            )
+        ).toList();
+    }
+
+    @Override
+    protected Derivative createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         double value = frequently()
             ? randomDoubleBetween(-100000, 100000, true)
             : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         double normalizationFactor = frequently() ? randomDoubleBetween(0, 100000, true) : 0;
-        return new InternalDerivative(name, value, normalizationFactor, formatter, metadata);
+        return new Derivative(name, value, normalizationFactor, formatter, metadata);
     }
 
     @Override
@@ -35,12 +60,12 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected void assertReduced(InternalDerivative reduced, List<InternalDerivative> inputs) {
+    protected void assertReduced(Derivative reduced, List<Derivative> inputs) {
         // no test since reduce operation is unsupported
     }
 
     @Override
-    protected void assertFromXContent(InternalDerivative derivative, ParsedAggregation parsedAggregation) {
+    protected void assertFromXContent(Derivative derivative, ParsedAggregation parsedAggregation) {
         ParsedDerivative parsed = ((ParsedDerivative) parsedAggregation);
         if (Double.isInfinite(derivative.getValue()) == false && Double.isNaN(derivative.getValue()) == false) {
             assertEquals(derivative.getValue(), parsed.value(), Double.MIN_VALUE);
@@ -53,7 +78,7 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected InternalDerivative mutateInstance(InternalDerivative instance) {
+    protected Derivative mutateInstance(Derivative instance) {
         String name = instance.getName();
         double value = instance.getValue();
         double normalizationFactor = instance.getNormalizationFactor();
@@ -79,6 +104,6 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalDerivative(name, value, normalizationFactor, formatter, metadata);
+        return new Derivative(name, value, normalizationFactor, formatter, metadata);
     }
 }

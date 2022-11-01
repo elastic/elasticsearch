@@ -51,6 +51,8 @@ import org.elasticsearch.script.field.IntegerDocValuesField;
 import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -373,19 +375,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(name, numericType(), HalfFloatDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), valuesSourceType, HalfFloatDocValuesField::new);
             }
 
             @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
+                ValuesSourceType valuesSourceType,
                 SourceLookup sourceLookup,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
-                    numericType().getValuesSourceType(),
+                    valuesSourceType,
                     valueFetcher,
                     sourceLookup,
                     HalfFloatDocValuesField::new
@@ -523,19 +526,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(name, numericType(), FloatDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), valuesSourceType, FloatDocValuesField::new);
             }
 
             @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
+                ValuesSourceType valuesSourceType,
                 SourceLookup sourceLookup,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
-                    numericType().getValuesSourceType(),
+                    valuesSourceType,
                     valueFetcher,
                     sourceLookup,
                     FloatDocValuesField::new
@@ -651,19 +655,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(name, numericType(), DoubleDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), valuesSourceType, DoubleDocValuesField::new);
             }
 
             @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
+                ValuesSourceType valuesSourceType,
                 SourceLookup sourceLookup,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
-                    numericType().getValuesSourceType(),
+                    valuesSourceType,
                     valueFetcher,
                     sourceLookup,
                     DoubleDocValuesField::new
@@ -754,19 +759,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), ByteDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, ByteDocValuesField::new);
             }
 
             @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
+                ValuesSourceType valuesSourceType,
                 SourceLookup sourceLookup,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
-                    numericType().getValuesSourceType(),
+                    valuesSourceType,
                     valueFetcher,
                     sourceLookup,
                     ByteDocValuesField::new
@@ -842,19 +848,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), ShortDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, ShortDocValuesField::new);
             }
 
             @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
+                ValuesSourceType valuesSourceType,
                 SourceLookup sourceLookup,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
-                    numericType().getValuesSourceType(),
+                    valuesSourceType,
                     valueFetcher,
                     sourceLookup,
                     ShortDocValuesField::new
@@ -997,19 +1004,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), IntegerDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, IntegerDocValuesField::new);
             }
 
             @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
+                ValuesSourceType valuesSourceType,
                 SourceLookup sourceLookup,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
-                    numericType().getValuesSourceType(),
+                    valuesSourceType,
                     valueFetcher,
                     sourceLookup,
                     IntegerDocValuesField::new
@@ -1122,19 +1130,20 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), LongDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, LongDocValuesField::new);
             }
 
             @Override
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
+                ValuesSourceType valuesSourceType,
                 SourceLookup sourceLookup,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
-                    numericType().getValuesSourceType(),
+                    valuesSourceType,
                     valueFetcher,
                     sourceLookup,
                     LongDocValuesField::new
@@ -1364,9 +1373,14 @@ public class NumberFieldMapper extends FieldMapper {
             return builder.apply(l, u);
         }
 
-        public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
+        public abstract IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType);
 
-        public IndexFieldData.Builder getValueFetcherFieldDataBuilder(String name, SourceLookup sourceLookup, ValueFetcher valueFetcher) {
+        public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+            String name,
+            ValuesSourceType valuesSourceType,
+            SourceLookup sourceLookup,
+            ValueFetcher valueFetcher
+        ) {
             throw new UnsupportedOperationException("not supported for source fallback");
         }
 
@@ -1530,15 +1544,23 @@ public class NumberFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
+            ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter
+                ? TimeSeriesValuesSourceType.COUNTER
+                : type.numericType.getValuesSourceType();
+
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return type.getFieldDataBuilder(name());
+                return type.getFieldDataBuilder(name(), valuesSourceType);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-
-                return type.getValueFetcherFieldDataBuilder(name(), searchLookup.source(), sourceValueFetcher(sourcePaths));
+                return type.getValueFetcherFieldDataBuilder(
+                    name(),
+                    valuesSourceType,
+                    searchLookup.source(),
+                    sourceValueFetcher(sourcePaths)
+                );
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");

@@ -120,7 +120,6 @@ public class MetadataIndexStateService {
     private final ShardLimitValidator shardLimitValidator;
     private final NodeClient client;
     private final ThreadPool threadPool;
-    private final ActiveShardsObserver activeShardsObserver;
     private final ClusterStateTaskExecutor<OpenIndicesTask> opensExecutor;
     private final ClusterStateTaskExecutor<AddBlocksToCloseTask> addBlocksToCloseExecutor;
     private final ClusterStateTaskExecutor<CloseIndicesTask> closesExecutor;
@@ -144,7 +143,6 @@ public class MetadataIndexStateService {
         this.shardLimitValidator = shardLimitValidator;
         this.client = client;
         this.threadPool = threadPool;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.opensExecutor = new OpenIndicesExecutor();
         this.addBlocksToCloseExecutor = new AddBlocksToCloseExecutor();
         this.closesExecutor = new CloseIndicesExecutor();
@@ -242,25 +240,27 @@ public class MetadataIndexStateService {
                             .toArray(String[]::new);
 
                         if (waitForIndices.length > 0) {
-                            activeShardsObserver.waitForActiveShards(
+                            ActiveShardsObserver.waitForActiveShards(
+                                clusterService,
                                 waitForIndices,
                                 task.request.waitForActiveShards(),
                                 task.request.ackTimeout(),
-                                shardsAcknowledged -> {
+                                listener.delay(task.listener()).map(shardsAcknowledged -> {
                                     if (shardsAcknowledged == false) {
                                         logger.debug(
-                                            "[{}] indices closed, but the operation timed out while "
-                                                + "waiting for enough shards to be started.",
-                                            Arrays.toString(waitForIndices)
+                                            () -> format(
+                                                "[{}] indices closed, but the operation timed out while "
+                                                    + "waiting for enough shards to be started.",
+                                                Arrays.toString(waitForIndices)
+                                            )
                                         );
                                     }
                                     // acknowledged maybe be false but some indices may have been correctly closed,
                                     // so we maintain a kind of coherency by overriding the shardsAcknowledged value
                                     // (see ShardsAcknowledgedResponse constructor)
                                     boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                    listener.delay(task.listener()).onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
-                                },
-                                listener.delay(task.listener())::onFailure
+                                    return new CloseIndexResponse(acknowledged, shardsAcked, indices);
+                                })
                             );
                         } else {
                             listener.delay(task.listener()).onResponse(new CloseIndexResponse(acknowledged, false, indices));
@@ -907,20 +907,22 @@ public class MetadataIndexStateService {
         onlyOpenIndices(request, listener.delegateFailure((delegate, response) -> {
             if (response.isAcknowledged()) {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     indexNames,
                     request.waitForActiveShards(),
                     request.ackTimeout(),
-                    shardsAcknowledged -> {
+                    delegate.map(shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
-                                "[{}] indices opened, but the operation timed out while waiting for enough shards to be started.",
-                                Arrays.toString(indexNames)
+                                () -> format(
+                                    "[{}] indices opened, but the operation timed out while waiting for enough shards to be started.",
+                                    Arrays.toString(indexNames)
+                                )
                             );
                         }
-                        delegate.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
-                    },
-                    listener::onFailure
+                        return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
+                    })
                 );
             } else {
                 delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);

@@ -366,14 +366,7 @@ public class IndexNameExpressionResolver {
             if (indexAbstraction == null) {
                 if (options.ignoreUnavailable() == false) {
                     // can be reached only if {@code indicesOptions#expandWildcardExpressions} is `false`
-                    IndexNotFoundException infe;
-                    if (expression.equals(Metadata.ALL)) {
-                        infe = new IndexNotFoundException("no indices exist", expression);
-                    } else {
-                        infe = new IndexNotFoundException(expression);
-                    }
-                    infe.setResources("index_expression", expression);
-                    throw infe;
+                    throw notFoundException(expression);
                 } else {
                     continue;
                 }
@@ -434,18 +427,7 @@ public class IndexNameExpressionResolver {
         }
 
         if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
-            IndexNotFoundException infe;
-            if (indexExpressions.length == 1) {
-                if (indexExpressions[0].equals(Metadata.ALL)) {
-                    infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
-                } else {
-                    infe = new IndexNotFoundException(indexExpressions[0]);
-                }
-                infe.setResources("index_expression", indexExpressions[0]);
-            } else {
-                infe = new IndexNotFoundException((String) null);
-                infe.setResources("index_expression", indexExpressions);
-            }
+            IndexNotFoundException infe = notFoundException(indexExpressions);
             if (excludedDataStreams) {
                 // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
                 infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
@@ -454,6 +436,22 @@ public class IndexNameExpressionResolver {
         }
         checkSystemIndexAccess(context, concreteIndices);
         return concreteIndices.toArray(Index.EMPTY_ARRAY);
+    }
+
+    private IndexNotFoundException notFoundException(String... indexExpressions) {
+        IndexNotFoundException infe;
+        if (indexExpressions.length == 1) {
+            if (indexExpressions[0].equals(Metadata.ALL)) {
+                infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
+            } else {
+                infe = new IndexNotFoundException(indexExpressions[0]);
+            }
+            infe.setResources("index_expression", indexExpressions[0]);
+        } else {
+            infe = new IndexNotFoundException((String) null);
+            infe.setResources("index_expression", indexExpressions);
+        }
+        return infe;
     }
 
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {

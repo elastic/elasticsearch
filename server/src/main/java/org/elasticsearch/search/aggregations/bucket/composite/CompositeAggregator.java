@@ -528,6 +528,9 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
      */
     private void runDeferredCollections() throws IOException {
         final boolean needsScores = scoreMode().needsScores();
+        if (needsScores && (supportesScoring() == false)) {
+            throw new IllegalArgumentException("Incompatible use of non-scorable and score-required aggregations");
+        }
         Weight weight = null;
         if (needsScores) {
             weight = searcher().createWeight(searcher().rewrite(topLevelQuery()), ScoreMode.COMPLETE, 1f);

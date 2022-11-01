@@ -67,6 +67,17 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract Aggregator subAggregator(String name);
 
     /**
+     * Aggregators which cause trouble with scoring, such as {@link org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator}
+     * should override this to return false.  Places where we instantiate scorers should check if they can do so via this method on their
+     * parents
+     */
+    public boolean supportesScoring() {
+        if (parent() != null) {
+            return parent().supportesScoring();
+        }
+        return true;
+    }
+    /**
      * Resolve the next step of the sort path as though this aggregation
      * supported sorting. This is usually the "first step" when resolving
      * a sort path because most aggs that support sorting their buckets

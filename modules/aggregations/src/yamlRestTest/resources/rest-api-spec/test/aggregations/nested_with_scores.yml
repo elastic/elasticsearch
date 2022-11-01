@@ -49,8 +49,11 @@ setup:
 
 ---
 "Query, Composite, Scripted Metric":
+  - skip:
+      version: " - 8.5.99"
+      reason:  fixed in 8.6
   - do:
-      catch: /Nested aggregation is incompatible with sub aggregations requiring scores/
+      catch: /Incompatible use of non-scorable and score-required aggregations/
       search:
         rest_total_hits_as_int: true
         index: test
@@ -98,6 +101,9 @@ setup:
                           source: "double sum = 0; for (a in states) { if (a != null) { sum += a } } return sum"
 ---
 "Query, Composite, Scripted Metric (scores disabled)":
+  - skip:
+      version: " - 8.5.99"
+      reason:  fixed in 8.6
   - do:
       search:
         rest_total_hits_as_int: true

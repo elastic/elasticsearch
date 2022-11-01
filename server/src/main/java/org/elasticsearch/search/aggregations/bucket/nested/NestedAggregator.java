@@ -69,15 +69,16 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
+    public boolean supportesScoring() {
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
         throws IOException {
         IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(aggCtx.getLeafReaderContext());
         IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
-        if (scoreMode() != ScoreMode.COMPLETE_NO_SCORES) {
-            // should we just check for scoreMode.needsScores()?
-            throw new IllegalArgumentException("Nested aggregation is incompatible with sub aggregations requiring scores");
-        }
         Weight weight = searcher.createWeight(searcher.rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer childDocsScorer = weight.scorer(aggCtx.getLeafReaderContext());
 

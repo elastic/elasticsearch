@@ -9,14 +9,17 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -247,15 +250,6 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
-            MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
-                @Override
-                public double execute(Map<String, Object> params1, double[] values) {
-                    params1.put("_values", values);
-                    return (double) script.apply(params1);
-                }
-            };
-            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = new MockScoreScript(script);
             return context.factoryClazz.cast(factory);
@@ -339,6 +333,9 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(objectFieldScript);
+        } else if (context.instanceClazz.equals(DoubleValuesScript.class)) {
+            DoubleValuesScript.Factory doubleValuesScript = () -> new MockDoubleValuesScript();
+            return context.factoryClazz.cast(doubleValuesScript);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
@@ -365,7 +362,6 @@ public class MockScriptEngine implements ScriptEngine {
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
-            MovingFunctionScript.CONTEXT,
             ScoreScript.CONTEXT,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,
@@ -854,6 +850,43 @@ public class MockScriptEngine implements ScriptEngine {
                     return (BytesRefProducer) script.apply(vars);
                 }
             };
+        }
+    }
+
+    class MockDoubleValuesScript extends DoubleValuesScript {
+        @Override
+        public double execute() {
+            return 1.0;
+        }
+
+        @Override
+        public double evaluate(DoubleValues[] functionValues) {
+            return 1.0;
+        }
+
+        @Override
+        public DoubleValuesSource getDoubleValuesSource(Function<String, DoubleValuesSource> sourceProvider) {
+            return null;
+        }
+
+        @Override
+        public SortField getSortField(Function<String, DoubleValuesSource> sourceProvider, boolean reverse) {
+            return null;
+        }
+
+        @Override
+        public Rescorer getRescorer(Function<String, DoubleValuesSource> sourceProvider) {
+            return null;
+        }
+
+        @Override
+        public String sourceText() {
+            return null;
+        }
+
+        @Override
+        public String[] variables() {
+            return new String[0];
         }
     }
 }

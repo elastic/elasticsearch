@@ -42,8 +42,8 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -247,29 +247,25 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     /**
-     * Build a {@link SourceToParse} with an id.
+     * Build a {@link SourceToParse} with the id {@code "1"} and without any dynamic templates.
      */
     protected final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
+    /**
+     * Build a {@link SourceToParse} without any dynamic templates.
+     */
     protected final SourceToParse source(@Nullable String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
         throws IOException {
-        return source("test", id, build, routing, Map.of());
+        return source(id, build, routing, Map.of());
     }
 
+    /**
+     * Build a {@link SourceToParse}.
+     */
     protected final SourceToParse source(
-        String id,
-        CheckedConsumer<XContentBuilder, IOException> build,
-        @Nullable String routing,
-        Map<String, String> dynamicTemplates
-    ) throws IOException {
-        return source("text", id, build, routing, dynamicTemplates);
-    }
-
-    protected final SourceToParse source(
-        String index,
-        String id,
+        @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
         Map<String, String> dynamicTemplates
@@ -280,6 +276,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
+    /**
+     * Build a {@link SourceToParse} with an id of {@code "1"}.
+     */
     protected static SourceToParse source(String source) {
         return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
     }
@@ -697,20 +696,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
         LeafReader leafReader = getOnlyLeafReader(reader);
         SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
-        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldsVisitor(mapper, leafReader, loader), docId);
+        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
         return syntheticSourceBytes.utf8ToString();
     }
 
-    protected static FieldsVisitor syntheticSourceStoredFieldsVisitor(DocumentMapper mapper, LeafReader leafReader, SourceLoader loader)
-        throws IOException {
+    protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(
+        DocumentMapper mapper,
+        LeafReader leafReader,
+        SourceLoader loader
+    ) throws IOException {
         if (loader.requiredStoredFields().isEmpty()) {
-            return null;
+            return StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
         }
-        FieldsVisitor fieldsVisitor = new CustomFieldsVisitor(loader.requiredStoredFields(), false);
-        fieldsVisitor.reset();
-        leafReader.document(0, fieldsVisitor);
-        fieldsVisitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
-        return fieldsVisitor;
+        LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields())
+            .getLoader(leafReader.getContext(), null);
+        storedFields.advanceTo(0);
+        return storedFields;
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

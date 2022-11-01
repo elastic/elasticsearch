@@ -161,17 +161,16 @@ services:
       - ./idp/shibboleth-idp/metadata:/opt/shibboleth-idp/metadata
       - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
 
-# c2id/c2id-server image is no longer available
-#  oidc-provider:
-#    image: "c2id/c2id-server:9.5"
-#    depends_on:
-#      - http-proxy
-#    ports:
-#      - "8080"
-#    expose:
-#      - "8080"
-#    volumes:
-#      - ./oidc/override.properties:/etc/c2id/override.properties
+  oidc-provider:
+    image: "c2id/c2id-server-demo:12.16.1"
+    depends_on:
+      - http-proxy
+    ports:
+      - "8080"
+    expose:
+      - "8080"
+    volumes:
+      - ./oidc/override.properties:/etc/c2id/override.properties
 
   http-proxy:
     image: "nginx:latest"

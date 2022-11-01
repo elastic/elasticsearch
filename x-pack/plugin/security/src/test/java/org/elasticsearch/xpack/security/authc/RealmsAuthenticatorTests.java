@@ -161,9 +161,9 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final AuthenticationResult<Authentication> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         final Authentication authentication = result.getValue();
-        assertThat(authentication.getUser(), is(user));
+        assertThat(authentication.getEffectiveSubject().getUser(), is(user));
         assertThat(
-            authentication.getAuthenticatedBy(),
+            authentication.getAuthenticatingSubject().getRealm(),
             is(
                 new Authentication.RealmRef(
                     successfulRealm.name(),

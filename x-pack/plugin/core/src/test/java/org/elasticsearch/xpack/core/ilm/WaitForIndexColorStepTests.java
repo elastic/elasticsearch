@@ -33,9 +33,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForIndexColorStep> {
 
     private static ClusterHealthStatus randomColor() {
-        String[] colors = new String[] { "green", "yellow", "red" };
-        int randomColor = randomIntBetween(0, colors.length - 1);
-        return ClusterHealthStatus.fromString(colors[randomColor]);
+        return randomFrom(ClusterHealthStatus.values());
     }
 
     @Override
@@ -51,17 +49,13 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     protected WaitForIndexColorStep mutateInstance(WaitForIndexColorStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        ClusterHealthStatus color = instance.getColor(), newColor = randomColor();
+        ClusterHealthStatus color = instance.getColor();
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getIndexNameSupplier();
 
-        while (color.equals(newColor)) {
-            newColor = randomColor();
-        }
-
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 2 -> color = newColor;
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            case 2 -> color = randomValueOtherThan(color, WaitForIndexColorStepTests::randomColor);
         }
 
         return new WaitForIndexColorStep(key, nextKey, color, indexNameSupplier);
@@ -256,7 +250,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             info.getMessage(),
             is(
                 "["
-                    + step.getKey().getAction()
+                    + step.getKey().action()
                     + "] lifecycle action for index ["
                     + originalIndex.getIndex().getName()
                     + "] executed but the target index ["

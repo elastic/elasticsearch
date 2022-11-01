@@ -64,6 +64,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
@@ -152,8 +153,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final ThreadPool threadPool;
 
-    private final Map<Snapshot, List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>>> snapshotCompletionListeners =
-        new ConcurrentHashMap<>();
+    private final Map<Snapshot, List<ActionListener<SnapshotInfo>>> snapshotCompletionListeners = new ConcurrentHashMap<>();
 
     /**
      * Listeners for snapshot deletion keyed by delete uuid as returned from {@link SnapshotDeletionsInProgress.Entry#uuid()}
@@ -233,7 +233,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot completion listener
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        createSnapshot(request, ActionListener.wrap(snapshot -> addListener(snapshot, listener.map(Tuple::v2)), listener::onFailure));
+        createSnapshot(request, ActionListener.wrap(snapshot -> addListener(snapshot, listener), listener::onFailure));
     }
 
     /**
@@ -372,11 +372,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     indices = List.copyOf(indexNames);
                 }
 
-                final List<String> dataStreams = new ArrayList<>(
-                    indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices())
-                );
-                dataStreams.addAll(systemDataStreamNames);
-
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
                 final Map<String, IndexId> allIndices = new HashMap<>();
@@ -402,18 +397,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                     if (missing.isEmpty() == false) {
-                        throw new SnapshotException(
-                            new Snapshot(repositoryName, snapshotId),
-                            "Indices don't have primary shards " + missing
-                        );
+                        throw new SnapshotException(snapshot, "Indices don't have primary shards " + missing);
                     }
                 }
                 newEntry = SnapshotsInProgress.startedEntry(
-                    new Snapshot(repositoryName, snapshotId),
+                    snapshot,
                     request.includeGlobalState(),
                     request.partial(),
                     indexIds,
-                    dataStreams,
+                    CollectionUtils.concatLists(
+                        indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
+                        systemDataStreamNames
+                    ),
                     threadPool.absoluteTimeInMillis(),
                     repositoryData.getGenId(),
                     shards,
@@ -1562,7 +1557,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         } else {
                             return new SnapshotInfo.IndexSnapshotDetails(
                                 current.getShardCount() + 1,
-                                new ByteSizeValue(current.getSize().getBytes() + result.getSize().getBytes()),
+                                ByteSizeValue.ofBytes(current.getSize().getBytes() + result.getSize().getBytes()),
                                 Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
                             );
                         }
@@ -1584,6 +1579,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.startTime(),
                     indexSnapshotDetails
                 );
+                final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
                 repo.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         shardGenerations,
@@ -1591,12 +1587,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         metaForSnapshot,
                         snapshotInfo,
                         entry.version(),
-                        ActionListener.wrap(result -> {
-                            final SnapshotInfo writtenSnapshotInfo = result.v2();
-                            completeListenersIgnoringException(endAndGetListenersToResolve(writtenSnapshotInfo.snapshot()), result);
-                            logger.info("snapshot [{}] completed with state [{}]", snapshot, writtenSnapshotInfo.state());
-                            runNextQueuedOperation(result.v1(), repository, true);
-                        }, e -> handleFinalizationFailure(e, snapshot, repositoryData))
+                        ActionListener.wrap(updatedRepositoryData -> {
+                            // get a hold of the listeners for this snapshot here and store them in the future so they can be used
+                            // by the snapshot info callback below and won't be failed needlessly if #runNextQueuedOperation runs into
+                            // a fatal like e.g. this node stopped being the master node
+                            snapshotListeners.onResponse(endAndGetListenersToResolve(snapshot));
+                            runNextQueuedOperation(updatedRepositoryData, repository, true);
+                        }, e -> handleFinalizationFailure(e, snapshot, repositoryData)),
+                        snInfo -> snapshotListeners.addListener(new ActionListener<>() {
+                            @Override
+                            public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
+                                completeListenersIgnoringException(actionListeners, snInfo);
+                                logger.info("snapshot [{}] completed with state [{}]", snapshot, snInfo.state());
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                // never fails
+                                assert false : e;
+                            }
+                        })
                     )
                 );
             }, e -> handleFinalizationFailure(e, snapshot, repositoryData));
@@ -1635,10 +1645,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Remove a snapshot from {@link #endingSnapshots} set and return its completion listeners that must be resolved.
      */
-    private List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> endAndGetListenersToResolve(Snapshot snapshot) {
+    private List<ActionListener<SnapshotInfo>> endAndGetListenersToResolve(Snapshot snapshot) {
         // get listeners before removing from the ending snapshots set to not trip assertion in #assertConsistentWithClusterState that
         // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
-        final List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
+        final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
         endingSnapshots.remove(snapshot);
         return listenersToComplete;
     }
@@ -2982,7 +2992,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshot Snapshot to listen for
      * @param listener listener
      */
-    private void addListener(Snapshot snapshot, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+    private void addListener(Snapshot snapshot, ActionListener<SnapshotInfo> listener) {
         snapshotCompletionListeners.computeIfAbsent(snapshot, k -> new CopyOnWriteArrayList<>())
             .add(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
     }

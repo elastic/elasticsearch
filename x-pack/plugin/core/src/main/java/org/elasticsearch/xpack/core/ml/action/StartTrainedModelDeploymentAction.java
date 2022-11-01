@@ -71,6 +71,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             AllocationStatus.State.FULLY_ALLOCATED };
 
         private static final int MAX_THREADS_PER_ALLOCATION = 32;
+        /**
+         * If the queue is created then we can OOM when we create the queue.
+         */
+        private static final int MAX_QUEUE_CAPACITY = 1_000_000;
 
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
@@ -132,7 +136,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::new);
+                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             }
         }
 
@@ -248,6 +252,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (queueCapacity < 1) {
                 validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be a positive integer");
             }
+            if (queueCapacity > MAX_QUEUE_CAPACITY) {
+                validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be less than " + MAX_QUEUE_CAPACITY);
+            }
+            if (timeout.nanos() < 1L) {
+                validationException.addValidationError("[" + TIMEOUT + "] must be positive");
+            }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }
 
@@ -361,8 +371,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this(
                 modelId,
                 modelBytes,
-                threadsPerAllocation == null ? legacyInferenceThreads : threadsPerAllocation,
                 numberOfAllocations == null ? legacyModelThreads : numberOfAllocations,
+                threadsPerAllocation == null ? legacyInferenceThreads : threadsPerAllocation,
                 queueCapacity,
                 cacheSizeValue
             );
@@ -371,8 +381,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public TaskParams(
             String modelId,
             long modelBytes,
-            int threadsPerAllocation,
             int numberOfAllocations,
+            int threadsPerAllocation,
             int queueCapacity,
             @Nullable ByteSizeValue cacheSize
         ) {
@@ -391,7 +401,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::new);
+                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             } else {
                 this.cacheSize = null;
             }

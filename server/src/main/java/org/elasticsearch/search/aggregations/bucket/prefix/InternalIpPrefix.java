@@ -251,7 +251,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
                 final IteratorAndCurrent<Bucket> top = pq.top();
                 if (top.current().key.equals(value) == false) {
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                    if (reduced.getDocCount() >= minDocCount) {
+                    if (false == reduceContext.isFinalReduce() || reduced.getDocCount() >= minDocCount) {
                         reducedBuckets.add(reduced);
                     }
                     currentBuckets.clear();
@@ -272,7 +272,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                if (reduced.getDocCount() >= minDocCount) {
+                if (false == reduceContext.isFinalReduce() || reduced.getDocCount() >= minDocCount) {
                     reducedBuckets.add(reduced);
                 }
             }

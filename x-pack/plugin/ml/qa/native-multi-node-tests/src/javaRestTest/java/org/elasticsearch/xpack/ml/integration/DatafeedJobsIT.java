@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -791,5 +793,39 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1 + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testStartDatafeed_GivenTimeout_Returns408() throws Exception {
+        client().admin().indices().prepareCreate("data-1").setMapping("time", "type=date").get();
+        long numDocs = 100;
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        indexDocs(logger, "data-1", numDocs, oneWeekAgo, now);
+
+        String jobId = "job-for-start-datafeed-timeout";
+        String datafeedId = jobId + "-datafeed";
+
+        Job.Builder job = createScheduledJob(jobId);
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(
+            job.getId() + "-datafeed",
+            job.getId(),
+            Collections.singletonList("data-1")
+        );
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        putDatafeed(datafeedConfig);
+
+        StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedId, oneWeekAgo);
+        request.getParams().setTimeout(TimeValue.timeValueNanos(1L));
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> client().execute(StartDatafeedAction.INSTANCE, request).actionGet()
+        );
+
+        assertThat(e.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
     }
 }

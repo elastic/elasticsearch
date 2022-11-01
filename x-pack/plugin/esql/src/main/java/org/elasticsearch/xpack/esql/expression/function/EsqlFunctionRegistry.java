@@ -28,7 +28,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] { def(Avg.class, Avg::new, "avg"), def(Count.class, Count::new, "count") },
-            new FunctionDefinition[] { def(Round.class, Round::new, "round") }};
+            new FunctionDefinition[] { def(Round.class, Round::new, "round") } };
     }
 
     @Override

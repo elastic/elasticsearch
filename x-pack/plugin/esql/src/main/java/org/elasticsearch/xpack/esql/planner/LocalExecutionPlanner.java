@@ -437,11 +437,17 @@ public class LocalExecutionPlanner {
                 return (page, pos) -> l;
             }
         } else if (exp instanceof Round round) {
-            ExpressionEvaluator e = toEvaluator(round.field(), layout);
+            ExpressionEvaluator fieldEvaluator = toEvaluator(round.field(), layout);
             if (round.field().dataType().isRational()) {
-                return (page, pos) -> Math.round(((Number) e.computeRow(page, pos)).doubleValue());
+                return (page, pos) -> {
+                    Object decimals = null;
+                    if (round.decimals() != null) {
+                        decimals = toEvaluator(round.decimals(), layout).computeRow(page, pos);
+                    }
+                    return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
+                };
             } else {
-                return (page, pos) -> ((Number) e.computeRow(page, pos)).longValue();
+                return (page, pos) -> (Number) fieldEvaluator.computeRow(page, pos);
             }
         } else {
             throw new UnsupportedOperationException(exp.nodeName());

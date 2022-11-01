@@ -51,7 +51,7 @@ public class RobertaTokenization extends Tokenization {
 
     private final boolean addPrefixSpace;
 
-    public RobertaTokenization(
+    private RobertaTokenization(
         @Nullable Boolean doLowerCase,
         @Nullable Boolean withSpecialTokens,
         @Nullable Integer maxSequenceLength,

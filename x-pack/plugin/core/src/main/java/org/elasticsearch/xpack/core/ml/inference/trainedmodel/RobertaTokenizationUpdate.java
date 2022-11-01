@@ -55,22 +55,20 @@ public class RobertaTokenizationUpdate extends AbstractTokenizationUpdate {
                 // the existing span setting to avoid an invalid combination of settings.
                 // This avoids the user have to set span to the special unset value
                 return new RobertaTokenization(
-                    robertaTokenization.doLowerCase(),
                     robertaTokenization.withSpecialTokens(),
+                    robertaTokenization.isAddPrefixSpace(),
                     robertaTokenization.maxSequenceLength(),
                     getTruncate(),
-                    null,
-                    robertaTokenization.isAddPrefixSpace()
+                    null
                 );
             }
 
             return new RobertaTokenization(
-                robertaTokenization.doLowerCase(),
                 robertaTokenization.withSpecialTokens(),
+                robertaTokenization.isAddPrefixSpace(),
                 robertaTokenization.maxSequenceLength(),
                 Optional.ofNullable(this.getTruncate()).orElse(originalConfig.getTruncate()),
-                Optional.ofNullable(this.getSpan()).orElse(originalConfig.getSpan()),
-                robertaTokenization.isAddPrefixSpace()
+                Optional.ofNullable(this.getSpan()).orElse(originalConfig.getSpan())
             );
         }
         throw ExceptionsHelper.badRequestException(

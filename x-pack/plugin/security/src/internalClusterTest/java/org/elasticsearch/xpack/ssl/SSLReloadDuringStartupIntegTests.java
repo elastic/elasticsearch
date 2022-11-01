@@ -30,7 +30,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Start a cluster. Restart a node with a bad Transport keystore to it can't rejoin.
+ * Start a cluster. Restart a node with a bad Transport keystore so it can't rejoin.
  * Update the Transport keystore, so ES can reload it at runtime. Verify reload was OK
  * by verifying if the cluster goes back to normal.
  */

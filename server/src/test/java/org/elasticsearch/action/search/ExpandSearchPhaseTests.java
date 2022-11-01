@@ -45,8 +45,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
                 SearchHits hits = new SearchHits(
                     new SearchHit[] {
-                        new SearchHit(innerHitNum, "ID", Collections.emptyMap(), Collections.emptyMap()),
-                        new SearchHit(innerHitNum + 1, "ID", Collections.emptyMap(), Collections.emptyMap()) },
+                        new SearchHit(innerHitNum, "ID"),
+                        new SearchHit(innerHitNum + 1, "ID") },
                     new TotalHits(2, TotalHits.Relation.EQUAL_TO),
                     1.0F
                 );
@@ -110,14 +110,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 }
             };
 
+            SearchHit hit = new SearchHit(1, "ID");
+            hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
             SearchHits hits = new SearchHits(
-                new SearchHit[] {
-                    new SearchHit(
-                        1,
-                        "ID",
-                        Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
-                        Collections.emptyMap()
-                    ) },
+                new SearchHit[] {hit },
                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 1.0F
             );
@@ -148,8 +144,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
         SearchHits collapsedHits = new SearchHits(
             new SearchHit[] {
-                new SearchHit(2, "ID", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(3, "ID", Collections.emptyMap(), Collections.emptyMap()) },
+                new SearchHit(2, "ID"),
+                new SearchHit(3, "ID") },
             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
             1.0F
         );
@@ -187,20 +183,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
 
+        SearchHit hit1 = new SearchHit(1, "ID");
+        hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+        SearchHit hit2 = new SearchHit(2, "ID2");
+        hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
         SearchHits hits = new SearchHits(
-            new SearchHit[] {
-                new SearchHit(
-                    1,
-                    "ID",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
-                    Collections.emptyMap()
-                ),
-                new SearchHit(
-                    2,
-                    "ID2",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
-                    Collections.emptyMap()
-                ) },
+            new SearchHit[] { hit1, hit2 },
             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
             1.0F
         );
@@ -227,20 +215,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
 
+        SearchHit hit1 = new SearchHit(1, "ID");
+        hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
+        SearchHit hit2 = new SearchHit(2, "ID2");
+        hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
         SearchHits hits = new SearchHits(
-            new SearchHit[] {
-                new SearchHit(
-                    1,
-                    "ID",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))),
-                    Collections.emptyMap()
-                ),
-                new SearchHit(
-                    2,
-                    "ID2",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))),
-                    Collections.emptyMap()
-                ) },
+            new SearchHit[] { hit1, hit2 },
             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
             1.0F
         );

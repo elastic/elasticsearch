@@ -28,10 +28,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Process stored fields loaded from a HitContext into DocumentFields
+ */
 public class StoredFieldsPhase implements FetchSubPhase {
 
+    /** Associates a field name with a mapped field type and whether or not it is a metadata field */
     private record StoredField(String name, MappedFieldType ft, boolean isMetadataField) {
 
+        /** Processes a set of stored fields using field type information */
         List<Object> process(Map<String, List<Object>> loadedFields) {
             List<Object> inputs = loadedFields.get(ft.name());
             if (inputs == null) {
@@ -49,6 +54,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
             return null;
         }
 
+        // build the StoredFieldsSpec and a list of StoredField records to process
         boolean requiresSource = false;
         List<StoredField> storedFields = new ArrayList<>();
         Set<String> fieldsToLoad = new HashSet<>();

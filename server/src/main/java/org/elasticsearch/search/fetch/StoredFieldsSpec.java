@@ -11,12 +11,26 @@ package org.elasticsearch.search.fetch;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Defines which stored fields need to be loaded during a fetch
+ * @param requiresSource        should source be loaded
+ * @param requiredStoredFields  a set of stored fields to load
+ */
 public record StoredFieldsSpec(boolean requiresSource, Set<String> requiredStoredFields) {
 
+    /**
+     * Use when no stored fields are required
+     */
     public static StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, Set.of());
 
+    /**
+     * Use when the source should be loaded but no other stored fields are required
+     */
     public static StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, Set.of());
 
+    /**
+     * Combine these stored field requirements with those from another StoredFieldsSpec
+     */
     public StoredFieldsSpec merge(StoredFieldsSpec other) {
         Set<String> mergedFields = new HashSet<>(this.requiredStoredFields);
         mergedFields.addAll(other.requiredStoredFields);

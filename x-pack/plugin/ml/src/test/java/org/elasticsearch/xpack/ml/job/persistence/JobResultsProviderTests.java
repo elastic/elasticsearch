@@ -921,7 +921,9 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields, Collections.emptyMap()).sourceRef(
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()));
+            hit.setDocumentFields(fields, Collections.emptyMap());
+            hit.sourceRef(
                 BytesReference.bytes(XContentFactory.jsonBuilder().map(_source))
             );
 

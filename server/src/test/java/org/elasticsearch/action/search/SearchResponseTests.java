@@ -216,7 +216,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {

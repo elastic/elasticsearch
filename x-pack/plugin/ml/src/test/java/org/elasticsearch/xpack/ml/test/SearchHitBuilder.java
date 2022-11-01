@@ -26,7 +26,8 @@ public class SearchHitBuilder {
 
     public SearchHitBuilder(int docId) {
         fields = new HashMap<>();
-        hit = new SearchHit(docId, null, fields, null);
+        hit = new SearchHit(docId, null);
+        hit.setDocumentFields(fields, Map.of());
     }
 
     public SearchHitBuilder addField(String name, Object value) {

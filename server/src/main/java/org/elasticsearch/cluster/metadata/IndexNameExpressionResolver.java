@@ -341,18 +341,7 @@ public class IndexNameExpressionResolver {
 
         if (expressions.isEmpty()) {
             if (options.allowNoIndices() == false) {
-                IndexNotFoundException infe;
-                if (indexExpressions.length == 1) {
-                    if (indexExpressions[0].equals(Metadata.ALL)) {
-                        infe = new IndexNotFoundException("no indices exist", (String) null);
-                    } else {
-                        infe = new IndexNotFoundException((String) null);
-                    }
-                } else {
-                    infe = new IndexNotFoundException((String) null);
-                }
-                infe.setResources("index_expression", indexExpressions);
-                throw infe;
+                throw notFoundException(indexExpressions);
             } else {
                 return Index.EMPTY_ARRAY;
             }

@@ -14,8 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,12 +40,12 @@ public class CompoundProcessor implements Processor {
     private final LongSupplier relativeTimeProvider;
     private final boolean isAsync;
 
-    CompoundProcessor(LongSupplier relativeTimeProvider, boolean ignoreFailure, Processor... processor) {
-        this(ignoreFailure, Arrays.asList(processor), Collections.emptyList(), relativeTimeProvider);
+    CompoundProcessor(LongSupplier relativeTimeProvider, boolean ignoreFailure, Processor... processors) {
+        this(ignoreFailure, List.of(processors), List.of(), relativeTimeProvider);
     }
 
-    public CompoundProcessor(Processor... processor) {
-        this(false, Arrays.asList(processor), Collections.emptyList());
+    public CompoundProcessor(Processor... processors) {
+        this(false, List.of(processors), List.of());
     }
 
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
@@ -62,12 +60,11 @@ public class CompoundProcessor implements Processor {
     ) {
         super();
         this.ignoreFailure = ignoreFailure;
-        this.processors = processors;
-        this.onFailureProcessors = onFailureProcessors;
+        this.processors = List.copyOf(processors);
+        this.onFailureProcessors = List.copyOf(onFailureProcessors);
         this.relativeTimeProvider = relativeTimeProvider;
-        this.processorsWithMetrics = new ArrayList<>(processors.size());
+        this.processorsWithMetrics = processors.stream().map(p -> new Tuple<>(p, new IngestMetric())).toList();
         this.isAsync = flattenProcessors().stream().anyMatch(Processor::isAsync);
-        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
     }
 
     List<Tuple<Processor, IngestMetric>> getProcessorsWithMetrics() {

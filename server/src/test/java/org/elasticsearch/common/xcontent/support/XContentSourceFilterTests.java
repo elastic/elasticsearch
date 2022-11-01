@@ -11,20 +11,17 @@ package org.elasticsearch.common.xcontent.support;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,7 +33,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 
-public class XContentFieldFilterTests extends AbstractFilteringTestCase {
+public class XContentSourceFilterTests extends AbstractFilteringTestCase {
     @Override
     protected void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
         throws IOException {
@@ -54,9 +51,12 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         } else {
             sourceExcludes = excludes.toArray(new String[excludes.size()]);
         }
-        XContentFieldFilter filter = XContentFieldFilter.newFieldFilter(sourceIncludes, sourceExcludes);
-        BytesReference ref = filter.apply(toBytesReference(actual, xContentType, humanReadable), xContentType);
-        assertMap(XContentHelper.convertToMap(ref, true, xContentType).v2(), matchesMap(toMap(expected, xContentType, humanReadable)));
+        SourceFilter filter = new SourceFilter(sourceIncludes, sourceExcludes);
+        Source filtered = Source.fromBytes(toBytesReference(actual, xContentType, humanReadable), xContentType).filter(filter);
+        assertMap(
+            XContentHelper.convertToMap(filtered.internalSourceRef(), true, xContentType).v2(),
+            matchesMap(toMap(expected, xContentType, humanReadable))
+        );
     }
 
     private void testFilter(String expectedJson, String actualJson, Collection<String> includes, Collection<String> excludes)
@@ -538,33 +538,16 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
     }
 
     public void testEmptySource() throws IOException {
-        final CheckedFunction<XContentType, BytesReference, IOException> emptyValueSupplier = xContentType -> {
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentBuilder builder = XContentFactory.contentBuilder(xContentType, bStream).map(Collections.emptyMap());
-            builder.close();
-            return bStream.bytes();
-        };
-        final XContentType xContentType = randomFrom(XContentType.values());
-        // null value for parser filter
-        assertEquals(
-            emptyValueSupplier.apply(xContentType),
-            XContentFieldFilter.newFieldFilter(new String[0], new String[0]).apply(null, xContentType)
-        );
-        // empty bytes for parser filter
-        assertEquals(
-            emptyValueSupplier.apply(xContentType),
-            XContentFieldFilter.newFieldFilter(new String[0], new String[0]).apply(BytesArray.EMPTY, xContentType)
-        );
-        // null value for map filter
-        assertEquals(
-            emptyValueSupplier.apply(xContentType),
-            XContentFieldFilter.newFieldFilter(new String[0], new String[] { "test*" }).apply(null, xContentType)
-        );
-        // empty bytes for map filter
-        assertEquals(
-            emptyValueSupplier.apply(xContentType),
-            XContentFieldFilter.newFieldFilter(new String[0], new String[] { "test*" }).apply(BytesArray.EMPTY, xContentType)
-        );
+        SourceFilter empty = new SourceFilter(new String[0], new String[0]);
+        SourceFilter excludeWildcard = new SourceFilter(new String[0], new String[] { "test* " });
+        for (XContentType xContentType : XContentType.values()) {
+            assertEquals(Map.of(), Source.fromBytes(null, xContentType).filter(empty).source());
+            assertEquals(Map.of(), Source.fromBytes(null, xContentType).filter(excludeWildcard).source());
+            assertEquals(Map.of(), Source.fromBytes(BytesArray.EMPTY, xContentType).filter(empty).source());
+            assertEquals(Map.of(), Source.fromBytes(BytesArray.EMPTY, xContentType).filter(excludeWildcard).source());
+            assertEquals(Map.of(), Source.fromMap(null, xContentType).filter(empty).source());
+            assertEquals(Map.of(), Source.fromMap(Map.of(), xContentType).filter(excludeWildcard).source());
+        }
     }
 
     private BytesReference toBytesReference(Builder builder, XContentType xContentType, boolean humanReadable) throws IOException {

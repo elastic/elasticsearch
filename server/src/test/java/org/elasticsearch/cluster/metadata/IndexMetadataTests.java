@@ -91,8 +91,8 @@ public class IndexMetadataTests extends ESTestCase {
                     List.of(
                         new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong()),
-                        new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                        new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+                        new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
                     ),
                     randomNonNegativeLong()

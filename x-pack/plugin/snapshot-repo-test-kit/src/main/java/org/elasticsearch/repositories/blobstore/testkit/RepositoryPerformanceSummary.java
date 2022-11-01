@@ -90,14 +90,14 @@ public class RepositoryPerformanceSummary implements Writeable, ToXContentFragme
 
         builder.startObject("write");
         builder.field("count", writeCount);
-        builder.humanReadableField("total_size_bytes", "total_size", new ByteSizeValue(writeBytes));
+        builder.humanReadableField("total_size_bytes", "total_size", ByteSizeValue.ofBytes(writeBytes));
         humanReadableNanos(builder, "total_throttled_nanos", "total_throttled", writeThrottledNanos);
         humanReadableNanos(builder, "total_elapsed_nanos", "total_elapsed", writeElapsedNanos);
         builder.endObject();
 
         builder.startObject("read");
         builder.field("count", readCount);
-        builder.humanReadableField("total_size_bytes", "total_size", new ByteSizeValue(readBytes));
+        builder.humanReadableField("total_size_bytes", "total_size", ByteSizeValue.ofBytes(readBytes));
         humanReadableNanos(builder, "total_wait_nanos", "total_wait", readWaitNanos);
         humanReadableNanos(builder, "max_wait_nanos", "max_wait", maxReadWaitNanos);
         humanReadableNanos(builder, "total_throttled_nanos", "total_throttled", readThrottledNanos);

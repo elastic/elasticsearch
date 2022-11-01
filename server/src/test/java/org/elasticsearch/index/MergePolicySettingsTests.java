@@ -140,14 +140,14 @@ public class MergePolicySettingsTests extends ESTestCase {
                 Settings.builder()
                     .put(
                         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey(),
-                        new ByteSizeValue(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1)
+                        ByteSizeValue.ofBytes(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1)
                     )
                     .build()
             )
         );
         assertEquals(
             ((TieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergedSegmentMB(),
-            new ByteSizeValue(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac(),
+            ByteSizeValue.ofBytes(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac(),
             0.0001
         );
 
@@ -211,7 +211,7 @@ public class MergePolicySettingsTests extends ESTestCase {
         assertEquals(((TieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE);
         assertEquals(
             ((TieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergedSegmentMB(),
-            new ByteSizeValue(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac(),
+            ByteSizeValue.ofBytes(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac(),
             0.0001
         );
         assertEquals(

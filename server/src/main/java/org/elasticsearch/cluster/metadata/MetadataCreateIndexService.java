@@ -124,7 +124,6 @@ public class MetadataCreateIndexService {
     private final AllocationService allocationService;
     private final Environment env;
     private final IndexScopedSettings indexScopedSettings;
-    private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
@@ -151,7 +150,6 @@ public class MetadataCreateIndexService {
         this.allocationService = allocationService;
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
@@ -260,11 +258,12 @@ public class MetadataCreateIndexService {
                     request.index(),
                     request.waitForActiveShards()
                 );
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { request.index() },
                     request.waitForActiveShards(),
                     request.ackTimeout(),
-                    shardsAcknowledged -> {
+                    listener.map(shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
                                 "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
@@ -273,9 +272,8 @@ public class MetadataCreateIndexService {
                         } else {
                             logger.trace("[{}] index created and shards acknowledged", request.index());
                         }
-                        listener.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
-                    },
-                    listener::onFailure
+                        return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
+                    })
                 );
             } else {
                 logger.trace("index creation not acknowledged for [{}]", request);

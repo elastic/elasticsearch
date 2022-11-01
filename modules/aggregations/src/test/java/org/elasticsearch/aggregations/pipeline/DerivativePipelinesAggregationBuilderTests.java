@@ -8,21 +8,27 @@
 
 package org.elasticsearch.aggregations.pipeline;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregationBuilder> {
+public class DerivativePipelinesAggregationBuilderTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregationBuilder> {
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return List.of(new AggregationsPlugin());
+    }
 
     @Override
     protected DerivativePipelineAggregationBuilder createTestAggregatorFactory() {
@@ -75,4 +81,5 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
             )
         );
     }
+
 }

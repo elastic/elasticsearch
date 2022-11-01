@@ -21,16 +21,24 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Encapsulates asynchronous retry logic.
@@ -46,6 +54,8 @@ class Retry2 {
     private final Semaphore requestsInFlightSemaphore;
     private final int maxNumberOfConcurrentRequests;
     private Scheduler.Cancellable flushCancellable;
+    private boolean isClosing = false;
+    private long closingTime = -1;
 
     Retry2(
         BackoffPolicy backoffPolicy,
@@ -60,7 +70,12 @@ class Retry2 {
         this.readyToLoadQueueCapacity = readyToLoadQueueCapacity;
         this.retryQueueCapacity = retryQueueCapacity;
         this.maxNumberOfConcurrentRequests = Math.max(maxNumberOfConcurrentRequests, 1);
-        requestsInFlightSemaphore = new Semaphore(this.maxNumberOfConcurrentRequests);
+        this.requestsInFlightSemaphore = new Semaphore(this.maxNumberOfConcurrentRequests);
+        /*
+         * Note that the capacity for ArrayBlockingQueue is a firm capacity, and attempts to add more than that many things will get
+         * rejected. But the capacity for PriorityBlockingQueue is just an initial capacity. The queue itself is unbounded. So we enforce
+         *  this capacity in the code below.
+         */
         this.readyToLoadQueue = new ArrayBlockingQueue<>(readyToLoadQueueCapacity);
         this.retryQueue = new PriorityBlockingQueue<>(readyToLoadQueueCapacity, Comparator.comparing(Tuple::v1));
     }
@@ -74,8 +89,7 @@ class Retry2 {
         List<BulkItemResponse> responses,
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         ActionListener<BulkResponse> listener,
-        Iterator<TimeValue> backoff,
-        boolean isRetry
+        Iterator<TimeValue> backoff
     ) {}
 
     /**
@@ -92,7 +106,7 @@ class Retry2 {
     ) {
         Iterator<TimeValue> backoff = backoffPolicy.iterator();
         boolean accepted = readyToLoadQueue.offer(
-            new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff, false)
+            new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff)
         );
         if (accepted == false) {
             logger.trace("Rejecting an initial bulk request because the queue is full");
@@ -159,20 +173,24 @@ class Retry2 {
                 backoff
             );
         }
-        // here calculate when this thing will next be up for retry (in clock time) and put on retryQueue
+        /*
+         * Here calculate when this request will next be up for retry (in clock time) and put it on retryQueue. We use nanonTime rather
+         * than currentTimeInMillis because nanoTime will not go backwards within a single JVM. We do not actually care about
+         * nanosecond-level resolution.
+         */
         TimeValue timeUntilNextRetry = backoff.next();
         long currentTime = System.nanoTime();
         long timeThisRetryMatures = timeUntilNextRetry.nanos() + currentTime;
         retryQueue.offer(
             Tuple.tuple(
                 timeThisRetryMatures,
-                new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff, true)
+                new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff)
             )
         );
     }
 
     void flush() {
-        while (true) {
+        while (isClosing == false || System.nanoTime() < closingTime) {
             Tuple<Long, RetryQueuePayload> retry = retryQueue.poll();
             if (retry == null) {
                 break;
@@ -204,7 +222,7 @@ class Retry2 {
                 break;
             }
         }
-        while (true) {
+        while (isClosing == false || System.nanoTime() < closingTime) {
             boolean allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
             if (allowedToMakeRequest == false) {
                 logger.trace("Unable to acquire semaphore because too many requests are already in flight");
@@ -224,40 +242,58 @@ class Retry2 {
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;
             ActionListener<BulkResponse> listener = queueItem.listener;
             Iterator<TimeValue> backoff = queueItem.backoff;
-            consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, backoff));
+            consumer.accept(bulkRequest, new RetryHandler(requestsInFlightSemaphore, bulkRequest, responsesAccumulator, consumer, listener,
+                backoff));
         }
     }
 
-    boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-        List<RetryQueuePayload> remainingRequests = new ArrayList<>();
-        readyToLoadQueue.drainTo(remainingRequests);
-        for (RetryQueuePayload request : remainingRequests) {
+    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+        logger.trace("Starting awaitClose");
+        isClosing = true;
+        TimeValue remainingTime = new TimeValue(timeout, unit);
+        closingTime = System.nanoTime() + remainingTime.getNanos();
+        flushCancellable.cancel();
+        /*
+         * The following flush will run at most until closingTime. After it completes, anything that remains is something that we didn't
+         * have time to get to, or was added later.
+         */
+        flush();
+        List<RetryQueuePayload> remainingReadyRequests = new ArrayList<>();
+        readyToLoadQueue.drainTo(remainingReadyRequests);
+        for (RetryQueuePayload request : remainingReadyRequests) {
             request.listener.onFailure(new EsRejectedExecutionException("Closing the bulk request handler"));
         }
-        boolean noRequestsInFlight = requestsInFlightSemaphore.tryAcquire(maxNumberOfConcurrentRequests, timeout, unit);
-        flushCancellable.cancel();
-        return noRequestsInFlight && readyToLoadQueue.isEmpty();
+        List<Tuple<Long, RetryQueuePayload>> remainingRetryRequests = new ArrayList<>();
+        retryQueue.drainTo(remainingRetryRequests);
+        for (Tuple<Long, RetryQueuePayload> retry : remainingRetryRequests) {
+            retry.v2().listener.onFailure(new EsRejectedExecutionException("Closing the bulk request handler"));
+        }
+        logger.trace("Finishing awaitClose");
     }
 
-    private final class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
+    private final class RetryHandler implements ActionListener<BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
+        private final Semaphore requestsInFlightSemaphore;
         private final BulkRequest bulkRequest;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
+        private final ActionListener<BulkResponse> listener;
         private final List<BulkItemResponse> responsesAccumulator;
         private final long startTimestampNanos;
         private final Iterator<TimeValue> backoff;
 
         RetryHandler(
+            Semaphore requestsInFlightSemaphore,
             BulkRequest bulkRequest,
             List<BulkItemResponse> responsesAccumulator,
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
             ActionListener<BulkResponse> listener,
             Iterator<TimeValue> backoff
         ) {
-            super(listener);
+            this.requestsInFlightSemaphore = requestsInFlightSemaphore;
             this.bulkRequest = bulkRequest;
             this.responsesAccumulator = responsesAccumulator;
             this.consumer = consumer;
+            this.listener = listener;
             this.startTimestampNanos = System.nanoTime();
             this.backoff = backoff;
         }
@@ -268,14 +304,14 @@ class Retry2 {
             if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));
-                finishHim();
+                listener.onResponse(getAccumulatedResponse());
             } else {
                 if (canRetry(bulkItemResponses)) {
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
-                    retry(createBulkRequestForRetry(bulkItemResponses), responsesAccumulator, consumer, delegate, backoff);
+                    retry(createBulkRequestForRetry(bulkItemResponses), responsesAccumulator, consumer, listener, backoff);
                 } else {
                     addResponses(bulkItemResponses, (r -> true));
-                    finishHim();
+                    listener.onResponse(getAccumulatedResponse());
                 }
             }
         }
@@ -284,7 +320,7 @@ class Retry2 {
         public void onFailure(Exception e) {
             requestsInFlightSemaphore.release();
             boolean retry = ExceptionsHelper.status(e) == RETRY_STATUS && backoff.hasNext();
-            Retry2.this.onFailure(this.bulkRequest, responsesAccumulator, consumer, delegate, e, retry, backoff);
+            Retry2.this.onFailure(this.bulkRequest, responsesAccumulator, consumer, listener, e, retry, backoff);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
@@ -318,28 +354,13 @@ class Retry2 {
             return true;
         }
 
-        private void finishHim() {
-            delegate.onResponse(getAccumulatedResponse());
-        }
-
         private void addResponses(BulkResponse response, Predicate<BulkItemResponse> filter) {
-            for (BulkItemResponse bulkItemResponse : response) {
-                if (filter.test(bulkItemResponse)) {
-                    // Use client-side lock here to avoid visibility issues. This method may be called multiple times
-                    // (based on how many retries we have to issue) and relying that the response handling code will be
-                    // scheduled on the same thread is fragile.
-                    synchronized (responsesAccumulator) {
-                        responsesAccumulator.add(bulkItemResponse);
-                    }
-                }
-            }
+            List<BulkItemResponse> bulkItemResponses = StreamSupport.stream(response.spliterator(), false).filter(filter).toList();
+            responsesAccumulator.addAll(bulkItemResponses);
         }
 
         private BulkResponse getAccumulatedResponse() {
-            BulkItemResponse[] itemResponses;
-            synchronized (responsesAccumulator) {
-                itemResponses = responsesAccumulator.toArray(new BulkItemResponse[0]);
-            }
+            BulkItemResponse[] itemResponses = responsesAccumulator.toArray(new BulkItemResponse[0]);
             long stopTimestamp = System.nanoTime();
             long totalLatencyMs = TimeValue.timeValueNanos(stopTimestamp - startTimestampNanos).millis();
             return new BulkResponse(itemResponses, totalLatencyMs);

@@ -253,11 +253,11 @@ public class BulkProcessor2 implements Closeable {
      * completed
      * @throws InterruptedException If the current thread is interrupted
      */
-    public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         lock.lock();
         try {
             if (closed) {
-                return true;
+                return;
             }
             closed = true;
 
@@ -267,7 +267,7 @@ public class BulkProcessor2 implements Closeable {
                 execute();
             }
             try {
-                return this.bulkRequestHandler.awaitClose(timeout, unit);
+                this.bulkRequestHandler.awaitClose(timeout, unit);
             } finally {
                 onClose.run();
             }

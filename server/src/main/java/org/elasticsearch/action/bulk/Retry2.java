@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -33,9 +33,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
- * Encapsulates synchronous and asynchronous retry logic.
+ * Encapsulates asynchronous retry logic.
  */
-public class Retry2 {
+class Retry2 {
+    private final Logger logger;
     private final BackoffPolicy backoffPolicy;
     private final Scheduler scheduler;
     private final BlockingQueue<RetryQueuePayload> readyToLoadQueue;
@@ -46,13 +47,14 @@ public class Retry2 {
     private final int maxNumberOfConcurrentRequests;
     private Scheduler.Cancellable flushCancellable;
 
-    public Retry2(
+    Retry2(
         BackoffPolicy backoffPolicy,
         Scheduler scheduler,
         int readyToLoadQueueCapacity,
         int retryQueueCapacity,
         int maxNumberOfConcurrentRequests
     ) {
+        this.logger = LogManager.getLogger(getClass());
         this.backoffPolicy = backoffPolicy;
         this.scheduler = scheduler;
         this.readyToLoadQueueCapacity = readyToLoadQueueCapacity;
@@ -93,6 +95,7 @@ public class Retry2 {
             new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff, false)
         );
         if (accepted == false) {
+            logger.trace("Rejecting an initial bulk request because the queue is full");
             onFailure(
                 bulkRequest,
                 new ArrayList<>(),
@@ -139,6 +142,7 @@ public class Retry2 {
          * thing that we start rejecting some.
          */
         if (retryQueue.size() > retryQueueCapacity) {
+            logger.trace("Rejecting a retry request because the retry queue is full");
             onFailure(
                 bulkRequestForRetry,
                 responsesAccumulator,
@@ -167,20 +171,6 @@ public class Retry2 {
         );
     }
 
-    /**
-     * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be scheduled using
-     * the class's thread pool.
-     *
-     * @param consumer The consumer to which apply the request and listener
-     * @param bulkRequest The bulk request that should be executed.
-     * @return a future representing the bulk response returned by the client.
-     */
-    public ActionFuture<BulkResponse> withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest) {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
-        withBackoff(consumer, bulkRequest, future);
-        return future;
-    }
-
     void flush() {
         while (true) {
             Tuple<Long, RetryQueuePayload> retry = retryQueue.poll();
@@ -188,6 +178,7 @@ public class Retry2 {
                 break;
             }
             if (retry.v1() < System.nanoTime()) {
+                logger.trace("Promoting a retry to the readyToLoadQueue");
                 RetryQueuePayload retryQueuePayload = retry.v2();
                 boolean accepted = readyToLoadQueue.offer(retryQueuePayload);
                 if (accepted == false) {
@@ -208,6 +199,7 @@ public class Retry2 {
                     );
                 }
             } else {
+                logger.trace("At least one retry pending, but it is not yet time to execute it");
                 retryQueue.offer(retry);
                 break;
             }
@@ -215,6 +207,7 @@ public class Retry2 {
         while (true) {
             boolean allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
             if (allowedToMakeRequest == false) {
+                logger.trace("Unable to acquire semaphore because too many requests are already in flight");
                 /*
                  * Too many requests are already in flight, so don't flush a bulk request to Elasticsearch.
                  */
@@ -225,6 +218,7 @@ public class Retry2 {
                 requestsInFlightSemaphore.release();
                 return;
             }
+            logger.trace("Sending a bulk request");
             BulkRequest bulkRequest = queueItem.request;
             List<BulkItemResponse> responsesAccumulator = queueItem.responses;
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;

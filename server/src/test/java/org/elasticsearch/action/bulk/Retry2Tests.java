@@ -77,7 +77,9 @@ public class Retry2Tests extends ESTestCase {
         BulkRequest bulkRequest = createBulkRequest();
         Retry2 retry2 = new Retry2(backoff, bulkClient.threadPool(), 1000, 1000, 5);
         retry2.init();
-        BulkResponse response = retry2.withBackoff(bulkClient::bulk, bulkRequest).actionGet();
+        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
+        BulkResponse response = future.actionGet();
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
@@ -90,10 +92,12 @@ public class Retry2Tests extends ESTestCase {
         try {
             Retry2 retry2 = new Retry2(backoff, bulkClient.threadPool(), 1000, 1000, 5);
             retry2.init();
-            BulkResponse response = retry2.withBackoff(bulkClient::bulk, bulkRequest).actionGet();
+            PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+            retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
+            BulkResponse response = future.actionGet();
             /*
-             * If the last failure was an item failure we'll end up here
-             */
+            * If the last failure was an item failure we'll end up here
+            */
             assertTrue(response.hasFailures());
             assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
         } catch (EsRejectedExecutionException e) {

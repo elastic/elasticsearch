@@ -23,7 +23,6 @@ public final class BulkRequestHandler2 {
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
     private final BulkProcessor2.Listener listener;
     private final Retry2 retry;
-    private final int concurrentRequests;
 
     BulkRequestHandler2(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
@@ -36,7 +35,6 @@ public final class BulkRequestHandler2 {
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
-        this.concurrentRequests = concurrentRequests;
         this.retry = new Retry2(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), 1000, concurrentRequests);
         retry.init();
     }

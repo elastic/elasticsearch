@@ -16,6 +16,7 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -64,6 +65,8 @@ public class TestGeometryCollector {
         void addBox(GeoBoundingBox bbox);
 
         void addBox(double minX, double maxX, double minY, double maxY);
+
+        void addBox(Rectangle tile);
 
         void addGeometry(Geometry geometry);
 
@@ -185,6 +188,11 @@ public class TestGeometryCollector {
         @Override
         public void addBox(GeoBoundingBox bbox) {
             addBox(bbox.left(), bbox.right(), bbox.bottom(), bbox.top());
+        }
+
+        @Override
+        public void addBox(Rectangle bbox) {
+            addBox(bbox.getMinX(), bbox.getMaxX(), bbox.getMinY(), bbox.getMaxY());
         }
 
         @Override

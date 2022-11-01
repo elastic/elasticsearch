@@ -47,29 +47,37 @@ public class NormalizedH3Polygon2DTests extends ESTestCase {
 
     public void testNorthPoleQuad() {
         for (int startLon = -180; startLon < 180; startLon += 45) {
+            testGeometryCollector.start("testNorthPoleQuad_" + (startLon < 0 ? "Neg" : "Pos") + Math.abs(startLon));
             NormalizedH3Polygon2D polygon = polarPolygon(4, startLon, 80, 90);
             assertThat("Polygon contains north pole", polygon.pole(), is(NORTH));
+            testGeometryCollector.stop((normal, special) -> assertThat(normal.size(), is(1)));
         }
     }
 
     public void testNorthPoleHex() {
         for (int startLon = -180; startLon < 180; startLon += 45) {
+            testGeometryCollector.start("testNorthPoleHex_" + (startLon < 0 ? "Neg" : "Pos") + Math.abs(startLon));
             NormalizedH3Polygon2D polygon = polarPolygon(6, startLon, 80, 90);
             assertThat("Polygon contains north pole", polygon.pole(), is(NORTH));
+            testGeometryCollector.stop((normal, special) -> assertThat(normal.size(), is(1)));
         }
     }
 
     public void testSouthPoleQuad() {
         for (int startLon = -180; startLon < 180; startLon += 45) {
+            testGeometryCollector.start("testSouthPoleQuad_" + (startLon < 0 ? "Neg" : "Pos") + Math.abs(startLon));
             NormalizedH3Polygon2D polygon = polarPolygon(4, startLon, -90, -80);
             assertThat("Polygon contains south pole", polygon.pole(), is(SOUTH));
+            testGeometryCollector.stop((normal, special) -> assertThat(normal.size(), is(1)));
         }
     }
 
     public void testSouthPoleHex() {
         for (int startLon = -180; startLon < 180; startLon += 45) {
+            testGeometryCollector.start("testSouthPoleHex_" + (startLon < 0 ? "Neg" : "Pos") + Math.abs(startLon));
             NormalizedH3Polygon2D polygon = polarPolygon(6, startLon, -90, -80);
             assertThat("Polygon contains south pole", polygon.pole(), is(SOUTH));
+            testGeometryCollector.stop((normal, special) -> assertThat(normal.size(), is(1)));
         }
     }
 
@@ -238,49 +246,33 @@ public class NormalizedH3Polygon2DTests extends ESTestCase {
         // This cell failed with latitudeThreshold at 70
         TestCaptureListener listener = new TestCaptureListener();
         CellBoundary cell = H3.h3ToGeoBoundary("8001fffffffffff");
-        NormalizedH3Polygon2D polygon = fromH3Boundary(cell, NORTH, LATITUDE_MASK, listener);
-        assertCapturedResults("North pole", listener, LATITUDE_MASK, -31.8312804990, 31.8312804990, -146.2180383587649, 134.93902584878086);
+        fromH3Boundary(cell, NORTH, LATITUDE_MASK, listener);
+        assertCapturedResults(listener, NORTH, LATITUDE_MASK, 1.0, 5.6395, 31.8312, -146.2180, 134.9390);
         collector.addPolygon(listener.lons, listener.lats);
 
         listener = new TestCaptureListener();
-        polygon = fromH3Boundary(cell, NORTH, 70, listener);
-        assertCapturedResults("North pole at 70", listener, 70, -31.8312804990, 31.8312804990, 24.134853951596615, 65.19377055877843);
+        fromH3Boundary(cell, NORTH, 70, listener);
+        assertCapturedResults(listener, NORTH, 70, 1.0, -44.6643, 31.8312, 24.1348, 65.1937);
         collector.addPolygon(listener.lons, listener.lats);
 
         listener = new TestCaptureListener();
-        polygon = fromScaledH3Boundary(cell, NORTH, LATITUDE_MASK, listener, 1.01);
-        assertCapturedResults(
-            "North pole scaled 1%",
-            listener,
-            LATITUDE_MASK,
-            -31.79342991289,
-            31.79342991289,
-            -146.7903467237,
-            136.9517255672
-        );
+        fromScaledH3Boundary(cell, NORTH, LATITUDE_MASK, listener, 1.01);
+        assertCapturedResults(listener, NORTH, LATITUDE_MASK, 1.01, 4.9193, 31.7934, -146.7903, 136.9517);
         collector.addPolygon(listener.lons, listener.lats);
 
         listener = new TestCaptureListener();
-        polygon = fromScaledH3Boundary(cell, NORTH, 70, listener, 1.01);
-        assertCapturedResults("North pole at 70 scaled 1%", listener, 70, -31.79342991289, 31.79342991289, 23.33944706667, 65.8140838526);
+        fromScaledH3Boundary(cell, NORTH, 70, listener, 1.01);
+        assertCapturedResults(listener, NORTH, 70, 1.01, -44.5767, 31.7934, 23.3394, 65.8140);
         collector.addPolygon(listener.lons, listener.lats);
 
         listener = new TestCaptureListener();
-        polygon = fromScaledH3Boundary(cell, NORTH, LATITUDE_MASK, listener, 1.17);
-        assertCapturedResults(
-            "North pole scaled 17%",
-            listener,
-            LATITUDE_MASK,
-            -31.23601631730,
-            31.23601631730,
-            -163.8646413706,
-            164.0966561844
-        );
+        fromScaledH3Boundary(cell, NORTH, LATITUDE_MASK, listener, 1.17);
+        assertCapturedResults(listener, NORTH, LATITUDE_MASK, 1.17, -0.1160, 31.2360, -163.8646, 164.0966);
         collector.addPolygon(listener.lons, listener.lats);
 
         listener = new TestCaptureListener();
-        polygon = fromScaledH3Boundary(cell, NORTH, 70, listener, 1.17);
-        assertCapturedResults("North pole at 70 scaled 17%", listener, 70, -31.23601631730, 31.23601631730, 10.55560802383, 75.8793947031);
+        fromScaledH3Boundary(cell, NORTH, 70, listener, 1.17);
+        assertCapturedResults(listener, NORTH, 70, 1.17, -43.2175, 31.2360, 10.5556, 75.8793);
         collector.addPolygon(listener.lons, listener.lats);
 
         testGeometryCollector.stop();
@@ -309,31 +301,74 @@ public class NormalizedH3Polygon2DTests extends ESTestCase {
     }
 
     private void assertCapturedResults(
-        String description,
         TestCaptureListener listener,
-        double maxLat,
+        int pole,
+        double latitudeThreshold,
+        double scaleFactor,
         double offset,
-        double lonAtMinLat,
+        double lonAtLeastExtremeLat,
         double minLon,
         double maxLon
     ) {
-        assertThat(description + ": truncated at max latitude", listener.maxLat, is(maxLat));
-        // assertThat(description + ": offset", listener.offset, closeTo(offset, 1e-10));
-        // assertThat(description + ": longitude at minimum Latitude", listener.lonAtMinLat, closeTo(lonAtMinLat, 1e-10));
-        assertThat(description + ": minimum longitude", listener.minLon, closeTo(minLon, 1e-10));
-        assertThat(description + ": maximum longitude", listener.maxLon, closeTo(maxLon, 1e-10));
+        String description = (pole == NORTH ? "North" : "South") + " pole at " + latitudeThreshold + " scaled " + scaleFactor;
+        double tolerance = 1e-4;
+        assertThat(description + ": offset", listener.offset, closeTo(offset, tolerance));
+        if (pole == NORTH) {
+            assertThat(description + ": truncated at max latitude", listener.maxLat, is(latitudeThreshold));
+            assertThat(description + ": longitude at minimum Latitude", listener.lonAtMinLat, closeTo(lonAtLeastExtremeLat, tolerance));
+        } else {
+            assertThat(description + ": truncated at min latitude", listener.minLat, is(-latitudeThreshold));
+            assertThat(description + ": longitude at maximum Latitude", listener.lonAtMaxLat, closeTo(lonAtLeastExtremeLat, tolerance));
+        }
+        assertThat(description + ": minimum longitude", listener.minLon, closeTo(minLon, tolerance));
+        assertThat(description + ": maximum longitude", listener.maxLon, closeTo(maxLon, tolerance));
     }
 
     public void testTroublesomeCell_NotNorthPole() {
-        // This cell failed with latitudeThreshold at 70
         NormalizedH3Polygon2D polygon = fromH3Boundary(H3.h3ToGeoBoundary("8003fffffffffff"), NEITHER, 70, null);
         assertThat("Near north pole H3 cell", polygon.pole(), is(NEITHER));
     }
 
-    public void testTroublesomeCell_SouthPole() {
-        // This cell failed with latitudeThreshold at 70
+    public void testTroublesomeCell_SouthPole_old() {
         NormalizedH3Polygon2D polygon = fromH3Boundary(H3.h3ToGeoBoundary("80f3fffffffffff"), SOUTH, 70, null);
         assertThat("South pole H3 cell", polygon.pole(), is(SOUTH));
+    }
+
+    public void testTroublesomeCell_SouthPole() {
+        testGeometryCollector.start("testTroublesomeCell_SouthPole");
+        TestGeometryCollector.Collector collector = testGeometryCollector.normal();
+        TestCaptureListener listener = new TestCaptureListener();
+        CellBoundary cell = H3.h3ToGeoBoundary("80f3fffffffffff");
+        fromH3Boundary(cell, SOUTH, LATITUDE_MASK, listener);
+        assertCapturedResults(listener, SOUTH, LATITUDE_MASK, 1.0, -174.3604, -148.1687, 33.7819, -45.0609);
+        collector.addPolygon(listener.lons, listener.lats);
+
+        listener = new TestCaptureListener();
+        fromH3Boundary(cell, SOUTH, 70, listener);
+        assertCapturedResults(listener, SOUTH, 70, 1.0, 135.3356, -148.1687, -155.8651, -114.8062);
+        collector.addPolygon(listener.lons, listener.lats);
+
+        listener = new TestCaptureListener();
+        fromScaledH3Boundary(cell, SOUTH, LATITUDE_MASK, listener, 1.01);
+        assertCapturedResults(listener, SOUTH, LATITUDE_MASK, 1.01, -175.0806, -148.2065, 33.2096, -43.0482);
+        collector.addPolygon(listener.lons, listener.lats);
+
+        listener = new TestCaptureListener();
+        fromScaledH3Boundary(cell, SOUTH, 70, listener, 1.01);
+        assertCapturedResults(listener, SOUTH, 70, 1.01, 135.4232, -148.2065, -156.6605, -114.1859);
+        collector.addPolygon(listener.lons, listener.lats);
+
+        listener = new TestCaptureListener();
+        fromScaledH3Boundary(cell, SOUTH, LATITUDE_MASK, listener, 1.17);
+        assertCapturedResults(listener, SOUTH, LATITUDE_MASK, 1.17, 179.8839, -148.7639, 16.1353, -15.9033);
+        collector.addPolygon(listener.lons, listener.lats);
+
+        listener = new TestCaptureListener();
+        fromScaledH3Boundary(cell, SOUTH, 70, listener, 1.17);
+        assertCapturedResults(listener, SOUTH, 70, 1.17, 136.7824, -148.7639, -169.4443, -104.1206);
+        collector.addPolygon(listener.lons, listener.lats);
+
+        testGeometryCollector.stop();
     }
 
     public void testDatelineCellLevel0() {
@@ -495,11 +530,12 @@ public class NormalizedH3Polygon2DTests extends ESTestCase {
         double[] lons = new double[segments + 1];
         int pole = (int) signum(minLat);
         for (int i = 0; i < segments; i++) {
-            lons[i] = startLon + i * 360d / segments;
             double factor = 2d * Math.abs(segments / 2d - i) / segments;
             if (pole == NORTH) {
+                lons[i] = startLon + i * 360d / segments;
                 lats[i] = minLat + height * factor;
             } else {
+                lons[i] = startLon - i * 360d / segments;
                 lats[i] = maxLat - height * factor;
             }
         }
@@ -509,8 +545,9 @@ public class NormalizedH3Polygon2DTests extends ESTestCase {
         normalizeLons(lons);
         TestCaptureListener listener = new TestCaptureListener();
         NormalizedH3Polygon2D polygon = new NormalizedH3Polygon2D(lats, lons, pole, LATITUDE_MASK, listener);
+        testGeometryCollector.normal(c -> c.addPolygon(listener.lons, listener.lats));
         assertThat("Polygon contains a pole", polygon.pole(), is(not(NEITHER)));
-        String prefix = "Polygon of " + segments + " edges with max latitude at " + startLon;
+        String prefix = "Polygon of " + segments + " edges with max latitude at longitude " + startLon;
         double expectedOffset = nx(180 - startLon);
         double expectedPeakLon = nx(startLon - 180);
         assertThat(prefix + ": Offset", listener.offset, closeTo(expectedOffset, 1e-10));
@@ -566,9 +603,9 @@ public class NormalizedH3Polygon2DTests extends ESTestCase {
             this.lons = lons;
             this.offset = offset;
             for (int i = 0; i < lons.length; i++) {
+                minLon = min(minLon, lons[i]);
+                maxLon = max(maxLon, lons[i]);
                 double lon = nx(lons[i] - offset);
-                minLon = min(minLon, lon);
-                maxLon = max(maxLon, lon);
                 if (lats[i] < minLat) {
                     minLat = lats[i];
                     lonAtMinLat = lon;
@@ -578,6 +615,8 @@ public class NormalizedH3Polygon2DTests extends ESTestCase {
                     lonAtMaxLat = lon;
                 }
             }
+            minLon = nx(minLon - offset);
+            maxLon = nx(maxLon - offset);
         }
     }
 

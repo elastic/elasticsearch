@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.Tessellator;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPoint;
@@ -46,6 +47,7 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class GeoHexTilerTests extends GeoGridTilerTestCase {
@@ -81,6 +83,35 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
     @Override
     protected long getCellsForDiffPrecision(int precisionDiff) {
         return UnboundedGeoHexGridTiler.calcMaxAddresses(precisionDiff);
+    }
+
+    public void testLargeBounds() throws Exception {
+        // We have a shape and a tile both covering all mercator space, so we expect all level0 H3 cells to match
+        testGeometryCollector.start("testLargeBounds");
+        TestGeometryCollector.Collector collector = testGeometryCollector.normal();
+        Rectangle tile = new Rectangle(-180, 180, 85, -85);
+        collector.addBox(tile);
+        Rectangle shapeRectangle = new Rectangle(-180, 180, 85, -85);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
+
+        GeoBoundingBox boundingBox = new GeoBoundingBox(
+            new GeoPoint(tile.getMaxLat(), tile.getMinLon()),
+            new GeoPoint(tile.getMinLat(), tile.getMaxLon())
+        );
+
+        GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(boundingBox, 0), NOOP_BREAKER);
+        assertTrue(values.advanceExact(0));
+        int numTiles = values.docValueCount();
+        int expectedTiles = expectedBuckets(value, 0, boundingBox);
+        for (int i = 0; i < numTiles; i++) {
+            long h3 = values.getValues()[i];
+            collector.addH3Cell(H3.h3ToString(h3));
+        }
+        testGeometryCollector.stop((normal, special) -> {
+            assertThat(normal.size(), is(expectedTiles + 1));
+            assertThat(normal.size(), is(123)); // All 122 H3 cells plus the original rectangle
+        });
+        assertThat(expectedTiles, equalTo(numTiles));
     }
 
     public void testTilerBruteForceMethods() {

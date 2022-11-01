@@ -143,11 +143,18 @@ public class NormalizedH3Polygon2D implements Component2D {
             endOfTruncation = startOfTruncation;
             startOfTruncation = newStart;
         }
+        double startLon = lons[startOfTruncation];
+        double endLon = lons[endOfTruncation];
         if (pole == NORTH) {
-            return -(lons[startOfTruncation] + lons[endOfTruncation]) / 2;
+            while (startLon < endLon) {
+                startLon += 360;
+            }
         } else {
-            return normalizedAverage(lons[startOfTruncation], lons[endOfTruncation]);
+            while (startLon > endLon) {
+                endLon += 360;
+            }
         }
+        return n(-(startLon + endLon) / 2);
     }
 
     public int pole() {

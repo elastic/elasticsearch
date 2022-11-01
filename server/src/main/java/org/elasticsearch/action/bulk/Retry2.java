@@ -46,11 +46,17 @@ public class Retry2 {
     private final int maxNumberOfConcurrentRequests;
     private Scheduler.Cancellable flushCancellable;
 
-    public Retry2(BackoffPolicy backoffPolicy, Scheduler scheduler, int readyToLoadQueueCapacity, int maxNumberOfConcurrentRequests) {
+    public Retry2(
+        BackoffPolicy backoffPolicy,
+        Scheduler scheduler,
+        int readyToLoadQueueCapacity,
+        int retryQueueCapacity,
+        int maxNumberOfConcurrentRequests
+    ) {
         this.backoffPolicy = backoffPolicy;
         this.scheduler = scheduler;
         this.readyToLoadQueueCapacity = readyToLoadQueueCapacity;
-        this.retryQueueCapacity = readyToLoadQueueCapacity;
+        this.retryQueueCapacity = retryQueueCapacity;
         this.maxNumberOfConcurrentRequests = Math.max(maxNumberOfConcurrentRequests, 1);
         requestsInFlightSemaphore = new Semaphore(this.maxNumberOfConcurrentRequests);
         this.readyToLoadQueue = new ArrayBlockingQueue<>(readyToLoadQueueCapacity);
@@ -224,11 +230,7 @@ public class Retry2 {
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;
             ActionListener<BulkResponse> listener = queueItem.listener;
             Iterator<TimeValue> backoff = queueItem.backoff;
-            scheduler.schedule(
-                () -> { consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, backoff)); },
-                TimeValue.ZERO,
-                ThreadPool.Names.SAME
-            );
+            consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, backoff));
         }
     }
 

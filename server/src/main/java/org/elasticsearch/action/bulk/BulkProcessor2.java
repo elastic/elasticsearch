@@ -282,37 +282,6 @@ public class BulkProcessor2 implements Closeable {
     }
 
     /**
-     * @deprecated use the {@link BulkProcessor2} constructor which uses separate schedulers for flush and retry
-     */
-    @Deprecated
-    BulkProcessor2(
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-        BackoffPolicy backoffPolicy,
-        Listener listener,
-        int concurrentRequests,
-        int bulkActions,
-        ByteSizeValue bulkSize,
-        @Nullable TimeValue flushInterval,
-        Scheduler scheduler,
-        Runnable onClose,
-        Supplier<BulkRequest> bulkRequestSupplier
-    ) {
-        this(
-            consumer,
-            backoffPolicy,
-            listener,
-            concurrentRequests,
-            bulkActions,
-            bulkSize,
-            flushInterval,
-            scheduler,
-            scheduler,
-            onClose,
-            bulkRequestSupplier
-        );
-    }
-
-    /**
      * Closes the processor. If flushing by time is enabled, then it's shutdown. Any remaining bulk actions are flushed.
      */
     @Override

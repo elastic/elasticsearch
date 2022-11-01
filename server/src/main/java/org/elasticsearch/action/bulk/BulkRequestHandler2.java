@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.Scheduler;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
@@ -38,20 +37,14 @@ public final class BulkRequestHandler2 {
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
-        this.retry = new Retry2(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), concurrentRequests);
+        this.retry = new Retry2(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), 1000, concurrentRequests);
         retry.init();
     }
 
     public void execute(BulkRequest bulkRequest, long executionId) {
         try {
             listener.beforeBulk(executionId, bulkRequest);
-            /*
-             * In the special case that concurrentRequests is 0, this method blocks until the bulk request has been completed. The Retry
-             * request makes sure that no more than 1 request is made at a time whether concurrentRequests is 0 or 1, but this latch
-             * makes sure that this method blocks when it is 0.
-             */
-            CountDownLatch latch = new CountDownLatch(1);
-            retry.withBackoff(consumer, bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+            retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     listener.afterBulk(executionId, bulkRequest, response);
@@ -61,14 +54,7 @@ public final class BulkRequestHandler2 {
                 public void onFailure(Exception e) {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
-            }, latch::countDown));
-            if (concurrentRequests < 1) { // TODO: lots of integration tests depend on this but do we really want it?
-                latch.await();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.info(() -> "Bulk request " + executionId + " has been cancelled.", e);
-            listener.afterBulk(executionId, bulkRequest, e);
+            });
         } catch (Exception e) {
             logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
             listener.afterBulk(executionId, bulkRequest, e);

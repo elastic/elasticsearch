@@ -178,8 +178,6 @@ public final class SamlRealm extends Realm implements Releasable {
 
     private DelegatedAuthorizationSupport delegatedRealms;
 
-    private final AtomicReference<Set<PublicKey>> previousCredentialsRef = new AtomicReference<>(null);
-
     /**
      * Factory for SAML realm.
      * This is not a constructor as it needs to initialise a number of components before delegating to
@@ -310,10 +308,12 @@ public final class SamlRealm extends Realm implements Releasable {
 
         final List<KeyInfoProvider> keyInfoProviders = Collections.singletonList(new InlineX509DataProvider());
         final BasicProviderKeyInfoCredentialResolver credentialsResolver = new BasicProviderKeyInfoCredentialResolver(keyInfoProviders) {
+            final AtomicReference<Set<PublicKey>> previousCredentialsRef = new AtomicReference<>();
+
             @Override
             protected void postProcess(KeyInfoResolutionContext kiContext, CriteriaSet criteriaSet, List<Credential> credentials)
                 throws ResolverException {
-                SamlRealm.logDiff(credentials);
+                SamlRealm.logDiff(credentials, this.previousCredentialsRef);
                 super.postProcess(kiContext, criteriaSet, credentials);
             }
         };
@@ -343,7 +343,7 @@ public final class SamlRealm extends Realm implements Releasable {
         });
     }
 
-    private void logDiff(final List<Credential> newCredentials) {
+    private static void logDiff(final List<Credential> newCredentials, final AtomicReference<Set<PublicKey>> previousCredentialsRef) {
         if (newCredentials == null) {
             logger.warn("Signing credentials missing, null");
             return;

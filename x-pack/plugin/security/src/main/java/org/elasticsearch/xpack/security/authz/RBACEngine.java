@@ -727,7 +727,7 @@ public class RBACEngine implements AuthorizationEngine {
                 final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
                     .getFieldPermissionsDefinitions();
                 assert fieldPermissionsDefinitions.size() == 1
-                    : "imited-by field must not exist since we do not support reporting user privileges for limited roles";
+                    : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
                 final FieldPermissionsDefinition definition = fieldPermissionsDefinitions.get(0);
                 fieldSecurity = definition.getFieldGrantExcludeGroups();
             } else {

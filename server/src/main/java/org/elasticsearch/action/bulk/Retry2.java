@@ -15,15 +15,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -35,19 +38,23 @@ import java.util.function.Predicate;
 public class Retry2 {
     private final BackoffPolicy backoffPolicy;
     private final Scheduler scheduler;
-    private final BlockingQueue<RetryQueuePayload> queue;
-    private final int queueCapacity;
+    private final BlockingQueue<RetryQueuePayload> readyToLoadQueue;
+    private final PriorityBlockingQueue<Tuple<Long, RetryQueuePayload>> retryQueue;
+    private final int readyToLoadQueueCapacity;
+    private final int retryQueueCapacity;
     private final Semaphore requestsInFlightSemaphore;
     private final int maxNumberOfConcurrentRequests;
     private Scheduler.Cancellable flushCancellable;
 
-    public Retry2(BackoffPolicy backoffPolicy, Scheduler scheduler, int queueCapacity, int maxNumberOfConcurrentRequests) {
+    public Retry2(BackoffPolicy backoffPolicy, Scheduler scheduler, int readyToLoadQueueCapacity, int maxNumberOfConcurrentRequests) {
         this.backoffPolicy = backoffPolicy;
         this.scheduler = scheduler;
-        this.queueCapacity = queueCapacity;
+        this.readyToLoadQueueCapacity = readyToLoadQueueCapacity;
+        this.retryQueueCapacity = readyToLoadQueueCapacity;
         this.maxNumberOfConcurrentRequests = Math.max(maxNumberOfConcurrentRequests, 1);
         requestsInFlightSemaphore = new Semaphore(this.maxNumberOfConcurrentRequests);
-        this.queue = new ArrayBlockingQueue<>(queueCapacity);
+        this.readyToLoadQueue = new ArrayBlockingQueue<>(readyToLoadQueueCapacity);
+        this.retryQueue = new PriorityBlockingQueue<>(readyToLoadQueueCapacity, Comparator.comparing(Tuple::v1));
     }
 
     public void init() {
@@ -76,7 +83,9 @@ public class Retry2 {
         ActionListener<BulkResponse> listener
     ) {
         Iterator<TimeValue> backoff = backoffPolicy.iterator();
-        boolean accepted = queue.offer(new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff, false));
+        boolean accepted = readyToLoadQueue.offer(
+            new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff, false)
+        );
         if (accepted == false) {
             onFailure(
                 bulkRequest,
@@ -84,7 +93,11 @@ public class Retry2 {
                 consumer,
                 listener,
                 new EsRejectedExecutionException(
-                    "Could not retry bulk request, bulk request queue at capacity [" + queue.size() + "/" + queueCapacity + "]"
+                    "Could not retry bulk request, bulk request queue at capacity ["
+                        + readyToLoadQueue.size()
+                        + "/"
+                        + readyToLoadQueueCapacity
+                        + "]"
                 ),
                 false,
                 backoff
@@ -115,20 +128,37 @@ public class Retry2 {
         ActionListener<BulkResponse> listener,
         Iterator<TimeValue> backoff
     ) {
-        boolean accepted = queue.offer(new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff, true));
-        if (accepted == false) {
+        /*
+         * This is not threadsafe, but it's close enough. If we have so many retries that we're anywhere near capacity it is not a bad
+         * thing that we start rejecting some.
+         */
+        if (retryQueue.size() > retryQueueCapacity) {
             onFailure(
                 bulkRequestForRetry,
                 responsesAccumulator,
                 consumer,
                 listener,
                 new EsRejectedExecutionException(
-                    "Could not retry bulk request, bulk request queue at capacity [" + queue.size() + "/" + queueCapacity + "]"
+                    "Could not retry bulk request, bulk request queue at capacity ["
+                        + readyToLoadQueue.size()
+                        + "/"
+                        + readyToLoadQueueCapacity
+                        + "]"
                 ),
                 false,
                 backoff
             );
         }
+        // here calculate when this thing will next be up for retry (in clock time) and put on retryQueue
+        TimeValue timeUntilNextRetry = backoff.next();
+        long currentTime = System.currentTimeMillis();
+        long timeThisRetryMatures = timeUntilNextRetry.millis() + currentTime;
+        retryQueue.offer(
+            Tuple.tuple(
+                timeThisRetryMatures,
+                new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff, true)
+            )
+        );
     }
 
     /**
@@ -147,37 +177,56 @@ public class Retry2 {
 
     void flush() {
         while (true) {
+            Tuple<Long, RetryQueuePayload> retry = retryQueue.poll();
+            if (retry == null) {
+                break;
+            }
+            if (retry.v1() < System.currentTimeMillis()) {
+                RetryQueuePayload retryQueuePayload = retry.v2();
+                boolean accepted = readyToLoadQueue.offer(retryQueuePayload);
+                if (accepted == false) {
+                    onFailure(
+                        retryQueuePayload.request,
+                        retryQueuePayload.responses,
+                        retryQueuePayload.consumer,
+                        retryQueuePayload.listener,
+                        new EsRejectedExecutionException(
+                            "Could not retry bulk request, bulk request queue at capacity ["
+                                + readyToLoadQueue.size()
+                                + "/"
+                                + readyToLoadQueueCapacity
+                                + "]"
+                        ),
+                        true,
+                        retryQueuePayload.backoff
+                    );
+                }
+            } else {
+                retryQueue.offer(retry);
+                break;
+            }
+        }
+        while (true) {
             boolean allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
             if (allowedToMakeRequest == false) {
                 /*
-                 * Too many requests are already in flight, so don't flush.
+                 * Too many requests are already in flight, so don't flush a bulk request to Elasticsearch.
                  */
                 return;
             }
-            RetryQueuePayload queueItem = queue.poll();
+            RetryQueuePayload queueItem = readyToLoadQueue.poll();
             if (queueItem == null) {
                 requestsInFlightSemaphore.release();
-                /*
-                 * It is possible that something was added to the queue after the poll and before the semaphore was released, meaning
-                 * that the other thread could not acquire the permit, leaving an item orphaned in the queue. So we check the queue
-                 * again after releasing the semaphore, and if there is something there we run another loop to pick that thing up. If
-                 * another thread has picked it up in the meantime, we'll just exit out of the loop on the next try.
-                 */
-                if (queue.isEmpty()) {
-                    return;
-                } else {
-                    continue;
-                }
+                return;
             }
             BulkRequest bulkRequest = queueItem.request;
             List<BulkItemResponse> responsesAccumulator = queueItem.responses;
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;
             ActionListener<BulkResponse> listener = queueItem.listener;
             Iterator<TimeValue> backoff = queueItem.backoff;
-            boolean isRetry = queueItem.isRetry;
             scheduler.schedule(
                 () -> { consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, backoff)); },
-                isRetry ? backoff.next() : TimeValue.ZERO, // TODO: do we really want to hold the semaphore so long?
+                TimeValue.ZERO,
                 ThreadPool.Names.SAME
             );
         }
@@ -185,13 +234,13 @@ public class Retry2 {
 
     boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         List<RetryQueuePayload> remainingRequests = new ArrayList<>();
-        queue.drainTo(remainingRequests);
+        readyToLoadQueue.drainTo(remainingRequests);
         for (RetryQueuePayload request : remainingRequests) {
             request.listener.onFailure(new EsRejectedExecutionException("Closing the bulk request handler"));
         }
         boolean noRequestsInFlight = requestsInFlightSemaphore.tryAcquire(maxNumberOfConcurrentRequests, timeout, unit);
         flushCancellable.cancel();
-        return noRequestsInFlight && queue.isEmpty();
+        return noRequestsInFlight && readyToLoadQueue.isEmpty();
     }
 
     private final class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {

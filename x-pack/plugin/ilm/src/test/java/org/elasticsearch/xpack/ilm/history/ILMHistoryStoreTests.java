@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -39,17 +41,22 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ILMHistoryStoreTests extends ESTestCase {
 
@@ -205,6 +212,81 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
+    /*
+     * This tests that we don't see deadlock if we throw a lot of data at the ILMHistoryStore quickly.
+     */
+    public void testDeadlock() throws Exception {
+        String policyId = randomAlphaOfLength(5);
+        final long timestamp = randomNonNegativeLong();
+        AtomicInteger batches = new AtomicInteger(0);
+        AtomicLong actions = new AtomicLong(0);
+        final int docsPerBatch = 303_057;
+        long numberOfDocs = 1_000_000;
+        int expectedBatches = (int) (numberOfDocs / docsPerBatch) + ((numberOfDocs % docsPerBatch == 0) ? 0 : 1);
+        ;
+        CountDownLatch latch = new CountDownLatch((int) numberOfDocs);
+        client.setVerifier((action, request, listener) -> {
+            assertThat(action, instanceOf(BulkAction.class));
+            assertThat(request, instanceOf(BulkRequest.class));
+            BulkRequest bulkRequest = (BulkRequest) request;
+            List<DocWriteRequest<?>> realRequests = bulkRequest.requests();
+            realRequests.forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
+            assertNotNull(listener);
+
+            // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
+            int responses = bulkRequest.numberOfActions();
+            BulkItemResponse.Failure failure = mock(BulkItemResponse.Failure.class);
+            when(failure.getId()).thenReturn("1");
+            when(failure.getMessage()).thenReturn("message");
+            when(failure.getStatus()).thenAnswer((Answer<RestStatus>) invocation -> RestStatus.TOO_MANY_REQUESTS);
+            DocWriteResponse response = mock(DocWriteResponse.class);
+            BulkResponse bulkItemResponse = new BulkResponse(
+                IntStream.range(0, responses)
+                    .mapToObj(
+                        i -> randomBoolean()
+                            ? BulkItemResponse.success(i, DocWriteRequest.OpType.INDEX, response)
+                            : BulkItemResponse.failure(i, DocWriteRequest.OpType.INDEX, failure)
+                    )
+                    .toArray(BulkItemResponse[]::new),
+                1000L
+            );
+            return bulkItemResponse;
+        });
+        ILMHistoryStore localHistoryStore = new ILMHistoryStore(client, clusterService, threadPool, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkResponse response) {
+                int itemsInResponse = response.getItems().length;
+                actions.addAndGet(itemsInResponse);
+                for (int i = 0; i < itemsInResponse; i++) {
+                    latch.countDown();
+                }
+                batches.incrementAndGet();
+                System.out.println("cumulative responses: " + actions.get());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                e.printStackTrace();
+                fail(e.getMessage());
+            }
+        });
+        for (int i = 0; i < numberOfDocs; i++) {
+            ILMHistoryItem record1 = ILMHistoryItem.success(
+                "index",
+                policyId,
+                timestamp,
+                10L,
+                LifecycleExecutionState.builder().setPhase("phase").build()
+            );
+            localHistoryStore.putAsync(record1);
+            // threadPool.generic().execute(() -> localHistoryStore.putAsync(record1)); // This gets dangerous with large numbers
+        }
+        latch.await(30, TimeUnit.SECONDS);
+        assertThat(actions.get(), equalTo(numberOfDocs));
+        assertThat(batches.get(), equalTo(expectedBatches));
+        localHistoryStore.close();
+    }
+
     /**
      * A client that delegates to a verifying function for action/request/listener
      */
@@ -238,4 +320,5 @@ public class ILMHistoryStoreTests extends ESTestCase {
             return this;
         }
     }
+
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -100,8 +99,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 flushInterval,
                 threadPool,
                 threadPool,
-                () -> {},
-                BulkRequest::new
+                () -> {}
             );
         }
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
@@ -242,8 +240,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                     }
-                },
-                BulkRequest::new
+                }
             )
         ) {
 
@@ -266,11 +263,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                         startGate.countDown();
                         startGate.await();
                         // alternate between ways to add to the bulk processor
-                        if (randomBoolean()) {
-                            bulkProcessor.add(indexRequest);
-                        } else {
-                            bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
-                        }
+                        bulkProcessor.add(indexRequest);
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);
                     }
@@ -398,8 +391,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                     }
-                },
-                BulkRequest::new
+                }
             )
         ) {
 
@@ -421,11 +413,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                         startGate.countDown();
                         startGate.await();
                         // alternate between ways to add to the bulk processor
-                        if (randomBoolean()) {
-                            bulkProcessor.add(indexRequest);
-                        } else {
-                            bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
-                        }
+                        bulkProcessor.add(indexRequest);
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);
                     }
@@ -490,55 +478,12 @@ public class BulkProcessor2Tests extends ESTestCase {
             null,
             (command, delay, executor) -> null,
             (command, delay, executor) -> null,
-            () -> called.set(true),
-            BulkRequest::new
+            () -> called.set(true)
         );
 
         assertFalse(called.get());
         bulkProcessor.awaitClose(100, TimeUnit.MILLISECONDS);
         assertTrue(called.get());
-    }
-
-    public void testDisableFlush() throws Exception {
-        final AtomicInteger attemptRef = new AtomicInteger();
-
-        BulkResponse bulkResponse = new BulkResponse(
-            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
-            0
-        );
-
-        final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
-            listener.onResponse(bulkResponse);
-        };
-
-        final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
-
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {}
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                attemptRef.incrementAndGet();
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
-        };
-
-        AtomicBoolean flushEnabled = new AtomicBoolean(false);
-        try (
-            BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, "BulkProcessor2Tests")
-                .setFlushCondition(flushEnabled::get)
-                .build()
-        ) {
-            bulkProcessor.add(new IndexRequest());
-            bulkProcessor.flush();
-            assertThat(attemptRef.get(), equalTo(0));
-
-            flushEnabled.set(true);
-            bulkProcessor.flush();
-            assertBusy(() -> assertThat(attemptRef.get(), equalTo(1)));
-        }
     }
 
     private BulkProcessor2.Listener emptyListener() {

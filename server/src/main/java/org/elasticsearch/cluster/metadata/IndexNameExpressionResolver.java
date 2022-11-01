@@ -336,12 +336,7 @@ public class IndexNameExpressionResolver {
                 }
             }
         }
-        // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
-        // option. At some point we should change this, because there shouldn't be a reason why whether a single index
-        // or multiple indices are specified yield different behaviour.
-        final boolean failNoIndices = indexExpressions.length == 1
-            ? options.allowNoIndices() == false
-            : options.ignoreUnavailable() == false;
+
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
 
         if (expressions.isEmpty()) {
@@ -383,7 +378,8 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-                if (failNoIndices) {
+                if (options.ignoreUnavailable() == false) {
+                    // can be reached only if {@code indicesOptions#expandWildcardExpressions} is `false`
                     throw aliasesNotSupportedException(expression);
                 } else {
                     continue;

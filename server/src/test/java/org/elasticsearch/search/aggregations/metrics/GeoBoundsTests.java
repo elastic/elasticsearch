@@ -8,7 +8,13 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregationBuilder> {
 
@@ -24,6 +30,31 @@ public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregation
             factory.missing("0,0");
         }
         return factory;
+    }
+
+    public void testFailWithSubAgg() throws Exception {
+        String source = """
+            {
+              "viewport": {
+                "geo_bounds": {
+                  "field": "location",
+                  "wrap_longitude": true
+                },
+                "aggs": {
+                  "names": {
+                    "terms": {
+                      "field": "name",
+                      "size": 10
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        XContentParser parser = createParser(JsonXContent.jsonXContent, source);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));
+        assertThat(e.toString(), containsString("Aggregator [viewport] of type [geo_bounds] cannot accept sub-aggregations"));
     }
 
 }

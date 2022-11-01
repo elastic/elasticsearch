@@ -47,9 +47,9 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
      */
     public void testParseOrder() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String scoreSortString = """
+        String scoreSortString = formatted("""
             { "_score": { "order": "%s" }}
-            """.formatted(order.toString());
+            """, order.toString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();

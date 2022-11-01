@@ -30,7 +30,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * Concrete implementation of {@link IndexOrdinalsFieldData} for global ordinals.
@@ -118,12 +117,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     @Override
     public long ramBytesUsed() {
         return memorySizeInBytes;
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        // TODO: break down ram usage?
-        return Collections.emptyList();
     }
 
     @Override
@@ -217,11 +210,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         @Override
         public long ramBytesUsed() {
             return memorySizeInBytes;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
         }
 
         @Override

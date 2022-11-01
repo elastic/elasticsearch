@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.metadata;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -20,11 +21,13 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 
 import java.util.List;
 
@@ -171,20 +174,24 @@ public class HealthMetadataService {
 
         @Override
         public void onFailure(@Nullable Exception e) {
-            logger.error("failure during health metadata update", e);
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                () -> "failure during health metadata update",
+                e
+            );
         }
 
         abstract ClusterState execute(ClusterState currentState);
 
-        static class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask> {
+        static class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
 
             @Override
-            public ClusterState executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
-                return task.execute(clusterState);
+            public Tuple<ClusterState, Void> executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
+                return Tuple.tuple(task.execute(clusterState), null);
             }
 
             @Override
-            public void taskSucceeded(UpsertHealthMetadataTask task) {}
+            public void taskSucceeded(UpsertHealthMetadataTask task, Void unused) {}
         }
     }
 

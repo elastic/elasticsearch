@@ -12,7 +12,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -21,8 +20,6 @@ import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 final class VectorDVLeafFieldData implements LeafFieldData {
 
@@ -43,11 +40,6 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     @Override
     public long ramBytesUsed() {
         return 0; // not exposed by Lucene
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
     }
 
     @Override

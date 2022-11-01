@@ -14,11 +14,9 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
@@ -31,10 +29,6 @@ import java.util.Map;
 public final class PipelineAggregatorBuilders {
 
     private PipelineAggregatorBuilders() {}
-
-    public static DerivativePipelineAggregationBuilder derivative(String name, String bucketsPath) {
-        return new DerivativePipelineAggregationBuilder(name, bucketsPath);
-    }
 
     public static MaxBucketPipelineAggregationBuilder maxBucket(String name, String bucketsPath) {
         return new MaxBucketPipelineAggregationBuilder(name, bucketsPath);
@@ -90,9 +84,5 @@ public final class PipelineAggregatorBuilders {
 
     public static SerialDiffPipelineAggregationBuilder diff(String name, String bucketsPath) {
         return new SerialDiffPipelineAggregationBuilder(name, bucketsPath);
-    }
-
-    public static MovFnPipelineAggregationBuilder movingFunction(String name, Script script, String bucketsPaths, int window) {
-        return new MovFnPipelineAggregationBuilder(name, bucketsPaths, script, window);
     }
 }

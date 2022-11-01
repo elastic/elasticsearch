@@ -66,17 +66,17 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
-            """.formatted(index));
+            """, index));
         client().performRequest(request);
     }
 
     private void setupFullAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["all"] }  ]}
-            """.formatted(index));
+            """, index));
         client().performRequest(request);
     }
 
@@ -84,9 +84,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             { "password" : "%s", "roles" : [ %s ]}
-            """.formatted(password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
+            """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 
@@ -1584,7 +1584,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private Response createJob(String id, String airlineVariant) throws Exception {
         Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + id);
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
               "description": "Analysis of response time by airline",
               "analysis_config": {
@@ -1596,7 +1596,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 "time_field": "time stamp",
                 "time_format": "yyyy-MM-dd'T'HH:mm:ssX"
               }
-            }""".formatted(airlineVariant));
+            }""", airlineVariant));
         return client().performRequest(request);
     }
 
@@ -1668,17 +1668,18 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Response build() throws IOException {
             Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
             request.setJsonEntity(
-                """
-                    {
-                      "job_id": "%s",
-                      "indexes":["%s"]
-                       %s
-                       %s
-                       %s
-                       %s
-                       %s
-                       %s
-                    }""".formatted(
+                formatted(
+                    """
+                        {
+                          "job_id": "%s",
+                          "indexes":["%s"]
+                           %s
+                           %s
+                           %s
+                           %s
+                           %s
+                           %s
+                        }""",
                     jobId,
                     index,
                     source ? ",\"_source\":true" : "",
@@ -1686,9 +1687,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                     aggregations == null ? "" : ",\"aggs\":" + aggregations,
                     frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"",
                     indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions,
-                    chunkingTimespan == null ? "" : """
+                    chunkingTimespan == null ? "" : formatted("""
                         ,"chunking_config":{"mode":"MANUAL","time_span":"%s"}
-                        """.formatted(chunkingTimespan)
+                        """, chunkingTimespan)
                 )
             );
             RequestOptions.Builder options = request.getOptions().toBuilder();

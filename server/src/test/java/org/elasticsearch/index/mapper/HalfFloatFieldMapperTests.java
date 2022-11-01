@@ -47,9 +47,10 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(
-            n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue()))
+            n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())),
+            ignoreMalformed
         );
     }
 

@@ -11,7 +11,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -44,11 +43,6 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new AnalyticsPlugin());
     }
 
-    @Override
-    protected boolean splitLeavesIntoSeparateAggregators() {
-        return false;   // TSID aggs always run across a single view of the index
-    }
-
     public void testSimple() throws IOException {
         RateAggregationBuilder builder = new RateAggregationBuilder("counter_field").field("counter_field");
         TimeSeriesAggregationBuilder tsBuilder = new TimeSeriesAggregationBuilder("tsid");
@@ -58,10 +52,12 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             assertThat(((Rate) r.getBucketByKey("{dim=1}").getAggregations().asList().get(0)).getValue(), closeTo(59.0 / 3000.0, 0.00001));
             assertThat(((Rate) r.getBucketByKey("{dim=2}").getAggregations().asList().get(0)).getValue(), closeTo(206.0 / 4000.0, 0.00001));
         };
-        testCase(tsBuilder, new MatchAllDocsQuery(), iw -> {
+        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
+            .withSplitLeavesIntoSeperateAggregators(false);
+        testCase(iw -> {
             iw.addDocuments(docs(1000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
-        }, verifier, timeStampField(), counterField("counter_field"));
+        }, verifier, aggTestConfig);
     }
 
     public void testNestedWithinDateHistogram() throws IOException {
@@ -96,10 +92,12 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             }
         };
 
-        testCase(tsBuilder, new MatchAllDocsQuery(), iw -> {
+        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
+            .withSplitLeavesIntoSeperateAggregators(false);
+        testCase(iw -> {
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
-        }, verifier, timeStampField(), counterField("counter_field"));
+        }, verifier, aggTestConfig);
     }
 
     // tests to add:

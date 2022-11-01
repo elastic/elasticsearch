@@ -86,11 +86,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             ThreadPool.Names.SAME
         );
         this.client = client;
-        this.rolloverTaskExecutor = new RolloverExecutor(
-            allocationService,
-            rolloverService,
-            new ActiveShardsObserver(clusterService, threadPool)
-        );
+        this.rolloverTaskExecutor = new RolloverExecutor(clusterService, allocationService, rolloverService);
     }
 
     @Override
@@ -247,11 +243,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    record RolloverExecutor(
-        AllocationService allocationService,
-        MetadataRolloverService rolloverService,
-        ActiveShardsObserver activeShardsObserver
-    ) implements ClusterStateTaskExecutor<RolloverTask> {
+    record RolloverExecutor(ClusterService clusterService, AllocationService allocationService, MetadataRolloverService rolloverService)
+        implements
+            ClusterStateTaskExecutor<RolloverTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) throws Exception {
             final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
@@ -330,13 +324,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverTaskContext.success(() -> {
                     // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
                     // active shards, as well as return the names of the indices that were rolled/created
-                    activeShardsObserver.waitForActiveShards(
+                    ActiveShardsObserver.waitForActiveShards(
+                        clusterService,
                         new String[] { rolloverIndexName },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                         rolloverRequest.masterNodeTimeout(),
-                        isShardsAcknowledged -> rolloverTask.listener()
-                            .onResponse(
-                                new RolloverResponse(
+                        rolloverTask.listener()
+                            .map(
+                                isShardsAcknowledged -> new RolloverResponse(
                                     // Note that we use the actual rollover result for these, because even though we're single threaded,
                                     // it's possible for the rollover names generated before the actual rollover to be different due to
                                     // things like date resolution
@@ -348,8 +343,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     true,
                                     isShardsAcknowledged
                                 )
-                            ),
-                        rolloverTask.listener()::onFailure
+                            )
                     );
                 });
 

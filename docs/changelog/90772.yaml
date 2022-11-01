@@ -1,6 +1,0 @@
-pr: 90772
-summary: Report impact and diagnosis data nodes w/o disk space and no blocked indices
-area: Health
-type: bug
-issues:
- - 90442

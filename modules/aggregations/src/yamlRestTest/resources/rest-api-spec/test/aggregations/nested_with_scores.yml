@@ -59,21 +59,6 @@ setup:
         index: test
         body:
           size: 0
-          query:
-            bool:
-              filter:
-                -
-                  range:
-                    "@timestamp":
-                      from: "2022-09-01"
-                      to: "2022-09-30"
-                      include_lower: true
-                      include_upper: true
-                      time_zone: "Europe/Paris"
-                      boost: 1
-              adjust_pure_negative: true
-              boost: 1
-          _source: true
           track_total_hits: -1
           aggregations:
             data:
@@ -110,21 +95,6 @@ setup:
         index: test
         body:
           size: 0
-          query:
-            bool:
-              filter:
-                -
-                  range:
-                    "@timestamp":
-                      from: "2022-09-01"
-                      to: "2022-09-30"
-                      include_lower: true
-                      include_upper: true
-                      time_zone: "Europe/Paris"
-                      boost: 1
-              adjust_pure_negative: true
-              boost: 1
-          _source: true
           track_total_hits: -1
           aggregations:
             data:

@@ -41,10 +41,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
@@ -235,36 +238,48 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         for (FieldCapabilitiesIndexResponse response : responses.values()) {
             innerMerge(responseMapBuilder, request, response);
         }
-        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
-        FieldCapabilities.UnmappedBuilderFactory unmappedIndices = new FieldCapabilities.UnmappedBuilderFactory();
 
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
-            final Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
+            Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
+
+            Optional<Function<Boolean, FieldCapabilities>> unmapped = Optional.empty();
             if (request.includeUnmapped()) {
-                addUnmappedFields(responses.keySet(), entry.getKey(), typeMapBuilder, unmappedIndices);
+                // do this directly, rather than using the builder, to save creating a whole lot of objects we don't need
+                unmapped = getUnmappedFields(
+                    responses.keySet(),
+                    entry.getKey(),
+                    typeMapBuilder.values().stream().flatMap(FieldCapabilities.Builder::getIndices).collect(Collectors.toSet())
+                );
             }
-            boolean multiTypes = typeMapBuilder.size() > 1;
+
+            boolean multiTypes = typeMapBuilder.size() + unmapped.map(f -> 1).orElse(0) > 1;
             responseMap.put(
                 entry.getKey(),
                 Collections.unmodifiableMap(
-                    typeMapBuilder.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build(multiTypes)))
+                    Stream.concat(
+                        typeMapBuilder.entrySet()
+                            .stream()
+                            .map(e -> Map.<String, Function<Boolean, FieldCapabilities>>entry(e.getKey(), e.getValue()::build)),
+                        unmapped.stream().map(f -> Map.entry("unmapped", f))
+                    ).collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(multiTypes)))
                 )
             );
         }
         return new FieldCapabilitiesResponse(responses.keySet().toArray(String[]::new), Collections.unmodifiableMap(responseMap), failures);
     }
 
-    private static void addUnmappedFields(
+    private static Optional<Function<Boolean, FieldCapabilities>> getUnmappedFields(
         Set<String> indices,
         String field,
-        Map<String, FieldCapabilities.Builder> typeMap,
-        FieldCapabilities.UnmappedBuilderFactory unmappedFactory
+        Set<String> mappedIndices
     ) {
-        Set<String> mappedIndices = typeMap.values().stream().flatMap(FieldCapabilities.Builder::getIndices).collect(Collectors.toSet());
-
         if (mappedIndices.size() != indices.size()) {
-            typeMap.put("unmapped", unmappedFactory.createBuilder(field, Sets.difference(indices, mappedIndices)));
+            return Optional.of(
+                mt -> FieldCapabilities.buildUnmapped(field, mt ? Sets.difference(indices, mappedIndices).toArray(String[]::new) : null)
+            );
         }
+        return Optional.empty();
     }
 
     private void innerMerge(

@@ -472,6 +472,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
+    static FieldCapabilities buildUnmapped(String field, String[] indices) {
+        return new FieldCapabilities(field, "unmapped", false, false, false, false, null, indices, null, null, null, null, Map.of());
+    }
+
     static class Builder {
         private final String name;
         private final String type;
@@ -626,25 +630,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 metricConflictsIndices,
                 immutableMeta
             );
-        }
-    }
-
-    /**
-     * Helper class to create unmapped field capabilities, which can share a lot of underlying data
-     */
-    static class UnmappedBuilderFactory {
-        private final Map<String, IndexCaps> indexCapCache = new HashMap<>();
-
-        FieldCapabilities.Builder createBuilder(String field, Set<String> indices) {
-            FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
-            for (String index : indices) {
-                FieldCapabilities.IndexCaps caps = indexCapCache.computeIfAbsent(
-                    index,
-                    i -> new FieldCapabilities.IndexCaps(i, false, false, false, null)
-                );
-                unmapped.add(caps, false, Collections.emptyMap());
-            }
-            return unmapped;
         }
     }
 

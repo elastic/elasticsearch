@@ -8,42 +8,52 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.Experimental;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Objects;
 
 @Experimental
 final class LongArrayState implements AggregatorState<LongArrayState> {
 
-    private long[] values;
+    private final BigArrays bigArrays;
+
+    private final long initialDefaultValue;
+
+    private LongArray values;
     // total number of groups; <= values.length
     int largestIndex;
 
     private final LongArrayStateSerializer serializer;
 
-    LongArrayState(long... values) {
-        this.values = values;
-        this.serializer = new LongArrayStateSerializer();
+    LongArrayState(long initialDefaultValue) {
+        this(new long[1], initialDefaultValue, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    long[] getValues() {
-        return values;
+    LongArrayState(long[] values, long initialDefaultValue, BigArrays bigArrays) {
+        this.values = bigArrays.newLongArray(values.length, false);
+        for (int i = 0; i < values.length; i++) {
+            this.values.set(i, values[i]);
+        }
+        this.initialDefaultValue = initialDefaultValue;
+        this.bigArrays = bigArrays;
+        this.serializer = new LongArrayStateSerializer();
     }
 
     long get(int index) {
         // TODO bounds check
-        return values[index];
+        return values.get(index);
     }
 
-    long getOrDefault(int index, long defaultValue) {
+    long getOrDefault(int index) {
         if (index > largestIndex) {
-            return defaultValue;
+            return initialDefaultValue;
         } else {
-            return values[index];
+            return values.get(index);
         }
     }
 
@@ -52,13 +62,14 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
         if (index > largestIndex) {
             largestIndex = index;
         }
-        values[index] = value;
+        values.set(index, value);
     }
 
     private void ensureCapacity(int position) {
-        if (position >= values.length) {
-            int newSize = values.length << 1;  // trivial
-            values = Arrays.copyOf(values, newSize);
+        if (position >= values.size()) {
+            long prevSize = values.size();
+            values = bigArrays.grow(values, prevSize + 1);
+            values.fill(prevSize, values.size(), initialDefaultValue);
         }
     }
 
@@ -89,7 +100,7 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
             longHandle.set(ba, offset, positions);
             offset += Long.BYTES;
             for (int i = 0; i < positions; i++) {
-                longHandle.set(ba, offset, state.values[i]);
+                longHandle.set(ba, offset, state.values.get(i));
                 offset += BYTES_SIZE;
             }
             return Long.BYTES + (BYTES_SIZE * positions); // number of bytes written
@@ -100,12 +111,10 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
             Objects.requireNonNull(state);
             int positions = (int) (long) longHandle.get(ba, offset);
             offset += Long.BYTES;
-            long[] values = new long[positions];
             for (int i = 0; i < positions; i++) {
-                values[i] = (long) longHandle.get(ba, offset);
+                state.set((long) longHandle.get(ba, offset), i);
                 offset += BYTES_SIZE;
             }
-            state.values = values;
             state.largestIndex = positions - 1;
         }
     }

@@ -37,7 +37,7 @@ abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFun
         int len = valuesBlock.getPositionCount();
         for (int i = 0; i < len; i++) {
             int groupId = (int) groupIdBlock.getLong(i);
-            s.set(operator(s.getOrDefault(groupId, initialDefaultValue()), valuesBlock.getDouble(i)), groupId);
+            s.set(operator(s.getOrDefault(groupId), valuesBlock.getDouble(i)), groupId);
         }
     }
 
@@ -53,7 +53,7 @@ abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFun
             final DoubleArrayState s = state;
             for (int i = 0; i < positions; i++) {
                 int groupId = (int) groupIdBlock.getLong(i);
-                s.set(operator(s.getOrDefault(groupId, initialDefaultValue()), tmpState.get(i)), groupId);
+                s.set(operator(s.getOrDefault(groupId), tmpState.get(i)), groupId);
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

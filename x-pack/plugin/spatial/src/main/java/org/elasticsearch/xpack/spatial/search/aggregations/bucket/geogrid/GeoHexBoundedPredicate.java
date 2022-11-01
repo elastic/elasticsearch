@@ -41,8 +41,8 @@ public class GeoHexBoundedPredicate {
 
     private boolean cellIntersectsBounds(Component2D component) {
         if (crossesDateline) {
-            PointValues.Relation a = component.relate(-180, bbox.left(), bbox.bottom(), bbox.top());
-            PointValues.Relation b = component.relate(bbox.right(), 180, bbox.bottom(), bbox.top());
+            PointValues.Relation a = component.relate(bbox.left(), 180, bbox.bottom(), bbox.top());
+            PointValues.Relation b = component.relate(-180, bbox.right(), bbox.bottom(), bbox.top());
             return a != PointValues.Relation.CELL_OUTSIDE_QUERY || b != PointValues.Relation.CELL_OUTSIDE_QUERY;
         } else {
             PointValues.Relation a = component.relate(bbox.left(), bbox.right(), bbox.bottom(), bbox.top());

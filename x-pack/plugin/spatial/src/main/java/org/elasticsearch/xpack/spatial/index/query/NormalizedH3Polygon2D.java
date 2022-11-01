@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.util.ArrayList;
 
-import static java.lang.Math.signum;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -93,7 +92,7 @@ public class NormalizedH3Polygon2D implements Component2D {
         }
     }
 
-    private static double offsetFromDateline(double[] lats, double[] lons) {
+    private static double offsetFromDateline(double[] lons) {
         // Look for dateline crossing
         double min = Float.MAX_VALUE;
         double max = -Float.MAX_VALUE;
@@ -149,31 +148,6 @@ public class NormalizedH3Polygon2D implements Component2D {
         } else {
             return normalizedAverage(lons[startOfTruncation], lons[endOfTruncation]);
         }
-    }
-
-    private static double offsetFromLeastPolarLatitude(double[] lats, double[] lons, int pole) {
-        // When we have a polar cell, use the latitude furthest from the pole as the offset.
-        // Note that this code does not look for dateline crossing, but assumes that moving the polygon such that least polar latitude
-        // is positioned at longitude zero will ensure that after illegal latitude truncation, no remaining parts of the polygon
-        // cross the dateline. This is true for all H3 hexagons.
-        double totalLatitude = 0;
-        int minLatIndex = 0;
-        int maxLatIndex = 0;
-        for (int i = 0; i < lats.length; i++) {
-            if (lats[i] < lats[minLatIndex]) {
-                minLatIndex = i;
-            }
-            if (lats[i] > lats[maxLatIndex]) {
-                maxLatIndex = i;
-            }
-            totalLatitude += lats[i];
-        }
-        double averageLat = totalLatitude / lats.length;
-        int detectedPole = (int) signum(averageLat);
-        if (pole != detectedPole) {
-            throw new IllegalArgumentException("Specified pole does not match detected pole: " + pole + " != " + detectedPole);
-        }
-        return n(pole == NORTH ? 360 - lons[minLatIndex] : 360 - lons[maxLatIndex]);
     }
 
     public int pole() {
@@ -232,9 +206,8 @@ public class NormalizedH3Polygon2D implements Component2D {
         internalLats[internalLats.length - 1] = internalLats[0];
         internalLons[internalLons.length - 1] = internalLons[0];
         if (pole == NEITHER) {
-            offset = offsetFromDateline(internalLats, internalLons);
+            offset = offsetFromDateline(internalLons);
         } else {
-            offset = offsetFromLeastPolarLatitude(internalLats, internalLons, pole);
             offset = offsetFromPolarTruncation(internalLats, internalLons, pole, latitudeThreshold);
         }
         for (int i = 0; i < internalLons.length; i++) {

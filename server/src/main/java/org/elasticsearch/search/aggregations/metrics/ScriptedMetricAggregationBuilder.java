@@ -223,7 +223,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         return this;
     }
 
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
@@ -280,7 +279,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             context,
             parent,
             subfactoriesBuilder,
-            metadata);
+            metadata
+        );
     }
 
     @Override

@@ -77,6 +77,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         }
         return true;
     }
+
     /**
      * Resolve the next step of the sort path as though this aggregation
      * supported sorting. This is usually the "first step" when resolving

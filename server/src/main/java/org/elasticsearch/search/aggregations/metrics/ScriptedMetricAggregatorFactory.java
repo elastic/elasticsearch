@@ -45,7 +45,8 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         ScriptedMetricAggContexts.CombineScript.Factory combineScript,
         Map<String, Object> combineScriptParams,
         Script reduceScript,
-        boolean needsScores, Map<String, Object> aggParams,
+        boolean needsScores,
+        Map<String, Object> aggParams,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactories,
@@ -84,7 +85,8 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             needsScores,
             context,
             parent,
-            metadata);
+            metadata
+        );
     }
 
     private static Script deepCopyScript(Script script, Map<String, Object> aggParams) {

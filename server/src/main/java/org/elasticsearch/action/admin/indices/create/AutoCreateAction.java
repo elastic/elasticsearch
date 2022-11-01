@@ -70,7 +70,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
     public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
-        private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
         private final AutoCreateIndex autoCreateIndex;
@@ -103,7 +102,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 ThreadPool.Names.SAME
             );
             this.systemIndices = systemIndices;
-            this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
@@ -172,12 +170,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     @Override
                     public void onAllNodesAcked() {
-                        activeShardsObserver.waitForActiveShards(
+                        ActiveShardsObserver.waitForActiveShards(
+                            clusterService,
                             new String[] { indexName },
                             ActiveShardCount.DEFAULT,
                             request.timeout(),
-                            shardsAcked -> listener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
-                            listener::onFailure
+                            listener.map(shardsAcked -> new CreateIndexResponse(true, shardsAcked, indexName))
                         );
                     }
 

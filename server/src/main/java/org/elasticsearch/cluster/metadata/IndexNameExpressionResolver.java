@@ -433,10 +433,11 @@ public class IndexNameExpressionResolver {
             } else {
                 infe = new IndexNotFoundException(indexExpressions[0]);
             }
+            infe.setResources("index_expression", indexExpressions[0]);
         } else {
             infe = new IndexNotFoundException((String) null);
+            infe.setResources("index_expression", indexExpressions);
         }
-        infe.setResources("index_expression", indexExpressions);
         return infe;
     }
 

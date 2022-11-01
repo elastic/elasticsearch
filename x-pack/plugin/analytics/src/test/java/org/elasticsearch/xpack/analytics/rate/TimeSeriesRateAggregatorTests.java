@@ -100,11 +100,6 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         }, verifier, aggTestConfig);
     }
 
-    // tests to add:
-    // - missing values
-    // - merging buckets across multiple indexes
-    // - nested within date histogram agg
-
     private List<Document> docs(long startTimestamp, String dim, long... values) throws IOException {
 
         List<Document> documents = new ArrayList<>();

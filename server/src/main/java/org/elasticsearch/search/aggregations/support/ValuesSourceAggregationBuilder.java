@@ -402,7 +402,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     @Override
     protected final ValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
-        ValuesSourceConfig config = resolveConfig(context, parent);
+        ValuesSourceConfig config = resolveConfig(context);
 
         ValuesSourceAggregatorFactory factory;
 
@@ -439,7 +439,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      *
      * @return A {@link ValuesSourceConfig} configured based on the parsed field and/or script.
      */
-    protected ValuesSourceConfig resolveConfig(AggregationContext context, AggregatorFactory parent) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         return ValuesSourceConfig.resolve(
             context,
             this.userValueTypeHint,

@@ -100,7 +100,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     }
 
     @Override
-    protected ValuesSourceConfig resolveConfig(AggregationContext context, AggregatorFactory parent) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         ValuesSourceConfig config;
 
         Joiner joiner = Joiner.getJoiner(context);

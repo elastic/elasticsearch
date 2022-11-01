@@ -10,8 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -23,8 +21,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationFactory;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesValuesSourceType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -194,37 +190,12 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         return parsedRate;
     }
 
-    private static boolean isWithinTSID(AggregatorFactory aggregator) {
-        for (AggregatorFactory af = aggregator; af != null; af = af.getParent()) {
-            if (af instanceof TimeSeriesAggregationFactory) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
-    protected ValuesSourceConfig resolveConfig(AggregationContext context, AggregatorFactory parent) {
-        if (field() != null) {
-            MappedFieldType ft = context.getFieldType(field());
-            if (ft.getMetricType() == TimeSeriesParams.MetricType.counter && isWithinTSID(parent)) {
-                return new ValuesSourceConfig(
-                    TimeSeriesValuesSourceType.COUNTER,
-                    context.buildFieldContext(ft),
-                    false,
-                    null,
-                    null,
-                    null,
-                    null,
-                    DocValueFormat.RAW,
-                    context
-                );
-            }
-        }
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         if (field() == null && script() == null) {
             return new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, true, null, null, 1.0, null, DocValueFormat.RAW, context);
         } else {
-            return super.resolveConfig(context, parent);
+            return super.resolveConfig(context);
         }
     }
 

@@ -217,6 +217,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
+`multi_bucket_impact`::
+(number) An indication of how strongly an anomaly is multi bucket or single
+bucket. The value is on a scale of `-5.0` to `+5.0` where `-5.0` means the
+anomaly is purely single bucket and `+5.0` means the anomaly is purely multi
+bucket.
+
 `over_field_name`::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
@@ -236,12 +242,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 0 to 1. For example, 0.0000772031. This value can be held to a high precision
 of over 300 decimal places, so the `record_score` is provided as a
 human-readable and friendly interpretation of this.
-
-`multi_bucket_impact`::
-(number) An indication of how strongly an anomaly is multi bucket or single
-bucket. The value is on a scale of `-5.0` to `+5.0` where `-5.0` means the
-anomaly is purely single bucket and `+5.0` means the anomaly is purely multi
-bucket.
 
 `record_score`::
 (number) A normalized score between 0-100, which is based on the probability of

@@ -491,6 +491,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Role role = future.actionGet();
         assertThat(role.names(), arrayContaining("superuser"));
         assertThat(role.application().getApplicationNames(), containsInAnyOrder("*"));
+        assertThat(
+            role.application()
+                .grants(
+                    new ApplicationPrivilege(
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10)
+                    ),
+                    "*"
+                ),
+            is(true)
+        );
+
         assertThat(role.cluster().privileges(), containsInAnyOrder(ClusterPrivilegeResolver.ALL));
         assertThat(role.indices().check(SearchAction.NAME), Matchers.is(true));
         assertThat(role.indices().check(IndexAction.NAME), Matchers.is(true));
@@ -1814,7 +1827,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[] { "monitor" }, null, null)),
             version
         );
-        final String apiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
+        final String apiKeyId = (String) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ID_KEY);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
@@ -1824,23 +1837,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (version == Version.CURRENT) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         } else {
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                (Map<String, Object>) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                (Map<String, Object>) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         }

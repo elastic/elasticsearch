@@ -103,7 +103,10 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasKey("authentication"));
         @SuppressWarnings("unchecked")
         final Map<String, Object> authentication = (Map<String, Object>) (map.get("authentication"));
-        assertThat(authentication, hasEntry("username", createTokenResponse.getAuthentication().getUser().principal()));
+        assertThat(
+            authentication,
+            hasEntry("username", createTokenResponse.getAuthentication().getEffectiveSubject().getUser().principal())
+        );
         assertEquals(6, map.size());
     }
 

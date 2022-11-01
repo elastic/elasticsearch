@@ -168,36 +168,6 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * Use {@code getEffectiveSubject().getUser()} instead.
-     */
-    @Deprecated
-    public User getUser() {
-        return effectiveSubject.getUser();
-    }
-
-    /**
-     * Use {@code getAuthenticatingSubject().getRealm()} instead.
-     */
-    @Deprecated
-    public RealmRef getAuthenticatedBy() {
-        return authenticatingSubject.getRealm();
-    }
-
-    /**
-     * The use case for this method is largely trying to tell whether there is a run-as user
-     * and can be replaced by {@code isRunAs}
-     */
-    @Deprecated
-    public RealmRef getLookedUpBy() {
-        if (isRunAs()) {
-            return effectiveSubject.getRealm();
-        } else {
-            // retain the behaviour of returning null for lookup realm for if the authentication is not run-as
-            return null;
-        }
-    }
-
-    /**
      * Get the realm where the effective user comes from.
      * The effective user is the es-security-runas-user if present or the authenticated user.
      *
@@ -213,14 +183,6 @@ public final class Authentication implements ToXContentObject {
         // failures. So leave it for now.
         final RealmRef sourceRealm = effectiveSubject.getRealm();
         return sourceRealm == null ? authenticatingSubject.getRealm() : sourceRealm;
-    }
-
-    /**
-     * Use {@code getAuthenticatingSubject().getMetadata()} instead.
-     */
-    @Deprecated
-    public Map<String, Object> getMetadata() {
-        return authenticatingSubject.getMetadata();
     }
 
     /**
@@ -321,8 +283,8 @@ public final class Authentication implements ToXContentObject {
     public Authentication maybeAddAnonymousRoles(@Nullable AnonymousUser anonymousUser) {
         final boolean shouldAddAnonymousRoleNames = anonymousUser != null
             && anonymousUser.enabled()
-            && false == anonymousUser.equals(getUser())
-            && false == User.isInternal(getUser())
+            && false == anonymousUser.equals(getEffectiveSubject().getUser())
+            && false == User.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
             && false == isServiceAccount();
 
@@ -334,7 +296,7 @@ public final class Authentication implements ToXContentObject {
         if (anonymousUser.roles().length == 0) {
             throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
         }
-        final String[] allRoleNames = ArrayUtils.concat(getUser().roles(), anonymousUser.roles());
+        final String[] allRoleNames = ArrayUtils.concat(getEffectiveSubject().getUser().roles(), anonymousUser.roles());
 
         if (isRunAs()) {
             final User user = effectiveSubject.getUser();
@@ -383,7 +345,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     public boolean isAuthenticatedWithServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType());
     }
 
     /**
@@ -433,7 +395,7 @@ public final class Authentication implements ToXContentObject {
 
         // There is no reason for internal users to run-as. This check prevents either internal user itself
         // or a token created for it (though no such thing in current code) to run-as.
-        if (User.isInternal(getUser())) {
+        if (User.isInternal(getEffectiveSubject().getUser())) {
             return false;
         }
 
@@ -449,7 +411,7 @@ public final class Authentication implements ToXContentObject {
         // Also, if anonymous access is disabled or anonymous username, roles are changed after the token is created.
         // Should we still consider the token being created by an anonymous user which is now different from the new
         // anonymous user?
-        if (getUser().equals(anonymousUser)) {
+        if (getEffectiveSubject().getUser().equals(anonymousUser)) {
             assert ANONYMOUS_REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType())
                 && ANONYMOUS_REALM_NAME.equals(getAuthenticatingSubject().getRealm().getName());
             return false;
@@ -496,9 +458,7 @@ public final class Authentication implements ToXContentObject {
             AuthenticationSerializationHelper.writeUserTo(user, out);
         }
         authenticatingSubject.getRealm().writeTo(out);
-        final RealmRef lookedUpBy = getLookedUpBy();
-        // See detailed comment on the same assertion in the Constructor with StreamInput
-        assert isRunAs() || lookedUpBy == null : "Authentication has no inner-user, but looked-up-by is [" + lookedUpBy + "]";
+        final RealmRef lookedUpBy = isRunAs() ? effectiveSubject.getRealm() : null;
 
         if (lookedUpBy != null) {
             out.writeBoolean(true);
@@ -507,7 +467,7 @@ public final class Authentication implements ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeVInt(type.ordinal());
-        out.writeGenericMap(getMetadata());
+        out.writeGenericMap(getAuthenticatingSubject().getMetadata());
     }
 
     /**
@@ -572,9 +532,9 @@ public final class Authentication implements ToXContentObject {
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
-            final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+            final String tokenName = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
-            final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+            final String tokenSource = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
             builder.field(
                 User.Fields.TOKEN.getPreferredName(),
@@ -584,33 +544,34 @@ public final class Authentication implements ToXContentObject {
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
-        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
         // domain name is generally ambiguous, because it can change during the lifetime of the authentication,
         // but it is good enough for display purposes (including auditing)
-        if (getAuthenticatedBy().getDomain() != null) {
-            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+        if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
         }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
-        if (getLookedUpBy() != null) {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
-            if (getLookedUpBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
+        final RealmRef lookedUpBy = isRunAs() ? getEffectiveSubject().getRealm() : null;
+        if (lookedUpBy != null) {
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), lookedUpBy.getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), lookedUpBy.getType());
+            if (lookedUpBy.getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), lookedUpBy.getDomain().name());
             }
         } else {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
-            if (getAuthenticatedBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
+            if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
             }
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey()) {
-            final String apiKeyId = (String) getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-            final String apiKeyName = (String) getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName == null) {
                 builder.field("api_key", Map.of("id", apiKeyId));
             } else {
@@ -638,7 +599,8 @@ public final class Authentication implements ToXContentObject {
         }
 
         // Assert API key metadata
-        assert (false == isAuthenticatedAsApiKey()) || (this.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
+        assert (false == isAuthenticatedAsApiKey())
+            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
 
         // Assert domain assignment
@@ -907,7 +869,7 @@ public final class Authentication implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
-        Map<String, Object> metadata = authentication.getMetadata();
+        Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors
         if (authentication.isAuthenticatedAsApiKey()) {

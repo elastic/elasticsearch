@@ -434,8 +434,8 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(
                 taskParams.getModelId(),
                 taskParams.getModelBytes(),
-                taskParams.getThreadsPerAllocation(),
                 numberOfAllocations,
+                taskParams.getThreadsPerAllocation(),
                 taskParams.getQueueCapacity(),
                 taskParams.getCacheSize().orElse(null)
             );

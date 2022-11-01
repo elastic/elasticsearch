@@ -382,6 +382,7 @@ public final class IndicesPermission {
         }
 
         final boolean overallGranted = isActionGranted(action, resources);
+
         final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = buildIndicesAccessControl(
             action,
             resources,

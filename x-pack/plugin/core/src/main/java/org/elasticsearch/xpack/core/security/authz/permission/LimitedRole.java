@@ -25,7 +25,7 @@ import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
- * The effective permissions returned on {@code authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
+ * The effective permissions returned on {{@link #authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
  * provided role.
  */
 public final class LimitedRole implements Role {

@@ -43,7 +43,7 @@ based on a similarity metric, the better its match.
 * <<exact-knn,Exact, brute-force kNN>> using a `script_score` query with a
 vector function
 
-* experimental:[] <<approximate-knn,Approximate kNN>> using the `knn` search
+* <<approximate-knn,Approximate kNN>> using the `knn` search
 option
 
 In most cases, you'll want to use approximate kNN. Approximate kNN offers lower
@@ -144,7 +144,11 @@ POST product-index/_search
 [[approximate-knn]]
 === Approximate kNN
 
-experimental::[]
+WARNING: Compared to other types of search, approximate kNN search has specific
+resource requirements. In particular, all vector data must fit in the node's
+page cache for it to be efficient. Please consult the
+<<tune-knn-search, approximate kNN search tuning guide>> for important notes on
+configuration and sizing.
 
 To run an approximate kNN search, use the <<search-api-knn, `knn` option>>
 to search a `dense_vector` field with indexing enabled.
@@ -406,23 +410,19 @@ and `query` matches.
 [[knn-indexing-considerations]]
 ==== Indexing considerations
 
-{es} shards are composed of segments, which are internal storage elements in the
-index. For approximate kNN search, {es} stores the dense vector values of each
+For approximate kNN search, {es} stores the dense vector values of each
 segment as an https://arxiv.org/abs/1603.09320[HNSW graph]. Indexing vectors for
 approximate kNN search can take substantial time because of how expensive it is
 to build these graphs. You may need to increase the client request timeout for
-index and bulk requests.
+index and bulk requests. The <<tune-knn-search, approximate kNN tuning guide>>
+contains important guidance around indexing performance, and how the the index
+configuration can affect search performance.
 
-<<indices-forcemerge,Force merging>> the index to a single segment can improve
-kNN search latency. With only one segment, the search needs to check a single,
-all-inclusive HNSW graph. When there are multiple segments, kNN search must
-check several smaller HNSW graphs as it searches each segment after another.
-You should only force merge an index if it is no longer being written to.
-
-The HNSW algorithm has index-time parameters that trade off between the cost of
-building the graph, search speed, and accuracy. When setting up the
-`dense_vector` mapping, you can use the <<dense-vector-index-options, `index_options`>>
-argument to adjust these parameters:
+In addition to its search-time tuning parameters, the HNSW algorithm has
+index-time parameters that trade off between the cost of building the graph,
+search speed, and accuracy. When setting up the `dense_vector` mapping, you
+can use the <<dense-vector-index-options, `index_options`>> argument to adjust
+these parameters:
 
 [source,console]
 ----
@@ -449,10 +449,6 @@ PUT image-index
 [discrete]
 [[approximate-knn-limitations]]
 ==== Limitations for approximate kNN search
-
-* You can't run an approximate kNN search on a <<filter-alias,filtered alias>>.
-Running a kNN search against a filtered alias may incorrectly result in fewer
-than `k` hits.
 
 * You can't run an approximate kNN search on a `dense_vector` field within a
 <<nested,`nested`>> mapping.

@@ -44,7 +44,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
         int len = valuesBlock.getPositionCount();
         for (int i = 0; i < len; i++) {
             int groupId = (int) groupIdBlock.getLong(i);
-            s.set(s.getOrDefault(groupId, 0) + 1, groupId);
+            s.set(s.getOrDefault(groupId) + 1, groupId);
         }
     }
 
@@ -56,12 +56,11 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
             AggregatorStateBlock<LongArrayState> blobBlock = (AggregatorStateBlock<LongArrayState>) block;
             LongArrayState tmpState = new LongArrayState(0);
             blobBlock.get(0, tmpState);
-            final long[] values = tmpState.getValues();
             final int positions = groupIdBlock.getPositionCount();
             final LongArrayState s = state;
             for (int i = 0; i < positions; i++) {
                 int groupId = (int) groupIdBlock.getLong(i);
-                s.set(s.getOrDefault(groupId, 0) + values[i], groupId);
+                s.set(s.getOrDefault(groupId) + tmpState.get(i), groupId);
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -71,7 +70,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<LongArrayState>, LongArrayState> builder = AggregatorStateBlock
-            .builderOfAggregatorState(LongArrayState.class);
+            .builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());
         builder.add(state);
         return builder.build();
     }

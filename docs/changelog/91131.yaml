@@ -1,0 +1,6 @@
+pr: 91131
+summary: Fix carriage return removal when reading a long line from terminal
+area: Infra/CLI
+type: bug
+issues:
+ - 89227

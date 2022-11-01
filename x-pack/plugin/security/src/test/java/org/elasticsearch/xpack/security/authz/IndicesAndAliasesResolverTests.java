@@ -187,7 +187,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(
                 indexBuilder("hidden-w-aliases").settings(Settings.builder().put(settings).put("index.hidden", true).build())
                     .putAlias(AliasMetadata.builder("alias-hidden").isHidden(true).build())
+                    .putAlias(AliasMetadata.builder("alias-hidden-datemath-" + todaySuffix).isHidden(true).build())
                     .putAlias(AliasMetadata.builder(".alias-hidden").isHidden(true).build())
+                    .putAlias(AliasMetadata.builder(".alias-hidden-datemath-" + todaySuffix).isHidden(true).build())
                     .putAlias(AliasMetadata.builder("alias-visible-mixed").isHidden(false).build())
             )
             .put(
@@ -269,7 +271,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 null,
                 new IndicesPrivileges[] {
                     IndicesPrivileges.builder()
-                        .indices("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open")
+                        .indices("alias-visible", "alias-visible-mixed", "alias-hidden*", ".alias-hidden*", "hidden-open")
                         .privileges("all")
                         .build() },
                 null
@@ -354,17 +356,19 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[1];
             if (XPackUser.is(user)) {
-                listener.onResponse(Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES).build());
+                listener.onResponse(Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES));
                 return Void.TYPE;
             }
             if (XPackSecurityUser.is(user)) {
                 listener.onResponse(
-                    Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES).build()
+                    Role.buildFromRoleDescriptor(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
                 );
                 return Void.TYPE;
             }
             if (AsyncSearchUser.is(user)) {
-                listener.onResponse(Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES).build());
+                listener.onResponse(
+                    Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
+                );
                 return Void.TYPE;
             }
 
@@ -1620,11 +1624,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME))
-        );
-        assertEquals("no such index [" + expectedIndex + "]", e.getMessage());
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
+        assertThat(indices, contains(expectedIndex));
     }
 
     public void testResolveDateMathExpression() {
@@ -1673,11 +1674,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME))
-        );
-        assertEquals("no such index [" + expectedIndex + "]", e.getMessage());
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
+        assertThat(indices, contains(expectedIndex));
     }
 
     public void testAliasDateMathExpressionNotSupported() {
@@ -1857,7 +1855,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(
             resolvedIndices.getLocal(),
-            containsInAnyOrder("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open")
+            containsInAnyOrder(
+                "alias-visible",
+                "alias-visible-mixed",
+                "alias-hidden",
+                "alias-hidden-datemath-" + todaySuffix,
+                ".alias-hidden",
+                ".alias-hidden-datemath-" + todaySuffix,
+                "hidden-open"
+            )
         );
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
@@ -1865,14 +1871,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest = new SearchRequest("alias-h*");
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden"));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden", "alias-hidden-datemath-" + todaySuffix));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Dot prefix, implicitly including hidden
         searchRequest = new SearchRequest(".a*");
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden"));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden", ".alias-hidden-datemath-" + todaySuffix));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (visible only)

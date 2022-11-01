@@ -44,7 +44,7 @@ final class GroupingSumAggregator implements GroupingAggregatorFunction {
         int len = valuesBlock.getPositionCount();
         for (int i = 0; i < len; i++) {
             int groupId = (int) groupIdBlock.getLong(i);
-            s.set(s.getOrDefault(groupId, 0) + valuesBlock.getDouble(i), groupId);
+            s.set(s.getOrDefault(groupId) + valuesBlock.getDouble(i), groupId);
         }
     }
 
@@ -56,12 +56,11 @@ final class GroupingSumAggregator implements GroupingAggregatorFunction {
             AggregatorStateBlock<DoubleArrayState> blobBlock = (AggregatorStateBlock<DoubleArrayState>) block;
             DoubleArrayState tmpState = new DoubleArrayState(0);
             blobBlock.get(0, tmpState);
-            final double[] values = tmpState.getValues();
             final int positions = groupIdBlock.getPositionCount();
             final DoubleArrayState s = state;
             for (int i = 0; i < positions; i++) {
                 int groupId = (int) groupIdBlock.getLong(i);
-                s.set(s.getOrDefault(groupId, 0) + values[i], groupId);
+                s.set(s.getOrDefault(groupId) + tmpState.get(i), groupId);
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -71,7 +70,7 @@ final class GroupingSumAggregator implements GroupingAggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleArrayState>, DoubleArrayState> builder = AggregatorStateBlock
-            .builderOfAggregatorState(DoubleArrayState.class);
+            .builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
         builder.add(state);
         return builder.build();
     }

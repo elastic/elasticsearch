@@ -174,10 +174,12 @@ public final class DocumentPermissions implements CacheKey {
                 if (nestedLookup != NestedLookup.EMPTY) {
                     NestedHelper nestedHelper = new NestedHelper(nestedLookup, context::isFieldMapped);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
-                        roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER).add(Queries.newNonNestedFilter(), FILTER).build();
+                        roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
+                            .add(Queries.newNonNestedFilter(context.indexVersionCreated()), FILTER)
+                            .build();
                     }
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
-                    BitSetProducer rootDocs = context.bitsetFilter(Queries.newNonNestedFilter());
+                    BitSetProducer rootDocs = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                     filter.add(includeNestedDocs, SHOULD);
                 }

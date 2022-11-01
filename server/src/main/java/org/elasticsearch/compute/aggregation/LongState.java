@@ -40,6 +40,11 @@ final class LongState implements AggregatorState<LongState> {
     }
 
     @Override
+    public long getEstimatedSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     public AggregatorStateSerializer<LongState> serializer() {
         return serializer;
     }

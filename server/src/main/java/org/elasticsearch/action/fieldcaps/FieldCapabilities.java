@@ -473,8 +473,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    static FieldCapabilities buildUnmapped(String field, String[] indices) {
-        return new FieldCapabilities(field, "unmapped", false, false, false, false, null, indices, null, null, null, null, Map.of());
+    static FieldCapabilities buildBasic(String field, String type, String[] indices) {
+        return new FieldCapabilities(field, type, false, false, false, false, null, indices, null, null, null, null, Map.of());
     }
 
     static class Builder {
@@ -545,7 +545,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (featureInAll || featureIndices == 0) {
                 return null;
             }
-            String[] nonFeatureIndices = new String[indiceList.size() - aggregatableIndices];
+            String[] nonFeatureIndices = new String[indiceList.size() - featureIndices];
             int index = 0;
             for (IndexCaps indexCaps : indiceList) {
                 if (hasFeature.test(indexCaps) == false) {
@@ -566,16 +566,16 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             // Iff this field is searchable in some indices AND non-searchable in others
             // we record the list of non-searchable indices
             boolean isSearchable = searchableIndices == indiceList.size();
-            String[] nonSearchableIndices = getNonFeatureIndices(isSearchable, searchableIndices, c -> c.isSearchable);
+            String[] nonSearchableIndices = getNonFeatureIndices(isSearchable, searchableIndices, IndexCaps::isSearchable);
 
             // Iff this field is aggregatable in some indices AND non-aggregatable in others
             // we keep the list of non-aggregatable indices
             boolean isAggregatable = aggregatableIndices == indiceList.size();
-            String[] nonAggregatableIndices = getNonFeatureIndices(isAggregatable, aggregatableIndices, c -> c.isAggregatable);
+            String[] nonAggregatableIndices = getNonFeatureIndices(isAggregatable, aggregatableIndices, IndexCaps::isAggregatable);
 
             // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index
             boolean isDimension = dimensionIndices == indiceList.size();
-            String[] nonDimensionIndices = getNonFeatureIndices(isDimension, dimensionIndices, c -> c.isDimension);
+            String[] nonDimensionIndices = getNonFeatureIndices(isDimension, dimensionIndices, IndexCaps::isDimension);
 
             final String[] metricConflictsIndices;
             if (hasConflictMetricType) {

@@ -276,7 +276,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     ) {
         if (mappedIndices.size() != indices.size()) {
             return Optional.of(
-                mt -> FieldCapabilities.buildUnmapped(field, mt ? Sets.difference(indices, mappedIndices).toArray(String[]::new) : null)
+                mt -> FieldCapabilities.buildBasic(
+                    field,
+                    "unmapped",
+                    mt ? Sets.difference(indices, mappedIndices).toArray(String[]::new) : null
+                )
             );
         }
         return Optional.empty();

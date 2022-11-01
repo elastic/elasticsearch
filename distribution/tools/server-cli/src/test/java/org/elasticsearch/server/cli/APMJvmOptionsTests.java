@@ -12,6 +12,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,9 +25,21 @@ import static org.mockito.Mockito.mock;
 @ESTestCase.WithoutSecurityManager
 public class APMJvmOptionsTests extends ESTestCase {
 
-    public void testFindJar() throws IOException, UserException {
-        Path installDir = makeFakeAgentJar();
-        var agentPath = APMJvmOptions.findAgentJar(installDir.toAbsolutePath().toString());
+    private Path installDir;
+    private Path agentPath;
+
+    @Before
+    public void setup() throws IOException, UserException {
+        installDir = makeFakeAgentJar();
+        agentPath = APMJvmOptions.findAgentJar(installDir.toAbsolutePath().toString());
+    }
+
+    @After
+    public void cleanup() throws IOException {
+        Files.delete(agentPath);
+    }
+
+    public void testFindJar() throws IOException {
         assertNotNull(agentPath);
 
         Path anotherPath = Files.createDirectories(installDir.resolve("another"));
@@ -36,12 +50,9 @@ public class APMJvmOptionsTests extends ESTestCase {
             expectThrows(UserException.class, () -> APMJvmOptions.findAgentJar(anotherPath.toAbsolutePath().toString())).getMessage()
                 .contains("Installation is corrupt")
         );
-
-        Files.delete(agentPath);
     }
 
-    public void testFileDeleteWorks() throws IOException, UserException {
-        var agentPath = APMJvmOptions.findAgentJar(makeFakeAgentJar().toAbsolutePath().toString());
+    public void testFileDeleteWorks() throws IOException {
         var tempFile = APMJvmOptions.createTemporaryPropertiesFile(agentPath.getParent());
         var commandLineOption = APMJvmOptions.agentCommandLineOption(agentPath, tempFile);
         var jvmInfo = mock(JvmInfo.class);
@@ -49,8 +60,6 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertTrue(Files.exists(tempFile));
         Node.deleteTemporaryApmConfig(jvmInfo, (e, p) -> fail("Shouldn't hit an exception"));
         assertFalse(Files.exists(tempFile));
-
-        Files.delete(agentPath);
     }
 
     private Path makeFakeAgentJar() throws IOException {

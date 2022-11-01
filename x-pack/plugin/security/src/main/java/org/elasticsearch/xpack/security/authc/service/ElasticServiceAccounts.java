@@ -42,6 +42,7 @@ final class ElasticServiceAccounts {
                         "logs-enterprise_search.audit-default",
                         "logs-app_search.search_relevance_suggestions-default",
                         "logs-crawler-default",
+                        "logs-elastic_crawler-default",
                         "logs-workplace_search.analytics-default",
                         "logs-workplace_search.content_events-default",
                         ".elastic-connectors*"

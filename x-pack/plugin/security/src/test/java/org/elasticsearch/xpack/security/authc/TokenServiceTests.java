@@ -464,8 +464,8 @@ public class TokenServiceTests extends ESTestCase {
         } else {
             return new RefreshTokenStatus(
                 invalidated,
-                authentication.getUser().principal(),
-                authentication.getAuthenticatedBy().getName(),
+                authentication.getEffectiveSubject().getUser().principal(),
+                authentication.getAuthenticatingSubject().getRealm().getName(),
                 refreshed,
                 refreshInstant,
                 supersedingTokens,
@@ -1047,10 +1047,11 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public static void assertAuthentication(Authentication result, Authentication expected) {
-        assertEquals(expected.getUser(), result.getUser());
-        assertEquals(expected.getAuthenticatedBy(), result.getAuthenticatedBy());
-        assertEquals(expected.getLookedUpBy(), result.getLookedUpBy());
-        assertEquals(expected.getMetadata(), result.getMetadata());
+        assertEquals(expected.getEffectiveSubject().getUser(), result.getEffectiveSubject().getUser());
+        assertEquals(expected.getAuthenticatingSubject().getRealm(), result.getAuthenticatingSubject().getRealm());
+        assertEquals(expected.isRunAs(), result.isRunAs());
+        assertEquals(expected.getEffectiveSubject().getRealm(), result.getEffectiveSubject().getRealm());
+        assertEquals(expected.getAuthenticatingSubject().getMetadata(), result.getAuthenticatingSubject().getMetadata());
     }
 
     private DiscoveryNode addAnotherDataNodeWithVersion(ClusterService clusterService, Version version) {

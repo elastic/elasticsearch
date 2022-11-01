@@ -224,7 +224,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 entry -> new DataStreamsStatsAction.DataStreamStats(
                     entry.getKey(),
                     entry.getValue().backingIndices.size(),
-                    new ByteSizeValue(entry.getValue().storageBytes),
+                    ByteSizeValue.ofBytes(entry.getValue().storageBytes),
                     entry.getValue().maxTimestamp
                 )
             )
@@ -237,7 +237,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             shardFailures,
             aggregatedDataStreamsStats.size(),
             allBackingIndices.size(),
-            new ByteSizeValue(totalStoreSizeBytes),
+            ByteSizeValue.ofBytes(totalStoreSizeBytes),
             dataStreamStats
         );
     }

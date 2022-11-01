@@ -197,7 +197,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static ByteSizeValue randomFrozenCacheSize() {
-        return new ByteSizeValue(randomLongBetween(0, 10_000_000));
+        return ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000));
     }
 
     /**
@@ -208,14 +208,14 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
+        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), ByteSizeValue.ofBytes(Integer.MAX_VALUE));
     }
 
     private static ByteSizeValue pageAlignedBetween(ByteSizeValue min, ByteSizeValue max) {
-        ByteSizeValue aligned = pageAligned(new ByteSizeValue(randomLongBetween(min.getBytes(), max.getBytes())));
+        ByteSizeValue aligned = pageAligned(ByteSizeValue.ofBytes(randomLongBetween(min.getBytes(), max.getBytes())));
         if (aligned.compareTo(max) > 0) {
             // minus one page in case page alignment moved us past the max setting value
-            return new ByteSizeValue(aligned.getBytes() - PAGE_SIZE);
+            return ByteSizeValue.ofBytes(aligned.getBytes() - PAGE_SIZE);
         }
         return aligned;
     }

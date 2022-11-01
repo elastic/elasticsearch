@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -88,6 +89,7 @@ public abstract class PeerFinder {
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
     private Optional<DiscoveryNode> leader = Optional.empty();
     private volatile List<TransportAddress> lastResolvedAddresses = emptyList();
+    private final ClusterName clusterName;
 
     public PeerFinder(
         Settings settings,
@@ -95,6 +97,7 @@ public abstract class PeerFinder {
         TransportAddressConnector transportAddressConnector,
         ConfiguredHostsResolver configuredHostsResolver
     ) {
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         verbosityIncreaseTimeout = VERBOSITY_INCREASE_TIMEOUT_SETTING.get(settings);
@@ -314,18 +317,20 @@ public abstract class PeerFinder {
         }
 
         if (peersByAddress.containsKey(transportAddress) == false) {
-            final Peer peer = new Peer(transportAddress);
+            final Peer peer = new Peer(this.clusterName, transportAddress);
             peersByAddress.put(transportAddress, peer);
             peer.establishConnection();
         }
     }
 
     private class Peer {
+        private final ClusterName clusterName;
         private final TransportAddress transportAddress;
         private final SetOnce<ProbeConnectionResult> probeConnectionResult = new SetOnce<>();
         private volatile boolean peersRequestInFlight;
 
-        Peer(TransportAddress transportAddress) {
+        Peer(ClusterName clusterName, TransportAddress transportAddress) {
+            this.clusterName = clusterName;
             this.transportAddress = transportAddress;
         }
 
@@ -371,7 +376,7 @@ public abstract class PeerFinder {
                 - activatedAtMillis > verbosityIncreaseTimeout.millis();
 
             logger.trace("{} attempting connection", this);
-            transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<ProbeConnectionResult>() {
+            transportAddressConnector.connectToRemoteMasterNode(clusterName, transportAddress, new ActionListener<ProbeConnectionResult>() {
                 @Override
                 public void onResponse(ProbeConnectionResult connectResult) {
                     assert holdsLock() == false : "PeerFinder mutex is held in error";

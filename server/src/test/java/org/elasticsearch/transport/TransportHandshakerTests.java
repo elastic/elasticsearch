@@ -9,6 +9,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,6 +42,7 @@ public class TransportHandshakerTests extends ESTestCase {
         channel = mock(TcpChannel.class);
         requestSender = mock(TransportHandshaker.HandshakeRequestSender.class);
         node = new DiscoveryNode(
+            ClusterName.DEFAULT,
             nodeId,
             nodeId,
             nodeId,

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -141,7 +142,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private final Set<String> roleNames;
     private final String externalId;
-    private String clusterAlias;
+    private final ClusterName clusterName;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -156,26 +157,26 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param version          the version of the node
      */
-    public DiscoveryNode(final String id, TransportAddress address, Version version) { // 340 SniffConnectionStrategy or tests
-        // SniffConnectionStrategy.resolveSeedNode
-        // return new DiscoveryNode(
-        // clusterAlias + "#" + transportAddress.toString(),
-        // transportAddress,
-        // Version.CURRENT.minimumCompatibilityVersion()
-        // );
-        // return new DiscoveryNode(
-        // "",
-        // clusterAlias + "#" + address,
-        // UUIDs.randomBase64UUID(),
-        // hostName,
-        // address,
-        // transportAddress,
-        // Collections.singletonMap("server_name", hostName),
-        // DiscoveryNodeRole.roles(),
-        // Version.CURRENT.minimumCompatibilityVersion()
-        // );
+    public DiscoveryNode(final String id, TransportAddress address, Version version) {
+        this(ClusterName.DEFAULT, id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
+    }
 
-        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param clusterName      the nodes cluster name, which contains the cluster alias
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
+     * @param address          the nodes transport address
+     * @param version          the version of the node
+     */
+    public DiscoveryNode(ClusterName clusterName, final String id, TransportAddress address, Version version) {
+        this(clusterName, id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
     }
 
     /**
@@ -199,19 +200,35 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) { // 248 ProxyConnectionStrategy, internal, or tests
-        // public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        // this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
-        //
-        // ProxyConnectionStrategy.openConnections
-        // DiscoveryNode node = new DiscoveryNode(
-        // id,
-        // resolved,
-        // attributes,
-        // DiscoveryNodeRole.roles(),
-        // Version.CURRENT.minimumCompatibilityVersion()
-        // );
-        this("", id, address, attributes, roles, version);
+    ) {
+        this(ClusterName.DEFAULT, "", id, address, attributes, roles, version);
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param clusterName      the nodes cluster name, which contains the cluster alias
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
+     */
+    public DiscoveryNode(
+        ClusterName clusterName,
+        String id,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
+        this(clusterName, "", id, address, attributes, roles, version);
     }
 
     /**
@@ -237,17 +254,49 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) { // 174 Internal or tests
-        // public DiscoveryNode(
-        // String id,
-        // TransportAddress address,
-        // Map<String, String> attributes,
-        // Set<DiscoveryNodeRole> roles,
-        // Version version
-        // ) { // 248
-        // this("", id, address, attributes, roles, version);
-
+    ) {
         this(
+            ClusterName.DEFAULT,
+            nodeName,
+            nodeId,
+            UUIDs.randomBase64UUID(),
+            address.address().getHostString(),
+            address.getAddress(),
+            address,
+            attributes,
+            roles,
+            version
+        );
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param clusterName      the nodes cluster name, which contains the cluster alias
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
+     */
+    public DiscoveryNode(
+        ClusterName clusterName,
+        String nodeName,
+        String nodeId,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
+        this(
+            clusterName,
             nodeName,
             nodeId,
             UUIDs.randomBase64UUID(),
@@ -285,17 +334,52 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) { // 2 DiscoveryNode or test
-        // return new DiscoveryNode(
-        // Node.NODE_NAME_SETTING.get(settings),
-        // nodeId,
-        // Node.NODE_EXTERNAL_ID_SETTING.get(settings),
-        // publishAddress,
-        // attributes,
-        // roles,
-        // Version.CURRENT
-        // );
+    ) {
         this(
+            ClusterName.DEFAULT,
+            nodeName,
+            nodeId,
+            UUIDs.randomBase64UUID(),
+            address.address().getHostString(),
+            address.getAddress(),
+            address,
+            attributes,
+            roles,
+            version,
+            externalId
+        );
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param clusterName      the nodes cluster name, which contains the cluster alias
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
+     * @param externalId       the external id used to identify this node by external systems
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
+     */
+    public DiscoveryNode(
+        ClusterName clusterName,
+        String nodeName,
+        String nodeId,
+        String externalId,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
+        this(
+            clusterName,
             nodeName,
             nodeId,
             UUIDs.randomBase64UUID(),
@@ -337,53 +421,42 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
-    ) { // 54 HandshakingTransportAddressConnector, SniffConnectionStrategy, Internal, or Tests
-        // HandshakingTransportAddressConnector.connectToRemoteMasterNode (PROBLEM)
-        // transportService.openConnection(
-        // new DiscoveryNode(
-        // "",
-        // transportAddress.toString(), // nodeId==address (missing clusterAlias#something)
-        // UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
-        // transportAddress.address().getHostString(),
-        // transportAddress.getAddress(),
-        // transportAddress,
-        // emptyMap(),
-        // emptySet(),
-        // Version.CURRENT.minimumCompatibilityVersion()
-        // ),
-        // SniffConnectionStrategy.resolveSeedNode
-        // return new DiscoveryNode(
-        // "",
-        // clusterAlias + "#" + address,
-        // UUIDs.randomBase64UUID(),
-        // hostName,
-        // address,
-        // transportAddress,
-        // Collections.singletonMap("server_name", hostName),
-        // DiscoveryNodeRole.roles(),
-        // Version.CURRENT.minimumCompatibilityVersion()
-        // );
-        // SniffConnectionStrategy.maybeAddProxyAddress
-        // return new DiscoveryNode(
-        // node.getName(),
-        // node.getId(),
-        // node.getEphemeralId(),
-        // node.getHostName(),
-        // node.getHostAddress(),
-        // new TransportAddress(proxyInetAddress),
-        // node.getAttributes(),
-        // node.getRoles(),
-        // node.getVersion()
-        // );
-        // public DiscoveryNode(
-        // String nodeName,
-        // String nodeId,
-        // TransportAddress address,
-        // Map<String, String> attributes,
-        // Set<DiscoveryNodeRole> roles,
-        // Version version
-        // ) { // 174 Internal or tests
-        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
+    ) {
+        this(ClusterName.DEFAULT, nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}.
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param clusterName      the nodes cluster name, which contains the cluster alias
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
+     */
+    public DiscoveryNode(
+        ClusterName clusterName,
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
+        this(clusterName, nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
     }
 
     /**
@@ -416,7 +489,46 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Set<DiscoveryNodeRole> roles,
         Version version,
         String externalId
-    ) { // 2 Tests
+    ) {
+        this(ClusterName.DEFAULT, nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, externalId);
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}.
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param clusterName      the nodes cluster name, which contains the cluster alias
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
+     * @param externalId       the external id used to identify this node by external systems
+     */
+    public DiscoveryNode(
+        ClusterName clusterName,
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version,
+        String externalId
+    ) {
+        assert clusterName != null : "ClusterName must be non-null";
+        assert Strings.isEmpty(clusterName.value()) == false : "ClusterName value must be non-empty";
+        this.clusterName = clusterName;
         if (nodeName != null) {
             this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
         } else {
@@ -453,6 +565,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
         return new DiscoveryNode(
+            ClusterName.CLUSTER_NAME_SETTING.get(settings),
             Node.NODE_NAME_SETTING.get(settings),
             nodeId,
             Node.NODE_EXTERNAL_ID_SETTING.get(settings),
@@ -476,6 +589,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @throws IOException if there is an error while reading from the stream
      */
     public DiscoveryNode(StreamInput in) throws IOException {
+        this.clusterName = ClusterName.DEFAULT; // TODO Set this value from stream
         this.nodeName = readStringLiteral.read(in);
         this.nodeId = readStringLiteral.read(in);
         this.ephemeralId = readStringLiteral.read(in);
@@ -650,12 +764,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return this.hostAddress;
     }
 
-    public String getClusterAlias() {
-        return this.clusterAlias;
+    public ClusterName getClusterName() {
+        return this.clusterName;
     }
 
-    public void setClusterAlias(String clusterAlias) {
-        this.clusterAlias = clusterAlias;
+    public String getClusterAlias() {
+        return this.clusterName.value();
     }
 
     @Override

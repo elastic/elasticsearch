@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -63,7 +64,11 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     }
 
     @Override
-    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<ProbeConnectionResult> listener) {
+    public void connectToRemoteMasterNode(
+        ClusterName clusterName,
+        TransportAddress transportAddress,
+        ActionListener<ProbeConnectionResult> listener
+    ) {
         try {
 
             // We could skip this if the transportService were already connected to the given address, but the savings would be minimal so
@@ -72,6 +77,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
             logger.trace("[{}] opening probe connection", transportAddress);
             transportService.openConnection(
                 new DiscoveryNode(
+                    clusterName,
                     "",
                     transportAddress.toString(),
                     UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests

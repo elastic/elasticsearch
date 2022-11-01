@@ -100,12 +100,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     )
                 ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
                     assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
                     assertEquals(numOfConnections, connectionManager.size());
                     assertTrue(strategy.assertNoRunningConnections());
                 }
@@ -154,12 +156,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
                     assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
                     long initialConnectionsToTransport2 = connectionManager.getAllConnectedNodes()
                         .stream()
                         .filter(n -> n.getAddress().equals(address2))
@@ -173,6 +177,9 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     assertBusy(() -> {
                         assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                        assertTrue(
+                            connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias))
+                        );
                         // Connections now pointing to transport2
                         long finalConnectionsToTransport2 = connectionManager.getAllConnectedNodes()
                             .stream()
@@ -222,6 +229,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     );
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
                     assertEquals(0, connectionManager.size());
                     assertTrue(strategy.assertNoRunningConnections());
                 }
@@ -267,6 +275,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
@@ -274,12 +283,16 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
                     useAddress1.set(false);
 
                     transport1.close();
 
                     assertBusy(() -> {
                         assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                        assertTrue(
+                            connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias))
+                        );
                         assertTrue(strategy.assertNoRunningConnections());
 
                         long finalConnectionsToTransport2 = connectionManager.getAllConnectedNodes()
@@ -372,6 +385,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     connectFuture.actionGet();
 
                     assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(remoteAddress)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
                     assertEquals(numOfConnections, connectionManager.size());
                     assertTrue(strategy.assertNoRunningConnections());
 
@@ -477,16 +491,20 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     )
                 ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
                     assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
                     assertTrue(strategy.assertNoRunningConnections());
 
                     DiscoveryNode discoveryNode = connectionManager.getAllConnectedNodes().stream().findFirst().get();
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().allMatch(n -> n.getClusterAlias().equals(clusterAlias)));
                     assertEquals("localhost", discoveryNode.getAttributes().get("server_name"));
+                    assertEquals(clusterAlias, discoveryNode.getClusterAlias());
                 }
             }
         }

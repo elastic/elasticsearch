@@ -48,6 +48,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class SniffConnectionStrategyTests extends ESTestCase {
 
@@ -609,9 +610,13 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             unresponsive2.start();
             DiscoveryNode accessibleNode = accessible.getLocalNode();
             DiscoveryNode discoverableNode = unresponsive2.getLocalNode();
+            assertThat(accessibleNode.getClusterAlias(), is(equalTo(ClusterName.DEFAULT.value())));
+            assertThat(discoverableNode.getClusterAlias(), is(equalTo(ClusterName.DEFAULT.value())));
 
             // Use the address for the node that will not respond
+            ClusterName clusterName = new ClusterName("remote-cluster");
             DiscoveryNode unaddressableSeedNode = new DiscoveryNode(
+                clusterName,
                 accessibleNode.getName(),
                 accessibleNode.getId(),
                 accessibleNode.getEphemeralId(),
@@ -622,6 +627,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 accessibleNode.getRoles(),
                 accessibleNode.getVersion()
             );
+            assertThat(unaddressableSeedNode.getClusterAlias(), is(equalTo(clusterName.value())));
 
             knownNodes.add(unaddressableSeedNode);
             knownNodes.add(discoverableNode);
@@ -757,12 +763,21 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void testGetNodePredicateNodeRoles() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
+        ClusterName clusterName = new ClusterName("remote-cluster");
         {
-            DiscoveryNode all = new DiscoveryNode("id", address, Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT);
+            DiscoveryNode all = new DiscoveryNode(
+                clusterName,
+                "id",
+                address,
+                Collections.emptyMap(),
+                DiscoveryNodeRole.roles(),
+                Version.CURRENT
+            );
             assertTrue(nodePredicate.test(all));
         }
         {
             DiscoveryNode dataMaster = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.emptyMap(),
@@ -773,6 +788,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode dedicatedMaster = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.emptyMap(),
@@ -783,6 +799,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode dedicatedIngest = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.emptyMap(),
@@ -793,6 +810,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode masterIngest = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.emptyMap(),
@@ -803,6 +821,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode dedicatedData = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.emptyMap(),
@@ -813,6 +832,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode ingestData = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.emptyMap(),
@@ -822,7 +842,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             assertTrue(nodePredicate.test(ingestData));
         }
         {
-            DiscoveryNode coordOnly = new DiscoveryNode("id", address, Collections.emptyMap(), Set.of(), Version.CURRENT);
+            DiscoveryNode coordOnly = new DiscoveryNode(clusterName, "id", address, Collections.emptyMap(), Set.of(), Version.CURRENT);
             assertTrue(nodePredicate.test(coordOnly));
         }
     }
@@ -832,7 +852,8 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
         Version version = VersionUtils.randomVersion(random());
-        DiscoveryNode node = new DiscoveryNode("id", address, Collections.emptyMap(), roles, version);
+        ClusterName clusterName = new ClusterName("remote-cluster");
+        DiscoveryNode node = new DiscoveryNode(clusterName, "id", address, Collections.emptyMap(), roles, version);
         assertThat(nodePredicate.test(node), equalTo(Version.CURRENT.isCompatible(version)));
     }
 
@@ -841,8 +862,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
+        ClusterName clusterName = new ClusterName("remote-cluster");
         {
             DiscoveryNode nonGatewayNode = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.singletonMap("gateway", "false"),
@@ -854,6 +877,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode gatewayNode = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.singletonMap("gateway", "true"),
@@ -864,7 +888,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(gatewayNode));
         }
         {
-            DiscoveryNode noAttrNode = new DiscoveryNode("id", address, Collections.emptyMap(), roles, Version.CURRENT);
+            DiscoveryNode noAttrNode = new DiscoveryNode(clusterName, "id", address, Collections.emptyMap(), roles, Version.CURRENT);
             assertFalse(nodePredicate.test(noAttrNode));
             assertTrue(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY).test(noAttrNode));
         }
@@ -876,8 +900,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
         Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.roles();
         Set<DiscoveryNodeRole> dedicatedMasterRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
+        ClusterName clusterName = new ClusterName("remote-cluster");
         {
             DiscoveryNode node = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.singletonMap("gateway", "true"),
@@ -888,6 +914,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode node = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.singletonMap("gateway", "false"),
@@ -898,6 +925,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
         {
             DiscoveryNode node = new DiscoveryNode(
+                clusterName,
                 "id",
                 address,
                 Collections.singletonMap("gateway", "false"),
@@ -907,7 +935,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             assertFalse(nodePredicate.test(node));
         }
         {
-            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"), allRoles, Version.CURRENT);
+            DiscoveryNode node = new DiscoveryNode(
+                clusterName,
+                "id",
+                address,
+                Collections.singletonMap("gateway", "true"),
+                allRoles,
+                Version.CURRENT
+            );
             assertTrue(nodePredicate.test(node));
         }
     }

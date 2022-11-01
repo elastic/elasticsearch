@@ -448,16 +448,17 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
             DiscoveryNode discoveryNode = new DiscoveryNode(
+                new ClusterName(clusterAlias),
                 clusterAlias + "#" + transportAddress.toString(),
                 transportAddress,
                 Version.CURRENT.minimumCompatibilityVersion()
             );
-            discoveryNode.setClusterAlias(clusterAlias);
             return discoveryNode;
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             DiscoveryNode discoveryNode = new DiscoveryNode(
+                new ClusterName(clusterAlias),
                 "",
                 clusterAlias + "#" + address,
                 UUIDs.randomBase64UUID(),
@@ -468,7 +469,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 DiscoveryNodeRole.roles(),
                 Version.CURRENT.minimumCompatibilityVersion()
             );
-            discoveryNode.setClusterAlias(clusterAlias);
             return discoveryNode;
         }
     }
@@ -490,6 +490,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             // resolve proxy address lazy here
             InetSocketAddress proxyInetAddress = parseConfiguredAddress(proxyAddress);
             DiscoveryNode discoveryNode = new DiscoveryNode(
+                new ClusterName(clusterAlias),
                 node.getName(),
                 node.getId(),
                 node.getEphemeralId(),
@@ -500,7 +501,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 node.getRoles(),
                 node.getVersion()
             );
-            discoveryNode.setClusterAlias(clusterAlias);
             return discoveryNode;
         }
     }

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -102,7 +103,11 @@ public class PeerFinderTests extends ESTestCase {
         }
 
         @Override
-        public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<ProbeConnectionResult> listener) {
+        public void connectToRemoteMasterNode(
+            ClusterName clusterName,
+            TransportAddress transportAddress,
+            ActionListener<ProbeConnectionResult> listener
+        ) {
             assert localNode.getAddress().equals(transportAddress) == false : "should not probe local node";
 
             final boolean isNotInFlight = inFlightConnectionAttempts.add(transportAddress);

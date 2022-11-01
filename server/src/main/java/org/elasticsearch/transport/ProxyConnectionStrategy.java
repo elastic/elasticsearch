@@ -265,13 +265,13 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
                 DiscoveryNode node = new DiscoveryNode(
+                    new ClusterName(clusterAlias),
                     id,
                     resolved,
                     attributes,
                     DiscoveryNodeRole.roles(),
                     Version.CURRENT.minimumCompatibilityVersion()
                 );
-                node.setClusterAlias(clusterAlias);
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
                     logger.debug(

@@ -58,7 +58,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     private TransportAddress discoveryAddress;
     private TransportService transportService;
     private ThreadPool threadPool;
-    private String remoteClusterName;
+    private ClusterName remoteClusterName;
     private HandshakingTransportAddressConnector handshakingTransportAddressConnector;
     private DiscoveryNode localNode;
 
@@ -95,7 +95,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     } else {
                         handleResponse(
                             requestId,
-                            new HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), remoteNode, new ClusterName(remoteClusterName))
+                            new HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), remoteNode, remoteClusterName)
                         );
                     }
                 }
@@ -128,21 +128,25 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         final SetOnce<DiscoveryNode> receivedNode = new SetOnce<>();
 
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        remoteClusterName = "local-cluster";
+        remoteClusterName = new ClusterName("local-cluster");
         discoveryAddress = getDiscoveryAddress();
 
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<ProbeConnectionResult>() {
-            @Override
-            public void onResponse(ProbeConnectionResult connectResult) {
-                receivedNode.set(connectResult.getDiscoveryNode());
-                completionLatch.countDown();
-            }
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(
+            remoteClusterName,
+            discoveryAddress,
+            new ActionListener<ProbeConnectionResult>() {
+                @Override
+                public void onResponse(ProbeConnectionResult connectResult) {
+                    receivedNode.set(connectResult.getDiscoveryNode());
+                    completionLatch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
             }
-        });
+        );
 
         assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
         assertEquals(remoteNode, receivedNode.get());
@@ -153,7 +157,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         final var remoteNodeAddress = buildNewFakeTransportAddress();
         remoteNode = new DiscoveryNode("remote-node", remoteNodeAddress, Version.CURRENT);
-        remoteClusterName = "local-cluster";
+        remoteClusterName = new ClusterName("local-cluster");
         discoveryAddress = buildNewFakeTransportAddress();
 
         fullConnectionFailure = new ConnectTransportException(remoteNode, "simulated", new ElasticsearchException("root cause"));
@@ -180,7 +184,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         Loggers.addAppender(targetLogger, mockAppender);
 
         try {
-            handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
+            handshakingTransportAddressConnector.connectToRemoteMasterNode(remoteClusterName, discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
@@ -192,10 +196,10 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         discoveryAddress = getDiscoveryAddress();
-        remoteClusterName = "local-cluster";
+        remoteClusterName = new ClusterName("local-cluster");
 
         FailureListener failureListener = new FailureListener();
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(remoteClusterName, discoveryAddress, failureListener);
         assertThat(
             failureListener.getFailureMessage(),
             allOf(
@@ -211,20 +215,20 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     public void testDoesNotConnectToLocalNode() throws Exception {
         remoteNode = localNode;
         discoveryAddress = getDiscoveryAddress();
-        remoteClusterName = "local-cluster";
+        remoteClusterName = new ClusterName("local-cluster");
 
         FailureListener failureListener = new FailureListener();
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(remoteClusterName, discoveryAddress, failureListener);
         assertThat(failureListener.getFailureMessage(), containsString("successfully discovered local node"));
     }
 
     public void testDoesNotConnectToDifferentCluster() throws InterruptedException {
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
         discoveryAddress = getDiscoveryAddress();
-        remoteClusterName = "another-cluster";
+        remoteClusterName = new ClusterName("another-cluster");
 
         FailureListener failureListener = new FailureListener();
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(remoteClusterName, discoveryAddress, failureListener);
         assertThat(
             failureListener.getFailureMessage(),
             containsString("remote cluster name [another-cluster] does not match local cluster name [local-cluster]")
@@ -239,11 +243,11 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     public void testHandshakeTimesOut() throws InterruptedException {
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
         discoveryAddress = getDiscoveryAddress();
-        remoteClusterName = "local-cluster";
+        remoteClusterName = new ClusterName("local-cluster");
         dropHandshake = true;
 
         FailureListener failureListener = new FailureListener();
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(remoteClusterName, discoveryAddress, failureListener);
         assertThat(failureListener.getFailureMessage(), containsString("timed out"));
     }
 

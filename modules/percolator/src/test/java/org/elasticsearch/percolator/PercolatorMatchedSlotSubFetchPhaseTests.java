@@ -23,7 +23,9 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
@@ -32,6 +34,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
@@ -53,7 +56,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // A match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, Source.EMPTY);
+                    HitContext hit = new HitContext(new SearchHit(0), context, 0, Map.of(), Source.empty(null));
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -70,6 +73,9 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                     FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
+                    SearchExecutionContext sec = mock(SearchExecutionContext.class);
+                    when(sc.getSearchExecutionContext()).thenReturn(sec);
+                    when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
                     assertNotNull(processor);
@@ -81,7 +87,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, Source.EMPTY);
+                    HitContext hit = new HitContext(new SearchHit(0), context, 0, Map.of(), Source.empty(null));
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
@@ -98,6 +104,9 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                     FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
+                    SearchExecutionContext sec = mock(SearchExecutionContext.class);
+                    when(sc.getSearchExecutionContext()).thenReturn(sec);
+                    when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
                     assertNotNull(processor);
@@ -108,7 +117,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No query:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, Source.EMPTY);
+                    HitContext hit = new HitContext(new SearchHit(0), context, 0, Map.of(), Source.empty(null));
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -125,6 +134,9 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                     FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
+                    SearchExecutionContext sec = mock(SearchExecutionContext.class);
+                    when(sc.getSearchExecutionContext()).thenReturn(sec);
+                    when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
                     assertNotNull(processor);

@@ -10,19 +10,14 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -43,17 +38,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -355,7 +344,7 @@ public class FetchPhase {
             }
             return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.fromMap(nestedSourceAsMap, rootSourceContentType));
         }
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.EMPTY);
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.empty(null));
     }
 
     interface Profiler {

@@ -2138,7 +2138,7 @@ public class Setting<T> implements ToXContentObject {
             if (matcher.matches() == false) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
-            return matcher.group(1);
+            return Settings.internKeyOrValue(matcher.group(1));
         }
 
         /**
@@ -2149,7 +2149,7 @@ public class Setting<T> implements ToXContentObject {
             if (matcher.matches() == false) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
-            return matcher.group(2);
+            return Settings.internKeyOrValue(matcher.group(2));
         }
 
         public SimpleKey toConcreteKey(String missingPart) {

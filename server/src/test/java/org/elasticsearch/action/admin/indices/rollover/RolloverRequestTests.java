@@ -161,13 +161,13 @@ public class RolloverRequestTests extends ESTestCase {
         RolloverRequest originalRequest = new RolloverRequest("alias-index", "new-index-name");
         originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
         originalRequest.addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
-        originalRequest.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        originalRequest.addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
+        originalRequest.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         originalRequest.addMaxPrimaryShardDocsCondition(randomNonNegativeLong());
         originalRequest.addMinIndexDocsCondition(randomNonNegativeLong());
         originalRequest.addMinIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
-        originalRequest.addMinIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        originalRequest.addMinPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
+        originalRequest.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         originalRequest.addMinPrimaryShardDocsCondition(randomNonNegativeLong());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
@@ -347,14 +347,14 @@ public class RolloverRequestTests extends ESTestCase {
 
     private static final List<Consumer<RolloverRequest>> conditionsGenerator = Arrays.asList(
         (request) -> request.addMaxIndexDocsCondition(randomNonNegativeLong()),
-        (request) -> request.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
         (request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (request) -> request.addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
         (request) -> request.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
         (request) -> request.addMinIndexDocsCondition(randomNonNegativeLong()),
-        (request) -> request.addMinIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
         (request) -> request.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (request) -> request.addMinPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
         (request) -> request.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );
 }

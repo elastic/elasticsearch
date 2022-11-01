@@ -1,0 +1,6 @@
+pr: 91025
+summary: Update bundled JDK to Java 19.0.1
+area: Packaging
+type: upgrade
+issues:
+ - 91010

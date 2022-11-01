@@ -103,7 +103,8 @@ final class ServerTransportFilter {
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
+                    && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
                     securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);

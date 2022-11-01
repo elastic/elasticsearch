@@ -369,7 +369,8 @@ public class IndexNameExpressionResolver {
         for (String expression : expressions) {
             IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null) {
-                if (failNoIndices) {
+                if (options.ignoreUnavailable() == false) {
+                    // can be reached only if {@code indicesOptions#expandWildcardExpressions} is `false`
                     IndexNotFoundException infe;
                     if (expression.equals(Metadata.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", expression);
@@ -437,8 +438,18 @@ public class IndexNameExpressionResolver {
         }
 
         if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
-            IndexNotFoundException infe = new IndexNotFoundException((String) null);
-            infe.setResources("index_expression", indexExpressions);
+            IndexNotFoundException infe;
+            if (indexExpressions.length == 1) {
+                if (indexExpressions[0].equals(Metadata.ALL)) {
+                    infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
+                } else {
+                    infe = new IndexNotFoundException(indexExpressions[0]);
+                }
+                infe.setResources("index_expression", indexExpressions[0]);
+            } else {
+                infe = new IndexNotFoundException((String) null);
+                infe.setResources("index_expression", indexExpressions);
+            }
             if (excludedDataStreams) {
                 // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
                 infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");

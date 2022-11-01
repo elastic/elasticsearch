@@ -70,7 +70,7 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<GroupingAvgState>, GroupingAvgState> builder = AggregatorStateBlock
-            .builderOfAggregatorState(GroupingAvgState.class);
+            .builderOfAggregatorState(GroupingAvgState.class, state.getEstimatedSize());
         builder.add(state);
         return builder.build();
     }
@@ -158,6 +158,11 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
                 deltas[position] = correctedSum - (updatedValue - values[position]);
                 values[position] = updatedValue;
             }
+        }
+
+        @Override
+        public long getEstimatedSize() {
+            return Long.BYTES + (largestGroupId + 1) * AvgStateSerializer.BYTES_SIZE;
         }
 
         @Override

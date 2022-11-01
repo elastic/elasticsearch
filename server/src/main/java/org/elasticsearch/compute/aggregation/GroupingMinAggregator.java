@@ -11,19 +11,19 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.Experimental;
 
 @Experimental
-final class GroupingMinAggregator extends AbstractGroupingMinMaxAggregator {
+final class GroupingMinAggregator extends GroupingAbstractMinMaxAggregator {
 
-    private static final double INITIAL_VALUE = Double.MAX_VALUE;
+    private static final double INITIAL_DEFAULT_VALUE = Double.POSITIVE_INFINITY;
 
     static GroupingMinAggregator create(int inputChannel) {
         if (inputChannel < 0) {
             throw new IllegalArgumentException();
         }
-        return new GroupingMinAggregator(inputChannel, new DoubleArrayState(INITIAL_VALUE));
+        return new GroupingMinAggregator(inputChannel, new DoubleArrayState(INITIAL_DEFAULT_VALUE));
     }
 
     static GroupingMinAggregator createIntermediate() {
-        return new GroupingMinAggregator(-1, new DoubleArrayState(INITIAL_VALUE));
+        return new GroupingMinAggregator(-1, new DoubleArrayState(INITIAL_DEFAULT_VALUE));
     }
 
     private GroupingMinAggregator(int channel, DoubleArrayState state) {
@@ -36,7 +36,7 @@ final class GroupingMinAggregator extends AbstractGroupingMinMaxAggregator {
     }
 
     @Override
-    protected double boundaryValue() {
-        return INITIAL_VALUE;
+    protected double initialDefaultValue() {
+        return INITIAL_DEFAULT_VALUE;
     }
 }

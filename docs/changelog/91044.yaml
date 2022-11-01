@@ -1,0 +1,5 @@
+pr: 91044
+summary: Fix integer overflow in `AsyncTaskIndexService`
+area: Search
+type: bug
+issues: []

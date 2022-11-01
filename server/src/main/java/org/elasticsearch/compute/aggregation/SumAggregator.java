@@ -93,7 +93,7 @@ final class SumAggregator implements AggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleState>, DoubleState> builder = AggregatorStateBlock
-            .builderOfAggregatorState(DoubleState.class);
+            .builderOfAggregatorState(DoubleState.class, state.getEstimatedSize());
         builder.add(state);
         return builder.build();
     }

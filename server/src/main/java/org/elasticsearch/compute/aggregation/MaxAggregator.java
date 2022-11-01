@@ -25,11 +25,11 @@ final class MaxAggregator implements AggregatorFunction {
         if (inputChannel < 0) {
             throw new IllegalArgumentException();
         }
-        return new MaxAggregator(inputChannel, new DoubleState());
+        return new MaxAggregator(inputChannel, new DoubleState(Double.NEGATIVE_INFINITY));
     }
 
     static MaxAggregator createIntermediate() {
-        return new MaxAggregator(-1, new DoubleState());
+        return new MaxAggregator(-1, new DoubleState(Double.NEGATIVE_INFINITY));
     }
 
     private MaxAggregator(int channel, DoubleState state) {
@@ -60,7 +60,7 @@ final class MaxAggregator implements AggregatorFunction {
     }
 
     static double maxFromLongBlock(LongArrayBlock block) {
-        double max = Double.MIN_VALUE;
+        double max = Double.NEGATIVE_INFINITY;
         long[] values = block.getRawLongArray();
         for (int i = 0; i < block.getPositionCount(); i++) {
             max = Math.max(max, values[i]);
@@ -97,7 +97,7 @@ final class MaxAggregator implements AggregatorFunction {
     @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleState>, DoubleState> builder = AggregatorStateBlock
-            .builderOfAggregatorState(DoubleState.class);
+            .builderOfAggregatorState(DoubleState.class, state.getEstimatedSize());
         builder.add(state);
         return builder.build();
     }

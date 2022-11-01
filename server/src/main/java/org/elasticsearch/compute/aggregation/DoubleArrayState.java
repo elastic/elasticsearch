@@ -8,47 +8,53 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.Experimental;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Objects;
 
 @Experimental
 final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
 
-    private double[] values;
+    private final BigArrays bigArrays;
+
+    private final double initialDefaultValue;
+
+    private DoubleArray values;
     // total number of groups; <= values.length
     int largestIndex;
 
     private final DoubleArrayStateSerializer serializer;
 
-    DoubleArrayState(double initialValue) {
-        this(new double[1]);
-        values[0] = initialValue;
+    DoubleArrayState(double initialDefaultValue) {  // For now, to shortcut refactoring. Remove
+        this(new double[1], initialDefaultValue, BigArrays.NON_RECYCLING_INSTANCE);
+        values.set(0, initialDefaultValue);
     }
 
-    DoubleArrayState(double[] values) {
-        this.values = values;
+    DoubleArrayState(double[] values, double initialDefaultValue, BigArrays bigArrays) {
+        this.values = bigArrays.newDoubleArray(values.length, false);
+        for (int i = 0; i < values.length; i++) {
+            this.values.set(i, values[i]);
+        }
+        this.initialDefaultValue = initialDefaultValue;
+        this.bigArrays = bigArrays;
         this.serializer = new DoubleArrayStateSerializer();
-    }
-
-    double[] getValues() {
-        return values;
     }
 
     double get(int index) {
         // TODO bounds check
-        return values[index];
+        return values.get(index);
     }
 
-    double getOrDefault(int index, double defaultValue) {
+    double getOrDefault(int index) {
         if (index > largestIndex) {
-            return defaultValue;
+            return initialDefaultValue;
         } else {
-            return values[index];
+            return values.get(index);
         }
     }
 
@@ -57,14 +63,20 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
         if (index > largestIndex) {
             largestIndex = index;
         }
-        values[index] = value;
+        values.set(index, value);
     }
 
     private void ensureCapacity(int position) {
-        if (position >= values.length) {
-            int newSize = values.length << 1;  // trivial
-            values = Arrays.copyOf(values, newSize);
+        if (position >= values.size()) {
+            long prevSize = values.size();
+            values = bigArrays.grow(values, prevSize + 1);
+            values.fill(prevSize, values.size(), initialDefaultValue);
         }
+    }
+
+    @Override
+    public long getEstimatedSize() {
+        return Long.BYTES + (largestIndex + 1) * Double.BYTES;
     }
 
     @Override
@@ -90,7 +102,7 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
             longHandle.set(ba, offset, positions);
             offset += Long.BYTES;
             for (int i = 0; i < positions; i++) {
-                doubleHandle.set(ba, offset, state.values[i]);
+                doubleHandle.set(ba, offset, state.values.get(i));
                 offset += BYTES_SIZE;
             }
             return Long.BYTES + (BYTES_SIZE * positions); // number of bytes written
@@ -101,12 +113,10 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
             Objects.requireNonNull(state);
             int positions = (int) (long) longHandle.get(ba, offset);
             offset += Long.BYTES;
-            double[] values = new double[positions];
             for (int i = 0; i < positions; i++) {
-                values[i] = (double) doubleHandle.get(ba, offset);
+                state.set((double) doubleHandle.get(ba, offset), i);
                 offset += BYTES_SIZE;
             }
-            state.values = values;
             state.largestIndex = positions - 1;
         }
     }

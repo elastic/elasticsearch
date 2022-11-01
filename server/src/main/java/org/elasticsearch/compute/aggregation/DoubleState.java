@@ -26,7 +26,7 @@ final class DoubleState implements AggregatorState<DoubleState> {
         this(0);
     }
 
-    DoubleState(long value) {
+    DoubleState(double value) {
         this.doubleValue = value;
         this.serializer = new DoubleStateSerializer();
     }
@@ -40,13 +40,18 @@ final class DoubleState implements AggregatorState<DoubleState> {
     }
 
     @Override
+    public long getEstimatedSize() {
+        return Double.BYTES;
+    }
+
+    @Override
     public AggregatorStateSerializer<DoubleState> serializer() {
         return serializer;
     }
 
     static class DoubleStateSerializer implements AggregatorStateSerializer<DoubleState> {
 
-        static final int BYTES_SIZE = Long.BYTES;
+        static final int BYTES_SIZE = Double.BYTES;
 
         @Override
         public int size() {

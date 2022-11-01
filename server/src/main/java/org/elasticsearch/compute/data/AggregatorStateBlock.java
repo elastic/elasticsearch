@@ -45,9 +45,10 @@ public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
     }
 
     public static <T extends AggregatorState<T>> Builder<AggregatorStateBlock<T>, T> builderOfAggregatorState(
-        Class<? extends AggregatorState<T>> cls
+        Class<? extends AggregatorState<T>> cls,
+        long estimatedSize
     ) {
-        return new AggregatorStateBuilder<>(cls);
+        return new AggregatorStateBuilder<>(cls, estimatedSize);
     }
 
     public interface Builder<B extends Block, V> {
@@ -73,9 +74,13 @@ public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
         private final Class<? extends AggregatorState<T>> cls;
 
         private AggregatorStateBuilder(Class<? extends AggregatorState<T>> cls) {
+            this(cls, 4096);
+        }
+
+        private AggregatorStateBuilder(Class<? extends AggregatorState<T>> cls, long estimatedSize) {
             this.cls = cls;
             // cls.getAnnotation() - -
-            ba = new byte[4096]; // for now, should size based on Aggregator state size
+            ba = new byte[(int) estimatedSize];
         }
 
         @Override

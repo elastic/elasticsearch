@@ -1,5 +1,5 @@
 pr: 90806
-summary: Keep a canonical IndexCaps object when constructing field_caps responses
+summary: Don't create IndexCaps objects when recording unmapped fields
 area: Mapping
 type: enhancement
-issues: []
+issues: [90796]

@@ -249,8 +249,6 @@ public class BulkProcessor2 implements Closeable {
      *
      * @param timeout The maximum time to wait for the bulk requests to complete
      * @param unit    The time unit of the {@code timeout} argument
-     * @return {@code true} if all bulk requests completed and {@code false} if the waiting time elapsed before all the bulk requests
-     * completed
      * @throws InterruptedException If the current thread is interrupted
      */
     public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {

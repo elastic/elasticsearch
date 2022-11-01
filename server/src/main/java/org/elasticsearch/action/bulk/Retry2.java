@@ -21,23 +21,16 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -105,9 +98,7 @@ class Retry2 {
         ActionListener<BulkResponse> listener
     ) {
         Iterator<TimeValue> backoff = backoffPolicy.iterator();
-        boolean accepted = readyToLoadQueue.offer(
-            new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff)
-        );
+        boolean accepted = readyToLoadQueue.offer(new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff));
         if (accepted == false) {
             logger.trace("Rejecting an initial bulk request because the queue is full");
             onFailure(
@@ -182,10 +173,7 @@ class Retry2 {
         long currentTime = System.nanoTime();
         long timeThisRetryMatures = timeUntilNextRetry.nanos() + currentTime;
         retryQueue.offer(
-            Tuple.tuple(
-                timeThisRetryMatures,
-                new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff)
-            )
+            Tuple.tuple(timeThisRetryMatures, new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff))
         );
     }
 
@@ -242,8 +230,10 @@ class Retry2 {
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;
             ActionListener<BulkResponse> listener = queueItem.listener;
             Iterator<TimeValue> backoff = queueItem.backoff;
-            consumer.accept(bulkRequest, new RetryHandler(requestsInFlightSemaphore, bulkRequest, responsesAccumulator, consumer, listener,
-                backoff));
+            consumer.accept(
+                bulkRequest,
+                new RetryHandler(requestsInFlightSemaphore, bulkRequest, responsesAccumulator, consumer, listener, backoff)
+            );
         }
     }
 

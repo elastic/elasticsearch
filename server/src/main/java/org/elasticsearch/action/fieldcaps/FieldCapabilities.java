@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +35,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -473,6 +473,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
+    static FieldCapabilities buildBasic(String field, String type, String[] indices) {
+        return new FieldCapabilities(field, type, false, false, false, false, null, indices, null, null, null, null, Map.of());
+    }
+
     static class Builder {
         private final String name;
         private final String type;
@@ -546,10 +550,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
         }
 
-        void getIndices(Collection<String> indices) {
-            for (IndexCaps indexCaps : indicesList) {
-                indices.addAll(Arrays.asList(indexCaps.indices));
-            }
+        Stream<String> getIndices() {
+            return indicesList.stream().flatMap(c -> Arrays.stream(c.indices));
         }
 
         private String[] filterIndices(int length, Predicate<IndexCaps> pred) {

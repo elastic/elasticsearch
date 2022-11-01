@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -20,6 +21,11 @@ public abstract class AbstractTokenizationUpdate implements TokenizationUpdate {
 
     private final Tokenization.Truncate truncate;
     private final Integer span;
+
+    protected static void declareCommonParserFields(ConstructingObjectParser<? extends AbstractTokenizationUpdate, Void> parser) {
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Tokenization.TRUNCATE);
+        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), Tokenization.SPAN);
+    }
 
     public AbstractTokenizationUpdate(@Nullable Tokenization.Truncate truncate, @Nullable Integer span) {
         this.truncate = truncate;

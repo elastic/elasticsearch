@@ -27,8 +27,7 @@ public class BertTokenizationUpdate extends AbstractTokenizationUpdate {
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Tokenization.TRUNCATE);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Tokenization.SPAN);
+        declareCommonParserFields(PARSER);
     }
 
     public static BertTokenizationUpdate fromXContent(XContentParser parser) {

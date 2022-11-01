@@ -40,17 +40,24 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final NumericType numericType;
+        private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
-        public Builder(String name, NumericType numericType, ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory) {
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.numericType = numericType;
+            this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, toScriptFieldFactory);
+            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory);
         }
     }
 
@@ -62,12 +69,13 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     public SortedDoublesIndexFieldData(
         String fieldName,
         NumericType numericType,
+        ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
-        this.valuesSourceType = numericType.getValuesSourceType();
+        this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 

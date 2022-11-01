@@ -122,7 +122,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         )
                     );
                 } else if (securityContext.getAuthentication() != null
-                    && securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
+                    && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(original -> {
                             // We need to store the thread context here as we pollute the context with pre-authorization

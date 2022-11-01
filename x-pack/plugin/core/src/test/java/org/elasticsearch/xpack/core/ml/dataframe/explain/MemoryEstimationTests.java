@@ -21,8 +21,8 @@ public class MemoryEstimationTests extends AbstractXContentSerializingTestCase<M
 
     public static MemoryEstimation createRandom() {
         return new MemoryEstimation(
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null,
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null
         );
     }
 

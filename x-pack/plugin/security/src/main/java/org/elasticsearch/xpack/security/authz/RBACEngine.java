@@ -156,7 +156,9 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getUser().principal())));
+            listener.onResponse(
+                new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getEffectiveSubject().getUser().principal()))
+            );
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
@@ -199,7 +201,7 @@ public class RBACEngine implements AuthorizationEngine {
                     return false;
                 }
                 final String username = usernames[0];
-                final boolean sameUsername = authentication.getUser().principal().equals(username);
+                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);
                 if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
                     return checkChangePasswordAction(authentication);
                 }
@@ -212,7 +214,9 @@ public class RBACEngine implements AuthorizationEngine {
             } else if (request instanceof GetApiKeyRequest getApiKeyRequest) {
                 if (authentication.isApiKey()) {
                     // if the authentication is an API key then the request must also contain same API key id
-                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                    String authenticatedApiKeyId = (String) authentication.getAuthenticatingSubject()
+                        .getMetadata()
+                        .get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId) && false == getApiKeyRequest.withLimitedBy();
@@ -910,9 +914,9 @@ public class RBACEngine implements AuthorizationEngine {
         final boolean isRunAs = authentication.isRunAs();
         final String realmType;
         if (isRunAs) {
-            realmType = authentication.getLookedUpBy().getType();
+            realmType = authentication.getEffectiveSubject().getRealm().getType();
         } else {
-            realmType = authentication.getAuthenticatedBy().getType();
+            realmType = authentication.getAuthenticatingSubject().getRealm().getType();
         }
 
         assert realmType != null;

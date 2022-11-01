@@ -151,8 +151,8 @@ public class Retry2 {
         }
         // here calculate when this thing will next be up for retry (in clock time) and put on retryQueue
         TimeValue timeUntilNextRetry = backoff.next();
-        long currentTime = System.currentTimeMillis();
-        long timeThisRetryMatures = timeUntilNextRetry.millis() + currentTime;
+        long currentTime = System.nanoTime();
+        long timeThisRetryMatures = timeUntilNextRetry.nanos() + currentTime;
         retryQueue.offer(
             Tuple.tuple(
                 timeThisRetryMatures,
@@ -181,7 +181,7 @@ public class Retry2 {
             if (retry == null) {
                 break;
             }
-            if (retry.v1() < System.currentTimeMillis()) {
+            if (retry.v1() < System.nanoTime()) {
                 RetryQueuePayload retryQueuePayload = retry.v2();
                 boolean accepted = readyToLoadQueue.offer(retryQueuePayload);
                 if (accepted == false) {

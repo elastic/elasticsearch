@@ -261,12 +261,12 @@ public class ILMHistoryStoreTests extends ESTestCase {
                     latch.countDown();
                 }
                 batches.incrementAndGet();
-                System.out.println("cumulative responses: " + actions.get());
+                logger.info("cumulative responses: {}", actions.get());
             }
 
             @Override
             public void onFailure(Exception e) {
-                e.printStackTrace();
+                logger.error(e);
                 fail(e.getMessage());
             }
         });

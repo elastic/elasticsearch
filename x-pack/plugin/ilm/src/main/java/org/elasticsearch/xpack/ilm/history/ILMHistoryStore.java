@@ -65,7 +65,7 @@ public class ILMHistoryStore implements Closeable {
     private final ThreadPool threadPool;
 
     public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this(client, clusterService, threadPool, ActionListener.NOOP);
+        this(client, clusterService, threadPool, ActionListener.noop());
     }
 
     /*

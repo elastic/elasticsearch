@@ -11,7 +11,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,9 +46,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class SemanticSearchAction extends ActionType<SemanticSearchAction.Response> {
 
-    // TODO what should this be called? If this becomes an indices action
-    // change the transport code to run _infer as ML_ORIGIN
-    public static final String NAME = "cluster:monitor/xpack/ml/semantic_search";
+    public static final String NAME = "indices:data/read/semantic_search";
 
     public static final SemanticSearchAction INSTANCE = new SemanticSearchAction(NAME);
 
@@ -53,7 +54,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         super(name, SemanticSearchAction.Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name and update docs when changed
 
@@ -111,7 +112,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             return builder.build();
         }
 
-        private final String[] indices;
+        private String[] indices;
         private final String routing;
         private final String queryString;
         private final String modelId;
@@ -158,7 +159,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             List<FieldAndFormat> docValueFields,
             StoredFieldsContext storedFields
         ) {
-            this.indices = indices;
+            this.indices = Objects.requireNonNull(indices, "[indices] must not be null");
             this.routing = routing;
             this.queryString = queryString;
             this.modelId = modelId;
@@ -194,8 +195,24 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             out.writeOptionalWriteable(storedFields);
         }
 
-        public String[] getIndices() {
+        @Override
+        public String[] indices() {
             return indices;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return SearchRequest.DEFAULT_INDICES_OPTIONS;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            Objects.requireNonNull(indices, "indices must not be null");
+            for (String index : indices) {
+                Objects.requireNonNull(index, "index must not be null");
+            }
+            this.indices = indices;
+            return this;
         }
 
         public String getRouting() {
@@ -312,7 +329,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             private StoredFieldsContext storedFields;
 
             Builder(String[] indices) {
-                this.indices = indices;
+                this.indices = Objects.requireNonNull(indices, "[indices] must not be null");
             }
 
             void setRouting(String routing) {

@@ -37,12 +37,14 @@ public class RemoteClusterAuthorizationResolver {
      */
     public RemoteClusterAuthorizationResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            // Settings.getAsMap returns HashMap which is passed to setApiKeys.
             for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
                 this.updateAuthorization(entry.getKey(), entry.getValue());
             }
-            // ClusterSettings.addAffixMapUpdateConsumer registers setApiKeys to receive IdentityHashMap from Settings.
-            clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_AUTHORIZATION, this::updateAuthorization, (k, v) -> {});
+            clusterSettings.addAffixUpdateConsumer(
+                REMOTE_CLUSTER_AUTHORIZATION,
+                this::updateAuthorization,
+                (clusterAlias, authorization) -> {}
+            );
         }
     }
 

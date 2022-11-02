@@ -440,30 +440,41 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 // the "all" permission, i.e. the query can be rewritten into a MatchAll query.
                 // The following code loop through both sets queries and returns true only when both of them
                 // have the "all" permission.
-                return listOfQueries.stream().allMatch(queries -> {
-                    // Within a single set of queries, the "all" permission is allowed if any of them can be rewritten to MatchAll.
-                    for (BytesReference querySource : queries) {
-                        QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
-                            querySource,
-                            scriptService,
-                            queryShardContext.getParserConfig().registry(),
-                            securityContext.getUser()
-                        );
-                        QueryBuilder rewrittenQueryBuilder;
-                        try {
-                            rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                        if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
+                return listOfQueries.stream().allMatch(queries -> hasMatchAllEquivalent(queries, securityContext, queryShardContext));
             }
         }
         return true;
+    }
+
+    private boolean hasMatchAllEquivalent(
+        Set<BytesReference> queries,
+        SecurityContext securityContext,
+        SearchExecutionContext queryShardContext
+    ) {
+        if (queries == null) {
+            return true;
+        }
+        // Current user has potentially many roles and therefore potentially many queries
+        // defining sets of docs accessible
+        for (BytesReference querySource : queries) {
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
+                querySource,
+                scriptService,
+                queryShardContext.getParserConfig().registry(),
+                securityContext.getUser()
+            );
+            QueryBuilder rewrittenQueryBuilder;
+            try {
+                rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) throws IOException {

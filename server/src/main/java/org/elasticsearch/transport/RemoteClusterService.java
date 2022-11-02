@@ -11,7 +11,13 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -24,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -277,6 +285,19 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithRemoteClusterAliasInContext(
+        Client client,
+        String clusterAlias,
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        try (var ignored = client.threadPool().getThreadContext().newStoredContext()) {
+            client.threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
+            client.execute(action, request, listener);
         }
     }
 

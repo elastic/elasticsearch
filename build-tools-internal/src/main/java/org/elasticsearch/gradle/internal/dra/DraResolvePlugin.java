@@ -8,23 +8,17 @@
 
 package org.elasticsearch.gradle.internal.dra;
 
-import com.google.common.collect.Maps;
-
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.initialization.layout.BuildLayout;
 
-import java.io.File;
 import java.util.Map;
-import java.util.Properties;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
-import static java.nio.file.Files.newInputStream;
 import static java.util.Map.Entry;
 
 public class DraResolvePlugin implements Plugin<Project> {
@@ -101,17 +95,6 @@ public class DraResolvePlugin implements Plugin<Project> {
                     .collect(
                         Collectors.toMap(entry -> entry.getKey().substring(DRA_ARTIFACTS_DEPENDENCY_PREFIX.length() + 1), Entry::getValue)
                     )
-            )
-            .zip(providerFactory.provider(() -> {
-                Properties draProperties = new Properties();
-                File buildIdsFile = new File(buildLayout.getRootDirectory(), "buildIds.properties");
-                if (buildIdsFile.exists()) {
-                    draProperties.load(newInputStream(buildIdsFile.toPath()));
-                }
-                return Maps.newHashMap(Maps.fromProperties(draProperties));
-            }),
-                (sysPropMap, fromFileMap) -> Stream.concat(sysPropMap.entrySet().stream(), fromFileMap.entrySet().stream())
-                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue, (value1, value2) -> value1))
             );
     }
 }

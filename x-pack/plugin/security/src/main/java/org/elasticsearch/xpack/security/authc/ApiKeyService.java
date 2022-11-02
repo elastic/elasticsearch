@@ -314,12 +314,6 @@ public class ApiKeyService {
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         final Version version = clusterService.state().nodes().getMinNodeVersion();
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()
-            && (userRoleDescriptors.stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null)
-                || request.getRoleDescriptors().stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null))) {
-            throw new IllegalArgumentException("remote indices not supported for API keys");
-        }
-
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
             try (
                 XContentBuilder builder = newDocument(

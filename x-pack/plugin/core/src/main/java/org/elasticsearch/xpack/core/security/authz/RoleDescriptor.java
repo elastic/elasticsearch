@@ -59,8 +59,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private final String[] clusterPrivileges;
     private final ConfigurableClusterPrivilege[] configurableClusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
-    @Nullable
-    private final RemoteIndicesPrivileges[] remoteIndicesPrivileges;
     private final ApplicationResourcePrivileges[] applicationPrivileges;
     private final String[] runAs;
     private final RemoteIndicesPrivileges[] remoteIndicesPrivileges;

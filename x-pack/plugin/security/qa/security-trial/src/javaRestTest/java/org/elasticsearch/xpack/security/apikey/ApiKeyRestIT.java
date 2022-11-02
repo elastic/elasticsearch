@@ -75,8 +75,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRole("user_role", Set.of("monitor"));
         createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
         createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
-        createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
-        createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
     }
 
     @After
@@ -84,11 +82,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteUser(SYSTEM_USER);
         deleteUser(END_USER);
         deleteUser(MANAGE_OWN_API_KEY_USER);
-        deleteUser(REMOTE_INDICES_USER);
         deleteRole("system_role");
         deleteRole("user_role");
         deleteRole("manage_own_api_key_role");
-        deleteRole("remote_indices_role");
         invalidateApiKeysForUser(END_USER);
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
     }
@@ -552,8 +548,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               ],
               "run_as": [
                 "*"
-              ],
-              "remote_indices": []
+              ]
             }""", false)));
     }
 

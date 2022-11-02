@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.security.role;
 
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -146,6 +149,95 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-a", "*").indices("index-a", "*").privileges("read").build() }
             )
         );
+    }
+
+    public void testGetUserPrivileges() throws IOException {
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"]
+                }
+              ]
+            }""");
+        final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
+        assertOK(putRoleResponse1);
+
+        final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
+        assertOK(getUserPrivilegesResponse1);
+        assertThat(responseAsMap(getUserPrivilegesResponse1), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "cluster": [],
+              "global": [],
+              "indices": [],
+              "applications": [],
+              "run_as": [],
+              "remote_indices": [
+                {
+                  "names": ["*", "index-a"],
+                  "privileges": ["read"],
+                  "allow_restricted_indices": false,
+                  "clusters": ["remote-a", "*"]
+                }
+              ]
+            }""", false)));
+
+        final var putRoleRequest2 = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest2.setJsonEntity("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["index-a"],
+                  "privileges": ["all"]
+                }
+              ],
+              "remote_indices": [
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"]
+                }
+              ]
+            }""");
+        final Response putRoleResponse2 = adminClient().performRequest(putRoleRequest2);
+        assertOK(putRoleResponse2);
+
+        final Response getUserPrivilegesResponse2 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
+        assertOK(getUserPrivilegesResponse2);
+        assertThat(responseAsMap(getUserPrivilegesResponse2), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "cluster": ["all"],
+              "global": [],
+              "indices": [
+                {
+                  "names": ["index-a"],
+                  "privileges": ["all"],
+                  "allow_restricted_indices": false
+                }
+              ],
+              "applications": [],
+              "run_as": [],
+              "remote_indices": [
+                {
+                  "names": ["*", "index-a"],
+                  "privileges": ["read"],
+                  "allow_restricted_indices": false,
+                  "clusters": ["remote-a", "*"]
+                }
+              ]
+            }""", false)));
+    }
+
+    private Response executeAsRemoteSearchUser(final Request request) throws IOException {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
+        );
+        return client().performRequest(request);
     }
 
     private void expectRoleDescriptorInResponse(final Response getRoleResponse, final RoleDescriptor expectedRoleDescriptor)

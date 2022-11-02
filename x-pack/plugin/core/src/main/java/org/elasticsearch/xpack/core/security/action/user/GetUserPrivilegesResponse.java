@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,7 +47,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         index = Collections.unmodifiableSet(in.readSet(Indices::new));
         application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
         } else {
             remoteIndex = Set.of();
@@ -95,6 +94,10 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return runAs;
     }
 
+    public boolean hasRemoteIndicesPrivileges() {
+        return false == remoteIndex.isEmpty();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(cluster, StreamOutput::writeString);
@@ -102,8 +105,16 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             out.writeCollection(remoteIndex);
+        } else if (hasRemoteIndicesPrivileges()) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + RoleDescriptor.VERSION_REMOTE_INDICES
+                    + "] can't handle remote indices privileges and attempted to send to ["
+                    + out.getVersion()
+                    + "]"
+            );
         }
     }
 

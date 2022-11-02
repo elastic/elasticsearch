@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -40,7 +41,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetUserPrivilegesResponseTests extends ESTestCase {
@@ -65,7 +65,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(Version.V_8_6_0);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES);
 
         final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices);
 
@@ -83,11 +83,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         assertThat(sorted(copy.getIndexPrivileges()), equalTo(sorted(original.getIndexPrivileges())));
         assertThat(copy.getApplicationPrivileges(), equalTo(original.getApplicationPrivileges()));
         assertThat(copy.getRunAs(), equalTo(original.getRunAs()));
-        if (canIncludeRemoteIndices) {
-            assertThat(copy.getRemoteIndexPrivileges(), equalTo(original.getRemoteIndexPrivileges()));
-        } else {
-            assertThat(copy.getRemoteIndexPrivileges(), empty());
-        }
+        assertThat(copy.getRemoteIndexPrivileges(), equalTo(original.getRemoteIndexPrivileges()));
     }
 
     public void testEqualsAndHashCode() throws IOException {

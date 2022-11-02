@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;

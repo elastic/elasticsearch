@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,7 +26,7 @@ import java.util.Map;
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
-public class RecoveryResponse extends BroadcastResponse implements ChunkedToXContent {
+public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedToXContent {
 
     private final Map<String, List<RecoveryState>> shardRecoveryStates;
 

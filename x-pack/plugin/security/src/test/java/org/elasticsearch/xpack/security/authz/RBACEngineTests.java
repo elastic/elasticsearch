@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
@@ -1387,7 +1388,7 @@ public class RBACEngineTests extends ESTestCase {
                 "index-4",
                 "index-5"
             )
-            .addApplicationPrivilege(new ApplicationPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
+            .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
             .build();
 
@@ -1605,7 +1606,7 @@ public class RBACEngineTests extends ESTestCase {
         String... actions
     ) {
         privs.add(new ApplicationPrivilegeDescriptor(app, name, newHashSet(actions), emptyMap()));
-        return new ApplicationPrivilege(app, name, actions);
+        return ApplicationPrivilegeTests.createPrivilege(app, name, actions);
     }
 
     private PrivilegesCheckResult hasPrivileges(

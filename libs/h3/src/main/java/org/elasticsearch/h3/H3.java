@@ -248,6 +248,12 @@ public final class H3 {
         return h3ToStringList(h3ToChildren(stringToH3(h3Address)));
     }
 
+    /**
+     * Returns the neighbor indexes.
+     *
+     * @param h3Address Origin index
+     * @return All neighbor indexes from the origin
+     */
     public static String[] hexRing(String h3Address) {
         return h3ToStringList(hexRing(stringToH3(h3Address)));
     }
@@ -260,6 +266,28 @@ public final class H3 {
      */
     public static long[] hexRing(long h3) {
         return HexRing.hexRing(h3);
+    }
+
+    /**
+     * returns whether or not the provided hexagons border
+     *
+     * @param origin the first index
+     * @param destination the second index
+     * @return whether or not the provided hexagons border
+     */
+    public static boolean areNeighborCells(String origin, String destination) {
+        return areNeighborCells(stringToH3(origin), stringToH3(destination));
+    }
+
+    /**
+     * returns whether or not the provided hexagons border
+     *
+     * @param origin the first index
+     * @param destination the second index
+     * @return whether or not the provided hexagons border
+     */
+    public static boolean areNeighborCells(long origin, long destination) {
+        return HexRing.areNeighbours(origin, destination);
     }
 
     /**

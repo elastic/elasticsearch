@@ -34,7 +34,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("test"), equalTo("value"));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?test=value%ctest1=value1", randomDelimiter());
+        uri = formatted("something?test=value%ctest1=value1", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("test"), equalTo("value"));
@@ -59,7 +59,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?%c", randomDelimiter());
+        uri = formatted("something?%c", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
@@ -76,7 +76,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?%c=", randomDelimiter());
+        uri = formatted("something?%c=", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
@@ -87,7 +87,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("a"), equalTo(""));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%ca", randomDelimiter());
+        uri = formatted("something?p=v%ca", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("a"), equalTo(""));

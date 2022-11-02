@@ -54,7 +54,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this(in.readList(Entry::new));
+        this(in.readImmutableList(Entry::new));
     }
 
     private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
@@ -220,7 +220,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         public Entry(StreamInput in) throws IOException {
             this.repoName = in.readString();
-            this.snapshots = in.readList(SnapshotId::new);
+            this.snapshots = in.readImmutableList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
             this.state = State.readFrom(in);

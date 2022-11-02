@@ -71,7 +71,7 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         declaring = in.readString();
         name = in.readString();
         rtn = in.readString();
-        parameters = Collections.unmodifiableList(in.readStringList());
+        parameters = in.readImmutableList(StreamInput::readString);
     }
 
     @Override

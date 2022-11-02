@@ -1108,7 +1108,8 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
         boolean storeTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
         String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);

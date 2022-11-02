@@ -222,7 +222,7 @@ public class BulkProcessorTests extends ESTestCase {
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
                 concurrentBulkRequests,
                 maxBatchSize,
-                new ByteSizeValue(Integer.MAX_VALUE),
+                ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 null,
                 (command, delay, executor) -> null,
                 () -> called.set(true),
@@ -289,7 +289,8 @@ public class BulkProcessorTests extends ESTestCase {
                     Concurrent Bulk Requests: %s
                     """;
                 fail(
-                    message.formatted(
+                    formatted(
+                        message,
                         expectedExecutions,
                         requestCount.get(),
                         successCount.get(),
@@ -340,7 +341,7 @@ public class BulkProcessorTests extends ESTestCase {
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
                 concurrentBulkRequests,
                 maxBatchSize,
-                new ByteSizeValue(Integer.MAX_VALUE),
+                ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
                     flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
@@ -419,7 +420,8 @@ public class BulkProcessorTests extends ESTestCase {
                 Concurrent Bulk Requests: %d
                 """;
             fail(
-                message.formatted(
+                formatted(
+                    message,
                     requestCount.get(),
                     successCount.get(),
                     failureCount.get(),
@@ -442,7 +444,7 @@ public class BulkProcessorTests extends ESTestCase {
             emptyListener(),
             0,
             10,
-            new ByteSizeValue(1000),
+            ByteSizeValue.ofBytes(1000),
             null,
             (command, delay, executor) -> null,
             () -> called.set(true),

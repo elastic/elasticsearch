@@ -414,7 +414,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
         MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), Set.of());
-        doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subContext).getNestedDocuments();
+        doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer, indexSettings.getIndexVersionCreated()))
+            .when(subContext)
+            .getNestedDocuments();
         when(ctx.getSearchExecutionContext()).thenReturn(subContext);
 
         IndexShard indexShard = mock(IndexShard.class);
@@ -631,8 +633,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
             doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             assertRoundTrip(internalAgg);
-            if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
-                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
+            if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
+                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) builder, internalAgg);
             }
             return internalAgg;
         } finally {
@@ -851,14 +853,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher searcher = newIndexSearcher(indexReader);
-                AggregationContext context = createAggregationContext(searcher, query, fieldTypes);
-                verify.accept(searcher, createAggregator(aggregationBuilder, context));
+                try (AggregationContext context = createAggregationContext(searcher, query, fieldTypes)) {
+                    verify.accept(searcher, createAggregator(aggregationBuilder, context));
+                }
             }
         }
     }
 
     private void verifyMetricNames(
-        ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?> aggregationBuilder,
+        ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?> aggregationBuilder,
         InternalAggregation agg
     ) {
         for (String metric : aggregationBuilder.metricNames()) {

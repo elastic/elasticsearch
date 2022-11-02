@@ -35,7 +35,9 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.withType(LicenseHeadersTask.class).configureEach {
-  approvedLicenses = ['Apache']
-}
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
+tasks.withType(LicenseHeadersTask.class).configureEach {
+  approvedLicenses = ['Apache', 'Generated', 'Vendored']
+}

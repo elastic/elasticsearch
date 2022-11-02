@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -52,6 +53,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
@@ -227,6 +229,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
@@ -402,7 +405,10 @@ public class Node implements Closeable {
                 );
             }
 
-            deleteTemporaryApmConfig(jvmInfo);
+            deleteTemporaryApmConfig(
+                jvmInfo,
+                (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
+            );
 
             this.pluginsService = pluginServiceCtor.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
@@ -687,7 +693,6 @@ public class Node implements Closeable {
             );
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
-                threadPool,
                 clusterService,
                 metadataCreateIndexService
             );
@@ -723,6 +728,18 @@ public class Node implements Closeable {
 
             // add all reserved state handlers from server
             reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+
+            var templateService = new MetadataIndexTemplateService(
+                clusterService,
+                metadataCreateIndexService,
+                indicesService,
+                settingsModule.getIndexScopedSettings(),
+                xContentRegistry,
+                systemIndices,
+                indexSettingProviders
+            );
+
+            reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
 
             // add all reserved state handlers from plugins
             List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
@@ -1121,24 +1138,23 @@ public class Node implements Closeable {
      * If the JVM was started with the Elastic APM agent and a config file argument was specified, then
      * delete the config file. The agent only reads it once, when supplied in this fashion, and it
      * may contain a secret token.
+     * <p>
+     * Public for testing only
      */
     @SuppressForbidden(reason = "Cannot guarantee that the temp config path is relative to the environment")
-    private void deleteTemporaryApmConfig(JvmInfo jvmInfo) {
+    public static void deleteTemporaryApmConfig(JvmInfo jvmInfo, BiConsumer<Exception, Path> errorHandler) {
         for (String inputArgument : jvmInfo.getInputArguments()) {
             if (inputArgument.startsWith("-javaagent:")) {
                 final String agentArg = inputArgument.substring(11);
                 final String[] parts = agentArg.split("=", 2);
-                if (parts[0].matches("modules/x-pack-apm-integration/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
+                if (parts[0].matches(".*modules/apm/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
                         final Path apmConfig = PathUtils.get(parts[1].substring(2));
                         if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {
                             try {
                                 Files.deleteIfExists(apmConfig);
                             } catch (IOException e) {
-                                logger.error(
-                                    "Failed to delete temporary APM config file [" + apmConfig + "], reason: [" + e.getMessage() + "]",
-                                    e
-                                );
+                                errorHandler.accept(e, apmConfig);
                             }
                         }
                     }

@@ -43,8 +43,8 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     }
 
     public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
-        this.principal = authentication.getUser().principal();
-        this.realm = authentication.getAuthenticatedBy().getName();
+        this.principal = authentication.getEffectiveSubject().getUser().principal();
+        this.realm = authentication.getEffectiveSubject().getRealm().getName();
         this.tokenString = tokenString;
         this.refreshToken = refreshToken;
         this.expiresIn = expiresIn;

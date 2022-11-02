@@ -65,9 +65,11 @@ public class ClusterStatsIT extends ESIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.INDEX_ROLE.roleName(), 0);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.ML_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.SEARCH_ROLE.roleName(), 0);
         expectedCounts.put(DiscoveryNodeRole.TRANSFORM_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE.roleName(), 0);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);

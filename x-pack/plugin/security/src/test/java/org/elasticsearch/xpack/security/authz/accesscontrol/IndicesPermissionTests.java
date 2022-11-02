@@ -95,7 +95,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // no field level security:
         role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(new FieldPermissions(), query, IndexPrivilege.ALL, randomBoolean(), "_index")
+            .add(FieldPermissions.DEFAULT, query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
@@ -258,7 +258,7 @@ public class IndicesPermissionTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission core = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             randomBoolean(),
             "a1"
@@ -285,7 +285,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // test with two indices
         core = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             randomBoolean(),
             "a1"
@@ -337,7 +337,7 @@ public class IndicesPermissionTests extends ESTestCase {
             ElasticsearchSecurityException.class,
             () -> new IndicesPermission.Group(
                 IndexPrivilege.ALL,
-                new FieldPermissions(),
+                FieldPermissions.DEFAULT,
                 null,
                 randomBoolean(),
                 RESTRICTED_INDICES,
@@ -368,7 +368,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // allow_restricted_indices: false
         IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             false,
             "*"
@@ -388,7 +388,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // allow_restricted_indices: true
         indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             true,
             "*"
@@ -419,7 +419,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // allow_restricted_indices: false
         IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             false,
             "*"
@@ -437,7 +437,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // allow_restricted_indices: true
         indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             true,
             "*"
@@ -470,7 +470,7 @@ public class IndicesPermissionTests extends ESTestCase {
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.READ,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             false,
             dataStreamName
@@ -490,7 +490,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.CREATE_DOC,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             false,
             dataStreamName
@@ -535,7 +535,7 @@ public class IndicesPermissionTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission core = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.INDEX,
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             null,
             randomBoolean(),
             "test*"

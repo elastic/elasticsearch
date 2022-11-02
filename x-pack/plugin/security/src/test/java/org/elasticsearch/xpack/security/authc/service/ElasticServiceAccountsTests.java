@@ -110,8 +110,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -250,7 +250,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);
         assertThat(
-            role.application().grants(new ApplicationPrivilege(kibanaApplication, privilegeName, allowedApplicationActionPattern), "*"),
+            role.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplication, privilegeName, allowedApplicationActionPattern), "*"),
             is(true)
         );
 
@@ -258,14 +259,15 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             + "-"
             + randomAlphaOfLengthBetween(8, 24);
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, privilegeName, allowedApplicationActionPattern), "*"),
+            role.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, privilegeName, allowedApplicationActionPattern), "*"),
             is(false)
         );
 
         assertThat(
             role.application()
                 .grants(
-                    new ApplicationPrivilege(
+                    ApplicationPrivilegeTests.createPrivilege(
                         kibanaApplication,
                         privilegeName,
                         randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 16))

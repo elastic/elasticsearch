@@ -83,7 +83,7 @@ public class IndicesAccessControlTests extends ESTestCase {
 
         indicesAccessControl = new IndicesAccessControl(
             true,
-            Collections.singletonMap("_index", new IndexAccessControl(new FieldPermissions(), DocumentPermissions.allowAll()))
+            Collections.singletonMap("_index", new IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll()))
         );
         limitedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
@@ -95,11 +95,11 @@ public class IndicesAccessControlTests extends ESTestCase {
 
         indicesAccessControl = new IndicesAccessControl(
             true,
-            Collections.singletonMap("_index", new IndexAccessControl(new FieldPermissions(), DocumentPermissions.allowAll()))
+            Collections.singletonMap("_index", new IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll()))
         );
         limitedByIndicesAccessControl = new IndicesAccessControl(
             true,
-            Collections.singletonMap("_index", new IndexAccessControl(new FieldPermissions(), DocumentPermissions.allowAll()))
+            Collections.singletonMap("_index", new IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll()))
         );
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
@@ -120,7 +120,7 @@ public class IndicesAccessControlTests extends ESTestCase {
             true,
             Map.ofEntries(
                 Map.entry("_index", new IndexAccessControl(fieldPermissions1, DocumentPermissions.allowAll())),
-                Map.entry("another-index", new IndexAccessControl(new FieldPermissions(), DocumentPermissions.allowAll()))
+                Map.entry("another-index", new IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll()))
             )
         );
         limitedByIndicesAccessControl = new IndicesAccessControl(
@@ -159,15 +159,15 @@ public class IndicesAccessControlTests extends ESTestCase {
         indicesAccessControl = new IndicesAccessControl(
             true,
             Map.ofEntries(
-                Map.entry("_index", new IndexAccessControl(new FieldPermissions(), DocumentPermissions.allowAll())),
-                Map.entry("another-index", new IndexAccessControl(new FieldPermissions(), documentPermissions2))
+                Map.entry("_index", new IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll())),
+                Map.entry("another-index", new IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions2))
             )
         );
         limitedByIndicesAccessControl = new IndicesAccessControl(
             true,
             Map.ofEntries(
-                Map.entry("_index", new IndexAccessControl(new FieldPermissions(), documentPermissions1)),
-                Map.entry("another-index", new IndexAccessControl(new FieldPermissions(), DocumentPermissions.allowAll()))
+                Map.entry("_index", new IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions1)),
+                Map.entry("another-index", new IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll()))
             )
         );
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);

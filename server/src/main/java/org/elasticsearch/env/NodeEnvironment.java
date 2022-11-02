@@ -519,7 +519,7 @@ public final class NodeEnvironment implements Closeable {
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices created with version ["
                     + metadata.oldestIndexVersion()
-                    + "] which which a node of version ["
+                    + "] with which a node of version ["
                     + Version.CURRENT
                     + "] is incompatible. Revert this node to version ["
                     + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())

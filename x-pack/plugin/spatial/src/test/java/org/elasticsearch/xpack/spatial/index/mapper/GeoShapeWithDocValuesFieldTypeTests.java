@@ -150,7 +150,61 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    public void testFetchSourceValueDateLine() throws IOException {
+    public void testFetchSourcePolygonDateLine() throws IOException {
+        assertFetchSourceGeometry(
+            "POLYGON((170 -10, -170 -10, -170 10, 170 10, 170 -10))",
+            "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
+                + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))",
+            Map.of(
+                "type",
+                "MultiPolygon",
+                "coordinates",
+                List.of(
+                    List.of(
+                        List.of(
+                            List.of(180.0, -10.0),
+                            List.of(180.0, 10.0),
+                            List.of(170.0, 10.0),
+                            List.of(170.0, -10.0),
+                            List.of(180.0, -10.0)
+                        )
+                    ),
+                    List.of(
+                        List.of(
+                            List.of(-180.0, 10.0),
+                            List.of(-180.0, -10.0),
+                            List.of(-170.0, -10.0),
+                            List.of(-170.0, 10.0),
+                            List.of(-180.0, 10.0)
+                        )
+                    )
+                )
+            ),
+            "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
+                + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))"
+        );
+    }
+
+    public void testFetchSourceEnvelope() throws IOException {
+        assertFetchSourceGeometry(
+            "BBOX(-10, 10, 10, -10)",
+            "BBOX (-10.0, 10.0, 10.0, -10.0)",
+            Map.of("type", "Envelope", "coordinates", List.of(List.of(-10.0, 10.0), List.of(10.0, -10.0))),
+            "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10)))"
+        );
+    }
+
+    public void testFetchSourceEnvelopeDateLine() throws IOException {
+        assertFetchSourceGeometry(
+            "BBOX(10, -10, 10, -10)",
+            "BBOX (10.0, -10.0, 10.0, -10.0)",
+            Map.of("type", "Envelope", "coordinates", List.of(List.of(10.0, 10.0), List.of(-10.0, -10.0))),
+            "MULTIPOLYGON (((-180 -10, -10 -10, -10 10, -180 10, -180 -10)), ((10 -10, 180 -10, 180 10, 10 10, 10 -10)))"
+        );
+    }
+
+    private void assertFetchSourceGeometry(Object sourceValue, String wktValue, Map<String, Object> jsonValue, String mvtEquivalentAsWKT)
+        throws IOException {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
         );
@@ -161,38 +215,13 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             false,
             geoFormatterFactory
         ).build(MapperBuilderContext.ROOT).fieldType();
-        // Test a polygon crossing the dateline
-        Object sourceValue = "POLYGON((170 -10, -170 -10, -170 10, 170 10, 170 -10))";
-        String polygonDateLine = "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
-            + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))";
-        Map<String, Object> jsonPolygonDateLine = Map.of(
-            "type",
-            "MultiPolygon",
-            "coordinates",
-            List.of(
-                List.of(
-                    List.of(List.of(180.0, -10.0), List.of(180.0, 10.0), List.of(170.0, 10.0), List.of(170.0, -10.0), List.of(180.0, -10.0))
-                ),
-                List.of(
-                    List.of(
-                        List.of(-180.0, 10.0),
-                        List.of(-180.0, -10.0),
-                        List.of(-170.0, -10.0),
-                        List.of(-170.0, 10.0),
-                        List.of(-180.0, 10.0)
-                    )
-                )
-            )
-        );
 
-        assertEquals(List.of(jsonPolygonDateLine), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(polygonDateLine), fetchSourceValue(mapper, sourceValue, "wkt"));
+        assertEquals(List.of(jsonValue), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktValue), fetchSourceValue(mapper, sourceValue, "wkt"));
 
-        String mvtPolygonDateLine = "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
-            + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))";
-
-        List<?> mvtExpected = fetchSourceValue(mapper, mvtPolygonDateLine, "mvt(0/0/0@256)");
-        List<?> mvt = fetchSourceValue(mapper, sourceValue, "mvt(0/0/0@256)");
+        final int extent = randomIntBetween(256, 4096);
+        List<?> mvtExpected = fetchSourceValue(mapper, mvtEquivalentAsWKT, "mvt(0/0/0@" + extent + ")");
+        List<?> mvt = fetchSourceValue(mapper, sourceValue, "mvt(0/0/0@" + extent + ")");
         assertThat(mvt.size(), Matchers.equalTo(1));
         assertThat(mvt.size(), Matchers.equalTo(mvtExpected.size()));
         assertThat(mvtExpected.get(0), Matchers.instanceOf(byte[].class));

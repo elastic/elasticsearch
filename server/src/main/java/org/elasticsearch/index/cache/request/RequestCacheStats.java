@@ -56,7 +56,7 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getMemorySize() {
-        return new ByteSizeValue(memorySize);
+        return ByteSizeValue.ofBytes(memorySize);
     }
 
     public long getEvictions() {

@@ -297,7 +297,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     ) {
         assert client instanceof RemoteClusterAwareClient;
         try (var ignored = client.threadPool().getThreadContext().newStoredContext()) {
-            client.threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
+            client.threadPool().getThreadContext().putTransient(REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
             client.execute(action, request, listener);
         }
     }

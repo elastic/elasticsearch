@@ -166,8 +166,11 @@ public class BulkProcessor2Tests extends ESTestCase {
         assertThat(attemptRef.get(), equalTo(maxAttempts));
     }
 
+    // @TestLogging(
+    // value = "org.elasticsearch.action.bulk:trace",
+    // reason = "Logging information about locks useful for tracking down deadlock"
+    // )
     public void testConcurrentExecutions() throws Exception {
-        final AtomicBoolean called = new AtomicBoolean(false);
         final AtomicReference<Throwable> exceptionRef = new AtomicReference<>();
         int estimatedTimeForTest = Integer.MAX_VALUE;
         final int simulateWorkTimeInMillis = 5;
@@ -203,18 +206,22 @@ public class BulkProcessor2Tests extends ESTestCase {
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger requestCount = new AtomicInteger(0);
         AtomicInteger docCount = new AtomicInteger(0);
+        ScheduledExecutorService consumerExecutor = Executors.newScheduledThreadPool(2 * concurrentBulkRequests);
+        // All consumers are expected to be async:
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
-            try {
-                Thread.sleep(simulateWorkTimeInMillis); // simulate work
-                listener.onResponse(bulkResponse);
-            } catch (InterruptedException e) {
-                // should never happen
-                Thread.currentThread().interrupt();
-                failureCount.getAndIncrement();
-                exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
-            }
+            consumerExecutor.schedule(() -> {
+                try {
+                    Thread.sleep(simulateWorkTimeInMillis); // simulate work
+                    listener.onResponse(bulkResponse);
+                } catch (InterruptedException e) {
+                    // should never happen
+                    Thread.currentThread().interrupt();
+                    failureCount.getAndIncrement();
+                    exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
+                }
+            }, 0, TimeUnit.SECONDS);
         };
-        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(concurrentClients * concurrentBulkRequests);
+        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(2);
         try (
             BulkProcessor2 bulkProcessor = new BulkProcessor2(
                 consumer,
@@ -232,57 +239,28 @@ public class BulkProcessor2Tests extends ESTestCase {
                 ),
                 () -> {
                     flushExecutor.shutdown();
+                    consumerExecutor.shutdown();
                     try {
                         flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
                         if (flushExecutor.isTerminated() == false) {
                             flushExecutor.shutdownNow();
                         }
+                        consumerExecutor.awaitTermination(10L, TimeUnit.SECONDS);
+                        if (consumerExecutor.isTerminated() == false) {
+                            consumerExecutor.shutdownNow();
+                        }
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                     }
+
                 }
             )
         ) {
-
-            ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
-            CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
-
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = """
-                { "index" : { "_index" : "test", "_id" : "1" } }
-                { "field1" : "value1" }
-                """;
-            BytesReference bytesReference = BytesReference.fromByteBuffers(
-                new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
-            );
-            List<Future<?>> futures = new ArrayList<>();
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
-                futures.add(executorService.submit(() -> {
-                    try {
-                        // don't start any work until all tasks are submitted
-                        startGate.countDown();
-                        startGate.await();
-                        // alternate between ways to add to the bulk processor
-                        bulkProcessor.add(indexRequest);
-                    } catch (Exception e) {
-                        throw ExceptionsHelper.convertToRuntime(e);
-                    }
-                }));
+                bulkProcessor.add(indexRequest);
             }
-            startGate.countDown();
-            startGate.await();
 
-            for (Future<?> f : futures) {
-                try {
-                    f.get();
-                } catch (Exception e) {
-                    failureCount.incrementAndGet();
-                    exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
-                }
-            }
-            executorService.shutdown();
-            executorService.awaitTermination(10, TimeUnit.SECONDS);
-            flushExecutor.awaitTermination(10, TimeUnit.SECONDS);
             assertBusy(() -> {
                 String message = """
 

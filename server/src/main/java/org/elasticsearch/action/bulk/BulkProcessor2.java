@@ -229,23 +229,21 @@ public class BulkProcessor2 implements Closeable {
     }
 
     /**
-     * Closes the processor. If flushing by time is enabled, then it's shutdown. Any remaining bulk actions are flushed.
+     * Closes the processor. Waits up to 10ms to clear out any queued requests.
      */
     @Override
     public void close() {
         try {
-            awaitClose(0, TimeUnit.NANOSECONDS);
+            awaitClose(10, TimeUnit.MILLISECONDS);
         } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
         }
     }
 
     /**
-     * Closes the processor. If flushing by time is enabled, then it's shutdown. Any remaining bulk actions are flushed.
+     * Closes the processor. Any remaining bulk actions are flushed if they can be flushed in the given time.
      * <p>
-     * If concurrent requests are not enabled, returns {@code true} immediately.
-     * If concurrent requests are enabled, waits for up to the specified timeout for all bulk requests to complete then returns {@code true}
-     * If the specified waiting time elapses before all bulk requests complete, {@code false} is returned.
+     * Waits for up to the specified timeout for all bulk requests to complete then returns
      *
      * @param timeout The maximum time to wait for the bulk requests to complete
      * @param unit    The time unit of the {@code timeout} argument

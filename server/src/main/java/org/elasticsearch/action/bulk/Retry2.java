@@ -74,7 +74,7 @@ class Retry2 {
     }
 
     public void init() {
-        flushCancellable = scheduler.scheduleWithFixedDelay(this::flush, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
+        flushCancellable = scheduler.scheduleWithFixedDelay(this::flush, TimeValue.timeValueMillis(10), ThreadPool.Names.GENERIC);
     }
 
     private record RetryQueuePayload(
@@ -99,7 +99,9 @@ class Retry2 {
     ) {
         Iterator<TimeValue> backoff = backoffPolicy.iterator();
         boolean accepted = readyToLoadQueue.offer(new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff));
-        if (accepted == false) {
+        if (accepted) {
+            logger.trace("Added to readyToLoadQueue. Current size is {}", readyToLoadQueue.size());
+        } else {
             logger.trace("Rejecting an initial bulk request because the queue is full");
             onFailure(
                 bulkRequest,
@@ -117,6 +119,7 @@ class Retry2 {
                 backoff
             );
         }
+
     }
 
     public void onFailure(
@@ -179,7 +182,10 @@ class Retry2 {
     }
 
     void flush() {
+        int retryLoopCount = 0;
+        int mainLoopCount = 0;
         while (isClosing == false || System.nanoTime() < closingTime) {
+            retryLoopCount++;
             Tuple<Long, RetryQueuePayload> retry = retryQueue.poll();
             if (retry == null) {
                 break;
@@ -212,21 +218,23 @@ class Retry2 {
             }
         }
         while (isClosing == false || System.nanoTime() < closingTime) {
+            mainLoopCount++;
             boolean allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
+            logger.trace("Semaphore locks remaining: {}", requestsInFlightSemaphore.availablePermits());
             if (allowedToMakeRequest == false) {
                 logger.trace("Unable to acquire semaphore because too many requests are already in flight");
                 /*
                  * Too many requests are already in flight, so don't flush a bulk request to Elasticsearch.
                  */
-                return;
+                break;
             }
             RetryQueuePayload queueItem = readyToLoadQueue.poll();
             if (queueItem == null) {
                 requestsInFlightSemaphore.release();
-                return;
+                break;
             }
-            logger.trace("Sending a bulk request");
             BulkRequest bulkRequest = queueItem.request;
+            logger.trace("Sending a bulk request with {} items", bulkRequest.requests.size());
             List<BulkItemResponse> responsesAccumulator = queueItem.responses;
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;
             ActionListener<BulkResponse> listener = queueItem.listener;
@@ -236,12 +244,13 @@ class Retry2 {
                 new RetryHandler(requestsInFlightSemaphore, bulkRequest, responsesAccumulator, consumer, listener, backoff)
             );
         }
+        logger.trace("Retry loop count: {}, Main loop count: {}", retryLoopCount, mainLoopCount);
     }
 
     void awaitClose(long timeout, TimeUnit unit) {
-        logger.trace("Starting awaitClose");
         isClosing = true;
         TimeValue remainingTime = new TimeValue(timeout, unit);
+        logger.trace("Starting awaitClose with timeout of {}", remainingTime);
         closingTime = System.nanoTime() + remainingTime.getNanos();
         flushCancellable.cancel();
         /*
@@ -249,16 +258,31 @@ class Retry2 {
          * have time to get to, or was added later.
          */
         flush();
+        logger.trace("System time: {}, Closing time: {}", System.nanoTime(), closingTime);
         List<RetryQueuePayload> remainingReadyRequests = new ArrayList<>();
         readyToLoadQueue.drainTo(remainingReadyRequests);
+        int individualRequestsRejected = 0;
         for (RetryQueuePayload request : remainingReadyRequests) {
             request.listener.onFailure(new EsRejectedExecutionException("Closing the bulk request handler"));
+            individualRequestsRejected += request.request.requests.size();
         }
+        logger.trace(
+            "Rejecting {} requests in {} bulk requests from queue because server is closing",
+            individualRequestsRejected,
+            remainingReadyRequests.size()
+        );
         List<Tuple<Long, RetryQueuePayload>> remainingRetryRequests = new ArrayList<>();
         retryQueue.drainTo(remainingRetryRequests);
+        int individualRetryRequestsRejected = 0;
         for (Tuple<Long, RetryQueuePayload> retry : remainingRetryRequests) {
             retry.v2().listener.onFailure(new EsRejectedExecutionException("Closing the bulk request handler"));
+            individualRetryRequestsRejected += retry.v2().request.requests.size();
         }
+        logger.trace(
+            "Rejecting {} requests in {} bulk requests from retry queue because server is closing",
+            individualRetryRequestsRejected,
+            remainingRetryRequests.size()
+        );
         logger.trace("Finishing awaitClose");
     }
 

@@ -78,7 +78,7 @@ The deployment allocations are distributed so that node processors are not overs
 * `low`: Use this for testing model functionality.
 The deployment is required to have a single allocation with just one thread.
 Low priority deployments may be assigned on nodes that already utilize all their processors
-but use less CPU than normal deployments. Low priority deployments may be unassigned in order
+but will be given a lower CPU priority than normal deployments. Low priority deployments may be unassigned in order
 to satisfy more allocations of normal priority deployments.
 --
 

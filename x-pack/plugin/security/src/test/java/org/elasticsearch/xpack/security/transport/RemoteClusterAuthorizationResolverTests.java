@@ -31,7 +31,6 @@ import org.junit.After;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -117,7 +116,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettingsOmitClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState3);
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("omitB")));
-        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(emptyString()));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(nullValue()));
     }
 
     private static ClusterState createClusterState(final String clusterName, final DiscoveryNode masterNode, final Settings newSettings) {

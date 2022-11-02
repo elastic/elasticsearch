@@ -74,7 +74,10 @@ public class TransformLatestRestIT extends TransformRestTestCase {
         final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
         createPreviewRequest.setJsonEntity(config);
         Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
-        assertThat(XContentMapValues.extractValue("generated_dest_index.mappings.properties", previewTransformResponse), is(equalTo(Map.of())));
+        assertThat(
+            XContentMapValues.extractValue("generated_dest_index.mappings.properties", previewTransformResponse),
+            is(equalTo(Map.of()))
+        );
 
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",

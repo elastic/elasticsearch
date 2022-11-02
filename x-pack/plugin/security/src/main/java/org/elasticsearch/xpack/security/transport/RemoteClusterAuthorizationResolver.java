@@ -28,9 +28,9 @@ import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AU
  * Injected into SecurityServerTransportInterceptor.
  * Latest API Key value needs to be used in header when sending TransportRequest to remote cluster nodes.
  */
-public class CrossClusterSecurity {
+public class RemoteClusterAuthorizationResolver {
 
-    private static final Logger LOGGER = LogManager.getLogger(CrossClusterSecurity.class);
+    private static final Logger LOGGER = LogManager.getLogger(RemoteClusterAuthorizationResolver.class);
 
     private final Map<String, String> apiKeys = ConcurrentCollections.newConcurrentMap();
 
@@ -39,7 +39,7 @@ public class CrossClusterSecurity {
      * @param settings Contains zero, one, or many values of REMOTE_CLUSTER_AUTHORIZATION literal values.
      * @param clusterSettings Contains one affix of setting REMOTE_CLUSTER_AUTHORIZATION.
      */
-    public CrossClusterSecurity(final Settings settings, final ClusterSettings clusterSettings) {
+    public RemoteClusterAuthorizationResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             // Settings.getAsMap returns HashMap which is passed to setApiKeys.
             this.setApiKeys(REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings));

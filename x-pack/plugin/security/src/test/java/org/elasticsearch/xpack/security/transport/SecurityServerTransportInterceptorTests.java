@@ -112,7 +112,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new CrossClusterSecurity(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -162,7 +162,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new CrossClusterSecurity(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -205,7 +205,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new CrossClusterSecurity(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -266,7 +266,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new CrossClusterSecurity(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -333,7 +333,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new CrossClusterSecurity(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -396,7 +396,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new CrossClusterSecurity(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);

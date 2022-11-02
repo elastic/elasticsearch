@@ -54,7 +54,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
-    private final CrossClusterSecurity crossClusterSecurity; // handles load/reload of remote cluster API Keys
+    private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver; // handles load/reload of remote cluster API Keys
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -64,7 +64,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        CrossClusterSecurity crossClusterSecurity
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -73,7 +73,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        this.crossClusterSecurity = crossClusterSecurity;
+        this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
     }
 
     @Override

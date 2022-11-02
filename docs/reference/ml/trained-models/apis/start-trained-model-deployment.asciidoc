@@ -76,6 +76,7 @@ There are two priority settings:
 * `normal`: Use this for deployments in production.
 The deployment allocations are distributed so that node processors are not oversubscribed.
 * `low`: Use this for testing model functionality.
+The intention is that these deployments are not sent a high volume of input.
 The deployment is required to have a single allocation with just one thread.
 Low priority deployments may be assigned on nodes that already utilize all their processors
 but will be given a lower CPU priority than normal deployments. Low priority deployments may be unassigned in order

@@ -84,7 +84,10 @@ public class RoleDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> RoleDescriptor.RemoteIndicesPrivileges.builder().indices("idx").privileges("priv").build()
         );
-        assertThat(ex.getMessage(), containsString("[clusters] must refer to at least one cluster alias or cluster alias pattern"));
+        assertThat(
+            ex.getMessage(),
+            containsString("the [remote_indices] sub-field [clusters] must refer to at least one cluster alias or cluster alias pattern")
+        );
     }
 
     public void testEqualsOnEmptyRoles() {
@@ -135,7 +138,7 @@ public class RoleDescriptorTests extends ESTestCase {
                     + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
-                    + ", runAs=[sudo], metadata=[{}]]"
+                    + ", runAs=[sudo], metadata=[{}], remoteIndicesPrivileges=[]]"
             )
         );
     }
@@ -406,22 +409,41 @@ public class RoleDescriptorTests extends ESTestCase {
         streamInput.setVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
 
-        if (canIncludeRemoteIndices) {
-            assertThat(serialized, equalTo(descriptor));
-        } else {
-            assertRoleDescriptorsEqualExcludingRemoteIndices(descriptor, serialized);
-            assertThat(serialized.getRemoteIndicesPrivileges(), nullValue());
-        }
+        assertThat(serialized, equalTo(descriptor));
     }
 
-    public static void assertRoleDescriptorsEqualExcludingRemoteIndices(RoleDescriptor actual, RoleDescriptor expected) {
-        assertThat(expected.getName(), equalTo(actual.getName()));
-        assertThat(expected.getIndicesPrivileges(), equalTo(actual.getIndicesPrivileges()));
-        assertThat(expected.getClusterPrivileges(), equalTo(actual.getClusterPrivileges()));
-        assertThat(expected.getApplicationPrivileges(), equalTo(actual.getApplicationPrivileges()));
-        assertThat(expected.getConditionalClusterPrivileges(), equalTo(actual.getConditionalClusterPrivileges()));
-        assertThat(expected.getRunAs(), equalTo(actual.getRunAs()));
-        assertThat(expected.getMetadata(), equalTo(actual.getMetadata()));
+    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices
+        );
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(version);
+
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
+        if (descriptor.hasRemoteIndicesPrivileges()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> descriptor.writeTo(output));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                        + version
+                        + "]"
+                )
+            );
+        } else {
+            descriptor.writeTo(output);
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            StreamInput streamInput = new NamedWriteableAwareStreamInput(
+                ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+                registry
+            );
+            streamInput.setVersion(version);
+            final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+            assertThat(descriptor, equalTo(serialized));
+        }
     }
 
     public void testParseEmptyQuery() throws Exception {
@@ -728,7 +750,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 new String[0],
                 new HashMap<>(),
                 new HashMap<>(),
-                randomBoolean() ? null : new RoleDescriptor.RemoteIndicesPrivileges[0]
+                new RoleDescriptor.RemoteIndicesPrivileges[0]
             ).isEmpty()
         );
 
@@ -763,7 +785,7 @@ public class RoleDescriptorTests extends ESTestCase {
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
             Collections.singletonMap("foo", "bar"),
             booleans.get(6)
-                ? null
+                ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() }
         );

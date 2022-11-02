@@ -43,8 +43,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
-    @Nullable
-    private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges;
+    private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
 
     public PutRoleRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,10 +59,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-            remoteIndicesPrivileges = in.readOptionalList(RoleDescriptor.RemoteIndicesPrivileges::new);
-        } else {
-            remoteIndicesPrivileges = null;
+        if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            remoteIndicesPrivileges = in.readList(RoleDescriptor.RemoteIndicesPrivileges::new);
         }
     }
 
@@ -96,8 +93,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     public void addRemoteIndex(RoleDescriptor.RemoteIndicesPrivileges... privileges) {
-        initializeRemoteIndicesPrivilegesIfNull();
-        this.remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
+        remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
     public void addRemoteIndex(
@@ -109,8 +105,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         final @Nullable BytesReference query,
         final boolean allowRestrictedIndices
     ) {
-        initializeRemoteIndicesPrivilegesIfNull();
-        this.remoteIndicesPrivileges.add(
+        remoteIndicesPrivileges.add(
             RoleDescriptor.RemoteIndicesPrivileges.builder(remoteClusters)
                 .indices(indices)
                 .privileges(privileges)
@@ -181,6 +176,14 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]);
     }
 
+    public RoleDescriptor.RemoteIndicesPrivileges[] remoteIndices() {
+        return remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]);
+    }
+
+    public boolean hasRemoteIndicesPrivileges() {
+        return false == remoteIndicesPrivileges.isEmpty();
+    }
+
     public List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges() {
         return Collections.unmodifiableList(applicationPrivileges);
     }
@@ -211,8 +214,16 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-            out.writeOptionalCollection(remoteIndicesPrivileges);
+        if (out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            out.writeCollection(remoteIndicesPrivileges);
+        } else if (hasRemoteIndicesPrivileges()) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + RoleDescriptor.VERSION_REMOTE_INDICES
+                    + "] can't handle remote indices privileges and attempted to send to ["
+                    + out.getVersion()
+                    + "]"
+            );
         }
     }
 
@@ -226,13 +237,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             runAs,
             metadata,
             Collections.emptyMap(),
-            remoteIndicesPrivileges == null ? null : remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0])
+            remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0])
         );
-    }
-
-    private void initializeRemoteIndicesPrivilegesIfNull() {
-        if (remoteIndicesPrivileges == null) {
-            remoteIndicesPrivileges = new ArrayList<>();
-        }
     }
 }

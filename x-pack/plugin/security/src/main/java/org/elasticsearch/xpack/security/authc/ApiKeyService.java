@@ -23,9 +23,11 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -301,6 +303,12 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges))) {
+            throw new IllegalArgumentException("remote indices not supported for API keys");
+        }
+
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
@@ -344,20 +352,14 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        ActionListener.wrap(bulkResponse -> {
-                            assert bulkResponse.getItems().length == 1;
-                            final BulkItemResponse indexResponse = bulkResponse.getItems()[0];
-                            if (indexResponse.isFailed()) {
-                                listener.onFailure(indexResponse.getFailure().getCause());
-                            } else {
-                                assert request.getId().equals(indexResponse.getResponse().getId());
-                                assert indexResponse.getResponse().getResult() == DocWriteResponse.Result.CREATED;
-                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                                apiKeyAuthCache.put(request.getId(), listenableFuture);
-                                listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                            }
-                        }, listener::onFailure)
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                            assert request.getId().equals(indexResponse.getId());
+                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                            apiKeyAuthCache.put(request.getId(), listenableFuture);
+                            listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                        }, listener::onFailure))
                     )
                 );
             } catch (IOException e) {
@@ -387,9 +389,9 @@ public class ApiKeyService {
         }
 
         if (TcpTransport.isUntrustedRemoteClusterEnabled()
-            && (userRoleDescriptors.stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null)
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
                 || (request.getRoleDescriptors() != null
-                    && request.getRoleDescriptors().stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null)))) {
+                    && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)))) {
             throw new IllegalArgumentException("remote indices not supported for API keys");
         }
 

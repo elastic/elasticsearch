@@ -176,11 +176,37 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final RoleDescriptor actual = copy.roleDescriptor();
         final RoleDescriptor expected = original.roleDescriptor();
-        if (mayIncludeRemoteIndices) {
-            assertThat(actual, equalTo(expected));
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices
+        );
+        out.setVersion(version);
+
+        final PutRoleRequest original = buildRandomRequest(randomBoolean());
+        if (original.hasRemoteIndicesPrivileges()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                        + version
+                        + "]"
+                )
+            );
         } else {
-            RoleDescriptorTests.assertRoleDescriptorsEqualExcludingRemoteIndices(actual, expected);
-            assertThat(actual.getRemoteIndicesPrivileges(), nullValue());
+            original.writeTo(out);
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+            in.setVersion(out.getVersion());
+            final PutRoleRequest copy = new PutRoleRequest(in);
+            assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
         }
     }
 

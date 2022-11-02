@@ -25,10 +25,8 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
     public static final RemoteIndicesPermission NONE = new RemoteIndicesPermission(List.of());
 
     public RemoteIndicesPermission forCluster(final String remoteClusterAlias) {
-        // TODO cache result
         return new RemoteIndicesPermission(
             remoteIndicesGroups.stream()
-                // TODO we can merge `indicesPermissionGroups` by `indices` here
                 .filter(remoteIndicesGroup -> remoteIndicesGroup.checkRemoteClusterAlias(remoteClusterAlias))
                 .toList()
         );

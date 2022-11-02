@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -581,7 +582,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
     }
 
-    public void testRemoteIndicesNotSupportedForApiKeys() {
+    public void testRemoteIndicesNotSupportedForApiKeys() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
+        createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
         final String remoteIndicesSection = """
             "remote_indices": [
                 {
@@ -639,6 +644,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""", includeRemoteIndices ? remoteIndicesSection : ""));
         doRequestAndAssertRemoteIndicesNotSupported(bulkUpdateApiKeyRequest, false == includeRemoteIndices);
+
+        deleteUser(REMOTE_INDICES_USER);
+        deleteRole("remote_indices_role");
     }
 
     private void doRequestAndAssertRemoteIndicesNotSupported(final Request request, final boolean executeAsRemoteIndicesUser) {

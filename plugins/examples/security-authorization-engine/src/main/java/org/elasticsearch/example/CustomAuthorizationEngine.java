@@ -50,9 +50,10 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         if (authentication.isRunAs()) {
             final CustomAuthorizationInfo authenticatedUserAuthzInfo =
                 new CustomAuthorizationInfo(authentication.getAuthenticatingSubject().getUser().roles(), null);
-            listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), authenticatedUserAuthzInfo));
+            listener.onResponse(new CustomAuthorizationInfo(authentication.getEffectiveSubject().getUser().roles(),
+                authenticatedUserAuthzInfo));
         } else {
-            listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), null));
+            listener.onResponse(new CustomAuthorizationInfo(authentication.getEffectiveSubject().getUser().roles(), null));
         }
     }
 
@@ -73,7 +74,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     @Override
     public void authorizeClusterAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                        ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());
@@ -85,7 +86,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
                                      Map<String, IndexAbstraction> aliasOrIndexLookup,
                                      ActionListener<IndexAuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
@@ -103,7 +104,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(indicesLookup.keySet());
         } else {
             listener.onResponse(Collections.emptySet());
@@ -114,7 +115,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                                   Map<String, List<String>> indexNameToNewNames,
                                                   ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());

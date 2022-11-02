@@ -13,13 +13,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -32,7 +29,7 @@ import java.util.Map;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS).build(MapperBuilderContext.ROOT),
+        new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(MapperBuilderContext.ROOT),
         new MetadataFieldMapper[0],
         null
     );
@@ -176,12 +173,6 @@ public final class Mapping implements ToXContentFragment {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return Strings.toString(builder.endObject());
-        } catch (IOException bogus) {
-            throw new UncheckedIOException(bogus);
-        }
+        return Strings.toString(this);
     }
 }

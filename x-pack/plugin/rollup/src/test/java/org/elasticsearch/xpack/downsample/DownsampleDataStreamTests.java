@@ -63,7 +63,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamTests extends ESSingleNodeTestCase {
+public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

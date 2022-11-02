@@ -151,7 +151,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-@SuppressWarnings("removal")
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
     private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
@@ -2540,7 +2539,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                    () -> RoleDescriptorTests.randomRoleDescriptor(false, false)
                 )
             );
             case 2 -> null;

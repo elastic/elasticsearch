@@ -94,7 +94,7 @@ class TransformFailureHandler {
         // counter for search/index gets reset after a successful bulk index request
         int numFailureRetries = getNumFailureRetries(settingsConfig);
 
-        final int failureCount = context.incrementAndGetStatePersistenceFailureCount();
+        final int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
 
         if (numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail(
@@ -226,9 +226,11 @@ class TransformFailureHandler {
      */
     private void retry(Throwable unwrappedException, String message, boolean unattended, int numFailureRetries) {
         // group failures to decide whether to report it below
-        final String thisFailureClass = unwrappedException.getClass().toString();
-        final String lastFailureClass = context.getLastFailure();
-        final int failureCount = context.incrementAndGetFailureCount(thisFailureClass);
+        final boolean repeatedFailure = context.getLastFailure() == null
+            ? false
+            : unwrappedException.getClass().equals(context.getLastFailure().getClass());
+
+        final int failureCount = context.incrementAndGetFailureCount(unwrappedException);
 
         if (unattended == false && numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail("task encountered more than " + numFailureRetries + " failures; latest failure: " + message);
@@ -238,9 +240,7 @@ class TransformFailureHandler {
         // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
         // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
         // and if the number of retries is about to exceed
-        if (thisFailureClass.equals(lastFailureClass) == false
-            || failureCount % LOG_FAILURE_EVERY == 0
-            || failureCount == numFailureRetries) {
+        if (repeatedFailure == false || failureCount % LOG_FAILURE_EVERY == 0 || failureCount == numFailureRetries) {
             String retryMessage = format(
                 "Transform encountered an exception: [%s]; Will automatically retry [%d/%d]",
                 message,

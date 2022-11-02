@@ -373,7 +373,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 InternalNested nested = searchAndReduce(
@@ -652,7 +652,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 Filter filter = searchAndReduce(
                     newSearcher(indexReader, false, true),
-                    new AggTestConfig(filterAggregationBuilder, fieldType1, fieldType2).withQuery(Queries.newNonNestedFilter())
+                    new AggTestConfig(filterAggregationBuilder, fieldType1, fieldType2).withQuery(
+                        Queries.newNonNestedFilter(Version.CURRENT)
+                    )
                 );
 
                 assertEquals("filterAgg", filter.getName());

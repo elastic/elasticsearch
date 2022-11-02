@@ -689,7 +689,6 @@ public class Node implements Closeable {
             );
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
-                threadPool,
                 clusterService,
                 metadataCreateIndexService
             );

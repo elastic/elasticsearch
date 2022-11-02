@@ -106,7 +106,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getIndexWriterMemory() {
-        return new ByteSizeValue(indexWriterMemoryInBytes);
+        return ByteSizeValue.ofBytes(indexWriterMemoryInBytes);
     }
 
     /**
@@ -117,7 +117,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getVersionMapMemory() {
-        return new ByteSizeValue(versionMapMemoryInBytes);
+        return ByteSizeValue.ofBytes(versionMapMemoryInBytes);
     }
 
     /**
@@ -128,7 +128,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getBitsetMemory() {
-        return new ByteSizeValue(bitsetMemoryInBytes);
+        return ByteSizeValue.ofBytes(bitsetMemoryInBytes);
     }
 
     /**

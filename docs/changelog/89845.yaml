@@ -1,5 +1,0 @@
-pr: 89845
-summary: "Fleet: Add `upgrade_status` attributes to agents"
-area: Infra/Core
-type: enhancement
-issues: []

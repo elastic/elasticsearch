@@ -8,7 +8,6 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -36,7 +35,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Test for the clear roles API
  */
-@SuppressWarnings("removal")
 public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
     private static String[] roles;
@@ -88,7 +86,6 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
     public void testModifyingViaApiClearsCache() throws Exception {
         final TestSecurityClient securityClient = new TestSecurityClient(getRestClient(), SECURITY_REQUEST_OPTIONS);
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         int modifiedRolesCount = randomIntBetween(1, roles.length);
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);

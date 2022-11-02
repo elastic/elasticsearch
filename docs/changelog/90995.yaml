@@ -1,5 +1,0 @@
-pr: 90995
-summary: Off-by-one `innerExecute` current processor count
-area: Ingest Node
-type: bug
-issues: []

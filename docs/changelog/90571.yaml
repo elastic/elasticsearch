@@ -1,5 +1,0 @@
-pr: 90571
-summary: Upgrade bundled JDK to Java 19
-area: Packaging
-type: upgrade
-issues: []

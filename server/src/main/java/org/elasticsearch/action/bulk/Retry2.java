@@ -172,6 +172,7 @@ class Retry2 {
         TimeValue timeUntilNextRetry = backoff.next();
         long currentTime = System.nanoTime();
         long timeThisRetryMatures = timeUntilNextRetry.nanos() + currentTime;
+        logger.trace("Queueing a retry to start after {}", timeUntilNextRetry);
         retryQueue.offer(
             Tuple.tuple(timeThisRetryMatures, new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff))
         );
@@ -237,7 +238,7 @@ class Retry2 {
         }
     }
 
-    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    void awaitClose(long timeout, TimeUnit unit) {
         logger.trace("Starting awaitClose");
         isClosing = true;
         TimeValue remainingTime = new TimeValue(timeout, unit);
@@ -292,14 +293,21 @@ class Retry2 {
         public void onResponse(BulkResponse bulkItemResponses) {
             requestsInFlightSemaphore.release();
             if (bulkItemResponses.hasFailures() == false) {
+                logger.trace("Got a response in {} with {} items, no failures", bulkItemResponses.getTook(),
+                    bulkItemResponses.getItems().length);
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));
                 listener.onResponse(getAccumulatedResponse());
             } else {
                 if (canRetry(bulkItemResponses)) {
+                    logger.trace("Got a response in {} with {} items including failures, can retry", bulkItemResponses.getTook(),
+                        bulkItemResponses.getItems().length);
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses), responsesAccumulator, consumer, listener, backoff);
                 } else {
+                    logger.trace("Got a response in {} with {} items including failures, cannot retry",
+                        bulkItemResponses.getTook(),
+                        bulkItemResponses.getItems().length);
                     addResponses(bulkItemResponses, (r -> true));
                     listener.onResponse(getAccumulatedResponse());
                 }
@@ -353,6 +361,7 @@ class Retry2 {
             BulkItemResponse[] itemResponses = responsesAccumulator.toArray(new BulkItemResponse[0]);
             long stopTimestamp = System.nanoTime();
             long totalLatencyMs = TimeValue.timeValueNanos(stopTimestamp - startTimestampNanos).millis();
+            logger.trace("Accumulated response includes {} items", itemResponses.length);
             return new BulkResponse(itemResponses, totalLatencyMs);
         }
     }

@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -215,13 +216,17 @@ public class ILMHistoryStoreTests extends ESTestCase {
     /*
      * This tests that we don't see deadlock if we throw a lot of data at the ILMHistoryStore quickly.
      */
+        @TestLogging(
+        value = "org.elasticsearch.action.bulk:trace",
+        reason = "Logging information about locks useful for tracking down deadlock"
+    )
     public void testDeadlock() throws Exception {
         String policyId = randomAlphaOfLength(5);
         final long timestamp = randomNonNegativeLong();
         AtomicInteger batches = new AtomicInteger(0);
         AtomicLong actions = new AtomicLong(0);
         final int docsPerBatch = 303_057;
-        long numberOfDocs = 1_000_000;
+        long numberOfDocs = 400_000;
         int expectedBatches = (int) (numberOfDocs / docsPerBatch) + ((numberOfDocs % docsPerBatch == 0) ? 0 : 1);
         ;
         CountDownLatch latch = new CountDownLatch((int) numberOfDocs);
@@ -252,7 +257,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             );
             return bulkItemResponse;
         });
-        ILMHistoryStore localHistoryStore = new ILMHistoryStore(client, clusterService, threadPool, new ActionListener<>() {
+        try (ILMHistoryStore localHistoryStore = new ILMHistoryStore(client, clusterService, threadPool, new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse response) {
                 int itemsInResponse = response.getItems().length;
@@ -269,22 +274,22 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 logger.error(e);
                 fail(e.getMessage());
             }
-        });
-        for (int i = 0; i < numberOfDocs; i++) {
-            ILMHistoryItem record1 = ILMHistoryItem.success(
-                "index",
-                policyId,
-                timestamp,
-                10L,
-                LifecycleExecutionState.builder().setPhase("phase").build()
-            );
-            localHistoryStore.putAsync(record1);
-            // threadPool.generic().execute(() -> localHistoryStore.putAsync(record1)); // This gets dangerous with large numbers
+        })) {
+            for (int i = 0; i < numberOfDocs; i++) {
+                ILMHistoryItem record1 = ILMHistoryItem.success(
+                    "index",
+                    policyId,
+                    timestamp,
+                    10L,
+                    LifecycleExecutionState.builder().setPhase("phase").build()
+                );
+                localHistoryStore.putAsync(record1);
+                // threadPool.generic().execute(() -> localHistoryStore.putAsync(record1)); // This gets dangerous with large numbers
+            }
+            latch.await(60, TimeUnit.SECONDS);
+            assertThat(actions.get(), equalTo(numberOfDocs));
+            assertThat(batches.get(), equalTo(expectedBatches));
         }
-        latch.await(30, TimeUnit.SECONDS);
-        assertThat(actions.get(), equalTo(numberOfDocs));
-        assertThat(batches.get(), equalTo(expectedBatches));
-        localHistoryStore.close();
     }
 
     /**

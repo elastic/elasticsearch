@@ -229,23 +229,22 @@ public class JoinValidationService {
         try {
             nextItem.run();
         } finally {
-            var cleanupSuccess = false;
             try {
                 final var remaining = queueSize.decrementAndGet();
                 assert remaining >= 0;
                 if (remaining > 0) {
                     runProcessor();
                 }
-                cleanupSuccess = true;
-            } finally {
-                assert cleanupSuccess;
+            } catch (Exception e) {
+                assert false : e;
+                /* we only catch so we can assert false, so throwing is ok */
+                // noinspection ThrowFromFinallyBlock
+                throw e;
             }
         }
     }
 
     private void onShutdown() {
-        var success = false;
-
         try {
             // shutting down when enqueueing the next processor run which means there is no active processor so it's safe to clear out the
             // cache ...
@@ -259,10 +258,9 @@ public class JoinValidationService {
                     nextItem.onFailure(new NodeClosedException(transportService.getLocalNode()));
                 }
             } while (queueSize.decrementAndGet() > 0);
-
-            success = true;
-        } finally {
-            assert success;
+        } catch (Exception e) {
+            assert false : e;
+            throw e;
         }
     }
 

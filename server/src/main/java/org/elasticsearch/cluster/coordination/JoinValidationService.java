@@ -229,27 +229,39 @@ public class JoinValidationService {
         try {
             nextItem.run();
         } finally {
-            final var remaining = queueSize.decrementAndGet();
-            assert remaining >= 0;
-            if (remaining > 0) {
-                runProcessor();
+            try {
+                final var remaining = queueSize.decrementAndGet();
+                assert remaining >= 0;
+                if (remaining > 0) {
+                    runProcessor();
+                }
+            } catch (Exception e) {
+                assert false : e;
+                /* we only catch so we can assert false, so throwing is ok */
+                // noinspection ThrowFromFinallyBlock
+                throw e;
             }
         }
     }
 
     private void onShutdown() {
-        // shutting down when enqueueing the next processor run which means there is no active processor so it's safe to clear out the
-        // cache ...
-        cacheClearer.run();
+        try {
+            // shutting down when enqueueing the next processor run which means there is no active processor so it's safe to clear out the
+            // cache ...
+            cacheClearer.run();
 
-        // ... and drain the queue
-        do {
-            final var nextItem = queue.poll();
-            assert nextItem != null;
-            if (nextItem != cacheClearer) {
-                nextItem.onFailure(new NodeClosedException(transportService.getLocalNode()));
-            }
-        } while (queueSize.decrementAndGet() > 0);
+            // ... and drain the queue
+            do {
+                final var nextItem = queue.poll();
+                assert nextItem != null;
+                if (nextItem != cacheClearer) {
+                    nextItem.onFailure(new NodeClosedException(transportService.getLocalNode()));
+                }
+            } while (queueSize.decrementAndGet() > 0);
+        } catch (Exception e) {
+            assert false : e;
+            throw e;
+        }
     }
 
     private final AbstractRunnable cacheClearer = new AbstractRunnable() {

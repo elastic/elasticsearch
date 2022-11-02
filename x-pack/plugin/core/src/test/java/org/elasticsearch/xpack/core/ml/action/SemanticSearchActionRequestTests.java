@@ -82,7 +82,20 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
         var validAction = createTestInstance();
         assertNull(validAction.validate());
 
-        var action = new SemanticSearchAction.Request(null, null, null, null, null, null, null, null, null, null, null, null);
+        var action = new SemanticSearchAction.Request(
+            new String[] { "foo" },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         var validation = action.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors(), hasSize(3));

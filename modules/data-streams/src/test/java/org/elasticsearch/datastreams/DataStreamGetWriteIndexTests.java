@@ -277,7 +277,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             );
         }
 
-        createDataStreamService = new MetadataCreateDataStreamService(testThreadPool, clusterService, createIndexService);
+        createDataStreamService = new MetadataCreateDataStreamService(clusterService, createIndexService);
     }
 
     @After

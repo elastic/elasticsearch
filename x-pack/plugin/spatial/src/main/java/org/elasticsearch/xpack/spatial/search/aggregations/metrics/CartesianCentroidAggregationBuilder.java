@@ -21,15 +21,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
-    CartesianPointValuesSource,
-    CartesianCentroidAggregationBuilder> {
+public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<CartesianCentroidAggregationBuilder> {
     public static final String NAME = "cartesian_centroid";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,

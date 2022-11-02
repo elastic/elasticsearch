@@ -209,13 +209,13 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
             if (in.getVersion().before(Version.V_7_13_0)) {
-                this.totalSize = new ByteSizeValue(in.readVLong());
+                this.totalSize = ByteSizeValue.ofBytes(in.readVLong());
                 this.minSize = ByteSizeValue.ZERO;
                 this.maxSize = ByteSizeValue.ZERO;
             } else {
-                this.totalSize = new ByteSizeValue(in);
-                this.minSize = new ByteSizeValue(in);
-                this.maxSize = new ByteSizeValue(in);
+                this.totalSize = ByteSizeValue.readFrom(in);
+                this.minSize = ByteSizeValue.readFrom(in);
+                this.maxSize = ByteSizeValue.readFrom(in);
             }
             this.openCount = in.readVLong();
             this.closeCount = in.readVLong();
@@ -249,9 +249,9 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return new CacheIndexInputStats(
                 cis1.fileExt,
                 cis1.numFiles + cis2.numFiles,
-                new ByteSizeValue(Math.addExact(cis1.totalSize.getBytes(), cis2.totalSize.getBytes())),
-                new ByteSizeValue(Math.min(cis1.minSize.getBytes(), cis2.minSize.getBytes())),
-                new ByteSizeValue(Math.max(cis1.maxSize.getBytes(), cis2.maxSize.getBytes())),
+                ByteSizeValue.ofBytes(Math.addExact(cis1.totalSize.getBytes(), cis2.totalSize.getBytes())),
+                ByteSizeValue.ofBytes(Math.min(cis1.minSize.getBytes(), cis2.minSize.getBytes())),
+                ByteSizeValue.ofBytes(Math.max(cis1.maxSize.getBytes(), cis2.maxSize.getBytes())),
                 cis1.openCount + cis2.openCount,
                 cis1.closeCount + cis2.closeCount,
                 cis1.forwardSmallSeeks.add(cis2.forwardSmallSeeks),
@@ -331,7 +331,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         public ByteSizeValue getAverageSize() {
             final double average = (double) totalSize.getBytes() / (double) numFiles;
-            return new ByteSizeValue(Math.round(average));
+            return ByteSizeValue.ofBytes(Math.round(average));
         }
 
         public long getOpenCount() {

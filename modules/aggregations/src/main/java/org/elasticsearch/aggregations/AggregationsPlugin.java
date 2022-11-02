@@ -12,6 +12,8 @@ import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregatio
 import org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
+import org.elasticsearch.aggregations.pipeline.Derivative;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.plugins.Plugin;
@@ -42,6 +44,11 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         return List.of(
+            new PipelineAggregationSpec(
+                DerivativePipelineAggregationBuilder.NAME,
+                DerivativePipelineAggregationBuilder::new,
+                DerivativePipelineAggregationBuilder::parse
+            ).addResultReader(Derivative::new),
             new PipelineAggregationSpec(
                 MovFnPipelineAggregationBuilder.NAME,
                 MovFnPipelineAggregationBuilder::new,

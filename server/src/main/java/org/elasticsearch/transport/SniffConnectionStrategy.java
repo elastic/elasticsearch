@@ -432,7 +432,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return new Predicate<>() {
             @Override
             public boolean test(ClusterName c) {
-                return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
+                return remoteClusterName.get() == null || c.value().equals(remoteClusterName.get().value());
             }
 
             @Override

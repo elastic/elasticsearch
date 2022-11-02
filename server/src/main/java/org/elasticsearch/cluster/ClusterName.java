@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,17 +34,24 @@ public class ClusterName implements Writeable {
     public static final ClusterName DEFAULT = CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
 
     private final String value;
+    // TODO: Assume isRemote is OK to go here instead of DiscoveryNode.
     private final boolean isRemote;
 
     public ClusterName(StreamInput input) throws IOException {
-        this(input.readString(), false);
+        // TODO Assume for now that readBoolean does not need a version check for bwc with older clusters.
+        this(input.readString(), (TcpTransport.isUntrustedRemoteClusterEnabled() && input.readBoolean()), null);
     }
 
     public ClusterName(String value) {
-        this(value, false);
+        this(value, false, null);
     }
 
     public ClusterName(String value, boolean isRemote) {
+        this(value, isRemote, null);
+        assert isRemote : "This constructor should only be used for setting isRemote=true";
+    }
+
+    private ClusterName(String value, boolean isRemote, Object ignore) {
         this.value = value.intern();
         this.isRemote = isRemote;
     }
@@ -55,6 +63,10 @@ public class ClusterName implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(value);
+        // TODO Assume for now that readBoolean does not need a version check for bwc with older clusters.
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            out.writeBoolean(isRemote);
+        }
     }
 
     @Override
@@ -64,24 +76,28 @@ public class ClusterName implements Writeable {
 
         ClusterName that = (ClusterName) o;
 
-        return Objects.equals(value, that.value);
+        return Objects.equals(value, that.value) && Objects.equals(isRemote, that.isRemote);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value);
+        return Objects.hash(value) + Objects.hash(isRemote);
     }
 
     @Override
     public String toString() {
-        return "Cluster [" + value + "]";
+        return "Cluster [" + value + "] Remote [" + isRemote + "]";
     }
 
+    /**
+     * Test if name values are the same. Ignores isRemote.
+     * @return True if name values are the same, false if different.
+     */
     public Predicate<ClusterName> getEqualityPredicate() {
         return new Predicate<ClusterName>() {
             @Override
             public boolean test(ClusterName o) {
-                return ClusterName.this.equals(o);
+                return Objects.equals(value, o.value);
             }
 
             @Override

@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -589,7 +590,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @throws IOException if there is an error while reading from the stream
      */
     public DiscoveryNode(StreamInput in) throws IOException {
-        this.clusterName = ClusterName.DEFAULT; // TODO Set this value from stream
         this.nodeName = readStringLiteral.read(in);
         this.nodeId = readStringLiteral.read(in);
         this.ephemeralId = readStringLiteral.read(in);
@@ -624,6 +624,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         } else {
             this.externalId = nodeName;
         }
+        // TODO Assume for now that ClusterName(in) does not need a version check for bwc with older clusters.
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            this.clusterName = new ClusterName(in);
+        } else {
+            this.clusterName = ClusterName.DEFAULT;
+        }
         this.roleNames = Set.of(roleNames);
     }
 
@@ -654,6 +660,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version.writeVersion(version, out);
         if (out.getVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             out.writeString(externalId);
+        }
+        // TODO Assume for now that clusterName.writeTo(out) does not need a version check for bwc with older clusters.
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            this.clusterName.writeTo(out);
         }
     }
 

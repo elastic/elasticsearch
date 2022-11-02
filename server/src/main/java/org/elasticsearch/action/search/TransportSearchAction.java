@@ -631,7 +631,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
-                remoteClusterClient.search(ccsSearchRequest, ccsListener);
+                RemoteClusterService.executeAsyncWithRemoteClusterAliasInContext(
+                    remoteClusterClient,
+                    clusterAlias,
+                    SearchAction.INSTANCE,
+                    ccsSearchRequest,
+                    ccsListener
+                );
             }
             if (localIndices != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(

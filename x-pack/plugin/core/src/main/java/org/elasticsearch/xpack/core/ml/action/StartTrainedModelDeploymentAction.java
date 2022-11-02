@@ -366,7 +366,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 (ByteSizeValue) a[5],
                 (Integer) a[6],
                 (Integer) a[7],
-                Priority.fromString((String) a[8])
+                a[8] == null ? null : Priority.fromString((String) a[8])
             )
         );
 

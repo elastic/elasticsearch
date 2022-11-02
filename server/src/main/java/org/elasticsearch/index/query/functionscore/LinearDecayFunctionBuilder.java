@@ -40,7 +40,7 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
     }
 
     @Override
-    protected void validateDecay(double decay){
+    protected void validateDecay(double decay) {
         if (decay < 0 || decay >= 1.0) {
             throw new IllegalStateException("decay function: decay must be in range [0..1)!");
         }

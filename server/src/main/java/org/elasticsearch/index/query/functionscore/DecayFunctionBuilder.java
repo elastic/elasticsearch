@@ -113,7 +113,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
     * Override this function if you have different validation rules per score function
     */
-    protected void validateDecay(double decay){
+    protected void validateDecay(double decay) {
         if (decay <= 0 || decay >= 1.0) {
             throw new IllegalStateException("decay function: decay must be in range (0..1)!");
         }

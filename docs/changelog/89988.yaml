@@ -1,0 +1,5 @@
+pr: 89988
+summary: Client can use lz4 to compress request
+area: Client
+type: feature
+issues: []

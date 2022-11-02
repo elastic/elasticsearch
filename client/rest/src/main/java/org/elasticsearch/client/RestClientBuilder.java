@@ -67,6 +67,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
+    private CompressionScheme compressionScheme = CompressionScheme.gzip;
     private boolean metaHeaderEnabled = true;
 
     static {
@@ -262,6 +263,11 @@ public final class RestClientBuilder {
         return this;
     }
 
+    public RestClientBuilder setCompressionScheme(CompressionScheme compressionScheme) {
+        this.compressionScheme = compressionScheme;
+        return this;
+    }
+
     /**
      * Whether to send a {@code X-Elastic-Client-Meta} header that describes the runtime environment. It contains
      * information that is similar to what could be found in {@code User-Agent}. Using a separate header allows
@@ -292,6 +298,7 @@ public final class RestClientBuilder {
             nodeSelector,
             strictDeprecationMode,
             compressionEnabled,
+            compressionScheme,
             metaHeaderEnabled
         );
         httpClient.start();
@@ -325,6 +332,11 @@ public final class RestClientBuilder {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
         }
+    }
+
+    public enum CompressionScheme {
+        lz4,
+        gzip
     }
 
     /**

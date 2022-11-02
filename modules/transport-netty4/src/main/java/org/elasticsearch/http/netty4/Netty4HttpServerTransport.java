@@ -18,6 +18,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
@@ -317,7 +318,20 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
-            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
+            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor() {
+                @Override
+                protected EmbeddedChannel newContentDecoder(String contentEncoding) throws Exception {
+                    if ("lz4".equals(contentEncoding)) {
+                        return new EmbeddedChannel(
+                            ctx.channel().id(),
+                            ctx.channel().metadata().hasDisconnect(),
+                            ctx.channel().config(),
+                            new LZ4Decoder()
+                        );
+                    }
+                    return super.newContentDecoder(contentEncoding);
+                }
+            });
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);

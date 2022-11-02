@@ -216,7 +216,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
     /*
      * This tests that we don't see deadlock if we throw a lot of data at the ILMHistoryStore quickly.
      */
-        @TestLogging(
+    @TestLogging(
         value = "org.elasticsearch.action.bulk:trace",
         reason = "Logging information about locks useful for tracking down deadlock"
     )

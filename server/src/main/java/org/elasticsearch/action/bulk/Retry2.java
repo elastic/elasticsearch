@@ -293,21 +293,29 @@ class Retry2 {
         public void onResponse(BulkResponse bulkItemResponses) {
             requestsInFlightSemaphore.release();
             if (bulkItemResponses.hasFailures() == false) {
-                logger.trace("Got a response in {} with {} items, no failures", bulkItemResponses.getTook(),
-                    bulkItemResponses.getItems().length);
+                logger.trace(
+                    "Got a response in {} with {} items, no failures",
+                    bulkItemResponses.getTook(),
+                    bulkItemResponses.getItems().length
+                );
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));
                 listener.onResponse(getAccumulatedResponse());
             } else {
                 if (canRetry(bulkItemResponses)) {
-                    logger.trace("Got a response in {} with {} items including failures, can retry", bulkItemResponses.getTook(),
-                        bulkItemResponses.getItems().length);
+                    logger.trace(
+                        "Got a response in {} with {} items including failures, can retry",
+                        bulkItemResponses.getTook(),
+                        bulkItemResponses.getItems().length
+                    );
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses), responsesAccumulator, consumer, listener, backoff);
                 } else {
-                    logger.trace("Got a response in {} with {} items including failures, cannot retry",
+                    logger.trace(
+                        "Got a response in {} with {} items including failures, cannot retry",
                         bulkItemResponses.getTook(),
-                        bulkItemResponses.getItems().length);
+                        bulkItemResponses.getItems().length
+                    );
                     addResponses(bulkItemResponses, (r -> true));
                     listener.onResponse(getAccumulatedResponse());
                 }

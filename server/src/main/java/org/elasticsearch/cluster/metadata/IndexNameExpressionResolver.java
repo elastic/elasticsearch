@@ -1197,12 +1197,10 @@ public class IndexNameExpressionResolver {
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = validateAliasOrIndex(expressions.get(i));
-                final boolean isExclusion;
+                boolean isExclusion = false;
                 if (expression.charAt(0) == '-' && wildcardSeen) {
                     isExclusion = true;
                     expression = expression.substring(1);
-                } else {
-                    isExclusion = false;
                 }
                 if (Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;

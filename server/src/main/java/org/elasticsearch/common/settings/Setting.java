@@ -157,6 +157,11 @@ public class Setting<T> implements ToXContentObject {
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
+    private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
+        Property.Deprecated,
+        Property.DeprecatedWarning,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
 
     private Setting(
         Key key,
@@ -187,12 +192,8 @@ public class Setting<T> implements ToXContentObject {
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
                 throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
-            if (propertiesAsSet.contains(Property.Deprecated) && propertiesAsSet.contains(Property.DeprecatedWarning)) {
-                throw new IllegalArgumentException("setting [" + key + "] cannot be deprecated at both critical and warning levels");
-            }
-            if ((propertiesAsSet.contains(Property.Deprecated) || propertiesAsSet.contains(Property.DeprecatedWarning))
-                && propertiesAsSet.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8)) {
-                throw new IllegalArgumentException("setting [" + key + "] cannot be just deprecated and deprecated and removed in V7");
+            if (propertiesAsSet.stream().filter(DEPRECATED_PROPERTIES::contains).count() > 1) {
+                throw new IllegalArgumentException("setting [" + key + "] must be at most one of [" + DEPRECATED_PROPERTIES + "]");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);

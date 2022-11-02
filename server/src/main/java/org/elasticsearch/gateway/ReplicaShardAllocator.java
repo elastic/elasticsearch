@@ -431,7 +431,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                         "{}: node [{}] has [{}/{}] bytes of re-usable data",
                         shard,
                         discoNode.getName(),
-                        new ByteSizeValue(matchingNode.matchingBytes),
+                        ByteSizeValue.ofBytes(matchingNode.matchingBytes),
                         matchingNode.matchingBytes
                     );
                 }

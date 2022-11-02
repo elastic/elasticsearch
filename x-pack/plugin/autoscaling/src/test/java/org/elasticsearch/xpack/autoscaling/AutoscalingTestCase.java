@@ -120,7 +120,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static ByteSizeValue randomByteSizeValue() {
         // do not want to test any overflow.
-        return new ByteSizeValue(randomLongBetween(0, Long.MAX_VALUE >> 16));
+        return ByteSizeValue.ofBytes(randomLongBetween(0, Long.MAX_VALUE >> 16));
     }
 
     public static ByteSizeValue randomNullableByteSizeValue() {

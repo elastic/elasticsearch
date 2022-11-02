@@ -11,13 +11,10 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -30,7 +27,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -225,6 +220,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public boolean isSkipUnavailable(String clusterAlias) {
         return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+    }
+
+    public boolean shouldUseUntrustedRemoteClusterSecurityMode(String clusterAlias) {
+        // TODO use RemoteClusterAuthorizationResolver here
+        return TcpTransport.isUntrustedRemoteClusterEnabled();
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -443,7 +443,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param ensureConnected whether requests should wait for a connection attempt when there isn't a connection available
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
+    public Client getRemoteClusterClient(
+        ThreadPool threadPool,
+        String clusterAlias,
+        boolean ensureConnected,
+        boolean useUntrustedRemoteClusterSecurityModel
+    ) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -452,7 +457,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, ensureConnected);
+        return new RemoteClusterAwareClient(
+            settings,
+            threadPool,
+            transportService,
+            clusterAlias,
+            ensureConnected,
+            useUntrustedRemoteClusterSecurityModel
+        );
     }
 
     /**
@@ -466,7 +478,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterClient(
             threadPool,
             clusterAlias,
-            transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false
+            transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false,
+            false
         );
     }
 

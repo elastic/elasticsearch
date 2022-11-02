@@ -91,10 +91,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
-                boolean isMock = connection.toString().startsWith("Mock ");
                 final DiscoveryNode discoveryNode = connection.getNode();
                 if (discoveryNode == null) {
-                    assert isMock : new Throwable("Expected non-null discoveryNode");
+                    assert connection.toString().startsWith("Mock ")
+                        : new Throwable("Transport.Connection.getNode must be non-null. Mock Transport.Connection is the only exception.");
                 } else {
                     final String clusterAlias = discoveryNode.getClusterAlias();
                     final String nodeId = discoveryNode.getId();
@@ -113,7 +113,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             "isMock: [{}], clusterAlias: [{},{}], nodeId: [{}], nodeName: [{}], ephemeralId: [{}]"
                                 + ", externalId: [{}], version: [{}], address: [{}], hostAddress: [{}], hostName: [{}]"
                                 + ", attributes: [{}], senderClass: [{}]",
-                            isMock,
+                            connection.toString().startsWith("Mock "),
                             clusterAlias != null,
                             clusterAlias,
                             nodeId,
@@ -132,7 +132,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             "isMock: [{}], clusterAlias: [{},{}], nodeId: [{}], nodeName: [{}], ephemeralId: [{}]"
                                 + ", externalId: [{}], version: [{}], address: [{}], hostAddress: [{}], hostName: [{}]"
                                 + ", attributes: [{}], senderClass: [{}], exception: \n{}",
-                            isMock,
+                            connection.toString().startsWith("Mock "),
                             clusterAlias != null,
                             clusterAlias,
                             nodeId,

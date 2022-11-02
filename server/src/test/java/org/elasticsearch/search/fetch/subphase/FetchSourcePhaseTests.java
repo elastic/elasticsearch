@@ -175,7 +175,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-        Source source = sourceBuilder == null ? Source.EMPTY : Source.fromBytes(BytesReference.bytes(sourceBuilder));
+        Source source = sourceBuilder == null ? Source.empty(null) : Source.fromBytes(BytesReference.bytes(sourceBuilder));
         HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, source);
 
         FetchSourcePhase phase = new FetchSourcePhase();

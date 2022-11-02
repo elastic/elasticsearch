@@ -1,16 +1,20 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
 package org.elasticsearch.benchmark.search.fetch.subphase;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -24,7 +28,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Fork(1)
@@ -33,12 +36,10 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
-public class FetchSourcePhaseBenchmark {
+public class SourceFilteringBenchmark {
+
     private BytesReference sourceBytes;
-    private FetchSourceContext fetchContext;
-    private Set<String> includesSet;
-    private Set<String> excludesSet;
-    private XContentParserConfiguration parserConfig;
+    private SourceFilter filter;
 
     @Param({ "tiny", "short", "one_4k_field", "one_4m_field" })
     private String source;
@@ -56,14 +57,12 @@ public class FetchSourcePhaseBenchmark {
             case "one_4m_field" -> buildBigExample("huge".repeat(1024 * 1024));
             default -> throw new IllegalArgumentException("Unknown source [" + source + "]");
         };
-        fetchContext = FetchSourceContext.of(
+        FetchSourceContext fetchContext = FetchSourceContext.of(
             true,
             Strings.splitStringByCommaToArray(includes),
             Strings.splitStringByCommaToArray(excludes)
         );
-        includesSet = Set.of(fetchContext.includes());
-        excludesSet = Set.of(fetchContext.excludes());
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(includesSet, excludesSet, false);
+        filter = fetchContext.filter();
     }
 
     private BytesReference read300BytesExample() throws IOException {
@@ -76,43 +75,20 @@ public class FetchSourcePhaseBenchmark {
         return new BytesArray(bigger);
     }
 
+    // We want to compare map filtering with bytes filtering when the map has already
+    // been parsed.
+
     @Benchmark
-    public BytesReference filterSourceMap() {
-        Source bytesSource = Source.fromBytes(sourceBytes);
-        return fetchContext.filter().filterMap(bytesSource).internalSourceRef();
+    public Source filterMap() {
+        Source source = Source.fromBytes(sourceBytes);
+        source.source();    // build map
+        return filter.filterMap(source);
     }
 
     @Benchmark
-    public BytesReference filterSourceBytes() {
-        Source bytesSource = Source.fromBytes(sourceBytes);
-        return fetchContext.filter().filterBytes(bytesSource).internalSourceRef();
-    }
-
-    @Benchmark
-    public BytesReference filterXContentOnParser() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
-        XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, sourceBytes.streamInput())) {
-            builder.copyCurrentStructure(parser);
-            return BytesReference.bytes(builder);
-        }
-    }
-
-    @Benchmark
-    public BytesReference filterXContentOnBuilder() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
-        XContentBuilder builder = new XContentBuilder(
-            XContentType.JSON.xContent(),
-            streamOutput,
-            includesSet,
-            excludesSet,
-            XContentType.JSON.toParsedMediaType()
-        );
-        try (
-            XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, sourceBytes.streamInput())
-        ) {
-            builder.copyCurrentStructure(parser);
-            return BytesReference.bytes(builder);
-        }
+    public Source filterBytes() {
+        Source source = Source.fromBytes(sourceBytes);
+        source.source();    // build map
+        return filter.filterBytes(source);
     }
 }

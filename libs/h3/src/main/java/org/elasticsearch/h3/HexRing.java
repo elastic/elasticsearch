@@ -599,10 +599,9 @@ final class HexRing {
         int idx = 0;
         long previous = -1;
         for (int i = 0; i < 6; i++) {
-            long neighbor = h3NeighborRotations(origin, DIRECTIONS[i].digit());
+            long neighbor = h3NeighborInDirection(origin, DIRECTIONS[i].digit());
             if (neighbor != -1) {
-                // -1 is an expected case when trying to traverse off of
-                // pentagons.
+                // -1 is an expected case when trying to traverse off of pentagons.
                 if (previous != neighbor) {
                     out[idx++] = neighbor;
                     previous = neighbor;
@@ -678,7 +677,7 @@ final class HexRing {
         }
         // Otherwise, we have to determine the neighbor relationship the "hard" way.
         for (int i = 0; i < 6; i++) {
-            long neighbor = h3NeighborRotations(origin, DIRECTIONS[i].digit());
+            long neighbor = h3NeighborInDirection(origin, DIRECTIONS[i].digit());
             if (neighbor != -1) {
                 // -1 is an expected case when trying to traverse off of
                 // pentagons.
@@ -701,7 +700,7 @@ final class HexRing {
      * @param dir Direction to move in
      * @return H3Index of the specified neighbor or -1 if there is no more neighbor
      */
-    private static long h3NeighborRotations(long origin, int dir) {
+    private static long h3NeighborInDirection(long origin, int dir) {
         long current = origin;
 
         int newRotations = 0;

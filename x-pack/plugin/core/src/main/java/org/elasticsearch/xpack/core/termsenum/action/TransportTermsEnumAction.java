@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -429,13 +430,17 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     Collections.emptyMap()
                 );
 
-                // Unfiltered access is allowed when both base role and limiting role allow it.
-                return hasMatchAllEquivalent(indexAccessControl.getDocumentPermissions().getQueries(), securityContext, queryShardContext)
-                    && hasMatchAllEquivalent(
-                        indexAccessControl.getDocumentPermissions().getLimitedByQueries(),
-                        securityContext,
-                        queryShardContext
-                    );
+                // Current user has potentially many roles and therefore potentially many queries
+                // defining sets of docs accessible
+                final List<Set<BytesReference>> listOfQueries = indexAccessControl.getDocumentPermissions().getListOfQueries();
+
+                // When the user is an API Key, its role is a limitedRole and its effective document permissions
+                // are intersections of the two sets of queries, one belongs to the API key itself and the other belongs
+                // to the owner user. To allow unfiltered access to termsDict, both sets of the queries must have
+                // the "all" permission, i.e. the query can be rewritten into a MatchAll query.
+                // The following code loop through both sets queries and returns true only when both of them
+                // have the "all" permission.
+                return listOfQueries.stream().allMatch(queries -> hasMatchAllEquivalent(queries, securityContext, queryShardContext));
             }
         }
         return true;
@@ -445,7 +450,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         Set<BytesReference> queries,
         SecurityContext securityContext,
         SearchExecutionContext queryShardContext
-    ) throws IOException {
+    ) {
         if (queries == null) {
             return true;
         }
@@ -458,7 +463,12 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 queryShardContext.getParserConfig().registry(),
                 securityContext.getUser()
             );
-            QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+            QueryBuilder rewrittenQueryBuilder;
+            try {
+                rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
                 // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
                 return true;

@@ -150,7 +150,7 @@ public class IndicesAccessControlTests extends ESTestCase {
         final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(queries);
         assertThat(documentPermissions1, is(notNullValue()));
         assertThat(documentPermissions1.hasDocumentLevelPermissions(), is(true));
-        assertThat(documentPermissions1.getQueries(), equalTo(queries));
+        assertThat(documentPermissions1.getSingleSetOfQueries(), equalTo(queries));
 
         final DocumentPermissions documentPermissions2 = DocumentPermissions.filteredBy(
             Set.of(new BytesArray("{\"term\":{ \"public\":true } }"))
@@ -175,8 +175,7 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result.getIndexPermissions("_index"), is(notNullValue()));
         assertThat(result.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity(), is(false));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(result.getIndexPermissions("_index").getDocumentPermissions().getQueries(), is(nullValue()));
-        assertThat(result.getIndexPermissions("_index").getDocumentPermissions().getLimitedByQueries(), equalTo(queries));
+        assertThat(result.getIndexPermissions("_index").getDocumentPermissions().getSingleSetOfQueries(), equalTo(queries));
         assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), containsInAnyOrder("_index", "another-index"));
         assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
         assertThat(result.getIndicesWithDocumentLevelSecurity(), containsInAnyOrder("_index", "another-index"));

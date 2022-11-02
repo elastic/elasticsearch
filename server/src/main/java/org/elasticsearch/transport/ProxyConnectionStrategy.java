@@ -265,7 +265,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
                 DiscoveryNode node = new DiscoveryNode(
-                    new ClusterName(clusterAlias),
+                    new ClusterName(clusterAlias, true),
                     id,
                     resolved,
                     attributes,

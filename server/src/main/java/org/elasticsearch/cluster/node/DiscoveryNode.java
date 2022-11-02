@@ -772,6 +772,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return this.clusterName.value();
     }
 
+    public boolean isRemote() {
+        return this.clusterName.isRemote();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

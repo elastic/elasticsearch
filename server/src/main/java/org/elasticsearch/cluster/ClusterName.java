@@ -33,13 +33,19 @@ public class ClusterName implements Writeable {
     public static final ClusterName DEFAULT = CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
 
     private final String value;
+    private final boolean isRemote;
 
     public ClusterName(StreamInput input) throws IOException {
-        this(input.readString());
+        this(input.readString(), false);
     }
 
     public ClusterName(String value) {
+        this(value, false);
+    }
+
+    public ClusterName(String value, boolean isRemote) {
         this.value = value.intern();
+        this.isRemote = isRemote;
     }
 
     public String value() {
@@ -83,5 +89,9 @@ public class ClusterName implements Writeable {
                 return "local cluster name [" + ClusterName.this.value() + "]";
             }
         };
+    }
+
+    public boolean isRemote() {
+        return isRemote;
     }
 }

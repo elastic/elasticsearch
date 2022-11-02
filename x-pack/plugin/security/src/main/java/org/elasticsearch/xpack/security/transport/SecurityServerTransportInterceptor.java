@@ -12,10 +12,10 @@ import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -94,61 +94,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final DiscoveryNode discoveryNode = connection.getNode();
                 if (discoveryNode == null) {
                     assert connection.toString().startsWith("Mock ")
-                        : new Throwable("Transport.Connection.getNode must be non-null. Mock Transport.Connection is the only exception.");
+                        : new Throwable("DiscoveryNode must be non-null. Only mock Transport.Connection is allowed to use null.");
                 } else {
-                    final String clusterAlias = discoveryNode.getClusterAlias();
-                    final String nodeId = discoveryNode.getId();
-                    final String nodeName = discoveryNode.getName();
-                    final String ephemeralId = discoveryNode.getEphemeralId();
-                    final String externalId = discoveryNode.getExternalId();
-                    final Version version = discoveryNode.getVersion();
-                    final TransportAddress address = discoveryNode.getAddress();
-                    final String hostAddress = discoveryNode.getHostAddress();
-                    final String hostName = discoveryNode.getHostName();
-                    final Map<String, String> attributes = discoveryNode.getAttributes();
-                    final String senderClass = sender.getClass().getCanonicalName();
-                    logger.info("SETTINGS: \n" + settings);
-                    if (Strings.isEmpty(clusterAlias)) {
-                        logger.info(
-                            "isMock: [{}], clusterAlias: [{},{}], nodeId: [{}], nodeName: [{}], ephemeralId: [{}]"
-                                + ", externalId: [{}], version: [{}], address: [{}], hostAddress: [{}], hostName: [{}]"
-                                + ", attributes: [{}], senderClass: [{}]",
-                            connection.toString().startsWith("Mock "),
-                            clusterAlias != null,
-                            clusterAlias,
-                            nodeId,
-                            nodeName,
-                            ephemeralId,
-                            externalId,
-                            version,
-                            address,
-                            hostAddress,
-                            hostName,
-                            attributes,
-                            senderClass
-                        );
-                    } else {
-                        logger.warn(
-                            "isMock: [{}], clusterAlias: [{},{}], nodeId: [{}], nodeName: [{}], ephemeralId: [{}]"
-                                + ", externalId: [{}], version: [{}], address: [{}], hostAddress: [{}], hostName: [{}]"
-                                + ", attributes: [{}], senderClass: [{}], exception: \n{}",
-                            connection.toString().startsWith("Mock "),
-                            clusterAlias != null,
-                            clusterAlias,
-                            nodeId,
-                            nodeName,
-                            ephemeralId,
-                            externalId,
-                            version,
-                            address,
-                            hostAddress,
-                            hostName,
-                            attributes,
-                            senderClass,
-                            new Throwable("Empty cluster alias")
-                        );
-
-                    }
+                    final ClusterName clusterName = discoveryNode.getClusterName();
+                    final String clusterAlias = clusterName.value();
+                    final boolean isRemote = clusterName.isRemote();
+                    assert Strings.isEmpty(clusterAlias) == false : "Cluster name must be set for all connections";
+                    logger.info("cluster: [{},{}], mock: [{}]", clusterAlias, isRemote, connection.toString().startsWith("Mock "));
                 }
 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request

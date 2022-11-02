@@ -447,18 +447,17 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
-            DiscoveryNode discoveryNode = new DiscoveryNode(
-                new ClusterName(clusterAlias),
+            return new DiscoveryNode(
+                new ClusterName(clusterAlias, true),
                 clusterAlias + "#" + transportAddress.toString(),
                 transportAddress,
                 Version.CURRENT.minimumCompatibilityVersion()
             );
-            return discoveryNode;
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
-            DiscoveryNode discoveryNode = new DiscoveryNode(
-                new ClusterName(clusterAlias),
+            return new DiscoveryNode(
+                new ClusterName(clusterAlias, true),
                 "",
                 clusterAlias + "#" + address,
                 UUIDs.randomBase64UUID(),
@@ -469,7 +468,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 DiscoveryNodeRole.roles(),
                 Version.CURRENT.minimumCompatibilityVersion()
             );
-            return discoveryNode;
         }
     }
 
@@ -490,7 +488,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             // resolve proxy address lazy here
             InetSocketAddress proxyInetAddress = parseConfiguredAddress(proxyAddress);
             DiscoveryNode discoveryNode = new DiscoveryNode(
-                new ClusterName(clusterAlias),
+                new ClusterName(clusterAlias, true),
                 node.getName(),
                 node.getId(),
                 node.getEphemeralId(),

@@ -482,6 +482,30 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.Property.Final
     );
 
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
+        "index.rollup.source.uuid",
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<String> INDEX_ROLLUP_SOURCE_NAME = Setting.simpleString(
+        "index.rollup.source.name",
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
     static final String KEY_MAPPING_VERSION = "mapping_version";

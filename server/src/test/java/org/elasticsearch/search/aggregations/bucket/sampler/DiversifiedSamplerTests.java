@@ -34,6 +34,7 @@ import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -168,6 +169,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         SortedDoublesIndexFieldData fieldData = new SortedDoublesIndexFieldData(
             "price",
             IndexNumericFieldData.NumericType.DOUBLE,
+            CoreValuesSourceType.NUMERIC,
             (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
         );
         FunctionScoreQuery query = new FunctionScoreQuery(

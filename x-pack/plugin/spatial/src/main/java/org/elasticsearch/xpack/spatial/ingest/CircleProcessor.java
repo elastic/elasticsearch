@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.xpack.spatial.SpatialUtils;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -36,8 +36,6 @@ import java.util.Map;
  */
 public final class CircleProcessor extends AbstractProcessor {
     public static final String TYPE = "circle";
-    static final int MINIMUM_NUMBER_OF_SIDES = 4;
-    static final int MAXIMUM_NUMBER_OF_SIDES = 1000;
 
     private final String field;
     private final String targetField;
@@ -94,10 +92,10 @@ public final class CircleProcessor extends AbstractProcessor {
             Geometry geometry = geometryFormat.fromXContent(StandardValidator.instance(true), true, true, parser);
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;
-                int numSides = numSides(circle.getRadiusMeters());
+                int numSides = CircleUtils.circleToPolygonNumSides(circle.getRadiusMeters(), errorDistance);
                 final Geometry polygonizedCircle = switch (circleShapeFieldType) {
-                    case GEO_SHAPE -> SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
-                    case SHAPE -> SpatialUtils.createRegularShapePolygon(circle, numSides);
+                    case GEO_SHAPE -> CircleUtils.createRegularGeoShapePolygon(circle, numSides);
+                    case SHAPE -> CircleUtils.createRegularShapePolygon(circle, numSides);
                 };
                 XContentBuilder newValueBuilder = XContentFactory.jsonBuilder().startObject().field("val");
                 geometryFormat.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);
@@ -134,11 +132,6 @@ public final class CircleProcessor extends AbstractProcessor {
 
     CircleShapeFieldType shapeType() {
         return circleShapeFieldType;
-    }
-
-    int numSides(double radiusMeters) {
-        int val = (int) Math.ceil(2 * Math.PI / Math.acos(1 - errorDistance / radiusMeters));
-        return Math.min(MAXIMUM_NUMBER_OF_SIDES, Math.max(MINIMUM_NUMBER_OF_SIDES, val));
     }
 
     public static final class Factory implements Processor.Factory {

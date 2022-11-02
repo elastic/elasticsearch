@@ -144,8 +144,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
-    public abstract static class MetricsAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
-        LeafOnly<AB> {
+    public abstract static class MetricsAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends LeafOnly<AB> {
 
         protected MetricsAggregationBuilder(String name) {
             super(name);
@@ -164,8 +163,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         public abstract Set<String> metricNames();
     }
 
-    public abstract static class SingleMetricAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
-        extends MetricsAggregationBuilder<VS, AB> {
+    public abstract static class SingleMetricAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends
+        MetricsAggregationBuilder<AB> {
 
         private static final Set<String> METRIC_NAME = Set.of("value");
 

@@ -177,12 +177,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final RoleDescriptor actual = copy.roleDescriptor();
         final RoleDescriptor expected = original.roleDescriptor();
-        if (mayIncludeRemoteIndices) {
-            assertThat(actual, equalTo(expected));
-        } else {
-            RoleDescriptorTests.assertRoleDescriptorsEqualExcludingRemoteIndices(actual, expected);
-            assertThat(actual.getRemoteIndicesPrivileges(), emptyArray());
-        }
+        assertThat(actual, equalTo(expected));
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
@@ -212,8 +207,7 @@ public class PutRoleRequestTests extends ESTestCase {
             StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
             in.setVersion(out.getVersion());
             final PutRoleRequest copy = new PutRoleRequest(in);
-            RoleDescriptorTests.assertRoleDescriptorsEqualExcludingRemoteIndices(copy.roleDescriptor(), original.roleDescriptor());
-            assertThat(copy.remoteIndices(), emptyArray());
+            assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
         }
     }
 

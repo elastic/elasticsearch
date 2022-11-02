@@ -53,7 +53,7 @@ import java.util.Objects;
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static final String ROLE_TYPE = "role";
-    public static final Version REMOTE_INDICES_VERSION = Version.V_8_6_0;
+    public static final Version VERSION_REMOTE_INDICES = Version.V_8_6_0;
 
     private final String name;
     private final String[] clusterPrivileges;
@@ -166,7 +166,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getVersion().onOrAfter(REMOTE_INDICES_VERSION)) {
+        if (in.getVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
             this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
@@ -337,12 +337,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getVersion().onOrAfter(REMOTE_INDICES_VERSION)) {
+        if (out.getVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
             out.writeArray(remoteIndicesPrivileges);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + REMOTE_INDICES_VERSION
+                    + VERSION_REMOTE_INDICES
                     + "] can't handle remote indices privileges and attempted to send to ["
                     + out.getVersion()
                     + "]"
@@ -1018,7 +1018,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             public RemoteIndicesPrivileges build() {
                 if (remoteClusters == null || remoteClusters.length == 0) {
                     throw new IllegalArgumentException(
-                        "[" + Fields.REMOTE_CLUSTERS + "] must refer to at least one cluster alias or cluster alias pattern"
+                        "the ["
+                            + Fields.REMOTE_INDICES
+                            + "] sub-field ["
+                            + Fields.REMOTE_CLUSTERS
+                            + "] must refer to at least one cluster alias or cluster alias pattern"
                     );
                 }
                 return new RemoteIndicesPrivileges(indicesBuilder.build(), remoteClusters);

@@ -70,8 +70,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -491,6 +491,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Role role = future.actionGet();
         assertThat(role.names(), arrayContaining("superuser"));
         assertThat(role.application().getApplicationNames(), containsInAnyOrder("*"));
+        assertThat(
+            role.application()
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10)
+                    ),
+                    "*"
+                ),
+            is(true)
+        );
+
         assertThat(role.cluster().privileges(), containsInAnyOrder(ClusterPrivilegeResolver.ALL));
         assertThat(role.indices().check(SearchAction.NAME), Matchers.is(true));
         assertThat(role.indices().check(IndexAction.NAME), Matchers.is(true));
@@ -1007,10 +1020,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedWrite.test(mockIndexAbstraction("xyz")), equalTo(false));
         assertThat(allowedWrite.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
 
-        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "write"), "user/joe");
-        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
-        role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
-        role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "write"), "user/joe");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "read"), "settings/hostname");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app2a", "app2a-all", "all"), "user/joe");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
 
         assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-*", "remote"), Set.of("*"), Set.of("remote-*"));
         assertHasIndexGroupsForClusters(
@@ -1191,6 +1204,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build(), }
             )
         );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"));
         assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), indexGroup("index-1"));
 
         role = buildRole(
@@ -1813,7 +1827,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[] { "monitor" }, null, null)),
             version
         );
-        final String apiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
+        final String apiKeyId = (String) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ID_KEY);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
@@ -1823,23 +1837,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (version == Version.CURRENT) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         } else {
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                (Map<String, Object>) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                (Map<String, Object>) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         }

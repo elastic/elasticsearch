@@ -96,7 +96,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                     false
                 ),
                 new GetUserPrivilegesResponse.Indices(
-                    List.of("index-4"),
+                    Arrays.asList("index-4"),
                     Collections.singleton("all"),
                     Collections.emptySet(),
                     Collections.emptySet(),

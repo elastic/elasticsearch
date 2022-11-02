@@ -71,10 +71,6 @@ if(useDraWithBuildId == false) {
 
 testFixtures.useFixture()
 
-repositories.all {
-  println it.name
-}
-
 configurations {
   aarch64DockerSource
   dockerSource

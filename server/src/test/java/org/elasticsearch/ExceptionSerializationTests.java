@@ -317,7 +317,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testRecoverFilesRecoveryException() throws IOException {
         ShardId id = new ShardId("foo", "_na_", 1);
-        ByteSizeValue bytes = new ByteSizeValue(randomIntBetween(0, 10000));
+        ByteSizeValue bytes = ByteSizeValue.ofBytes(randomIntBetween(0, 10000));
         RecoverFilesRecoveryException ex = serialize(new RecoverFilesRecoveryException(id, 10, bytes, null));
         assertEquals(ex.getShardId(), id);
         assertEquals(ex.numberOfFiles(), 10);

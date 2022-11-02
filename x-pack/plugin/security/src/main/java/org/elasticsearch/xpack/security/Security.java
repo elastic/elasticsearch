@@ -718,7 +718,8 @@ public class Security extends Plugin
             settings,
             client,
             getLicenseState(),
-            systemIndices.getMainIndexManager()
+            systemIndices.getMainIndexManager(),
+            clusterService
         );
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
 

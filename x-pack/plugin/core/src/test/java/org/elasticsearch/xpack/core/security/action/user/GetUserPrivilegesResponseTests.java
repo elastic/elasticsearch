@@ -41,6 +41,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetUserPrivilegesResponseTests extends ESTestCase {
@@ -77,13 +78,38 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(version);
         final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
+        assertThat(copy, equalTo(original));
+    }
 
-        assertThat(copy.getClusterPrivileges(), equalTo(original.getClusterPrivileges()));
-        assertThat(copy.getConditionalClusterPrivileges(), equalTo(original.getConditionalClusterPrivileges()));
-        assertThat(sorted(copy.getIndexPrivileges()), equalTo(sorted(original.getIndexPrivileges())));
-        assertThat(copy.getApplicationPrivileges(), equalTo(original.getApplicationPrivileges()));
-        assertThat(copy.getRunAs(), equalTo(original.getRunAs()));
-        assertThat(copy.getRemoteIndexPrivileges(), equalTo(original.getRemoteIndexPrivileges()));
+    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices
+        );
+        out.setVersion(version);
+
+        final GetUserPrivilegesResponse original = randomResponse(randomBoolean());
+        if (original.hasRemoteIndicesPrivileges()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                        + version
+                        + "]"
+                )
+            );
+        } else {
+            original.writeTo(out);
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+            in.setVersion(out.getVersion());
+            final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
+            assertThat(copy, equalTo(original));
+        }
     }
 
     public void testEqualsAndHashCode() throws IOException {

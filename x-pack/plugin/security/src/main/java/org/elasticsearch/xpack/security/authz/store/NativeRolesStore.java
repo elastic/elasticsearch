@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -87,11 +88,20 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final SecurityIndexManager securityIndex;
 
-    public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
+    private final ClusterService clusterService;
+
+    public NativeRolesStore(
+        Settings settings,
+        Client client,
+        XPackLicenseState licenseState,
+        SecurityIndexManager securityIndex,
+        ClusterService clusterService
+    ) {
         this.settings = settings;
         this.client = client;
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -211,9 +221,18 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
-        } else {
-            innerPutRole(request, role, listener);
-        }
+        } else if (role.hasRemoteIndicesPrivileges()
+            && clusterService.state().nodes().getMinNodeVersion().before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "all nodes must have version ["
+                            + RoleDescriptor.VERSION_REMOTE_INDICES
+                            + "] or higher to support remote indices privileges"
+                    )
+                );
+            } else {
+                innerPutRole(request, role, listener);
+            }
     }
 
     // pkg-private for testing

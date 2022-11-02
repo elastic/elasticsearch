@@ -519,7 +519,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     "{}: node [{}] has [{}/{}] bytes of re-usable cache data",
                     shard,
                     discoNode.getName(),
-                    new ByteSizeValue(matchingBytes),
+                    ByteSizeValue.ofBytes(matchingBytes),
                     matchingBytes
                 );
             }

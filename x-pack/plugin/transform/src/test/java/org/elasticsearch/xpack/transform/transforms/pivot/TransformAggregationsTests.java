@@ -54,17 +54,20 @@ public class TransformAggregationsTests extends ESTestCase {
         // max
         assertEquals("int", TransformAggregations.resolveTargetMapping("max", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("max", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("max", "aggregate_metric_double"));
         assertEquals("half_float", TransformAggregations.resolveTargetMapping("max", "half_float"));
         assertEquals("float", TransformAggregations.resolveTargetMapping("max", "scaled_float"));
 
         // min
         assertEquals("int", TransformAggregations.resolveTargetMapping("min", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("min", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("min", "aggregate_metric_double"));
         assertEquals("half_float", TransformAggregations.resolveTargetMapping("min", "half_float"));
         assertEquals("float", TransformAggregations.resolveTargetMapping("min", "scaled_float"));
 
         // sum
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "aggregate_metric_double"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "half_float"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", null));
 

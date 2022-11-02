@@ -98,7 +98,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, ROLES_WITH_ML, Version.CURRENT);
         assertEquals("{_node_name1}{ml.machine_memory=5}", JobNodeSelector.nodeNameAndMlAttributes(node));
 
-        node = new DiscoveryNode(null, "_node_id1", ta, attributes, ROLES_WITH_ML, Version.CURRENT);
+        node = new DiscoveryNode(ClusterName.DEFAULT, "_node_id1", ta, attributes, ROLES_WITH_ML, Version.CURRENT);
         assertEquals("{_node_id1}{ml.machine_memory=5}", JobNodeSelector.nodeNameAndMlAttributes(node));
     }
 

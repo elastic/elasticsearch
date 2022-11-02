@@ -55,12 +55,10 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -615,14 +613,5 @@ public abstract class JwtTestCase extends ESTestCase {
             throw new IllegalArgumentException("resource not found: " + relativePath, e);
         }
         return null;
-    }
-
-    public static SecureRandom secureRandom() throws NoSuchAlgorithmException {
-        return secureRandom(randomByteArrayOfLength(32));
-    }
-
-    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException {
-        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed)); // TODO Remove temp log message for reproducibility check
-        return ESTestCase.secureRandom(seed);
     }
 }

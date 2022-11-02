@@ -12,8 +12,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -34,6 +39,12 @@ public class TransportGetDesiredBalanceActionTest extends ESIntegTestCase {
 
         DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
             .get();
+        System.out.println(
+            Strings.toString(
+                desiredBalanceResponse.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS)
+            )
+        );
+
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
         assertEquals(2, shardsMap.size());
@@ -58,13 +69,11 @@ public class TransportGetDesiredBalanceActionTest extends ESIntegTestCase {
         assertEquals(shardId.intValue(), desiredShards.current().shardId());
         assertEquals(index, desiredShards.current().index());
         assertEquals(shard.currentNodeId(), desiredShards.current().node());
-        assertEquals(
-            desiredBalance.getAssignment(shard.shardId()).nodeIds().contains(shard.currentNodeId()),
-            desiredShards.current().nodeIsDesired()
-        );
+        ShardAssignment assignment = desiredBalance.getAssignment(shard.shardId());
+        assertEquals(assignment != null && assignment.nodeIds().contains(shard.currentNodeId()), desiredShards.current().nodeIsDesired());
         assertEquals(shard.relocatingNodeId(), desiredShards.current().relocatingNode());
         assertEquals(
-            desiredBalance.getAssignment(shard.shardId()).nodeIds().contains(shard.relocatingNodeId()),
+            assignment != null && assignment.nodeIds().contains(shard.relocatingNodeId()),
             desiredShards.current().relocatingNodeIsDesired()
         );
         assertFalse(desiredShards.current().relocatingNodeIsDesired());

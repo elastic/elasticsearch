@@ -10,22 +10,18 @@ package org.elasticsearch.action.admin.cluster.desiredbalance;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -73,13 +69,14 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             return;
         }
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
-        for (Map.Entry<ShardId, ShardAssignment> entry : latestDesiredBalance.assignments().entrySet()) {
-            ShardId shardId = entry.getKey();
-            ShardAssignment shardAssignment = entry.getValue();
-            // TODO Do we have to return only the primary shard or replicas as well?
-            ShardRouting shard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-            routingTable.computeIfAbsent(shardId.getIndexName(), ignore -> new HashMap<>())
-                .put(
+        for (IndexRoutingTable indexRoutingTable : state.getRoutingTable()) {
+            Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
+            for (ShardRouting shard : indexRoutingTable.randomAllActiveShardsIt()) {
+                ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shard.shardId());
+                if (shardAssignment == null) {
+                    continue;
+                }
+                indexDesiredShards.put(
                     shard.id(),
                     new DesiredBalanceResponse.DesiredShards(
                         new DesiredBalanceResponse.ShardView(
@@ -101,6 +98,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
                         )
                     )
                 );
+            }
+            routingTable.put(indexRoutingTable.getIndex().getName(), indexDesiredShards);
         }
         listener.onResponse(new DesiredBalanceResponse(desiredBalanceShardsAllocator.getStats(), routingTable));
     }

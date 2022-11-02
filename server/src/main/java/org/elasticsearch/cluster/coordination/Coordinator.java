@@ -1628,6 +1628,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         }
 
                         if (prevotingRound != null) {
+                            if (singleNodeDiscovery) {
+                                logger.debug("skip prevoting as single-node discovery is enabled");
+                                return;
+                            }
                             prevotingRound.close();
                         }
                         prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());

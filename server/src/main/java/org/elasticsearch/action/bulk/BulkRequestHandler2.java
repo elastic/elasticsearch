@@ -59,7 +59,7 @@ public final class BulkRequestHandler2 {
         }
     }
 
-    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    void awaitClose(long timeout, TimeUnit unit) {
         retry.awaitClose(timeout, unit);
     }
 }

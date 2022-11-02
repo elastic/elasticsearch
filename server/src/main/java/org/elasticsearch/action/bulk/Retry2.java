@@ -219,7 +219,22 @@ class Retry2 {
         }
         while (isClosing == false || System.nanoTime() < closingTime) {
             mainLoopCount++;
-            boolean allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
+            boolean allowedToMakeRequest;
+            long timeRemaining = isClosing ? closingTime - System.nanoTime() : 0;
+            if (isClosing && timeRemaining > 0) {
+                try {
+                    logger.trace(
+                        "Waiting up to {} for a semaphore because the server is closing",
+                        new TimeValue(timeRemaining, TimeUnit.NANOSECONDS)
+                    );
+                    allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire(timeRemaining, TimeUnit.NANOSECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            } else {
+                allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
+            }
             logger.trace("Semaphore locks remaining: {}", requestsInFlightSemaphore.availablePermits());
             if (allowedToMakeRequest == false) {
                 logger.trace("Unable to acquire semaphore because too many requests are already in flight");
@@ -283,7 +298,6 @@ class Retry2 {
             individualRetryRequestsRejected,
             remainingRetryRequests.size()
         );
-        logger.trace("Finishing awaitClose");
     }
 
     private final class RetryHandler implements ActionListener<BulkResponse> {

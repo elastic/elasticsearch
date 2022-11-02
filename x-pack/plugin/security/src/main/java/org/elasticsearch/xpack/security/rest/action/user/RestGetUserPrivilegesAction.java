@@ -16,7 +16,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -91,7 +90,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
             builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
             builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
-            if (TcpTransport.isUntrustedRemoteClusterEnabled() && response.hasRemoteIndicesPrivileges()) {
+            if (response.hasRemoteIndicesPrivileges()) {
                 builder.field(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName(), response.getRemoteIndexPrivileges());
             }
 

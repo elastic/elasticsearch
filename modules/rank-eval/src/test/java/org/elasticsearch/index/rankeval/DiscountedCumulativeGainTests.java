@@ -288,13 +288,13 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(expectedNdcg, detail.getNDCG(), 0.0);
         assertEquals(unratedDocs, detail.getUnratedDocs());
         if (idcg != 0) {
-            assertEquals("""
+            assertEquals(formatted("""
                 {"dcg":{"dcg":%s,"ideal_dcg":%s,"normalized_dcg":%s,"unrated_docs":%s}}\
-                """.formatted(dcg, idcg, expectedNdcg, unratedDocs), Strings.toString(detail));
+                """, dcg, idcg, expectedNdcg, unratedDocs), Strings.toString(detail));
         } else {
-            assertEquals("""
+            assertEquals(formatted("""
                 {"dcg":{"dcg":%s,"unrated_docs":%s}}\
-                """.formatted(dcg, unratedDocs), Strings.toString(detail));
+                """, dcg, unratedDocs), Strings.toString(detail));
         }
     }
 

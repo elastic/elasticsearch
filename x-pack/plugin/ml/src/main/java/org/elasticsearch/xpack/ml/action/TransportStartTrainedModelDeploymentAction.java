@@ -209,8 +209,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     TaskParams taskParams = new TaskParams(
                         trainedModelConfig.getModelId(),
                         modelBytes,
-                        request.getThreadsPerAllocation(),
                         request.getNumberOfAllocations(),
+                        request.getThreadsPerAllocation(),
                         request.getQueueCapacity(),
                         Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelBytes))
                     );

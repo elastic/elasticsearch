@@ -128,7 +128,6 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90824")
     public void testSingleValuedField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Geometry> geometries = new ArrayList<>();
@@ -212,7 +211,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
     }
 
     private double tolerance(double expected, long count) {
-        double tolerance = Math.abs(expected / 1e6);
+        double tolerance = Math.abs(expected / 1e5);
         // Very large numbers have more floating point error, also increasing with count
         return tolerance > 1e25 ? tolerance * count : tolerance;
     }

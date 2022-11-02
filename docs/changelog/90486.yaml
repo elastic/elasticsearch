@@ -1,5 +1,0 @@
-pr: 90486
-summary: Set the enrich maintenance cluster lifecycle listener only once
-area: Ingest Node
-type: bug
-issues: []

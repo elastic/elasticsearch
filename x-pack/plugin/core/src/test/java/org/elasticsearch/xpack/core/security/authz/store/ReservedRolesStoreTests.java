@@ -181,8 +181,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
@@ -1169,18 +1169,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"), is(false));
+        assertThat(
+            kibanaAdminRole.application().grants(ApplicationPrivilegeTests.createPrivilege(randomApplication, "app-random", "all"), "*"),
+            is(false)
+        );
 
         final String application = "kibana-.kibana";
-        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
         assertThat(
-            kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-all", allowedApplicationActionPattern), "*"),
+            kibanaAdminRole.application().grants(ApplicationPrivilegeTests.createPrivilege(application, "app-foo", "foo"), "*"),
+            is(false)
+        );
+        assertThat(
+            kibanaAdminRole.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(application, "app-all", allowedApplicationActionPattern), "*"),
             is(true)
         );
 
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
-            kibanaAdminRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
+            kibanaAdminRole.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
             is(false)
         );
 
@@ -1224,21 +1232,32 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
             kibanaUserRole.application()
-                .grants(new ApplicationPrivilege(randomApplication, "app-random", allowedApplicationActionPattern), "*"),
+                .grants(ApplicationPrivilegeTests.createPrivilege(randomApplication, "app-random", allowedApplicationActionPattern), "*"),
             is(false)
         );
 
         final String application = "kibana-.kibana";
-        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
         assertThat(
-            kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-all", allowedApplicationActionPattern), "*"),
+            kibanaUserRole.application().grants(ApplicationPrivilegeTests.createPrivilege(application, "app-foo", "foo"), "*"),
+            is(false)
+        );
+        assertThat(
+            kibanaUserRole.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(application, "app-all", allowedApplicationActionPattern), "*"),
             is(true)
         );
 
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
             kibanaUserRole.application()
-                .grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", allowedApplicationActionPattern), "*"),
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(
+                        applicationWithRandomIndex,
+                        "app-random-index",
+                        allowedApplicationActionPattern
+                    ),
+                    "*"
+                ),
             is(false)
         );
 
@@ -1330,23 +1349,34 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(monitoringUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
         assertThat(
-            monitoringUserRole.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+            monitoringUserRole.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
             is(false)
         );
         assertThat(
             monitoringUserRole.application()
                 .grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_monitoring", allowedApplicationActionPattern),
+                    ApplicationPrivilegeTests.createPrivilege(
+                        kibanaApplicationWithRandomIndex,
+                        "app-reserved_monitoring",
+                        allowedApplicationActionPattern
+                    ),
                     "*"
                 ),
             is(true)
         );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(monitoringUserRole.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            monitoringUserRole.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+            is(false)
+        );
         assertThat(
             monitoringUserRole.application()
-                .grants(new ApplicationPrivilege(otherApplication, "app-reserved_monitoring", allowedApplicationActionPattern), "*"),
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-reserved_monitoring", allowedApplicationActionPattern),
+                    "*"
+                ),
             is(false)
         );
     }
@@ -2213,21 +2243,38 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertOnlyReadAllowed(role, "observability-annotations");
 
-        assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+            is(false)
+        );
         assertThat(
             role.application()
                 .grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml_apm_user", allowedApplicationActionPattern),
+                    ApplicationPrivilegeTests.createPrivilege(
+                        kibanaApplicationWithRandomIndex,
+                        "app-reserved_ml_apm_user",
+                        allowedApplicationActionPattern
+                    ),
                     "*"
                 ),
             is(true)
         );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+            is(false)
+        );
         assertThat(
             role.application()
-                .grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml_apm_user", allowedApplicationActionPattern), "*"),
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(
+                        otherApplication,
+                        "app-reserved_ml_apm_user",
+                        allowedApplicationActionPattern
+                    ),
+                    "*"
+                ),
             is(false)
         );
     }
@@ -2271,20 +2318,34 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+            is(false)
+        );
         assertThat(
             role.application()
                 .grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                    ApplicationPrivilegeTests.createPrivilege(
+                        kibanaApplicationWithRandomIndex,
+                        "app-reserved_ml",
+                        allowedApplicationActionPattern
+                    ),
                     "*"
                 ),
             is(true)
         );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+            is(false)
+        );
+        assertThat(
+            role.application()
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern),
+                    "*"
+                ),
             is(false)
         );
     }
@@ -2450,20 +2511,34 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-        assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+            is(false)
+        );
         assertThat(
             role.application()
                 .grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                    ApplicationPrivilegeTests.createPrivilege(
+                        kibanaApplicationWithRandomIndex,
+                        "app-reserved_ml",
+                        allowedApplicationActionPattern
+                    ),
                     "*"
                 ),
             is(true)
         );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+            is(false)
+        );
+        assertThat(
+            role.application()
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern),
+                    "*"
+                ),
             is(false)
         );
     }
@@ -2519,7 +2594,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
             assertThat(
-                role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+                role.application()
+                    .grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
                 is(false)
             );
 
@@ -2527,7 +2603,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(
                     role.application()
                         .grants(
-                            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                            ApplicationPrivilegeTests.createPrivilege(
+                                kibanaApplicationWithRandomIndex,
+                                "app-reserved_ml",
+                                allowedApplicationActionPattern
+                            ),
                             "*"
                         ),
                     is(true)
@@ -2535,11 +2615,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
 
             final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-            assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+            assertThat(
+                role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+                is(false)
+            );
             if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
                 assertThat(
                     role.application()
-                        .grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
+                        .grants(
+                            ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern),
+                            "*"
+                        ),
                     is(false)
                 );
             }
@@ -2602,7 +2688,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
             assertThat(
-                role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+                role.application()
+                    .grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
                 is(false)
             );
 
@@ -2610,7 +2697,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(
                     role.application()
                         .grants(
-                            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", allowedApplicationActionPattern),
+                            ApplicationPrivilegeTests.createPrivilege(
+                                kibanaApplicationWithRandomIndex,
+                                "app-reserved_ml",
+                                allowedApplicationActionPattern
+                            ),
                             "*"
                         ),
                     is(true)
@@ -2618,11 +2709,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
 
             final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-            assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+            assertThat(
+                role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
+                is(false)
+            );
             if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
                 assertThat(
                     role.application()
-                        .grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern), "*"),
+                        .grants(
+                            ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-reserved_ml", allowedApplicationActionPattern),
+                            "*"
+                        ),
                     is(false)
                 );
             }
@@ -2754,10 +2851,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
         // Check application privileges
         assertThat(
-            role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-read", allowedApplicationActionPattern), "*"),
+            role.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege("kibana-.kibana", "kibana-read", allowedApplicationActionPattern), "*"),
             is(true)
         );
-        assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", "all"), "*"), is(false));
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege("kibana-.kibana", "kibana-all", "all"), "*"),
+            is(false)
+        );
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
     }
@@ -2827,7 +2928,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Check application privileges
         assertThat(
-            role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", allowedApplicationActionPattern), "*"),
+            role.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege("kibana-.kibana", "kibana-all", allowedApplicationActionPattern), "*"),
             is(true)
         );
 

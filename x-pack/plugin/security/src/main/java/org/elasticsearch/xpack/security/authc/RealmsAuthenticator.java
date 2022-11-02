@@ -276,7 +276,7 @@ class RealmsAuthenticator implements Authenticator {
      * names of users that exist using a timing attack
      */
     public void lookupRunAsUser(Context context, Authentication authentication, ActionListener<Tuple<User, Realm>> listener) {
-        assert authentication.getLookedUpBy() == null : "authentication already has a lookup realm";
+        assert false == authentication.isRunAs() : "authentication already has run-as";
         final String runAsUsername = context.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
         if (runAsUsername != null && runAsUsername.isEmpty() == false) {
             logger.trace(

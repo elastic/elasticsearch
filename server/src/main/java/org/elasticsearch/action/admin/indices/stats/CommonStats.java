@@ -554,7 +554,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getSegments().getIndexWriterMemoryInBytes() + this.getSegments().getVersionMapMemoryInBytes();
         }
 
-        return new ByteSizeValue(size);
+        return ByteSizeValue.ofBytes(size);
     }
 
     // note, requires a wrapping object

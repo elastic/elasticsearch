@@ -190,16 +190,16 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testEvaluateWithoutStats() {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
-            new ByteSizeValue(randomNonNegativeLong())
+            ByteSizeValue.ofBytes(randomNonNegativeLong())
         );
         MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
         MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MinDocsCondition minDocsCondition = new MinDocsCondition(randomNonNegativeLong());
-        MinSizeCondition minSizeCondition = new MinSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        MinSizeCondition minSizeCondition = new MinSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
-            new ByteSizeValue(randomNonNegativeLong())
+            ByteSizeValue.ofBytes(randomNonNegativeLong())
         );
         MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(randomNonNegativeLong());
         final Set<Condition<?>> conditions = Set.of(

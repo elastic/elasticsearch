@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
  * as well as algorithm-specific settings via a {@link PercentilesConfig} object
  */
 public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>> extends
-    ValuesSourceAggregationBuilder.MetricsAggregationBuilder<ValuesSource, T> {
+    ValuesSourceAggregationBuilder.MetricsAggregationBuilder<T> {
 
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
     private final ParseField valuesField;

@@ -33,6 +33,7 @@ public class TransformHealthCheckerTests extends ESTestCase {
         assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91110")
     public void testPersistenceFailure() {
         TransformTask task = mock(TransformTask.class);
         TransformContext context = createTestContext();

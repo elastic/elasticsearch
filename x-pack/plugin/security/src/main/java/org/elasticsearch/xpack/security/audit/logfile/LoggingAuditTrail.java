@@ -457,7 +457,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     )
                 ) == false) {
             // this is redundant information maintained for bwc purposes
-            final String authnRealm = authentication.getAuthenticatedBy().getName();
+            final String authnRealm = authentication.getAuthenticatingSubject().getRealm().getName();
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                 .with(REALM_FIELD_NAME, authnRealm)
@@ -1531,15 +1531,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRunAsSubject(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
-                .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
+                .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
                 .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
-            if (authentication.getAuthenticatedBy().getDomain() != null) {
-                logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatedBy().getDomain().name());
+            if (authentication.getAuthenticatingSubject().getRealm().getDomain() != null) {
+                logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getDomain().name());
             }
-            if (authentication.getLookedUpBy() != null) {
-                logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, authentication.getLookedUpBy().getName());
-                if (authentication.getLookedUpBy().getDomain() != null) {
-                    logEntry.with(PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME, authentication.getLookedUpBy().getDomain().name());
+            final Authentication.RealmRef lookedUpBy = authentication.isRunAs() ? authentication.getEffectiveSubject().getRealm() : null;
+            if (lookedUpBy != null) {
+                logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookedUpBy.getName());
+                if (lookedUpBy.getDomain() != null) {
+                    logEntry.with(PRINCIPAL_RUN_AS_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
                 }
             }
             return this;
@@ -1625,17 +1626,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     // No domain information is needed here since API key itself does not work across realms
                 }
             } else {
-                final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatedBy();
+                final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
                 if (authentication.isRunAs()) {
-                    final Authentication.RealmRef lookedUpBy = authentication.getLookedUpBy();
-                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName())
-                        .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
+                    final Authentication.RealmRef lookedUpBy = authentication.getEffectiveSubject().getRealm();
+                    if (lookedUpBy != null) {
+                        logEntry.with(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName());
+                        if (lookedUpBy.getDomain() != null) {
+                            logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
+                        }
+                    }
+                    logEntry.with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                         // API key can run-as, when that happens, the following field will be _es_api_key,
                         // not the API key owner user's realm.
                         .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
-                    if (lookedUpBy.getDomain() != null) {
-                        logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
-                    }
                     if (authenticatedBy.getDomain() != null) {
                         logEntry.with(PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
                     }

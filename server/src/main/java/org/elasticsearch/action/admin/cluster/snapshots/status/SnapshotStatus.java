@@ -192,15 +192,15 @@ public class SnapshotStatus implements ChunkedToXContent, Writeable {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked() {
         return Iterators.concat(Iterators.single((ToXContent) (b, p) -> {
-            var builder = b.startObject()
+            b.startObject()
                 .field(SNAPSHOT, snapshot.getSnapshotId().getName())
                 .field(REPOSITORY, snapshot.getRepository())
                 .field(UUID, snapshot.getSnapshotId().getUUID())
                 .field(STATE, state.name());
             if (includeGlobalState != null) {
-                builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
+                b.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
             }
-            return builder.field(SnapshotShardsStats.Fields.SHARDS_STATS, shardsStats, p)
+            return b.field(SnapshotShardsStats.Fields.SHARDS_STATS, shardsStats, p)
                 .field(SnapshotStats.Fields.STATS, stats, p)
                 .startObject(INDICES);
         }), getIndices().values().iterator(), Iterators.single((b, p) -> b.endObject().endObject()));

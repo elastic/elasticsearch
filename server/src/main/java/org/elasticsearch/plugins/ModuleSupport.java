@@ -79,7 +79,7 @@ public class ModuleSupport {
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
         Map<String, List<String>> allBundledProviders = new HashMap<>();
-        Set<String> allBundledServices = new HashSet<>();
+        Set<String> servicesUsedInBundle = new HashSet<>();
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
@@ -88,13 +88,13 @@ public class ModuleSupport {
                 if (moduleInfo != null) {
                     var descriptor = getDescriptorForModularJar(path);
                     pkgs.addAll(descriptor.packages());
-                    allBundledServices.addAll(descriptor.uses());
+                    servicesUsedInBundle.addAll(descriptor.uses());
                     for (ModuleDescriptor.Provides p : descriptor.provides()) {
                         String serviceName = p.service();
                         List<String> providersInModule = p.providers();
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInModule));
-                        allBundledServices.add(serviceName);
+                        servicesUsedInBundle.add(serviceName);
                     }
                 } else {
                     var scan = scan(jf);
@@ -103,16 +103,10 @@ public class ModuleSupport {
                     // read providers from the list of service files
                     for (String serviceFileName : scan.serviceFiles()) {
                         String serviceName = getServiceName(serviceFileName);
-                        if (uses.contains(serviceName) == false) {
-                            String packageName = toPackageName(serviceName, ".").orElseThrow();
-                            if (packageInParentLayers.test(packageName) == false) {
-                                pkgs.add(toPackageName(serviceName, ".").orElseThrow());
-                            }
-                        }
                         List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
-                        allBundledServices.add(serviceName);
+                        servicesUsedInBundle.add(serviceName);
                     }
                 }
             }
@@ -120,13 +114,21 @@ public class ModuleSupport {
 
         builder.packages(pkgs);
 
-        // the module needs to use all services it provides, for the case of internal use
-        allBundledServices.addAll(allBundledProviders.keySet());
-        // but we don't want to add any services we already got from the parent layer
-        allBundledServices.removeAll(uses);
+        // we don't want to add any services we already got from the parent layer
+        servicesUsedInBundle.removeAll(uses);
 
-        allBundledServices.forEach(builder::uses);
-        allBundledProviders.forEach(builder::provides);
+        // Services that aren't exported in the parent layer or defined in our
+        // bundle. This can happen for optional (compile-time) dependencies
+        Set<String> missingServices = servicesUsedInBundle.stream()
+            .filter(s -> packageInParentLayers.test(toPackageName(s, ".").orElseThrow()) == false)
+            .filter(s -> pkgs.contains(toPackageName(s, ".").orElseThrow()) == false)
+            .collect(Collectors.toSet());
+
+        servicesUsedInBundle.stream().filter(s -> missingServices.contains(s) == false).forEach(builder::uses);
+        allBundledProviders.entrySet()
+            .stream()
+            .filter(e -> missingServices.contains(e.getKey()) == false)
+            .forEach(e -> builder.provides(e.getKey(), e.getValue()));
         return builder.build();
     }
 

@@ -164,7 +164,7 @@ public class PutRoleRequestTests extends ESTestCase {
             logger.info("Serializing with version {}", version);
             out.setVersion(version);
         }
-        final boolean mayIncludeRemoteIndices = out.getVersion().onOrAfter(Version.V_8_6_0);
+        final boolean mayIncludeRemoteIndices = out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES);
         final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
@@ -180,7 +180,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(RoleDescriptor.VERSION_REMOTE_INDICES);
         final Version version = VersionUtils.randomVersionBetween(
             random(),
             versionBeforeRemoteIndices.minimumCompatibilityVersion(),

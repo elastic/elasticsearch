@@ -113,7 +113,7 @@ class MlProcessorAutoscalingDecider {
 
     private MlProcessorAutoscalingCapacity.Builder computeRequiredCapacity(TrainedModelAssignmentMetadata trainedModelAssignmentMetadata) {
         int maxThreadsPerAllocation = 0;
-        int processorCount = 0;
+        double processorCount = 0;
         boolean hasLowPriorityDeployments = false;
         for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.modelAssignments().values()) {
             if (assignment.getTaskParams().getPriority() == Priority.LOW) {
@@ -127,8 +127,7 @@ class MlProcessorAutoscalingDecider {
 
         if (hasLowPriorityDeployments) {
             // If there are low priority deployments let us ensure there will at least be one node required.
-            maxThreadsPerAllocation = Math.max(1, maxThreadsPerAllocation);
-            processorCount = Math.max(1, processorCount);
+            processorCount = Math.max(0.1, processorCount);
         }
 
         return MlProcessorAutoscalingCapacity.builder(

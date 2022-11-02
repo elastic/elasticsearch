@@ -517,8 +517,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(1.0)));
-        assertThat(capacity.tierProcessors(), equalTo(Processors.of(1.0)));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.ZERO));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(0.1)));
         assertThat(capacity.reason(), equalTo("requesting scale down as tier and/or node size could be smaller"));
     }
 

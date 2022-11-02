@@ -339,7 +339,7 @@ public class IndexNameExpressionResolver {
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
 
-        if (expressions.isEmpty()) {
+        if (expressions.isEmpty() || (expressions.size() == 1 && expressions.iterator().next().equals(Metadata.ALL))) {
             if (options.allowNoIndices() == false) {
                 throw notFoundException(indexExpressions);
             } else {

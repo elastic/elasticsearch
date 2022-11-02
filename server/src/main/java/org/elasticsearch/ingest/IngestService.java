@@ -211,7 +211,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             String defaultPipeline = null;
             String finalPipeline = null;
             IndexMetadata indexMetadata = null;
-            // start to look for default or final pipelines via settings found in the index meta data
+            // start to look for default or final pipelines via settings found in the index metadata
             if (originalRequest != null) {
                 indexMetadata = metadata.indices()
                     .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));

@@ -114,19 +114,6 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             null
         );
 
-        UnassignedInfo noAttemptUnassignedInfo = new UnassignedInfo(
-            UnassignedInfo.Reason.NODE_LEFT,
-            null,
-            null,
-            failedNodeIds.size(),
-            System.nanoTime(),
-            System.currentTimeMillis(),
-            false,
-            UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
-            failedNodeIds,
-            null
-        );
-
         RoutingTable.Builder routingTable = RoutingTable.builder();
         for (int i = 1; i <= numIndices; i++) {
             IndexMetadata indexMetadata = IndexMetadata.builder("test_" + i)
@@ -157,7 +144,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                             shardId,
                             false,
                             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                            noAttemptUnassignedInfo
+                            decidersNoUnassignedInfo
                         )
                     );
                 }

@@ -35,7 +35,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -216,10 +215,10 @@ public class ILMHistoryStoreTests extends ESTestCase {
     /*
      * This tests that we don't see deadlock if we throw a lot of data at the ILMHistoryStore quickly.
      */
-    @TestLogging(
-        value = "org.elasticsearch.action.bulk:trace",
-        reason = "Logging information about locks useful for tracking down deadlock"
-    )
+    // @TestLogging(
+    // value = "org.elasticsearch.action.bulk:trace",
+    // reason = "Logging information about locks useful for tracking down deadlock"
+    // )
     public void testDeadlock() throws Exception {
         String policyId = randomAlphaOfLength(5);
         final long timestamp = randomNonNegativeLong();

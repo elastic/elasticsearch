@@ -100,9 +100,9 @@ class Retry2 {
         Iterator<TimeValue> backoff = backoffPolicy.iterator();
         boolean accepted = readyToLoadQueue.offer(new RetryQueuePayload(bulkRequest, new ArrayList<>(), consumer, listener, backoff));
         if (accepted) {
-            logger.trace("Added to readyToLoadQueue. Current size is {}", readyToLoadQueue.size());
+            logger.trace("Added to readyToLoadQueue. Current queue size is {} / {}", readyToLoadQueue.size(), readyToLoadQueueCapacity);
         } else {
-            logger.trace("Rejecting an initial bulk request because the queue is full");
+            logger.trace("Rejecting an initial bulk request because the queue is full. Queue size is {}", readyToLoadQueue.size());
             onFailure(
                 bulkRequest,
                 new ArrayList<>(),
@@ -150,7 +150,11 @@ class Retry2 {
          * thing that we start rejecting some.
          */
         if (retryQueue.size() > retryQueueCapacity) {
-            logger.trace("Rejecting a retry request because the retry queue is full");
+            logger.trace(
+                "Rejecting a retry request because the retry queue is full. Current queue size is {} / {}",
+                readyToLoadQueue.size(),
+                readyToLoadQueueCapacity
+            );
             onFailure(
                 bulkRequestForRetry,
                 responsesAccumulator,
@@ -194,7 +198,14 @@ class Retry2 {
                 logger.trace("Promoting a retry to the readyToLoadQueue");
                 RetryQueuePayload retryQueuePayload = retry.v2();
                 boolean accepted = readyToLoadQueue.offer(retryQueuePayload);
-                if (accepted == false) {
+                if (accepted) {
+                    logger.trace(
+                        "Added a retry bulk request to readyToLoadQueue. Current queue size is {} / {}",
+                        readyToLoadQueue.size(),
+                        readyToLoadQueueCapacity
+                    );
+                } else {
+                    logger.trace("Rejecting a retry bulk request because the queue is full. Queue size is {}", readyToLoadQueue.size());
                     onFailure(
                         retryQueuePayload.request,
                         retryQueuePayload.responses,

@@ -35,7 +35,7 @@ public final class BulkRequestHandler2 {
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(backoffPolicy, scheduler, 1000 * Math.max(1, concurrentRequests), 1000, concurrentRequests);
+        this.retry = new Retry2(backoffPolicy, scheduler, 100, 100, concurrentRequests);
         retry.init();
     }
 

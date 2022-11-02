@@ -219,8 +219,9 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(jsonValue), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktValue), fetchSourceValue(mapper, sourceValue, "wkt"));
 
-        List<?> mvtExpected = fetchSourceValue(mapper, mvtEquivalentAsWKT, "mvt(0/0/0@4096)");
-        List<?> mvt = fetchSourceValue(mapper, sourceValue, "mvt(0/0/0@4096)");
+        final int extent = randomIntBetween(256, 4096);
+        List<?> mvtExpected = fetchSourceValue(mapper, mvtEquivalentAsWKT, "mvt(0/0/0@" + extent + ")");
+        List<?> mvt = fetchSourceValue(mapper, sourceValue, "mvt(0/0/0@" + extent + ")");
         assertThat(mvt.size(), Matchers.equalTo(1));
         assertThat(mvt.size(), Matchers.equalTo(mvtExpected.size()));
         assertThat(mvtExpected.get(0), Matchers.instanceOf(byte[].class));

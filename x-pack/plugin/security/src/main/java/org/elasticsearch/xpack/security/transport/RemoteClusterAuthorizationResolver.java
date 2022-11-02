@@ -21,8 +21,7 @@ import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AU
 
 /**
  * Load/reload API Keys from cluster settings.
- * Injected into SecurityServerTransportInterceptor.
- * Latest API Key value needs to be used in header when sending TransportRequest to remote cluster nodes.
+ * Used by SecurityServerTransportInterceptor to get the latest API Key.
  */
 public class RemoteClusterAuthorizationResolver {
 
@@ -33,7 +32,7 @@ public class RemoteClusterAuthorizationResolver {
     /**
      * Initialize load and reload REMOTE_CLUSTER_AUTHORIZATION values.
      * @param settings Contains zero, one, or many values of REMOTE_CLUSTER_AUTHORIZATION literal values.
-     * @param clusterSettings Contains one affix of setting REMOTE_CLUSTER_AUTHORIZATION.
+     * @param clusterSettings Contains one affix setting REMOTE_CLUSTER_AUTHORIZATION.
      */
     public RemoteClusterAuthorizationResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -873,7 +874,7 @@ public class LimitedRoleTests extends ESTestCase {
         applicationPrivilegeDescriptors.add(
             new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(actions), Collections.emptyMap())
         );
-        return new ApplicationPrivilege(app, name, actions);
+        return ApplicationPrivilegeTests.createPrivilege(app, name, actions);
     }
 
     private static MapBuilder<String, ResourcePrivileges> mapBuilder() {

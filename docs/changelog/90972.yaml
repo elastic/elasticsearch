@@ -1,6 +1,0 @@
-pr: 90972
-summary: 'Fix disabling APM tracing for `CancellableTask` in `TrainedModelAssignmentNodeService`'
-area: Infra/Core
-type: bug
-issues:
- - 89850

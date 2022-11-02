@@ -39,7 +39,16 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
 
     public static ByteSizeValue ofBytes(long size) {
-        return new ByteSizeValue(size);
+        if (size == 0) {
+            return ZERO;
+        }
+        if (size == 1) {
+            return ONE;
+        }
+        if (size == -1) {
+            return MINUS_ONE;
+        }
+        return new ByteSizeValue(size, ByteSizeUnit.BYTES);
     }
 
     public static ByteSizeValue ofKb(long size) {
@@ -65,19 +74,19 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private final long size;
     private final ByteSizeUnit unit;
 
-    public ByteSizeValue(StreamInput in) throws IOException {
-        size = in.readZLong();
-        unit = ByteSizeUnit.readFrom(in);
+    public static ByteSizeValue readFrom(StreamInput in) throws IOException {
+        long size = in.readZLong();
+        ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
+        if (unit == ByteSizeUnit.BYTES) {
+            return ofBytes(size);
+        }
+        return new ByteSizeValue(size, unit);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeZLong(size);
         unit.writeTo(out);
-    }
-
-    public ByteSizeValue(long bytes) {
-        this(bytes, ByteSizeUnit.BYTES);
     }
 
     public ByteSizeValue(long size, ByteSizeUnit unit) {
@@ -255,7 +264,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private static ByteSizeValue parseBytes(String lowerSValue, String settingName, String initialInput) {
         String s = lowerSValue.substring(0, lowerSValue.length() - 1).trim();
         try {
-            return new ByteSizeValue(Long.parseLong(s), ByteSizeUnit.BYTES);
+            return ByteSizeValue.ofBytes(Long.parseLong(s));
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
         } catch (IllegalArgumentException e) {
@@ -289,7 +298,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                         initialInput,
                         settingName
                     );
-                    return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
+                    return ByteSizeValue.ofBytes((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
                     throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }

@@ -48,7 +48,7 @@ public class RemoteClusterAuthorizationResolver {
         }
     }
 
-    public String getApiKey(final String clusterAlias) {
+    public String resolveAuthorization(final String clusterAlias) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             return this.apiKeys.get(clusterAlias);
         } else {

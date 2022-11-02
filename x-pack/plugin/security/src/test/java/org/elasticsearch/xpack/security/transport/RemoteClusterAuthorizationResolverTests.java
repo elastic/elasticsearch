@@ -84,8 +84,8 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
             new DestructiveOperations(initialSettings, this.clusterService.getClusterSettings()),
             remoteClusterAuthorizationResolver
         );
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameA), is(equalTo("initialize")));
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameB), is(nullValue()));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("initialize")));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(nullValue()));
         final DiscoveryNode masterNodeA = this.clusterService.state().nodes().getMasterNode();
 
         // Add clusterB authorization setting
@@ -96,8 +96,8 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
             .build();
         final ClusterState newClusterState1 = createClusterState(clusterNameA, masterNodeA, newSettingsAddClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState1);
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameA), is(equalTo("addB")));
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameB), is(equalTo(clusterBapiKey1)));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("addB")));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(equalTo(clusterBapiKey1)));
 
         // Change clusterB authorization setting
         final String clusterBapiKey2 = randomApiKey();
@@ -107,8 +107,8 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
             .build();
         final ClusterState newClusterState2 = createClusterState(clusterNameA, masterNodeA, newSettingsUpdateClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState2);
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameA), is(equalTo("editB")));
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameB), is(equalTo(clusterBapiKey2)));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("editB")));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(equalTo(clusterBapiKey2)));
 
         // Remove clusterB authorization setting
         final Settings newSettingsOmitClusterB = Settings.builder()
@@ -116,8 +116,8 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
             .build();
         final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettingsOmitClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState3);
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameA), is(equalTo("omitB")));
-        assertThat(remoteClusterAuthorizationResolver.getApiKey(clusterNameB), is(emptyString()));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("omitB")));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(emptyString()));
     }
 
     private static ClusterState createClusterState(final String clusterName, final DiscoveryNode masterNode, final Settings newSettings) {

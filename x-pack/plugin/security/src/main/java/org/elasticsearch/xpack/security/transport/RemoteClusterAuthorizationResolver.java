@@ -9,17 +9,13 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.TcpTransport;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
 
@@ -42,54 +38,28 @@ public class RemoteClusterAuthorizationResolver {
     public RemoteClusterAuthorizationResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             // Settings.getAsMap returns HashMap which is passed to setApiKeys.
-            this.updateAuthorization(REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings));
+            for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
+                this.updateAuthorization(entry.getKey(), entry.getValue());
+            }
             // ClusterSettings.addAffixMapUpdateConsumer registers setApiKeys to receive IdentityHashMap from Settings.
-            clusterSettings.addAffixMapUpdateConsumer(REMOTE_CLUSTER_AUTHORIZATION, this::updateAuthorization, (k, v) -> {});
+            clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_AUTHORIZATION, this::updateAuthorization, (k, v) -> {});
         }
     }
 
     public String resolveAuthorization(final String clusterAlias) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             return this.apiKeys.get(clusterAlias);
+        }
+        return null;
+    }
+
+    private void updateAuthorization(final String clusterAlias, final String authorization) {
+        if (Strings.isEmpty(authorization)) {
+            final boolean notFound = Strings.isEmpty(apiKeys.remove(clusterAlias));
+            LOGGER.debug("clusterAlias {} {}", clusterAlias, (notFound ? "not found" : "removed"));
         } else {
-            return null;
+            final boolean notFound = Strings.isEmpty(apiKeys.put(clusterAlias, authorization));
+            LOGGER.debug("clusterAlias {} {}", clusterAlias, (notFound ? "added" : "updated"));
         }
-    }
-
-    private void updateAuthorization(final Map<String, String> newApiKeys) {
-        final Collection<Map.Entry<String, String>> added = new ArrayList<>();
-        final Collection<Map.Entry<String, String>> removed = new ArrayList<>();
-        final Collection<Map.Entry<String, String>> changed = new ArrayList<>();
-        final Collection<Map.Entry<String, String>> unchanged = new ArrayList<>();
-        for (final Map.Entry<String, String> newEntry : newApiKeys.entrySet()) {
-            if (this.apiKeys.containsKey(newEntry.getKey()) == false) {
-                added.add(newEntry);
-            } else if (Objects.equals(newEntry.getValue(), this.apiKeys.get(newEntry.getKey()))) {
-                unchanged.add(newEntry);
-            } else {
-                changed.add(newEntry);
-            }
-        }
-        for (final Map.Entry<String, String> oldEntry : this.apiKeys.entrySet()) {
-            if (newApiKeys.containsKey(oldEntry.getKey()) == false) {
-                removed.add(oldEntry);
-            }
-        }
-        LOGGER.info(
-            "\nNew: {}\nOld: {}\nChanged: {}\nAdded: {}\nRemoved: {}\nUnchanged: {}",
-            toStringCsv(newApiKeys.entrySet()),
-            toStringCsv(this.apiKeys.entrySet()),
-            toStringCsv(changed),
-            toStringCsv(added),
-            toStringCsv(removed),
-            toStringCsv(unchanged)
-        );
-        added.forEach(e -> this.apiKeys.put(e.getKey(), e.getValue())); // process added
-        changed.forEach(e -> this.apiKeys.put(e.getKey(), e.getValue())); // process changed
-        removed.forEach(e -> this.apiKeys.remove(e.getKey())); // process removed
-    }
-
-    private static String toStringCsv(Collection<Map.Entry<String, String>> collection) {
-        return collection.stream().map(Object::toString).collect(Collectors.toCollection(TreeSet::new)).toString();
     }
 }

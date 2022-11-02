@@ -1,5 +1,0 @@
-pr: 90996
-summary: Fork `TransportClusterStateAction` to MANAGEMENT
-area: Distributed
-type: bug
-issues: []

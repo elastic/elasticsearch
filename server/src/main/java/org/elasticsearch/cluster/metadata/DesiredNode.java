@@ -180,8 +180,8 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             processors = Processors.readFrom(in);
             processorsRange = null;
         }
-        final var memory = new ByteSizeValue(in);
-        final var storage = new ByteSizeValue(in);
+        final var memory = ByteSizeValue.readFrom(in);
+        final var storage = ByteSizeValue.readFrom(in);
         final var version = Version.readVersion(in);
         return new DesiredNode(settings, processors, processorsRange, memory, storage, version);
     }

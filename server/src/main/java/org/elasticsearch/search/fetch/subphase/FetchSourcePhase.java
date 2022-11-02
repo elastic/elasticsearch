@@ -14,6 +14,7 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.Map;
 
@@ -26,6 +27,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
         }
         String index = fetchContext.getIndexName();
         assert fetchSourceContext.fetchSource();
+        SourceFilter sourceFilter = fetchSourceContext.filter();
 
         return new FetchSubPhaseProcessor() {
             private int fastPath;
@@ -38,7 +40,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) {
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
-                    if (containsFilters(fetchSourceContext)) {
+                    if (fetchSourceContext.hasFilter()) {
                         throw new IllegalArgumentException(
                             "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]"
                         );
@@ -53,18 +55,18 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 Source source = hitContext.source();
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
-                if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
+                if (nestedHit == false && fetchSourceContext.hasFilter() == false) {
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;
                 }
 
                 // Otherwise, filter the source and add it to the hit.
-                Map<String, Object> value = source.filter(fetchSourceContext);
+                source = source.filter(sourceFilter);
                 if (nestedHit) {
-                    value = getNestedSource(value, hitContext);
+                    source = extractNested(source, hitContext.hit().getNestedIdentity());
                 }
-                hitContext.hit().sourceRef(Source.fromMap(value, source.sourceContentType()).internalSourceRef());
+                hitContext.hit().sourceRef(source.internalSourceRef());
             }
 
             @Override
@@ -74,18 +76,16 @@ public final class FetchSourcePhase implements FetchSubPhase {
         };
     }
 
-    private static boolean containsFilters(FetchSourceContext context) {
-        return context.includes().length != 0 || context.excludes().length != 0;
-    }
-
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
-        for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
-            sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());
-            if (sourceAsMap == null) {
-                return null;
+    private static Source extractNested(Source in, SearchHit.NestedIdentity nestedIdentity) {
+        Map<String, Object> sourceMap = in.source();
+        while (nestedIdentity != null) {
+            sourceMap = (Map<String, Object>) sourceMap.get(nestedIdentity.getField().string());
+            if (sourceMap == null) {
+                return Source.empty(in.sourceContentType());
             }
+            nestedIdentity = nestedIdentity.getChild();
         }
-        return sourceAsMap;
+        return Source.fromMap(sourceMap, in.sourceContentType());
     }
 }

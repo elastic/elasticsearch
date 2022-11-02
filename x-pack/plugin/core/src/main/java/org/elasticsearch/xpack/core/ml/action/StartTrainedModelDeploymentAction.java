@@ -136,7 +136,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::new);
+                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             }
         }
 
@@ -401,7 +401,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::new);
+                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             } else {
                 this.cacheSize = null;
             }

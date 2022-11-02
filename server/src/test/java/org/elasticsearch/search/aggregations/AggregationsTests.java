@@ -57,7 +57,6 @@ import org.elasticsearch.search.aggregations.metrics.MaxTests;
 import org.elasticsearch.search.aggregations.metrics.MinTests;
 import org.elasticsearch.search.aggregations.metrics.SumTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
@@ -107,7 +106,6 @@ public class AggregationsTests extends ESTestCase {
         new SumTests(),
         new InternalValueCountTests(),
         new InternalSimpleValueTests(),
-        new InternalDerivativeTests(),
         new InternalBucketMetricValueTests(),
         new InternalStatsTests(),
         new InternalStatsBucketTests(),

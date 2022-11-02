@@ -288,20 +288,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithRemoteClusterAliasInContext(
-        Client client,
-        String clusterAlias,
-        ActionType<Response> action,
-        Request request,
-        ActionListener<Response> listener
-    ) {
-        assert client instanceof RemoteClusterAwareClient;
-        try (var ignored = client.threadPool().getThreadContext().newStoredContext()) {
-            client.threadPool().getThreadContext().putTransient(REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
-            client.execute(action, request, listener);
-        }
-    }
-
     /**
      * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
      *

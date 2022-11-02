@@ -264,9 +264,9 @@ public class IndexRequestTests extends ESTestCase {
         int actualBytes = source.getBytes(StandardCharsets.UTF_8).length;
         assertEquals(
             "index {[index][null], source[n/a, actual length: ["
-                + new ByteSizeValue(actualBytes).toString()
+                + ByteSizeValue.ofBytes(actualBytes).toString()
                 + "], max length: "
-                + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
+                + ByteSizeValue.ofBytes(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
                 + "]}",
             request.toString()
         );

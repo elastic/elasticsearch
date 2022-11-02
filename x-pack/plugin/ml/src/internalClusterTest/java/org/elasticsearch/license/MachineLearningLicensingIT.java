@@ -544,7 +544,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .execute()
             .actionGet();
 
-        String simulateSource = """
+        String simulateSource = formatted("""
             {
               "pipeline": %s,
               "docs": [
@@ -554,7 +554,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                   "col3": "none",
                   "col4": 10
                 }}]
-            }""".formatted(pipeline);
+            }""", pipeline);
         PlainActionFuture<SimulatePipelineResponse> simulatePipelineListener = PlainActionFuture.newFuture();
         client().execute(
             SimulatePipelineAction.INSTANCE,

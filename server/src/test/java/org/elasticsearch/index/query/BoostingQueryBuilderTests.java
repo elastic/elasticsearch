@@ -31,6 +31,17 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     @Override
+    protected BoostingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(queryBuilder, queryBuilder).negativeBoost(1f);
+        }
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(new MatchAllQueryBuilder(), queryBuilder).negativeBoost(1f);
+        }
+        return new BoostingQueryBuilder(queryBuilder, new MatchAllQueryBuilder()).negativeBoost(1f);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         Query positive = queryBuilder.positiveQuery().rewrite(context).toQuery(context);
         Query negative = queryBuilder.negativeQuery().rewrite(context).toQuery(context);

@@ -8,15 +8,22 @@
 
 package org.elasticsearch.aggregations;
 
-import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.aggregations.bucket.InternalAdjacencyMatrix;
+import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
+import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
+import org.elasticsearch.aggregations.pipeline.Derivative;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
+import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
+import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.ScriptContext;
 
 import java.util.List;
 
-public class AggregationsPlugin extends Plugin implements SearchPlugin {
-
+public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPlugin {
     @Override
     public List<AggregationSpec> getAggregations() {
         return List.of(
@@ -24,7 +31,34 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin {
                 AdjacencyMatrixAggregationBuilder.NAME,
                 AdjacencyMatrixAggregationBuilder::new,
                 AdjacencyMatrixAggregationBuilder::parse
-            ).addResultReader(InternalAdjacencyMatrix::new)
+            ).addResultReader(InternalAdjacencyMatrix::new),
+            new AggregationSpec(
+                AutoDateHistogramAggregationBuilder.NAME,
+                AutoDateHistogramAggregationBuilder::new,
+                AutoDateHistogramAggregationBuilder.PARSER
+            ).addResultReader(InternalAutoDateHistogram::new)
+                .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators)
         );
+    }
+
+    @Override
+    public List<PipelineAggregationSpec> getPipelineAggregations() {
+        return List.of(
+            new PipelineAggregationSpec(
+                DerivativePipelineAggregationBuilder.NAME,
+                DerivativePipelineAggregationBuilder::new,
+                DerivativePipelineAggregationBuilder::parse
+            ).addResultReader(Derivative::new),
+            new PipelineAggregationSpec(
+                MovFnPipelineAggregationBuilder.NAME,
+                MovFnPipelineAggregationBuilder::new,
+                MovFnPipelineAggregationBuilder.PARSER
+            )
+        );
+    }
+
+    @Override
+    public List<ScriptContext<?>> getContexts() {
+        return List.of(MovingFunctionScript.CONTEXT);
     }
 }

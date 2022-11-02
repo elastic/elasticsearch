@@ -52,9 +52,9 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
 
     XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("path", this.path);
-        builder.humanReadableField("total_bytes", "total", new ByteSizeValue(this.totalBytes));
-        builder.humanReadableField("used_bytes", "used", new ByteSizeValue(this.getUsedBytes()));
-        builder.humanReadableField("free_bytes", "free", new ByteSizeValue(this.freeBytes));
+        builder.humanReadableField("total_bytes", "total", ByteSizeValue.ofBytes(this.totalBytes));
+        builder.humanReadableField("used_bytes", "used", ByteSizeValue.ofBytes(this.getUsedBytes()));
+        builder.humanReadableField("free_bytes", "free", ByteSizeValue.ofBytes(this.freeBytes));
         builder.field("free_disk_percent", truncatePercent(this.getFreeDiskAsPercentage()));
         builder.field("used_disk_percent", truncatePercent(this.getUsedDiskAsPercentage()));
         return builder;
@@ -113,7 +113,7 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
             + "]["
             + path
             + "] free: "
-            + new ByteSizeValue(getFreeBytes())
+            + ByteSizeValue.ofBytes(getFreeBytes())
             + "["
             + Strings.format1Decimals(getFreeDiskAsPercentage(), "%")
             + "]";

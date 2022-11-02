@@ -84,7 +84,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      *
      * By default we assume the Ethernet MTU (1500 bytes) but users can override it with a system property.
      */
-    private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
+    private static final ByteSizeValue MTU = ByteSizeValue.ofBytes(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 

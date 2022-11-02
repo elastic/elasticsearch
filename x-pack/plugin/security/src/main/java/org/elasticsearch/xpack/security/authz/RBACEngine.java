@@ -13,8 +13,10 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -153,7 +155,9 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getUser().principal())));
+            listener.onResponse(
+                new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getEffectiveSubject().getUser().principal()))
+            );
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
@@ -196,7 +200,7 @@ public class RBACEngine implements AuthorizationEngine {
                     return false;
                 }
                 final String username = usernames[0];
-                final boolean sameUsername = authentication.getUser().principal().equals(username);
+                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);
                 if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
                     return checkChangePasswordAction(authentication);
                 }
@@ -209,7 +213,9 @@ public class RBACEngine implements AuthorizationEngine {
             } else if (request instanceof GetApiKeyRequest getApiKeyRequest) {
                 if (authentication.isApiKey()) {
                     // if the authentication is an API key then the request must also contain same API key id
-                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                    String authenticatedApiKeyId = (String) authentication.getAuthenticatingSubject()
+                        .getMetadata()
+                        .get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId) && false == getApiKeyRequest.withLimitedBy();
@@ -343,7 +349,7 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onResponse(
                 new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
             );
-        } else if (request instanceof IndicesRequest.Replaceable && ((IndicesRequest.Replaceable) request).allowsRemoteIndices()) {
+        } else if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
@@ -354,6 +360,10 @@ public class RBACEngine implements AuthorizationEngine {
                     // check action name
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
+                    assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
+                        || replaceable.indicesOptions().expandWildcardExpressions() == false
+                        || (request instanceof AliasesRequest aliasesRequest && aliasesRequest.expandAliasesWildcards() == false)
+                        : "expanded wildcards for local indices OR the request should not expand wildcards at all";
                     listener.onResponse(
                         buildIndicesAccessControl(
                             action,
@@ -380,6 +390,14 @@ public class RBACEngine implements AuthorizationEngine {
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
+                            assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
+                                || ((IndicesRequest) request).indicesOptions().expandWildcardExpressions() == false
+                                || (request instanceof AliasesRequest aliasesRequest && aliasesRequest.expandAliasesWildcards() == false)
+                                || (request instanceof IndicesAliasesRequest indicesAliasesRequest
+                                    && false == indicesAliasesRequest.getAliasActions()
+                                        .stream()
+                                        .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
+                                : "expanded wildcards for local indices OR the request should not expand wildcards at all";
                             listener.onResponse(
                                 buildIndicesAccessControl(
                                     action,
@@ -447,15 +465,20 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
+        assert Arrays.stream(indices).noneMatch(Regex::isSimpleMatchPattern)
+            || indicesRequest.indicesOptions().expandWildcardExpressions() == false
+            || (indicesRequest instanceof AliasesRequest aliasesRequest && aliasesRequest.expandAliasesWildcards() == false)
+            || (indicesRequest instanceof IndicesAliasesRequest indicesAliasesRequest
+                && false == indicesAliasesRequest.getAliasActions()
+                    .stream()
+                    .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
+            : "child request with action ["
+                + requestInfo.getAction()
+                + "] contains unexpanded wildcards "
+                + Arrays.stream(indices).filter(Regex::isSimpleMatchPattern).toList();
+
         // Check if the parent context has already successfully authorized access to the child's indices
-        for (String idx : indices) {
-            assert Regex.isSimpleMatchPattern(idx) == false
-                : "Wildcards should already be expanded but action [" + requestInfo.getAction() + "] has index [" + idx + "]";
-            if (indicesAccessControl.hasIndexPermissions(idx) == false) {
-                return false;
-            }
-        }
-        return true;
+        return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
     }
 
     private static IndexAuthorizationResult authorizeIndexActionName(
@@ -701,9 +724,11 @@ public class RBACEngine implements AuthorizationEngine {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
             final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
             if (group.getFieldPermissions().hasFieldLevelSecurity()) {
-                final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
-                assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
+                final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
+                    .getFieldPermissionsDefinitions();
+                assert fieldPermissionsDefinitions.size() == 1
                     : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+                final FieldPermissionsDefinition definition = fieldPermissionsDefinitions.get(0);
                 fieldSecurity = definition.getFieldGrantExcludeGroups();
             } else {
                 fieldSecurity = Collections.emptySet();
@@ -841,9 +866,9 @@ public class RBACEngine implements AuthorizationEngine {
         final boolean isRunAs = authentication.isRunAs();
         final String realmType;
         if (isRunAs) {
-            realmType = authentication.getLookedUpBy().getType();
+            realmType = authentication.getEffectiveSubject().getRealm().getType();
         } else {
-            realmType = authentication.getAuthenticatedBy().getType();
+            realmType = authentication.getAuthenticatingSubject().getRealm().getType();
         }
 
         assert realmType != null;

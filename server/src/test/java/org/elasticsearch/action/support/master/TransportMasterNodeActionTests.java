@@ -586,7 +586,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
-                setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+                setState(
+                    clusterService,
+                    ClusterState.builder(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes)).incrementVersion().build()
+                );
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")
                     : new NotMasterException("Fake error");

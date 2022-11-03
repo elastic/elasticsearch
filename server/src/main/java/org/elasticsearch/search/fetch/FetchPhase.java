@@ -310,7 +310,7 @@ public class FetchPhase {
             if (sourceRequired(context)) {
                 try {
                     profiler.startLoadingSource();
-                    source = Source.fromBytes(sourceLoader.source(leafStoredFieldLoader, subDocId));
+                    source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                     SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                     scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
                     scriptSourceLookup.setSourceProvider(new SourceLookup.BytesSourceProvider(source.internalSourceRef()));

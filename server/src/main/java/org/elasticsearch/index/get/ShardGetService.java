@@ -241,7 +241,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
-        BytesReference source;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
             ? new SourceLoader.Synthetic(mappingLookup.getMapping())
@@ -275,16 +274,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 }
             }
         }
-        source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+        Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
             .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
-        if (source != null) {
-            // apply request-level source filtering
-            if (fetchSourceContext.fetchSource() == false) {
-                source = null;
-            } else if (fetchSourceContext.hasFilter()) {
-                source = Source.fromBytes(source).filter(fetchSourceContext.filter()).internalSourceRef();
-            }
+        if (fetchSourceContext.hasFilter()) {
+            source = source.filter(fetchSourceContext.filter());
         }
 
         return new GetResult(
@@ -294,7 +288,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             get.docIdAndVersion().primaryTerm,
             get.version(),
             get.exists(),
-            source,
+            source.internalSourceRef(),
             documentFields,
             metadataFields
         );

@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -37,16 +38,18 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -88,16 +91,16 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                 .build()
         );
-        final long minShardSize = createReasonableSizedShards(indexName);
+        var smallestShard = createReasonableSizedShards(indexName);
 
         // reduce disk size of node 0 so that no shards fit below the high watermark, forcing all shards onto the other data node
         // (subtract the translog size since the disk threshold decider ignores this and may therefore move the shard back again)
-        getTestFileStore(dataNodeName).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES - 1L);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, empty());
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-        getTestFileStore(dataNodeName).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES + 1L);
+        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(smallestShard.getKey()));
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
@@ -131,7 +134,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                 .build()
         );
-        final long minShardSize = createReasonableSizedShards(indexName);
+        var smallestShard = createReasonableSizedShards(indexName);
 
         final CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
@@ -145,7 +148,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(indexName).get());
 
         // reduce disk size of node 0 so that no shards fit below the low watermark, forcing shards to be assigned to the other data node
-        getTestFileStore(dataNodeName).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES - 1L);
         refreshDiskUsage();
 
         assertAcked(
@@ -169,7 +172,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertThat(restoreInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(restoreInfo.failedShards(), is(0));
 
-        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id, indexName), empty()));
+        assertBusy(() -> assertThat(getShardIds(dataNode0Id, indexName), empty()));
 
         assertAcked(
             client().admin()
@@ -182,12 +185,12 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         );
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-        getTestFileStore(dataNodeName).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES + 1L);
+        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(smallestShard.getKey()));
     }
 
-    private Set<ShardRouting> getShardRoutings(final String nodeId, final String indexName) {
-        final Set<ShardRouting> shardRoutings = new HashSet<>();
+    private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
+        final Set<ShardId> shardIds = new HashSet<>();
         final IndexRoutingTable indexRoutingTable = client().admin()
             .cluster()
             .prepareState()
@@ -203,17 +206,17 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 ShardRouting shard = shardRoutingTable.shard(copy);
                 assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
                 if (shard.currentNodeId().equals(nodeId)) {
-                    shardRoutings.add(shard);
+                    shardIds.add(removeIndexUUID(shard.shardId()));
                 }
             }
         }
-        return shardRoutings;
+        return shardIds;
     }
 
     /**
-     * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the size of the smallest shard
+     * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the one with the smallest size
      */
-    private long createReasonableSizedShards(final String indexName) throws InterruptedException {
+    private Map.Entry<ShardId, Long> createReasonableSizedShards(final String indexName) throws InterruptedException {
         while (true) {
             final IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[scaledRandomIntBetween(100, 10000)];
             for (int i = 0; i < indexRequestBuilders.length; i++) {
@@ -223,7 +226,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             forceMerge();
             refresh();
 
-            final ShardStats[] shardStatses = client().admin()
+            final ShardStats[] shardStates = client().admin()
                 .indices()
                 .prepareStats(indexName)
                 .clear()
@@ -231,16 +234,18 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .setTranslog(true)
                 .get()
                 .getShards();
-            final long[] shardSizes = new long[shardStatses.length];
-            for (ShardStats shardStats : shardStatses) {
-                shardSizes[shardStats.getShardRouting().id()] = shardStats.getStats().getStore().sizeInBytes();
-            }
 
-            final long minShardSize = Arrays.stream(shardSizes).min().orElseThrow(() -> new AssertionError("no shards"));
-            if (minShardSize > WATERMARK_BYTES) {
-                return minShardSize;
+            var min = Arrays.stream(shardStates).min(Comparator.comparing(it -> it.getStats().getStore().sizeInBytes())).orElseThrow(() -> new AssertionError("no shards"));
+            var entry = Map.entry(removeIndexUUID(min.getShardRouting().shardId()), min.getStats().getStore().sizeInBytes());
+
+            if (entry.getValue() > WATERMARK_BYTES) {
+                return entry;
             }
         }
+    }
+
+    private static ShardId removeIndexUUID(ShardId shardId) {
+        return ShardId.fromString(shardId.toString());
     }
 
     private void refreshDiskUsage() {
@@ -268,7 +273,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         );
     }
 
-    private void assertBusyWithDiskUsageRefresh(String nodeName, String indexName, Matcher<? super Set<ShardRouting>> matcher)
+    private void assertBusyWithDiskUsageRefresh(String nodeName, String indexName, Matcher<? super Set<ShardId>> matcher)
         throws Exception {
         assertBusy(() -> {
             // refresh the master's ClusterInfoService before checking the assigned shards because DiskThresholdMonitor might still
@@ -276,7 +281,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             // and its internal checkInProgress flag)
             refreshDiskUsage();
 
-            final Set<ShardRouting> shardRoutings = getShardRoutings(nodeName, indexName);
+            final Set<ShardId> shardRoutings = getShardIds(nodeName, indexName);
             assertThat("Mismatching shard routings: " + shardRoutings, shardRoutings, matcher);
         }, 30L, TimeUnit.SECONDS);
     }

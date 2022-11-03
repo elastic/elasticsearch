@@ -72,7 +72,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             }
         }
         SearchHit hit = new SearchHit(internalId, uid, nestedIdentity);
-        hit.setDocumentFields(documentFields, metaFields);
+        hit.addDocumentFields(documentFields, metaFields);
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
@@ -360,7 +360,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         fields.put("foo", new DocumentField("foo", Collections.emptyList()));
         fields.put("bar", new DocumentField("bar", Collections.emptyList()));
         SearchHit hit = new SearchHit(0, "_id");
-        hit.setDocumentFields(fields, Map.of());
+        hit.addDocumentFields(fields, Map.of());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             // checks that the fields section is completely omitted in the rendering.
@@ -379,7 +379,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         fields.put("foo", new DocumentField("foo", Collections.emptyList()));
         fields.put("bar", new DocumentField("bar", Collections.singletonList("value")));
         hit = new SearchHit(0, "_id");
-        hit.setDocumentFields(fields, Collections.emptyMap());
+        hit.addDocumentFields(fields, Collections.emptyMap());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             final SearchHit parsed;
@@ -396,7 +396,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         Map<String, DocumentField> metadata = new HashMap<>();
         metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
         hit = new SearchHit(0, "_id");
-        hit.setDocumentFields(fields, Collections.emptyMap());
+        hit.addDocumentFields(fields, Collections.emptyMap());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             final SearchHit parsed;

@@ -155,7 +155,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             Map<String, DocumentField> searchHitFields = new HashMap<>();
             scoreDocs[i] = docBuilder.apply(docId, score);
             hits[i] = new SearchHit(docId, Integer.toString(i));
-            hits[i].setDocumentFields(searchHitFields, Collections.emptyMap());
+            hits[i].addDocumentFields(searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);

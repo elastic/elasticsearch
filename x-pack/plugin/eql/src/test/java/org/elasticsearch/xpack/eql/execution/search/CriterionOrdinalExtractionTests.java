@@ -152,7 +152,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         fields.put(tsField, new DocumentField(tsField, singletonList(timeValue)));
         fields.put(tbField, new DocumentField(tsField, singletonList(tiebreakerValue)));
         SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10));
-        searchHit.setDocumentFields(fields, Map.of());
+        searchHit.addDocumentFields(fields, Map.of());
         searchHit.sortValues(searchSortValues.get());
 
         return searchHit;

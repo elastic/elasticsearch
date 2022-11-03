@@ -8,14 +8,14 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.StoredFieldsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 
 public class StoredFieldsSpecTests extends ESTestCase {
 
-    public void testDefaults() throws IOException {
+    public void testDefaults() {
         SearchSourceBuilder search = new SearchSourceBuilder();
         // defaults - return source and metadata fields
         FetchContext fc = new FetchContext(searchContext(search));
@@ -38,14 +38,14 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertNotNull(storedFieldsProcessor);
         StoredFieldsSpec storedFieldsSpec = storedFieldsProcessor.storedFieldsSpec();
         assertFalse(storedFieldsSpec.requiresSource());
-        assertEquals(storedFieldsSpec.requiredStoredFields(), Set.of("_id"));
+        assertThat(storedFieldsSpec.requiredStoredFields(), hasSize(0));
 
         StoredFieldsSpec merged = sourceSpec.merge(storedFieldsSpec);
         assertTrue(merged.requiresSource());
-        assertEquals(merged.requiredStoredFields(), Set.of("_id"));
+        assertThat(merged.requiredStoredFields(), hasSize(0));
     }
 
-    public void testStoredFieldsDisabled() throws IOException {
+    public void testStoredFieldsDisabled() {
         SearchSourceBuilder search = new SearchSourceBuilder();
         search.storedField("_none_");
         FetchContext fc = new FetchContext(searchContext(search));
@@ -54,10 +54,29 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertNull(new FetchSourcePhase().getProcessor(fc));
     }
 
+    public void testScriptFieldsEnableMetadata() {
+        SearchSourceBuilder search = new SearchSourceBuilder();
+        search.scriptField("field", new Script("script"));
+        FetchContext fc = new FetchContext(searchContext(search));
+
+        FetchSubPhaseProcessor subPhaseProcessor = new ScriptFieldsPhase().getProcessor(fc);
+        assertNotNull(subPhaseProcessor);
+        StoredFieldsSpec spec = subPhaseProcessor.storedFieldsSpec();
+        assertFalse(spec.requiresSource());
+        assertTrue(spec.requiresMetadata());
+    }
+
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {
         SearchContext sc = mock(SearchContext.class);
         when(sc.fetchSourceContext()).thenReturn(sourceBuilder.fetchSource());
         when(sc.storedFieldsContext()).thenReturn(sourceBuilder.storedFields());
+        ScriptFieldsContext scriptContext = new ScriptFieldsContext();
+        if (sourceBuilder.scriptFields() != null) {
+            for (SearchSourceBuilder.ScriptField scriptField : sourceBuilder.scriptFields()) {
+                scriptContext.add(new ScriptFieldsContext.ScriptField(scriptField.fieldName(), null, true));
+            }
+        }
+        when(sc.scriptFields()).thenReturn(scriptContext);
         return sc;
     }
 

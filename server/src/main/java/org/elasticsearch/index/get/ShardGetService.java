@@ -269,7 +269,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 }
                 MappedFieldType ft = mapperService.fieldType(entry.getKey());
                 if (ft == null) {
-                    continue;
+                    continue;   // user asked for a non-existent field, ignore it
                 }
                 List<Object> values = entry.getValue().stream().map(ft::valueForDisplay).toList();
                 if (mapperService.isMetadataField(entry.getKey())) {

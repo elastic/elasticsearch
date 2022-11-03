@@ -189,7 +189,7 @@ public class SequenceSpecTests extends ESTestCase {
                 documentFields.put(KEY_FIELD_NAME, new DocumentField(KEY_FIELD_NAME, Collections.singletonList(value.v1())));
                 // save the timestamp both as docId (int) and as id (string)
                 SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString());
-                searchHit.setDocumentFields(documentFields, Map.of());
+                searchHit.addDocumentFields(documentFields, Map.of());
                 hits.add(searchHit);
             }
         }

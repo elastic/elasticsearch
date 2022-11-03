@@ -22,7 +22,6 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -54,15 +53,22 @@ public class StoredFieldsPhase implements FetchSubPhase {
 
     }
 
+    private static final List<StoredField> METADATA_FIELDS = List.of(
+        new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
+        new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),
+        // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
+        new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true)
+    );
+
     @Override
-    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
         if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
             return null;
         }
 
         // build the StoredFieldsSpec and a list of StoredField records to process
-        List<StoredField> storedFields = new ArrayList<>();
+        List<StoredField> storedFields = new ArrayList<>(METADATA_FIELDS);
         Set<String> fieldsToLoad = new HashSet<>();
         if (storedFieldsContext.fieldNames() != null) {
             SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
@@ -80,12 +86,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                 }
             }
         }
-        fieldsToLoad.add("_id");    // if stored fields are requested then we always load metadata as well
-        storedFields.add(new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true));
-        storedFields.add(new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true));
-        // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
-        storedFields.add(new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true));
-        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(false, fieldsToLoad);
+        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(false, true, fieldsToLoad);
 
         return new FetchSubPhaseProcessor() {
             @Override
@@ -108,7 +109,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                         }
                     }
                 }
-                hitContext.hit().setDocumentFields(docFields, metaFields);
+                hitContext.hit().addDocumentFields(docFields, metaFields);
             }
 
             @Override

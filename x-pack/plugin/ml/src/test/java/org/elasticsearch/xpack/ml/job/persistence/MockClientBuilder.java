@@ -190,7 +190,7 @@ public class MockClientBuilder {
         SearchHit hits[] = new SearchHit[fields.size()];
         for (int i = 0; i < hits.length; i++) {
             SearchHit hit = new SearchHit(10, null);
-            hit.setDocumentFields(Map.of(), fields.get(i));
+            hit.addDocumentFields(Map.of(), fields.get(i));
             hits[i] = hit;
         }
 

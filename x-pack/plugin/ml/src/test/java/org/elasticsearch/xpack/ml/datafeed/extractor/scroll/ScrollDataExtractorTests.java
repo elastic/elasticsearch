@@ -541,7 +541,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList(field1Values.get(i))));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList(field2Values.get(i))));
             SearchHit hit = new SearchHit(randomInt(), null);
-            hit.setDocumentFields(fields, Map.of());
+            hit.addDocumentFields(fields, Map.of());
             hits.add(hit);
         }
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);

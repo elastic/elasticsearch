@@ -430,7 +430,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.documentFields.put(fieldName, field);
     }
 
-    public void setDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
+    public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
         this.documentFields.putAll(docFields);
         this.metaFields.putAll(metaFields);
     }
@@ -841,7 +841,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         Map<String, DocumentField> documentFields = get(DOCUMENT_FIELDS, values, Collections.emptyMap());
 
         SearchHit searchHit = new SearchHit(-1, id, nestedIdentity);
-        searchHit.setDocumentFields(documentFields, metaFields);
+        searchHit.addDocumentFields(documentFields, metaFields);
         String index = get(Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {

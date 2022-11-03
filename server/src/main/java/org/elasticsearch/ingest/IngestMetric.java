@@ -102,6 +102,6 @@ class IngestMetric {
         long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(ingestTimeInNanos.count());
         // It is possible for the current count to briefly drop below 0, causing serialization problems. See #90319
         long currentCount = Math.max(0, ingestCurrent.get());
-        return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis, currentCount, ingestFailed.count());
+        return IngestStats.Stats.of(ingestCount.count(), ingestTimeInMillis, currentCount, ingestFailed.count());
     }
 }

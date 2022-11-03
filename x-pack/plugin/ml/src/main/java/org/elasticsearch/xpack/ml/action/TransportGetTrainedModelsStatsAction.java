@@ -283,7 +283,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         });
 
         return new IngestStats(
-            new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count()),
+            IngestStats.Stats.of(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count()),
             filteredPipelineStats,
             filteredProcessorStats
         );
@@ -354,7 +354,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         }
 
         IngestStats.Stats build() {
-            return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count());
+            return IngestStats.Stats.of(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count());
         }
     }
 

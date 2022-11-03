@@ -282,7 +282,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             trainedModel1.getModelId(),
                             new TrainedModelSizeStats(trainedModel1.getModelSize(), 0L),
                             new IngestStats(
-                                new IngestStats.Stats(0, 0, 0, 0),
+                                IngestStats.Stats.of(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
                                     "pipeline_1",
@@ -290,15 +290,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         new IngestStats.ProcessorStat(
                                             InferenceProcessor.TYPE,
                                             InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(10, 1, 1000, 100)
+                                            IngestStats.Stats.of(10, 1, 1000, 100)
                                         ),
                                         new IngestStats.ProcessorStat(
                                             InferenceProcessor.TYPE,
                                             InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(20, 2, 2000, 200)
+                                            IngestStats.Stats.of(20, 2, 2000, 200)
                                         ),
                                         // Adding a non inference processor that should be ignored
-                                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(100, 100, 100, 100))
+                                        new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(100, 100, 100, 100))
                                     )
                                 )
                             ),
@@ -310,7 +310,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             trainedModel2.getModelId(),
                             new TrainedModelSizeStats(trainedModel2.getModelSize(), 0L),
                             new IngestStats(
-                                new IngestStats.Stats(0, 0, 0, 0),
+                                IngestStats.Stats.of(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
                                     "pipeline_1",
@@ -318,7 +318,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         new IngestStats.ProcessorStat(
                                             InferenceProcessor.TYPE,
                                             InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(30, 3, 3000, 300)
+                                            IngestStats.Stats.of(30, 3, 3000, 300)
                                         )
                                     )
                                 )
@@ -331,7 +331,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             trainedModel3.getModelId(),
                             new TrainedModelSizeStats(trainedModel3.getModelSize(), 0L),
                             new IngestStats(
-                                new IngestStats.Stats(0, 0, 0, 0),
+                                IngestStats.Stats.of(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
                                     "pipeline_2",
@@ -339,7 +339,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         new IngestStats.ProcessorStat(
                                             InferenceProcessor.TYPE,
                                             InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(40, 4, 4000, 400)
+                                            IngestStats.Stats.of(40, 4, 4000, 400)
                                         )
                                     )
                                 )
@@ -354,7 +354,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             trainedModel4.getModelId(),
                             new TrainedModelSizeStats(trainedModel4.getModelSize(), 0L),
                             new IngestStats(
-                                new IngestStats.Stats(0, 0, 0, 0),
+                                IngestStats.Stats.of(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
                                     "pipeline_3",
@@ -362,7 +362,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         new IngestStats.ProcessorStat(
                                             InferenceProcessor.TYPE,
                                             InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(50, 5, 5000, 500)
+                                            IngestStats.Stats.of(50, 5, 5000, 500)
                                         )
                                     )
                                 )

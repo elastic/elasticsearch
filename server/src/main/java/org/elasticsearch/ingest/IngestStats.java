@@ -56,20 +56,20 @@ public class IngestStats implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public IngestStats(StreamInput in) throws IOException {
-        this.totalStats = new Stats(in);
+        this.totalStats = Stats.readFrom(in);
         int size = in.readVInt();
         this.pipelineStats = new ArrayList<>(size);
         this.processorStats = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String pipelineId = in.readString();
-            Stats pipelineStat = new Stats(in);
+            Stats pipelineStat = Stats.readFrom(in);
             this.pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
             int processorsSize = in.readVInt();
             List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
             for (int j = 0; j < processorsSize; j++) {
                 String processorName = in.readString();
                 String processorType = in.readString();
-                Stats processorStat = new Stats(in);
+                Stats processorStat = Stats.readFrom(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             this.processorStats.put(pipelineId, processorStatsPerPipeline);
@@ -157,26 +157,29 @@ public class IngestStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
 
+        private static final Stats EMPTY = new Stats(0, 0, 0, 0);
+
         private final long ingestCount;
         private final long ingestTimeInMillis;
         private final long ingestCurrent;
         private final long ingestFailedCount;
 
-        public Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
+        public static Stats readFrom(StreamInput in) throws IOException {
+            return of(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+        }
+
+        public static Stats of(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
+            if (ingestCount == 0 && ingestTimeInMillis == 0 && ingestCurrent == 0 && ingestFailedCount == 0) {
+                return EMPTY;
+            }
+            return new Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
+        }
+
+        private Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
             this.ingestCount = ingestCount;
             this.ingestTimeInMillis = ingestTimeInMillis;
             this.ingestCurrent = ingestCurrent;
             this.ingestFailedCount = ingestFailedCount;
-        }
-
-        /**
-         * Read from a stream.
-         */
-        public Stats(StreamInput in) throws IOException {
-            ingestCount = in.readVLong();
-            ingestTimeInMillis = in.readVLong();
-            ingestCurrent = in.readVLong();
-            ingestFailedCount = in.readVLong();
         }
 
         @Override

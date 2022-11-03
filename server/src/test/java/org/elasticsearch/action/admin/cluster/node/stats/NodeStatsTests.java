@@ -945,7 +945,7 @@ public class NodeStatsTests extends ESTestCase {
             int numPipelines = randomIntBetween(0, 10);
             int numProcessors = randomIntBetween(0, 10);
             long maxStatValue = Long.MAX_VALUE / Math.max(1, numPipelines) / Math.max(1, numProcessors);
-            IngestStats.Stats totalStats = new IngestStats.Stats(
+            IngestStats.Stats totalStats = IngestStats.Stats.of(
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
@@ -958,7 +958,7 @@ public class NodeStatsTests extends ESTestCase {
                 ingestPipelineStats.add(
                     new IngestStats.PipelineStat(
                         pipelineId,
-                        new IngestStats.Stats(
+                        IngestStats.Stats.of(
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
@@ -969,7 +969,7 @@ public class NodeStatsTests extends ESTestCase {
 
                 List<IngestStats.ProcessorStat> processorPerPipeline = new ArrayList<>(numProcessors);
                 for (int j = 0; j < numProcessors; j++) {
-                    IngestStats.Stats processorStats = new IngestStats.Stats(
+                    IngestStats.Stats processorStats = IngestStats.Stats.of(
                         randomLongBetween(0, maxStatValue),
                         randomLongBetween(0, maxStatValue),
                         randomLongBetween(0, maxStatValue),

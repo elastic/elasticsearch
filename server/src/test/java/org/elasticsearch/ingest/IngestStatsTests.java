@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 public class IngestStatsTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        IngestStats.Stats totalStats = new IngestStats.Stats(50, 100, 200, 300);
+        IngestStats.Stats totalStats = IngestStats.Stats.of(50, 100, 200, 300);
         List<IngestStats.PipelineStat> pipelineStats = createPipelineStats();
         Map<String, List<IngestStats.ProcessorStat>> processorStats = createProcessorStats(pipelineStats);
         IngestStats ingestStats = new IngestStats(totalStats, pipelineStats, processorStats);
@@ -32,20 +32,20 @@ public class IngestStatsTests extends ESTestCase {
     }
 
     private List<IngestStats.PipelineStat> createPipelineStats() {
-        IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(3, 3, 3, 3));
-        IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(47, 97, 197, 297));
-        IngestStats.PipelineStat pipeline3Stats = new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(0, 0, 0, 0));
+        IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat("pipeline1", IngestStats.Stats.of(3, 3, 3, 3));
+        IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat("pipeline2", IngestStats.Stats.of(47, 97, 197, 297));
+        IngestStats.PipelineStat pipeline3Stats = new IngestStats.PipelineStat("pipeline3", IngestStats.Stats.of(0, 0, 0, 0));
         return Stream.of(pipeline1Stats, pipeline2Stats, pipeline3Stats).toList();
     }
 
     private Map<String, List<IngestStats.ProcessorStat>> createProcessorStats(List<IngestStats.PipelineStat> pipelineStats) {
         assert (pipelineStats.size() >= 2);
-        IngestStats.ProcessorStat processor1Stat = new IngestStats.ProcessorStat("processor1", "type", new IngestStats.Stats(1, 1, 1, 1));
-        IngestStats.ProcessorStat processor2Stat = new IngestStats.ProcessorStat("processor2", "type", new IngestStats.Stats(2, 2, 2, 2));
+        IngestStats.ProcessorStat processor1Stat = new IngestStats.ProcessorStat("processor1", "type", IngestStats.Stats.of(1, 1, 1, 1));
+        IngestStats.ProcessorStat processor2Stat = new IngestStats.ProcessorStat("processor2", "type", IngestStats.Stats.of(2, 2, 2, 2));
         IngestStats.ProcessorStat processor3Stat = new IngestStats.ProcessorStat(
             "processor3",
             "type",
-            new IngestStats.Stats(47, 97, 197, 297)
+            IngestStats.Stats.of(47, 97, 197, 297)
         );
         // pipeline1 -> processor1,processor2; pipeline2 -> processor3
         return MapBuilder.<String, List<IngestStats.ProcessorStat>>newMapBuilder()

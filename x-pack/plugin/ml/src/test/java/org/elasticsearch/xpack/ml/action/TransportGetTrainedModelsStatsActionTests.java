@@ -131,47 +131,43 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
     public void testInferenceIngestStatsByModelId() {
         List<NodeStats> nodeStatsList = Arrays.asList(
             buildNodeStats(
-                new IngestStats.Stats(2, 2, 3, 4),
+                IngestStats.Stats.of(2, 2, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(0, 0, 3, 1)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1))
+                    new IngestStats.PipelineStat("pipeline1", IngestStats.Stats.of(0, 0, 3, 1)),
+                    new IngestStats.PipelineStat("pipeline2", IngestStats.Stats.of(1, 1, 0, 1)),
+                    new IngestStats.PipelineStat("pipeline3", IngestStats.Stats.of(2, 1, 1, 1))
                 ),
                 Arrays.asList(
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat(
-                            InferenceProcessor.TYPE,
-                            InferenceProcessor.TYPE,
-                            new IngestStats.Stats(100, 10, 0, 1)
-                        )
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, IngestStats.Stats.of(10, 1, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(10, 1, 0, 0)),
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, IngestStats.Stats.of(100, 10, 0, 1))
                     ),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, IngestStats.Stats.of(5, 1, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(10, 1, 0, 0))
                     ),
-                    Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)))
+                    Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(10, 1, 0, 0)))
                 )
             ),
             buildNodeStats(
-                new IngestStats.Stats(15, 5, 3, 4),
+                IngestStats.Stats.of(15, 5, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 3, 1)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1))
+                    new IngestStats.PipelineStat("pipeline1", IngestStats.Stats.of(10, 1, 3, 1)),
+                    new IngestStats.PipelineStat("pipeline2", IngestStats.Stats.of(1, 1, 0, 1)),
+                    new IngestStats.PipelineStat("pipeline3", IngestStats.Stats.of(2, 1, 1, 1))
                 ),
                 Arrays.asList(
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, IngestStats.Stats.of(0, 0, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(0, 0, 0, 0)),
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, IngestStats.Stats.of(10, 1, 0, 0))
                     ),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, IngestStats.Stats.of(5, 1, 0, 0)),
+                        new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(10, 1, 0, 0))
                     ),
-                    Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)))
+                    Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(10, 1, 0, 0)))
                 )
             )
         );
@@ -193,37 +189,37 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         assertThat(ingestStatsMap.keySet(), equalTo(new HashSet<>(Arrays.asList("trained_model_1", "trained_model_2"))));
 
         IngestStats expectedStatsModel1 = new IngestStats(
-            new IngestStats.Stats(10, 1, 6, 2),
-            Collections.singletonList(new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2))),
+            IngestStats.Stats.of(10, 1, 6, 2),
+            Collections.singletonList(new IngestStats.PipelineStat("pipeline1", IngestStats.Stats.of(10, 1, 6, 2))),
             Collections.singletonMap(
                 "pipeline1",
                 Arrays.asList(
-                    new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(120, 12, 0, 1)),
-                    new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                    new IngestStats.ProcessorStat("inference", "inference", IngestStats.Stats.of(120, 12, 0, 1)),
+                    new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(10, 1, 0, 0))
                 )
             )
         );
 
         IngestStats expectedStatsModel2 = new IngestStats(
-            new IngestStats.Stats(12, 3, 6, 4),
+            IngestStats.Stats.of(12, 3, 6, 4),
             Arrays.asList(
-                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2)),
-                new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(2, 2, 0, 2))
+                new IngestStats.PipelineStat("pipeline1", IngestStats.Stats.of(10, 1, 6, 2)),
+                new IngestStats.PipelineStat("pipeline2", IngestStats.Stats.of(2, 2, 0, 2))
             ),
             new HashMap<>() {
                 {
                     put(
                         "pipeline2",
                         Arrays.asList(
-                            new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(10, 2, 0, 0)),
-                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(20, 2, 0, 0))
+                            new IngestStats.ProcessorStat("inference", "inference", IngestStats.Stats.of(10, 2, 0, 0)),
+                            new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(20, 2, 0, 0))
                         )
                     );
                     put(
                         "pipeline1",
                         Arrays.asList(
-                            new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(120, 12, 0, 1)),
-                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                            new IngestStats.ProcessorStat("inference", "inference", IngestStats.Stats.of(120, 12, 0, 1)),
+                            new IngestStats.ProcessorStat("grok", "grok", IngestStats.Stats.of(10, 1, 0, 0))
                         )
                     );
                 }

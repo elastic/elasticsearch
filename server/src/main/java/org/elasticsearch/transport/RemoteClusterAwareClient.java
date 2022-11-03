@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -87,5 +88,33 @@ final class RemoteClusterAwareClient extends AbstractClient {
     @Override
     public Client getRemoteClusterClient(String remoteClusterAlias) {
         return remoteClusterService.getRemoteClusterClient(threadPool(), remoteClusterAlias);
+    }
+
+    public static class UntrustedRemoteClusterSecurityEnabled extends FilterClient {
+
+        private final String clusterAlias;
+
+        public UntrustedRemoteClusterSecurityEnabled(
+            final Settings settings,
+            final ThreadPool threadPool,
+            final TransportService service,
+            final String clusterAlias,
+            final boolean ensureConnected
+        ) {
+            super(new RemoteClusterAwareClient(settings, threadPool, service, clusterAlias, ensureConnected));
+            this.clusterAlias = clusterAlias;
+        }
+
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            try (var ignored = threadPool().getThreadContext().newStoredContext()) {
+                threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
+                in.execute(action, request, listener);
+            }
+        }
     }
 }

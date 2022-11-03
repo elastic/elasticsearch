@@ -448,7 +448,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         );
     }
 
-    public Client getUntrustedRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
+    public Client getContextSettingRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -457,7 +457,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new UntrustedRemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, ensureConnected);
+        return new RemoteClusterAwareClient.UntrustedRemoteClusterSecurityEnabled(
+            settings,
+            threadPool,
+            transportService,
+            clusterAlias,
+            ensureConnected
+        );
     }
 
     Collection<RemoteClusterConnection> getConnections() {

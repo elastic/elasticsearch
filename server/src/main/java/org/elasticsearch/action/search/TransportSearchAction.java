@@ -548,7 +548,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            Client remoteClusterClient = remoteClusterService.getUntrustedRemoteClusterClient(
+            Client remoteClusterClient = remoteClusterService.getContextSettingRemoteClusterClient(
                 threadPool,
                 clusterAlias,
                 false == skipUnavailable
@@ -625,7 +625,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     totalClusters,
                     listener
                 );
-                Client remoteClusterClient = remoteClusterService.getUntrustedRemoteClusterClient(
+                Client remoteClusterClient = remoteClusterService.getContextSettingRemoteClusterClient(
                     threadPool,
                     clusterAlias,
                     false == skipUnavailable
@@ -697,7 +697,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-            Client clusterClient = remoteClusterService.getUntrustedRemoteClusterClient(threadPool, clusterAlias, false == skipUnavailable);
+            Client clusterClient = remoteClusterService.getContextSettingRemoteClusterClient(threadPool, clusterAlias, false == skipUnavailable);
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(indicesOptions)
                 .local(true)

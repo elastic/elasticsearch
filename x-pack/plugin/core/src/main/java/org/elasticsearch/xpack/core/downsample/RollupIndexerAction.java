@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -266,8 +267,8 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
                 type,
                 action,
                 parentTaskId,
-                request.rollupRequest.getRollupIndex(),
-                request.rollupRequest.getRollupConfig(),
+                request.rollupRequest.getSourceIndex(),
+                request.rollupRequest.getDownsampleConfig(),
                 headers,
                 shardId()
             );

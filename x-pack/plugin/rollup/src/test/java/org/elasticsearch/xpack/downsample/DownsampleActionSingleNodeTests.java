@@ -78,10 +78,9 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
-import org.elasticsearch.xpack.rollup.v2.RollupActionSingleNodeTests;
-import org.elasticsearch.xpack.rollup.v2.RollupActionSingleNodeTests.SourceSupplier;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -579,8 +578,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testCancelRollupIndexer() throws IOException {
         // create rollup config and index documents into source index
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
-        RollupActionSingleNodeTests.SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
             .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
@@ -605,7 +604,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupIndex,
             config,
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
-            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 }
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {}
         );
         status.setCancelled();
 
@@ -615,8 +615,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testRollupBulkFailed() throws IOException {
         // create rollup config and index documents into source index
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
-        RollupActionSingleNodeTests.SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
             .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
@@ -638,7 +638,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));
     }
-
 
     private DateHistogramInterval randomInterval() {
         return ConfigTestHelpers.randomInterval();

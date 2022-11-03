@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.rollup.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class RollupShardStatusSerializingTests extends AbstractSerializingTestCase<RollupShardStatus> {
+public class RollupShardStatusSerializingTests extends AbstractXContentSerializingTestCase<RollupShardStatus> {
     @Override
     protected RollupShardStatus doParseInstance(XContentParser parser) throws IOException {
         return RollupShardStatus.fromXContent(parser);

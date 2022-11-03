@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.core.rollup.action;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.util.Map;
 
 public class RollupShardTask extends CancellableTask {
     private String rollupIndex;
-    private RollupActionConfig config;
+    private DownsampleConfig config;
     private volatile RollupShardStatus status;
 
     public RollupShardTask(
@@ -26,7 +26,7 @@ public class RollupShardTask extends CancellableTask {
         String action,
         TaskId parentTask,
         String rollupIndex,
-        RollupActionConfig config,
+        DownsampleConfig config,
         Map<String, String> headers,
         ShardId shardId
     ) {
@@ -40,7 +40,7 @@ public class RollupShardTask extends CancellableTask {
         return rollupIndex;
     }
 
-    public RollupActionConfig config() {
+    public DownsampleConfig config() {
         return config;
     }
 

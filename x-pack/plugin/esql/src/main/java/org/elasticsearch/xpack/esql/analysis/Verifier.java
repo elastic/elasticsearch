@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.analyzer;
+package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 public class Verifier {
     Collection<Failure> verify(LogicalPlan plan) {
@@ -27,6 +29,9 @@ public class Verifier {
             p.forEachExpression(e -> {
                 if (e instanceof Unresolvable u) {
                     failures.add(Failure.fail(e, u.unresolvedMessage()));
+                }
+                if (e.typeResolved().unresolved()) {
+                    failures.add(fail(e, e.typeResolved().message()));
                 }
             });
         });

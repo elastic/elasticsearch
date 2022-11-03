@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 
@@ -26,7 +27,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
 
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
-            new FunctionDefinition[] { def(Avg.class, Avg::new, "avg"), def(Count.class, Count::new, "count") } };
+            new FunctionDefinition[] { def(Avg.class, Avg::new, "avg"), def(Count.class, Count::new, "count") },
+            new FunctionDefinition[] { def(Round.class, Round::new, "round") } };
     }
 
     @Override

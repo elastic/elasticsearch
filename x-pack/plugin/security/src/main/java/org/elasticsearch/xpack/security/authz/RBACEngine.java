@@ -155,7 +155,9 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getUser().principal())));
+            listener.onResponse(
+                new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getEffectiveSubject().getUser().principal()))
+            );
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
@@ -198,7 +200,7 @@ public class RBACEngine implements AuthorizationEngine {
                     return false;
                 }
                 final String username = usernames[0];
-                final boolean sameUsername = authentication.getUser().principal().equals(username);
+                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);
                 if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
                     return checkChangePasswordAction(authentication);
                 }
@@ -211,7 +213,9 @@ public class RBACEngine implements AuthorizationEngine {
             } else if (request instanceof GetApiKeyRequest getApiKeyRequest) {
                 if (authentication.isApiKey()) {
                     // if the authentication is an API key then the request must also contain same API key id
-                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                    String authenticatedApiKeyId = (String) authentication.getAuthenticatingSubject()
+                        .getMetadata()
+                        .get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId) && false == getApiKeyRequest.withLimitedBy();
@@ -303,7 +307,7 @@ public class RBACEngine implements AuthorizationEngine {
                         if (parsedScrollId.hasLocalIndices()) {
                             listener.onResponse(authorizeIndexActionName(action, authorizationInfo, null));
                         } else {
-                            listener.onResponse(new IndexAuthorizationResult(true, null));
+                            listener.onResponse(new IndexAuthorizationResult(null));
                         }
                     }, listener::onFailure), ((SearchScrollRequest) request)::parseScrollId).run();
                 } else {
@@ -315,21 +319,21 @@ public class RBACEngine implements AuthorizationEngine {
                     // The DLS/FLS permissions are used inside the {@code DirectoryReader} that {@code SecurityIndexReaderWrapper}
                     // built while handling the initial search request. In addition, for consistency, the DLS/FLS permissions from
                     // the originating search request are attached to the thread context upon validating the scroll.
-                    listener.onResponse(new IndexAuthorizationResult(true, null));
+                    listener.onResponse(new IndexAuthorizationResult(null));
                 }
             } else if (isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // authorize submit async search but don't fill in the DLS/FLS permissions
                     // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
                     // which DLS/FLS controls should be applied to this action
-                    listener.onResponse(new IndexAuthorizationResult(true, null));
+                    listener.onResponse(new IndexAuthorizationResult(null));
                 } else {
                     // async-search actions other than submit have a custom security layer that checks if the current user is
                     // the same as the user that submitted the original request so no additional checks are needed here.
-                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                    listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES));
                 }
             } else if (action.equals(ClosePointInTimeAction.NAME)) {
-                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
                 assert false
                     : "only scroll and async-search related requests are known indices api that don't "
@@ -342,9 +346,7 @@ public class RBACEngine implements AuthorizationEngine {
                 );
             }
         } else if (isChildActionAuthorizedByParent(requestInfo, authorizationInfo)) {
-            listener.onResponse(
-                new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
-            );
+            listener.onResponse(new IndexAuthorizationResult(requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl()));
         } else if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -384,7 +386,7 @@ public class RBACEngine implements AuthorizationEngine {
                         // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                         // '-*' matches no indices so we allow the request to go through, which will yield an empty response
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
-                            listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
                             assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
                                 || ((IndicesRequest) request).indicesOptions().expandWildcardExpressions() == false
@@ -483,7 +485,7 @@ public class RBACEngine implements AuthorizationEngine {
         IndicesAccessControl grantedValue
     ) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
-        return new IndexAuthorizationResult(true, role.checkIndicesAction(action) ? grantedValue : IndicesAccessControl.DENIED);
+        return new IndexAuthorizationResult(role.checkIndicesAction(action) ? grantedValue : IndicesAccessControl.DENIED);
 
     }
 
@@ -720,9 +722,11 @@ public class RBACEngine implements AuthorizationEngine {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
             final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
             if (group.getFieldPermissions().hasFieldLevelSecurity()) {
-                final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
-                assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
+                final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
+                    .getFieldPermissionsDefinitions();
+                assert fieldPermissionsDefinitions.size() == 1
                     : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+                final FieldPermissionsDefinition definition = fieldPermissionsDefinitions.get(0);
                 fieldSecurity = definition.getFieldGrantExcludeGroups();
             } else {
                 fieldSecurity = Collections.emptySet();
@@ -836,7 +840,7 @@ public class RBACEngine implements AuthorizationEngine {
     ) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
-        return new IndexAuthorizationResult(true, accessControl);
+        return new IndexAuthorizationResult(accessControl);
     }
 
     private static RBACAuthorizationInfo ensureRBAC(AuthorizationInfo authorizationInfo) {
@@ -860,9 +864,9 @@ public class RBACEngine implements AuthorizationEngine {
         final boolean isRunAs = authentication.isRunAs();
         final String realmType;
         if (isRunAs) {
-            realmType = authentication.getLookedUpBy().getType();
+            realmType = authentication.getEffectiveSubject().getRealm().getType();
         } else {
-            realmType = authentication.getAuthenticatedBy().getType();
+            realmType = authentication.getAuthenticatingSubject().getRealm().getType();
         }
 
         assert realmType != null;

@@ -24,7 +24,6 @@ final class RemoteClusterAwareClient extends AbstractClient {
     private final String clusterAlias;
     private final RemoteClusterService remoteClusterService;
     private final boolean ensureConnected;
-    private final boolean useUntrustedRemoteClusterSecurityMode;
 
     RemoteClusterAwareClient(
         Settings settings,
@@ -33,23 +32,11 @@ final class RemoteClusterAwareClient extends AbstractClient {
         String clusterAlias,
         boolean ensureConnected
     ) {
-        this(settings, threadPool, service, clusterAlias, ensureConnected, false);
-    }
-
-    RemoteClusterAwareClient(
-        Settings settings,
-        ThreadPool threadPool,
-        TransportService service,
-        String clusterAlias,
-        boolean ensureConnected,
-        boolean useUntrustedRemoteClusterSecurityMode
-    ) {
         super(settings, threadPool);
         this.service = service;
         this.clusterAlias = clusterAlias;
         this.remoteClusterService = service.getRemoteClusterService();
         this.ensureConnected = ensureConnected;
-        this.useUntrustedRemoteClusterSecurityMode = useUntrustedRemoteClusterSecurityMode;
     }
 
     @Override
@@ -74,26 +61,14 @@ final class RemoteClusterAwareClient extends AbstractClient {
                 }
                 throw e;
             }
-            if (useUntrustedRemoteClusterSecurityMode) {
-                try (var ignored = threadPool().getThreadContext().newStoredContext()) {
-                    threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
-                    service.sendRequest(
-                        connection,
-                        action.name(),
-                        request,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(listener, action.getResponseReader())
-                    );
-                }
-            } else {
-                service.sendRequest(
-                    connection,
-                    action.name(),
-                    request,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, action.getResponseReader())
-                );
-            }
+
+            service.sendRequest(
+                connection,
+                action.name(),
+                request,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, action.getResponseReader())
+            );
         }, listener::onFailure));
     }
 

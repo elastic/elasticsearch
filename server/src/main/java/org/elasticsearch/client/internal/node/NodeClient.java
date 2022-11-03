@@ -145,7 +145,7 @@ public class NodeClient extends AbstractClient {
 
     @Override
     public Client getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, true, false);
+        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, true);
     }
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {

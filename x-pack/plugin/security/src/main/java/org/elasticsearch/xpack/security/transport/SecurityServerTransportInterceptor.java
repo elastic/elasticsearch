@@ -138,18 +138,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             ),
                             minVersion
                         );
-                        // TODO should be an earlier or deeper branch
-                    } else if (shouldSendRemoteAccessHeaders()) {
-                        sendWithRemoteAccessHeaders(
-                            original -> sendWithUser(
-                                connection,
-                                action,
-                                request,
-                                options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                                sender
-                            )
-                        );
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }
@@ -157,42 +145,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         };
     }
 
-    public void sendWithRemoteAccessHeaders(Consumer<ThreadContext.StoredContext> consumer) {
-        final Authentication authentication = securityContext.getAuthentication();
-        final ThreadContext threadContext = securityContext.getThreadContext();
-        final ThreadContext.StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            final var remoteClusterAlias = getRemoteClusterAlias();
-            assert remoteClusterAlias != null;
-            final var remoteClusterAuthorization = getRemoteClusterAuthorization(remoteClusterAlias);
-            assert remoteClusterAuthorization != null;
-            // TODO header names
-            threadContext.putHeader("_remote_access_credential", remoteClusterAuthorization);
-            threadContext.putHeader("_remote_access_information", buildRemoteAccessInformationHeader());
-            consumer.accept(original);
-        }
-    }
-
     private String getRemoteClusterAlias() {
-        // TODO should this be securityContext.getThreadContext()?
-        return threadPool.getThreadContext().getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
-    }
-
-    private boolean shouldSendRemoteAccessHeaders() {
-        return false;
-        // final String remoteClusterAlias = getRemoteClusterAlias();
-        // if (remoteClusterAlias == null) {
-        // return false;
-        // }
-        // return getRemoteClusterAuthorization(remoteClusterAlias) != null;
-    }
-
-    private String getRemoteClusterAuthorization(String remoteClusterAlias) {
-        return null;
-    }
-
-    private String buildRemoteAccessInformationHeader() {
-        return "";
+        return securityContext.getThreadContext().getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
     }
 
     private <T extends TransportResponse> void sendWithUser(

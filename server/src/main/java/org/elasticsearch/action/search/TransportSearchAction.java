@@ -548,11 +548,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+            Client remoteClusterClient = remoteClusterService.getUntrustedRemoteClusterClient(
                 threadPool,
                 clusterAlias,
-                false == skipUnavailable,
-                remoteClusterService.shouldUseUntrustedRemoteClusterSecurityMode(clusterAlias)
+                false == skipUnavailable
             );
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
@@ -626,11 +625,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     totalClusters,
                     listener
                 );
-                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                Client remoteClusterClient = remoteClusterService.getUntrustedRemoteClusterClient(
                     threadPool,
                     clusterAlias,
-                    false == skipUnavailable,
-                    remoteClusterService.shouldUseUntrustedRemoteClusterSecurityMode(clusterAlias)
+                    false == skipUnavailable
                 );
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
@@ -699,12 +697,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-            Client clusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
-                clusterAlias,
-                false == skipUnavailable,
-                remoteClusterService.shouldUseUntrustedRemoteClusterSecurityMode(clusterAlias)
-            );
+            Client clusterClient = remoteClusterService.getUntrustedRemoteClusterClient(threadPool, clusterAlias, false == skipUnavailable);
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(indicesOptions)
                 .local(true)

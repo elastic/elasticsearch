@@ -219,8 +219,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
-    public boolean shouldUseUntrustedRemoteClusterSecurityMode(String clusterAlias) {
-        // TODO use RemoteClusterAuthorizationResolver here
+    public boolean shouldUseUntrustedRemoteClusterSecurityMode() {
         return TcpTransport.isUntrustedRemoteClusterEnabled();
     }
 
@@ -426,12 +425,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param ensureConnected whether requests should wait for a connection attempt when there isn't a connection available
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(
-        ThreadPool threadPool,
-        String clusterAlias,
-        boolean ensureConnected,
-        boolean useUntrustedRemoteClusterSecurityModel
-    ) {
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -440,14 +434,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(
-            settings,
-            threadPool,
-            transportService,
-            clusterAlias,
-            ensureConnected,
-            useUntrustedRemoteClusterSecurityModel
-        );
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, ensureConnected);
     }
 
     /**
@@ -461,9 +448,20 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterClient(
             threadPool,
             clusterAlias,
-            transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false,
-            false
+            transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false
         );
+    }
+
+    public Client getUntrustedRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
+        if (transportService.getRemoteClusterService().isEnabled() == false) {
+            throw new IllegalArgumentException(
+                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
+            );
+        }
+        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
+            throw new NoSuchRemoteClusterException(clusterAlias);
+        }
+        return new UntrustedRemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, ensureConnected);
     }
 
     Collection<RemoteClusterConnection> getConnections() {

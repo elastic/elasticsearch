@@ -96,6 +96,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 1,
                 bulkSize,
                 new ByteSizeValue(5, ByteSizeUnit.MB),
+                10000,
                 flushInterval,
                 threadPool,
                 threadPool,
@@ -230,6 +231,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 concurrentBulkRequests,
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+                maxDocuments, // We don't want any rejections in this test
                 null,
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
                     flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
@@ -352,6 +354,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 concurrentBulkRequests,
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+                maxDocuments, // We don't want any rejections in this test
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
                     flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
@@ -453,6 +456,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             0,
             10,
             ByteSizeValue.ofBytes(1000),
+            10000,
             null,
             (command, delay, executor) -> null,
             (command, delay, executor) -> null,

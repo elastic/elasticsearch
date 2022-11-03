@@ -78,6 +78,7 @@ public class BulkProcessor2 implements Closeable {
         private int concurrentRequests = 1;
         private int maxRequestsInBulk = 1000;
         private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
+        private int maxBulkRequestQueueSize = 1000;
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
 
@@ -111,6 +112,11 @@ public class BulkProcessor2 implements Closeable {
          */
         public Builder setBulkActions(int bulkActions) {
             this.maxRequestsInBulk = bulkActions;
+            return this;
+        }
+
+        public Builder setMaxBulkRequestQueueSize(int maxBulkRequestQueueSize) {
+            this.maxBulkRequestQueueSize = maxBulkRequestQueueSize;
             return this;
         }
 
@@ -161,6 +167,7 @@ public class BulkProcessor2 implements Closeable {
                 concurrentRequests,
                 maxRequestsInBulk,
                 maxBulkSizeInBytes,
+                maxBulkRequestQueueSize,
                 flushInterval,
                 flushScheduler,
                 retryScheduler,
@@ -214,6 +221,7 @@ public class BulkProcessor2 implements Closeable {
         int concurrentRequests,
         int bulkActions,
         ByteSizeValue bulkSize,
+        int maxBulkRequestQueueSize,
         @Nullable TimeValue flushInterval,
         Scheduler flushScheduler,
         Scheduler retryScheduler,
@@ -222,7 +230,14 @@ public class BulkProcessor2 implements Closeable {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
-        this.bulkRequestHandler = new BulkRequestHandler2(consumer, backoffPolicy, listener, retryScheduler, concurrentRequests);
+        this.bulkRequestHandler = new BulkRequestHandler2(
+            consumer,
+            backoffPolicy,
+            listener,
+            retryScheduler,
+            concurrentRequests,
+            maxBulkRequestQueueSize
+        );
         // Start period flushing task after everything is setup
         this.cancellableFlushTask = startFlushTask(flushInterval, flushScheduler);
         this.onClose = onClose;

@@ -149,6 +149,7 @@ public class ILMHistoryStore implements Closeable {
             .setBulkSize(ByteSizeValue.ofBytes(ILM_HISTORY_BULK_SIZE))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
+            .setMaxBulkRequestQueueSize(10000)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .build();
     }

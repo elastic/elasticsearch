@@ -29,13 +29,14 @@ public final class BulkRequestHandler2 {
         BackoffPolicy backoffPolicy,
         BulkProcessor2.Listener listener,
         Scheduler scheduler,
-        int concurrentRequests
+        int concurrentRequests,
+        int maxBulkRequestQueueSize
     ) {
         assert concurrentRequests >= 0;
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(backoffPolicy, scheduler, 100, 100, concurrentRequests);
+        this.retry = new Retry2(backoffPolicy, scheduler, maxBulkRequestQueueSize, maxBulkRequestQueueSize, concurrentRequests);
         retry.init();
     }
 

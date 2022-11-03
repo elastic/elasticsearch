@@ -64,10 +64,12 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("boolean x = false; def y = false; return x == y"));
 
         assertEquals(true, exec("String x = \"foo\"; def y = \"foo\"; return x == y"));
+        assertEquals(false, exec("def x = null; return x == 'foo'"));
         assertEquals(true, exec("Map x = new HashMap(); def y = new HashMap(); return x == y"));
         assertEquals(false, exec("Map x = new HashMap(); x.put(3, 3); def y = new HashMap(); return x == y"));
         assertEquals(true, exec("Map x = new HashMap(); x.put(3, 3); def y = new HashMap(); y.put(3, 3); return x == y"));
         assertEquals(true, exec("Map x = new HashMap(); def y = x; x.put(3, 3); y.put(3, 3); return x == y"));
+
     }
 
     public void testDefEqTypedRHS() {
@@ -162,6 +164,7 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("double x = (double)7; def y = (double)1; return x != y"));
 
         assertEquals(false, exec("String x = \"foo\"; def y = \"foo\"; return x != y"));
+        assertEquals(true, exec("def x = null; return x != 'foo'"));
         assertEquals(false, exec("Map x = new HashMap(); def y = new HashMap(); return x != y"));
         assertEquals(true, exec("Map x = new HashMap(); x.put(3, 3); def y = new HashMap(); return x != y"));
         assertEquals(false, exec("Map x = new HashMap(); x.put(3, 3); def y = new HashMap(); y.put(3, 3); return x != y"));

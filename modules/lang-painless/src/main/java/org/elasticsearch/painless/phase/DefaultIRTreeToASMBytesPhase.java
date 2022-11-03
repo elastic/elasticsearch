@@ -1031,13 +1031,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                         // if one of the types is a String, can use String.equals here
                         if (irLeftNode.getDecorationValue(IRDExpressionType.class) == String.class) {
                             methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
-                        }
-                        else if (irRightNode.getDecorationValue(IRDExpressionType.class) == String.class) {
+                        } else if (irRightNode.getDecorationValue(IRDExpressionType.class) == String.class) {
                             // swap the args to call equals on right object
                             methodWriter.swap();
                             methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
-                        }
-                        else {
+                        } else {
                             methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         }
                         writejump = false;
@@ -1051,13 +1049,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                         // if one of the types is a String, can use String.equals here
                         if (irLeftNode.getDecorationValue(IRDExpressionType.class) == String.class) {
                             methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
-                        }
-                        else if (irRightNode.getDecorationValue(IRDExpressionType.class) == String.class) {
+                        } else if (irRightNode.getDecorationValue(IRDExpressionType.class) == String.class) {
                             // swap the args to call equals on right object
                             methodWriter.swap();
                             methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
-                        }
-                        else {
+                        } else {
                             methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         }
                         methodWriter.ifZCmp(MethodWriter.EQ, jump);

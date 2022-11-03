@@ -51,7 +51,6 @@ import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1198,63 +1197,54 @@ public class IndexNameExpressionResolver {
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = validateAliasOrIndex(expressions.get(i));
-                final Supplier<RuntimeException> missingExpressionException = aliasOrIndexExists(context, expression);
-                if (missingExpressionException == null) {
-                    // expression exists but skip adding it to result for optimisation purposes; they will be added later
-                    if (result != null) {
-                        result.add(expression);
+                boolean isExclusion = false;
+                if (expression.charAt(0) == '-' && wildcardSeen) {
+                    isExclusion = true;
+                    expression = expression.substring(1);
+                }
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
+                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
+                    Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
+                    AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
+                    if (context.getOptions().allowNoIndices() == false) {
+                        emptyWildcardExpansion.set(true);
+                        matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
                     }
-                } else {
                     if (result == null) {
                         // add all the previous expressions because they exist but were not added, as an optimisation
                         result = new HashSet<>(expressions.subList(0, i));
                     }
-                    /* An expression does not exist when:
-                       * it should be treated as exclusion because it starts with "-"
-                       * it should be treated as a wildcard (inclusion or exclusion) because it contains a "*"
-                       * it genuinely does not exist or is a datastream or an alias and the request type and options disallow it
-                     */
-                    final boolean add;
-                    if (expression.charAt(0) == '-' && wildcardSeen) {
-                        add = false;
-                        expression = expression.substring(1);
+                    if (isExclusion) {
+                        matchingOpenClosedNames.forEachOrdered(result::remove);
                     } else {
-                        add = true;
+                        matchingOpenClosedNames.forEachOrdered(result::add);
                     }
-                    if (Regex.isSimpleMatchPattern(expression) == false) {
-                        if (add) {
-                            // missing expression that is neither an exclusion nor a wildcard
-                            // this must be a name for a resource that genuinely does not exist
-                            // TODO investigate if this check can be moved outside the wildcard resolver
-                            if (context.getOptions().ignoreUnavailable() == false) {
-                                throw missingExpressionException.get();
-                            }
-                            result.add(expression);
-                        } else {
-                            result.remove(expression);
+                    if (emptyWildcardExpansion.get()) {
+                        throw indexNotFoundException(expression);
+                    }
+                } else {
+                    if (isExclusion) {
+                        if (result == null) {
+                            // add all the previous expressions because they exist but were not added, as an optimisation
+                            result = new HashSet<>(expressions.subList(0, i));
                         }
+                        result.remove(expression);
                     } else {
-                        wildcardSeen = true;
-                        Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
-                        Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
-                        AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
-                        if (context.getOptions().allowNoIndices() == false) {
-                            emptyWildcardExpansion.set(true);
-                            matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
+                        // missing expression that is neither an exclusion nor a wildcard
+                        // TODO investigate if this check can be moved outside the wildcard resolver
+                        if (context.getOptions().ignoreUnavailable() == false) {
+                            ensureAliasOrIndexExists(context, expression);
                         }
-                        if (add) {
-                            matchingOpenClosedNames.forEachOrdered(result::add);
-                        } else {
-                            matchingOpenClosedNames.forEachOrdered(result::remove);
-                        }
-                        if (emptyWildcardExpansion.get()) {
-                            throw indexNotFoundException(expression);
+                        if (result != null) {
+                            // skip adding the expression as an optimization
+                            result.add(expression);
                         }
                     }
                 }
             }
             if (result == null) {
-                // optimisation that avoids allocating a new collection when all the expressions argument exist
+                // optimisation that avoids allocating a new collection when all the argument expressions are explicit names
                 return expressions;
             } else {
                 return result;
@@ -1276,20 +1266,19 @@ public class IndexNameExpressionResolver {
         }
 
         @Nullable
-        private static Supplier<RuntimeException> aliasOrIndexExists(Context context, String expression) {
+        private static void ensureAliasOrIndexExists(Context context, String expression) {
             final IndicesOptions options = context.getOptions();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
-                return () -> indexNotFoundException(expression);
+                throw indexNotFoundException(expression);
             }
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && options.ignoreAliases()) {
-                return () -> aliasesNotSupportedException(expression);
+                throw aliasesNotSupportedException(expression);
             }
             if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                return () -> indexNotFoundException(expression);
+                throw indexNotFoundException(expression);
             }
-            return null;
         }
 
         private static IndexNotFoundException indexNotFoundException(String expression) {

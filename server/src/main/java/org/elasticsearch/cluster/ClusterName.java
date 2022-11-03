@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,6 +22,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 public class ClusterName implements Writeable {
+    private static final Logger LOGGER = LogManager.getLogger(ClusterName.class);
 
     public static final Setting<ClusterName> CLUSTER_NAME_SETTING = new Setting<>("cluster.name", "elasticsearch", (s) -> {
         if (s.isEmpty()) {
@@ -34,24 +37,25 @@ public class ClusterName implements Writeable {
     public static final ClusterName DEFAULT = CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
 
     private final String value;
-    // TODO: Assume isRemote is OK to go here instead of DiscoveryNode.
+
+    // TODO: Assume for now isRemote is OK in ClusterName, instead of inside DiscoveryNode. Consider moving to DiscoveryNode later.
     private final boolean isRemote;
 
     public ClusterName(StreamInput input) throws IOException {
-        // TODO Assume for now that readBoolean does not need a version check for bwc with older clusters.
-        this(input.readString(), (TcpTransport.isUntrustedRemoteClusterEnabled() && input.readBoolean()), null);
+        this(readValue(input), readIsRemote(input), 0);
     }
 
     public ClusterName(String value) {
-        this(value, false, null);
+        this(value, false, 0);
     }
 
     public ClusterName(String value, boolean isRemote) {
-        this(value, isRemote, null);
+        this(value, isRemote, 0);
         assert isRemote : "This constructor should only be used for setting isRemote=true";
     }
 
-    private ClusterName(String value, boolean isRemote, Object ignore) {
+    // This private constructor is used by all the public constructors. Can't use ClusterName(String,boolean) because it has an assertion.
+    private ClusterName(String value, boolean isRemote, int ignore) {
         this.value = value.intern();
         this.isRemote = isRemote;
     }
@@ -60,11 +64,39 @@ public class ClusterName implements Writeable {
         return this.value;
     }
 
+    public boolean isRemote() {
+        return isRemote;
+    }
+
+    private static String readValue(StreamInput input) throws IOException {
+        String s = input.readString();
+        LOGGER.info("Read value: [{}], Version [{}]", s, input.getVersion());
+        return s;
+    }
+
+    private static boolean readIsRemote(StreamInput input) throws IOException {
+        if (input.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
+            LOGGER.trace("Read IsRemote: [false], SKIPPED because Version: [{}]", input.getVersion());
+            return false;
+        } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
+            LOGGER.trace("Read IsRemote: [false], SKIPPED because isUntrustedRemoteClusterEnabled [disabled]");
+            return false;
+        }
+        final boolean b = input.readBoolean();
+        LOGGER.trace("Read IsRemote: [{}], READ because isUntrustedRemoteClusterEnabled [enabled]", b);
+        return b;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        LOGGER.info("Write value: [{}], Version [{}]", value, out.getVersion());
         out.writeString(value);
-        // TODO Assume for now that readBoolean does not need a version check for bwc with older clusters.
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+        if (out.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
+            LOGGER.trace("Write IsRemote: [{}], SKIPPED because Version: [{}]", out.getVersion(), isRemote);
+        } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
+            LOGGER.trace("Write IsRemote: [{}], SKIPPED because isUntrustedRemoteClusterEnabled [disabled]", isRemote);
+        } else {
+            LOGGER.trace("Write IsRemote: [{}], WRITTEN because isUntrustedRemoteClusterEnabled [enabled]", isRemote);
             out.writeBoolean(isRemote);
         }
     }
@@ -105,9 +137,5 @@ public class ClusterName implements Writeable {
                 return "local cluster name [" + ClusterName.this.value() + "]";
             }
         };
-    }
-
-    public boolean isRemote() {
-        return isRemote;
     }
 }

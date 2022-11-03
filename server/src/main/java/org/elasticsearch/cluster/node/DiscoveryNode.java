@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -40,6 +42,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
  * A discovery node represents a node that is part of the cluster.
  */
 public class DiscoveryNode implements Writeable, ToXContentFragment {
+    private static final Logger LOGGER = LogManager.getLogger(DiscoveryNode.class);
 
     /**
      * Name of the setting used to enable stateless.
@@ -143,6 +146,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private final Set<String> roleNames;
     private final String externalId;
+
+    // TODO: Assume for now isRemote is OK inside ClusterName, instead of in DiscoveryNode. Consider moving to DiscoveryNode later.
     private final ClusterName clusterName;
 
     /**
@@ -624,11 +629,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         } else {
             this.externalId = nodeName;
         }
-        // TODO Assume for now that ClusterName(in) does not need a version check for bwc with older clusters.
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            this.clusterName = new ClusterName(in);
-        } else {
+        if (in.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
+            LOGGER.trace("Read ClusterName: [null], SKIPPED because Version: [{}]", in.getVersion());
             this.clusterName = ClusterName.DEFAULT;
+        } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
+            LOGGER.trace("Read ClusterName: [null], SKIPPED because isUntrustedRemoteClusterEnabled: [disabled]");
+            this.clusterName = ClusterName.DEFAULT;
+        } else {
+            this.clusterName = new ClusterName(in);
+            LOGGER.trace("Read ClusterName: [{}], READ because isUntrustedRemoteClusterEnabled: [enabled]", this.clusterName);
         }
         this.roleNames = Set.of(roleNames);
     }
@@ -661,8 +670,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             out.writeString(externalId);
         }
-        // TODO Assume for now that clusterName.writeTo(out) does not need a version check for bwc with older clusters.
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+        if (out.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
+            LOGGER.trace("Write ClusterName: [null], SKIPPED because Version: [{}]", out.getVersion());
+        } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
+            LOGGER.trace("Write ClusterName: [null], SKIPPED because isUntrustedRemoteClusterEnabled: [disabled]");
+        } else {
+            LOGGER.trace("Write ClusterName: [{}], DONE because isUntrustedRemoteClusterEnabled: [enabled]", this.clusterName);
             this.clusterName.writeTo(out);
         }
     }

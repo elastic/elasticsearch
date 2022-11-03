@@ -117,6 +117,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
     }
 
+    public static Version UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION = Version.CURRENT; // TODO Set when feature flag removed
+
     public static boolean isUntrustedRemoteClusterEnabled() {
         return Build.CURRENT.isSnapshot()
             || (UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED != null && UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED);

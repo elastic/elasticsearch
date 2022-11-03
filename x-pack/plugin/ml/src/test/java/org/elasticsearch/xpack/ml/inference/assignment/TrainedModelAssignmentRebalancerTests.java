@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,7 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -656,6 +658,64 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getNodeRoutingTable().get("node-1").getState(), equalTo(RoutingState.STARTING));
             assertThat(assignment.getReason().isPresent(), is(false));
         }
+    }
+
+    public void testRebalance_GivenMixedPriorityModels_TwoZones_EachNodeCanHoldOneModel() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 1);
+        DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 1);
+
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node2, NodeLoad.builder("node-2").setMaxMemory(nodeMemoryBytes).build());
+
+        String modelId1 = "model-1";
+        StartTrainedModelDeploymentAction.TaskParams taskParams1 = lowPriorityParams(modelId1, ByteSizeValue.ofMb(300).getBytes());
+        String modelId2 = "model-2";
+        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, ByteSizeValue.ofMb(300).getBytes(), 1, 1);
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(modelId1, TrainedModelAssignment.Builder.empty(taskParams1))
+            .addNewAssignment(
+                modelId2,
+                TrainedModelAssignment.Builder.empty(taskParams2).addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of("zone-1"), List.of(node1), List.of("zone-2"), List.of(node2)),
+            Optional.empty()
+        ).rebalance().build();
+
+        List<String> assignedNodes = new ArrayList<>();
+
+        {
+            TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+            assertThat(assignment, is(notNullValue()));
+            assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            String assignedNode = assignment.getNodeRoutingTable().keySet().iterator().next();
+            assertThat(assignment.getNodeRoutingTable().get(assignedNode).getCurrentAllocations(), equalTo(1));
+            assertThat(assignment.getNodeRoutingTable().get(assignedNode).getTargetAllocations(), equalTo(1));
+            assertThat(assignment.getNodeRoutingTable().get(assignedNode).getState(), equalTo(RoutingState.STARTING));
+            assertThat(assignment.getReason().isPresent(), is(false));
+            assignedNodes.add(assignedNode);
+        }
+        {
+            TrainedModelAssignment assignment = result.getModelAssignment(modelId2);
+            assertThat(assignment, is(notNullValue()));
+            assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            String assignedNode = assignment.getNodeRoutingTable().keySet().iterator().next();
+            assertThat(assignment.getNodeRoutingTable().get(assignedNode).getCurrentAllocations(), equalTo(1));
+            assertThat(assignment.getNodeRoutingTable().get(assignedNode).getTargetAllocations(), equalTo(1));
+            assertThat(assignment.getNodeRoutingTable().get(assignedNode).getState(), equalTo(RoutingState.STARTED));
+            assertThat(assignment.getReason().isPresent(), is(false));
+            assignedNodes.add(assignedNode);
+        }
+
+        assertThat(assignedNodes, containsInAnyOrder("node-1", "node-2"));
     }
 
     public void testRebalance_GivenModelUsingAllCpu_FittingLowPriorityModelCanStart() throws Exception {

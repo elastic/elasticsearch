@@ -29,7 +29,7 @@ setup:
 "Test get desired balance":
     -   do:
             _internal.get_desired_balance: { }
-    -   match: { stats.computation_active: false }
+#    -   match: { stats.computation_active: false }
     -   gte: { stats.computation_submitted: 0 }
     -   gte: { stats.computation_executed: 0 }
     -   gte: { stats.computation_converged: 0 }
@@ -40,7 +40,7 @@ setup:
 
     -   match: { routing_table.test.0.current.state: 'STARTED' }
     -   match: { routing_table.test.0.current.primary: true }
-    -   match: { routing_table.test.0.current.node_is_desired: false }
+#    -   match: { routing_table.test.0.current.node_is_desired: false }
     -   match: { routing_table.test.0.current.shard_id: 0 }
     -   match: { routing_table.test.0.current.index: test }
     -   match: { routing_table.test.0.desired.node_ids: test }

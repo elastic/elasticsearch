@@ -210,6 +210,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -1147,7 +1148,13 @@ public class Node implements Closeable {
             if (inputArgument.startsWith("-javaagent:")) {
                 final String agentArg = inputArgument.substring(11);
                 final String[] parts = agentArg.split("=", 2);
-                if (parts[0].matches(".*modules/apm/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
+                String APM_AGENT_CONFIG_FILE_REGEX = String.join(
+                    "\\" + File.separator,
+                    ".*modules",
+                    "apm",
+                    "elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar"
+                );
+                if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
                         final Path apmConfig = PathUtils.get(parts[1].substring(2));
                         if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {

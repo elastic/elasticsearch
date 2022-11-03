@@ -17,8 +17,8 @@
                   | sed "s/elasticsearch//g" \
                   | sed "s/ //g" \
                   | sed "s/=//")
-            BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats master)
-            ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp master)
+            BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats master)"
+            ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp master)"
             set -euo pipefail
             set +x
             VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)

@@ -903,7 +903,6 @@ public class Security extends Plugin
             settings,
             clusterService.getClusterSettings()
         );
-        components.add(remoteClusterAuthorizationResolver);
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(

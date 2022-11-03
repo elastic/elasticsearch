@@ -8,26 +8,24 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Set;
 
-public class ListIndexShardsOnDataPathRequest extends BaseNodesRequest<ListIndexShardsOnDataPathRequest> {
+public class NodeCheckShardsOnDataPathRequest extends TransportRequest {
 
     private final Set<ShardId> shardIds;
 
-    public ListIndexShardsOnDataPathRequest(Set<ShardId> shardIds, String... nodeIds) {
-        super(nodeIds);
+    public NodeCheckShardsOnDataPathRequest(Collection<ShardId> shardIds) {
         this.shardIds = Set.copyOf(shardIds);
-        this.timeout(TimeValue.timeValueSeconds(30));
     }
 
-    public ListIndexShardsOnDataPathRequest(StreamInput in) throws IOException {
+    public NodeCheckShardsOnDataPathRequest(StreamInput in) throws IOException {
         super(in);
         this.shardIds = in.readSet(ShardId::new);
     }
@@ -35,10 +33,16 @@ public class ListIndexShardsOnDataPathRequest extends BaseNodesRequest<ListIndex
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(shardIds);
+        out.writeCollection(shardIds, (o, value) -> value.writeTo(o));
     }
 
-    public Set<ShardId> getShardIds() {
+    public Set<ShardId> getShardIDs() {
         return shardIds;
     }
+
+    public String getCustomDataPath() {
+        return null; // TODO
+    }
+
+    // TODO: add timeout
 }

@@ -209,10 +209,10 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
 
                     // TODO: Send the set of red shards to the nodes, and create the result in the listener
                     var nodeIds = nodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-                    var request = new ListIndexShardsOnDataPathRequest(redShards, nodeIds);
-                    client.execute(TransportListIndexShardsOnDataPathAction.TYPE, request, new ActionListener<>() {
+                    var request = new CheckShardsOnDataPathRequest(redShards, nodeIds);
+                    client.execute(TransportCheckShardsOnDataPathAction.TYPE, request, new ActionListener<>() {
                         @Override
-                        public void onResponse(ListIndexShardsOnDataPathResponse listIndexShardsOnDataPathResponse) {
+                        public void onResponse(CheckShardsOnDataPathResponse checkShardsOnDataPathResponse) {
                             Result result = new Result(IsSafe.NO, "cluster health is RED");
                             List<NodeResult> nodeResults = nodes.stream()
                                 .map(

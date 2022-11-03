@@ -17,27 +17,27 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
-public class ListIndexShardsOnDataPathResponse extends BaseNodesResponse<NodeListIndexShardsOnDataPathResponse> {
+public class CheckShardsOnDataPathResponse extends BaseNodesResponse<NodeCheckShardsOnDataPathResponse> {
 
-    public ListIndexShardsOnDataPathResponse(
+    public CheckShardsOnDataPathResponse(
         ClusterName clusterName,
-        List<NodeListIndexShardsOnDataPathResponse> nodes,
+        List<NodeCheckShardsOnDataPathResponse> nodes,
         List<FailedNodeException> failures
     ) {
         super(clusterName, nodes, failures);
     }
 
-    public ListIndexShardsOnDataPathResponse(StreamInput in) throws IOException {
+    public CheckShardsOnDataPathResponse(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
-    protected List<NodeListIndexShardsOnDataPathResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeListIndexShardsOnDataPathResponse::new);
+    protected List<NodeCheckShardsOnDataPathResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeCheckShardsOnDataPathResponse::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<NodeListIndexShardsOnDataPathResponse> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<NodeCheckShardsOnDataPathResponse> nodes) throws IOException {
         out.writeList(nodes);
     }
 }

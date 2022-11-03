@@ -32,24 +32,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public class TransportListIndexShardsOnDataPathAction extends TransportNodesAction<
-    ListIndexShardsOnDataPathRequest,
-    ListIndexShardsOnDataPathResponse,
-    NodeListIndexShardsOnDataPathRequest,
-    NodeListIndexShardsOnDataPathResponse> {
+public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
+    CheckShardsOnDataPathRequest,
+    CheckShardsOnDataPathResponse,
+    NodeCheckShardsOnDataPathRequest,
+    NodeCheckShardsOnDataPathResponse> {
 
-    public static final String ACTION_NAME = "internal:admin/indices/shards_on_data_path/list";
-    public static final ActionType<ListIndexShardsOnDataPathResponse> TYPE = new ActionType<>(
-        ACTION_NAME,
-        ListIndexShardsOnDataPathResponse::new
-    );
-    private static final Logger logger = LogManager.getLogger(TransportListIndexShardsOnDataPathAction.class);
+    public static final String ACTION_NAME = "internal:admin/indices/check_shards_on_data_path";
+    public static final ActionType<CheckShardsOnDataPathResponse> TYPE = new ActionType<>(ACTION_NAME, CheckShardsOnDataPathResponse::new);
+    private static final Logger logger = LogManager.getLogger(TransportCheckShardsOnDataPathAction.class);
 
     private final TransportService transportService;
     private final NodeEnvironment nodeEnv;
 
     @Inject
-    public TransportListIndexShardsOnDataPathAction(
+    public TransportCheckShardsOnDataPathAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -62,36 +59,36 @@ public class TransportListIndexShardsOnDataPathAction extends TransportNodesActi
             clusterService,
             transportService,
             actionFilters,
-            ListIndexShardsOnDataPathRequest::new,
-            NodeListIndexShardsOnDataPathRequest::new,
+            CheckShardsOnDataPathRequest::new,
+            NodeCheckShardsOnDataPathRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            NodeListIndexShardsOnDataPathResponse.class
+            NodeCheckShardsOnDataPathResponse.class
         );
         this.transportService = transportService;
         this.nodeEnv = nodeEnv;
     }
 
     @Override
-    protected ListIndexShardsOnDataPathResponse newResponse(
-        ListIndexShardsOnDataPathRequest request,
-        List<NodeListIndexShardsOnDataPathResponse> nodeResponses,
+    protected CheckShardsOnDataPathResponse newResponse(
+        CheckShardsOnDataPathRequest request,
+        List<NodeCheckShardsOnDataPathResponse> nodeResponses,
         List<FailedNodeException> failures
     ) {
-        return new ListIndexShardsOnDataPathResponse(clusterService.getClusterName(), nodeResponses, failures);
+        return new CheckShardsOnDataPathResponse(clusterService.getClusterName(), nodeResponses, failures);
     }
 
     @Override
-    protected NodeListIndexShardsOnDataPathRequest newNodeRequest(ListIndexShardsOnDataPathRequest request) {
-        return new NodeListIndexShardsOnDataPathRequest(request.getShardIds());
+    protected NodeCheckShardsOnDataPathRequest newNodeRequest(CheckShardsOnDataPathRequest request) {
+        return new NodeCheckShardsOnDataPathRequest(request.getShardIds());
     }
 
     @Override
-    protected NodeListIndexShardsOnDataPathResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-        return new NodeListIndexShardsOnDataPathResponse(in);
+    protected NodeCheckShardsOnDataPathResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new NodeCheckShardsOnDataPathResponse(in);
     }
 
     @Override
-    protected NodeListIndexShardsOnDataPathResponse nodeOperation(NodeListIndexShardsOnDataPathRequest request, Task task) {
+    protected NodeCheckShardsOnDataPathResponse nodeOperation(NodeCheckShardsOnDataPathRequest request, Task task) {
         Set<ShardId> localShards = new HashSet<>();
         ShardPath shardPath = null;
         String customDataPath = request.getCustomDataPath();
@@ -107,6 +104,6 @@ public class TransportListIndexShardsOnDataPathAction extends TransportNodesActi
                 logger.debug(() -> String.format(Locale.ROOT, "cannot open index for shard [%s] in path [%s]", shardId, path), e);
             }
         }
-        return new NodeListIndexShardsOnDataPathResponse(transportService.getLocalNode(), localShards);
+        return new NodeCheckShardsOnDataPathResponse(transportService.getLocalNode(), localShards);
     }
 }

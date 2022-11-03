@@ -8,27 +8,28 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Set;
 
-public class NodeListIndexShardsOnDataPathResponse extends BaseNodeResponse {
+public class CheckShardsOnDataPathRequest extends BaseNodesRequest<CheckShardsOnDataPathRequest> {
 
     private final Set<ShardId> shardIds;
 
-    protected NodeListIndexShardsOnDataPathResponse(DiscoveryNode node, Set<ShardId> shardIds) {
-        super(node);
+    public CheckShardsOnDataPathRequest(Set<ShardId> shardIds, String... nodeIds) {
+        super(nodeIds);
         this.shardIds = Set.copyOf(shardIds);
+        this.timeout(TimeValue.timeValueSeconds(30));
     }
 
-    protected NodeListIndexShardsOnDataPathResponse(StreamInput in) throws IOException {
+    public CheckShardsOnDataPathRequest(StreamInput in) throws IOException {
         super(in);
-        shardIds = in.readSet(ShardId::new);
+        this.shardIds = in.readSet(ShardId::new);
     }
 
     @Override

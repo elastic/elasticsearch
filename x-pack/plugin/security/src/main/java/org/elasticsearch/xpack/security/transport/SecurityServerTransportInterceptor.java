@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -54,6 +55,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final Client client;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -64,6 +66,19 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations
     ) {
+        this(settings, threadPool, authcService, authzService, sslService, securityContext, destructiveOperations, null);
+    }
+
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        Client client
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -71,6 +86,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.client = client;
     }
 
     @Override
@@ -87,6 +103,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+
+                final String clusterAlias = safeGetRemoteClusterAliasForConnection(connection);
+                if (clusterAlias != null) {
+                    logger.info("Remote cluster alias [{}]", clusterAlias);
+                }
 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user
@@ -133,6 +154,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }
+            }
+
+            private String safeGetRemoteClusterAliasForConnection(Transport.Connection connection) {
+                try {
+                    return client.getRemoteClusterAliasForConnection(connection);
+                } catch (Exception ex) {
+                    logger.error("Failed resolving cluster alias", ex);
+                    return null;
+                }
             }
         };
     }

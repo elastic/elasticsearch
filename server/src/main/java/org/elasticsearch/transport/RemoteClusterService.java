@@ -368,6 +368,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
     }
 
+    public String getRemoteClusterAliasForConnection(Transport.Connection connection) {
+        return getConnections().stream()
+            .filter(rcc -> rcc.getConnection(connection.getNode()) == connection)
+            .map(rcc -> rcc.getConnectionInfo().getClusterAlias())
+            .findFirst()
+            .orElse(null);
+    }
+
     /**
      * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link DiscoveryNode}
      * function on success.

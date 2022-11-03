@@ -235,7 +235,9 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .get()
                 .getShards();
 
-            var min = Arrays.stream(shardStates).min(Comparator.comparing(it -> it.getStats().getStore().sizeInBytes())).orElseThrow(() -> new AssertionError("no shards"));
+            var min = Arrays.stream(shardStates)
+                .min(Comparator.comparing(it -> it.getStats().getStore().sizeInBytes()))
+                .orElseThrow(() -> new AssertionError("no shards"));
             var entry = Map.entry(removeIndexUUID(min.getShardRouting().shardId()), min.getStats().getStore().sizeInBytes());
 
             if (entry.getValue() > WATERMARK_BYTES) {
@@ -273,8 +275,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         );
     }
 
-    private void assertBusyWithDiskUsageRefresh(String nodeName, String indexName, Matcher<? super Set<ShardId>> matcher)
-        throws Exception {
+    private void assertBusyWithDiskUsageRefresh(String nodeName, String indexName, Matcher<? super Set<ShardId>> matcher) throws Exception {
         assertBusy(() -> {
             // refresh the master's ClusterInfoService before checking the assigned shards because DiskThresholdMonitor might still
             // be processing a previous ClusterInfo update and will skip the new one (see DiskThresholdMonitor#onNewInfo(ClusterInfo)

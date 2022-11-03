@@ -278,6 +278,11 @@ params::           Optional. An object whose contents will be passed as variable
 --------------------------------------------------
 // NOTCONSOLE
 
+needs_scores::     Optional, defaults to `true`.  By default, scripts are able to access scores, but this is incompatible with some
+                   aggregations, notably nested composites.  Setting this to `false` indicates that the script is not using scores, and can
+                   be run in a mode that doesn't support scoring.  Note that no attempt is made to validate the script against this setting,
+                   and the behavior of accessing scores while `needs_scores` is set to `false` is undefined.
+
 [[scripted-metric-aggregation-empty-buckets]]
 ==== Empty buckets
 

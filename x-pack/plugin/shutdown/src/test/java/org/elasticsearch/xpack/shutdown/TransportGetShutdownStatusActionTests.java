@@ -35,12 +35,14 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAlloc
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -123,6 +125,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             clusterInfoService,
             snapshotsInfoService
         );
+        allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
     }
 
     /**

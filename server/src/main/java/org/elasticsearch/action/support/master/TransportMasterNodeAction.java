@@ -279,7 +279,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         private void retryOnNextState(long currentStateVersion, Throwable failure) {
-            retry(currentStateVersion, failure, ClusterStateObserver.MATCH_ALL_CHANGES_PREDICATE);
+            retry(currentStateVersion, failure, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
         }
 
         private void retry(long currentStateVersion, final Throwable failure, final Predicate<ClusterState> statePredicate) {

@@ -154,7 +154,7 @@ public class TrainedModelAssignmentService {
                 // we wait indefinitely for a new master
                 assert false;
             }
-        });
+        }, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
     }
 
     private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[] {

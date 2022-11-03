@@ -30,7 +30,9 @@ public class ClusterStateObserver {
 
     protected final Logger logger;
 
-    public static final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
+    public static final Predicate<ClusterState> NON_NULL_MASTER_PREDICATE = state -> state.nodes().getMasterNode() != null;
+
+    private static final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
 
     private final ClusterApplierService clusterApplierService;
     private final ThreadPool threadPool;

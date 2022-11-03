@@ -271,7 +271,7 @@ public class ShardStateAction {
                 // we wait indefinitely for a new master
                 assert false;
             }
-        });
+        }, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
     }
 
     // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code

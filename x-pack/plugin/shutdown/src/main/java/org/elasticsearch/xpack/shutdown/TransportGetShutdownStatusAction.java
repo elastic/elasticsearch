@@ -41,13 +41,16 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus.NODE_ALLOCATION_DECISION_KEY;
 import static org.elasticsearch.core.Strings.format;
@@ -195,7 +198,46 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
         }
 
-        // First, check if there are any shards currently on this node, and if there are any relocating shards
+        final RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            currentState,
+            clusterInfoService.getClusterInfo(),
+            snapshotsInfoService.snapshotShardSizes(),
+            System.nanoTime()
+        );
+        allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+
+        // Check if we have any unassigned primary shards that have this nodeId as their lastAllocatedNodeId
+        var unassignedShards = Stream.iterate(
+            currentState.getRoutingNodes().unassigned().iterator(),
+            Iterator::hasNext,
+            UnaryOperator.identity()
+        )
+            .map(Iterator::next)
+            .filter(s -> s.primary() && s.unassignedInfo().getLastAllocatedNodeId().equals(nodeId))
+            .collect(Collectors.toList());
+
+        if (unassignedShards.isEmpty() == false) {
+            var shardRouting = unassignedShards.get(0);
+            var unassignedInfo = shardRouting.unassignedInfo();
+            if (unassignedInfo.getLastAllocatedNodeId().equals(nodeId)) {
+                ShardAllocationDecision decision = allocationService.explainShardAllocation(shardRouting, allocation);
+
+                return new ShutdownShardMigrationStatus(
+                    SingleNodeShutdownMetadata.Status.STALLED,
+                    unassignedShards.size(),
+                    format(
+                        "shard [%s] [primary] of index [%s] is unassigned, see [%s] for details or use the cluster allocation explain API",
+                        shardRouting.shardId().getId(),
+                        shardRouting.index().getName(),
+                        NODE_ALLOCATION_DECISION_KEY
+                    ),
+                    decision
+                );
+            }
+        }
+
+        // Check if there are any shards currently on this node, and if there are any relocating shards
         int startedShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
         int relocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);
         int initializingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.INITIALIZING);
@@ -217,14 +259,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         // If there's no relocating shards and shards still on this node, we need to figure out why
-        final RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            currentState,
-            clusterInfoService.getClusterInfo(),
-            snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
-        );
-        allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         // We also need the set of node IDs which are currently shutting down.
         Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().keySet();

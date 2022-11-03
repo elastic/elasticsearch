@@ -358,8 +358,8 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     }
 
     /**
-     * Ensure we can detect stalled migrations, defined as the inability to move remaining shards off a shutting-down node due to allocation
-     * deciders.
+     * Ensure we can detect stalled migrations when we have unassigned shards that had the shutting down node as their last known
+     * node id
      */
     public void testStalledUnassigned() {
         Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));

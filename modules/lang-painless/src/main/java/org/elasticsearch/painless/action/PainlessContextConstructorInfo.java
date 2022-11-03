@@ -62,7 +62,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     public PainlessContextConstructorInfo(StreamInput in) throws IOException {
         declaring = in.readString();
-        parameters = Collections.unmodifiableList(in.readStringList());
+        parameters = in.readImmutableList(StreamInput::readString);
     }
 
     @Override

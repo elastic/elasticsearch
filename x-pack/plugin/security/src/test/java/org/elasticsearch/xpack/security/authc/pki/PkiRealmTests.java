@@ -414,6 +414,26 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getValue().roles().length, is(0));
         assertThat(result.getValue().metadata().get("pki_delegated_by_user"), is("mockup_delegate_username"));
         assertThat(result.getValue().metadata().get("pki_delegated_by_realm"), is("mockup_delegate_realm"));
+
+        // Delegatee is run-as
+        final Authentication runAsAuthentication = AuthenticationTestHelper.builder().realm().build(true);
+        assertThat(runAsAuthentication.isRunAs(), is(true));
+        delegatedToken = X509AuthenticationToken.delegated(new X509Certificate[] { certificate }, runAsAuthentication);
+        realmWithDelegation.expireAll(); // clear the cache so the user is built again
+        result = authenticate(delegatedToken, realmWithDelegation);
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getValue(), is(notNullValue()));
+        assertThat(result.getValue().principal(), is("Elasticsearch Test Node"));
+        assertThat(result.getValue().roles(), is(notNullValue()));
+        assertThat(result.getValue().roles().length, is(0));
+        assertThat(
+            result.getValue().metadata().get("pki_delegated_by_user"),
+            is(runAsAuthentication.getEffectiveSubject().getUser().principal())
+        );
+        assertThat(
+            result.getValue().metadata().get("pki_delegated_by_realm"),
+            is(runAsAuthentication.getEffectiveSubject().getRealm().getName())
+        );
     }
 
     public void testAuthenticationDelegationFailure() throws Exception {

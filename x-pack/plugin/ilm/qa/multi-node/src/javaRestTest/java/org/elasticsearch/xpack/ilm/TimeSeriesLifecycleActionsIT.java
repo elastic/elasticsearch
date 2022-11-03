@@ -288,7 +288,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             Step.StepKey stepKey = getStepKeyForIndex(client(), index);
             logger.info("step key for index {} is {}", index, stepKey);
-            assertThat(stepKey.getAction(), equalTo("complete"));
+            assertThat(stepKey.action(), equalTo("complete"));
         }, slmPolicy);
     }
 
@@ -318,7 +318,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             Step.StepKey stepKey = getStepKeyForIndex(client(), index);
             logger.info("step key for index {} is {}", index, stepKey);
-            assertThat(stepKey.getAction(), equalTo("complete"));
+            assertThat(stepKey.action(), equalTo("complete"));
         }, slmPolicy);
     }
 
@@ -374,9 +374,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             Step.StepKey stepKey = getStepKeyForIndex(client(), index);
             logger.info("stepKey for index {} is {}", index, stepKey);
-            assertThat(stepKey.getAction(), equalTo("complete"));
+            assertThat(stepKey.action(), equalTo("complete"));
         }, slmPolicy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).action(), equalTo("complete")), slmPolicy);
     }
 
     /*
@@ -423,7 +423,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueHours(1));
         updatePolicy(client(), index, policy);
         assertBusy(() -> {
-            assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete"));
+            assertThat(getStepKeyForIndex(client(), index).action(), equalTo("complete"));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), not("true"));
         });
@@ -795,7 +795,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex).getName(), equalTo(WaitForActiveShardsStep.NAME)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex).name(), equalTo(WaitForActiveShardsStep.NAME)));
 
         // reset the number of replicas to 0 so that the second index wait for active shard condition can be met
         updateIndexSettings(secondIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -940,14 +940,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), index + "-1", "1", "foo", "bar");
 
         // Wait for the index to enter the check-rollover-ready step
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index + "-1").getName(), equalTo(WaitForRolloverReadyStep.NAME)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index + "-1").name(), equalTo(WaitForRolloverReadyStep.NAME)));
 
         // Update the policy to allow rollover at 1 document instead of 100
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
 
         // Index should now have been able to roll over, creating the new index and proceeding to the "complete" step
         assertBusy(() -> assertThat(indexExists(index + "-000002"), is(true)));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index + "-1").getName(), equalTo(PhaseCompleteStep.NAME)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index + "-1").name(), equalTo(PhaseCompleteStep.NAME)));
     }
 
     public void testHaltAtEndOfPhase() throws Exception {
@@ -1223,9 +1223,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         // Finally, check that the history index is in a good state
         Step.StepKey stepKey = getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName("ilm-history-5", 1));
-        assertEquals("hot", stepKey.getPhase());
-        assertEquals(RolloverAction.NAME, stepKey.getAction());
-        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
+        assertEquals("hot", stepKey.phase());
+        assertEquals(RolloverAction.NAME, stepKey.action());
+        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.name());
     }
 
     private void createSlmPolicy(String smlPolicy, String repo) throws IOException {

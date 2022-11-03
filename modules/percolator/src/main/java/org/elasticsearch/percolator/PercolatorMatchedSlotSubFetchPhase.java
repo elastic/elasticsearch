@@ -20,6 +20,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -51,7 +52,9 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(fetchContext.query());
         boolean singlePercolateQuery = percolateQueries.size() == 1;
         for (PercolateQuery pq : percolateQueries) {
-            percolateContexts.add(new PercolateContext(pq, singlePercolateQuery));
+            percolateContexts.add(
+                new PercolateContext(pq, singlePercolateQuery, fetchContext.getSearchExecutionContext().indexVersionCreated())
+            );
         }
         if (percolateContexts.isEmpty()) {
             return null;
@@ -75,7 +78,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                         // This is not a document with a percolator field.
                         continue;
                     }
-                    query = pc.filterNestedDocs(query);
+                    query = pc.filterNestedDocs(query, fetchContext.getSearchExecutionContext().indexVersionCreated());
                     IndexSearcher percolatorIndexSearcher = pc.percolateQuery.getPercolatorIndexSearcher();
                     int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
                     TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
@@ -98,11 +101,11 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         final boolean singlePercolateQuery;
         final int[] rootDocsBySlot;
 
-        PercolateContext(PercolateQuery pq, boolean singlePercolateQuery) throws IOException {
+        PercolateContext(PercolateQuery pq, boolean singlePercolateQuery, Version indexVersionCreated) throws IOException {
             this.percolateQuery = pq;
             this.singlePercolateQuery = singlePercolateQuery;
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            Query nonNestedFilter = percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter());
+            Query nonNestedFilter = percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter(indexVersionCreated));
             Weight weight = percolatorIndexSearcher.createWeight(nonNestedFilter, ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));
             int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
@@ -119,11 +122,11 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             return singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
         }
 
-        Query filterNestedDocs(Query in) {
+        Query filterNestedDocs(Query in, Version indexVersionCreated) {
             if (rootDocsBySlot != null) {
                 // Ensures that we filter out nested documents
                 return new BooleanQuery.Builder().add(in, BooleanClause.Occur.MUST)
-                    .add(Queries.newNonNestedFilter(), BooleanClause.Occur.FILTER)
+                    .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.FILTER)
                     .build();
             }
             return in;

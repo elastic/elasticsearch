@@ -12,12 +12,16 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.function.Supplier;
 
 final class RemoteClusterAwareClient extends AbstractClient {
 
@@ -90,11 +94,10 @@ final class RemoteClusterAwareClient extends AbstractClient {
         return remoteClusterService.getRemoteClusterClient(threadPool(), remoteClusterAlias);
     }
 
-    public static class UntrustedRemoteClusterSecurityEnabled extends FilterClient {
-
+    static class RemoteClusterAliasSettingClient extends FilterClient {
         private final String clusterAlias;
 
-        public UntrustedRemoteClusterSecurityEnabled(
+        RemoteClusterAliasSettingClient(
             final Settings settings,
             final ThreadPool threadPool,
             final TransportService service,
@@ -111,9 +114,10 @@ final class RemoteClusterAwareClient extends AbstractClient {
             Request request,
             ActionListener<Response> listener
         ) {
-            try (var ignored = threadPool().getThreadContext().newStoredContext()) {
+            final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
+            try (var ignored = in().threadPool().getThreadContext().newStoredContext()) {
                 threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
-                in.execute(action, request, listener);
+                super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
             }
         }
     }

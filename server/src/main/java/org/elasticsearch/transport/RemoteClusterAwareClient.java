@@ -24,7 +24,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
     private final String clusterAlias;
     private final RemoteClusterService remoteClusterService;
     private final boolean ensureConnected;
-    private final boolean useUntrustedRemoteClusterSecurityModel;
+    private final boolean useUntrustedRemoteClusterSecurityMode;
 
     RemoteClusterAwareClient(
         Settings settings,
@@ -42,14 +42,14 @@ final class RemoteClusterAwareClient extends AbstractClient {
         TransportService service,
         String clusterAlias,
         boolean ensureConnected,
-        boolean useUntrustedRemoteClusterSecurityModel
+        boolean useUntrustedRemoteClusterSecurityMode
     ) {
         super(settings, threadPool);
         this.service = service;
         this.clusterAlias = clusterAlias;
         this.remoteClusterService = service.getRemoteClusterService();
         this.ensureConnected = ensureConnected;
-        this.useUntrustedRemoteClusterSecurityModel = useUntrustedRemoteClusterSecurityModel;
+        this.useUntrustedRemoteClusterSecurityMode = useUntrustedRemoteClusterSecurityMode;
     }
 
     @Override
@@ -74,7 +74,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
                 }
                 throw e;
             }
-            if (useUntrustedRemoteClusterSecurityModel) {
+            if (useUntrustedRemoteClusterSecurityMode) {
                 try (var ignored = threadPool().getThreadContext().newStoredContext()) {
                     threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
                     service.sendRequest(

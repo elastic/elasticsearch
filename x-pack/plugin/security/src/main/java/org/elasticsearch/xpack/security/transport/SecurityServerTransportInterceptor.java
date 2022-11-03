@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -89,8 +91,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
-                final String remoteClusterAlias = threadPool.getThreadContext()
-                    .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
+                final String remoteClusterAlias = getRemoteClusterAlias();
                 if (remoteClusterAlias != null) {
                     logger.info("Remote cluster alias transient header [{}]", remoteClusterAlias);
                 }
@@ -137,11 +138,61 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             ),
                             minVersion
                         );
+                        // TODO should be an earlier or deeper branch
+                    } else if (shouldSendRemoteAccessHeaders()) {
+                        sendWithRemoteAccessHeaders(
+                            original -> sendWithUser(
+                                connection,
+                                action,
+                                request,
+                                options,
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                                sender
+                            )
+                        );
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }
             }
         };
+    }
+
+    public void sendWithRemoteAccessHeaders(Consumer<ThreadContext.StoredContext> consumer) {
+        final Authentication authentication = securityContext.getAuthentication();
+        final ThreadContext threadContext = securityContext.getThreadContext();
+        final ThreadContext.StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            final var remoteClusterAlias = getRemoteClusterAlias();
+            assert remoteClusterAlias != null;
+            final var remoteClusterAuthorization = getRemoteClusterAuthorization(remoteClusterAlias);
+            assert remoteClusterAuthorization != null;
+            // TODO header names
+            threadContext.putHeader("_remote_access_credential", remoteClusterAuthorization);
+            threadContext.putHeader("_remote_access_information", buildRemoteAccessInformationHeader());
+            consumer.accept(original);
+        }
+    }
+
+    private String getRemoteClusterAlias() {
+        // TODO should this be securityContext.getThreadContext()?
+        return threadPool.getThreadContext().getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
+    }
+
+    private boolean shouldSendRemoteAccessHeaders() {
+        return false;
+        // final String remoteClusterAlias = getRemoteClusterAlias();
+        // if (remoteClusterAlias == null) {
+        // return false;
+        // }
+        // return getRemoteClusterAuthorization(remoteClusterAlias) != null;
+    }
+
+    private String getRemoteClusterAuthorization(String remoteClusterAlias) {
+        return null;
+    }
+
+    private String buildRemoteAccessInformationHeader() {
+        return "";
     }
 
     private <T extends TransportResponse> void sendWithUser(

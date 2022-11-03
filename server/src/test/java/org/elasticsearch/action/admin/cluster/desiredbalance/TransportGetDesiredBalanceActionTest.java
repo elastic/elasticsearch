@@ -39,11 +39,6 @@ public class TransportGetDesiredBalanceActionTest extends ESIntegTestCase {
 
         DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
             .get();
-        System.out.println(
-            Strings.toString(
-                desiredBalanceResponse.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS)
-            )
-        );
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);

@@ -55,6 +55,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -63,7 +64,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -72,6 +74,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
     }
 
     @Override

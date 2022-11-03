@@ -86,7 +86,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -350,26 +349,10 @@ public class AuthorizationService {
         if (isRunAs) {
             ActionListener<AuthorizationResult> runAsListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
-                    if (result.isAuditable()) {
-                        auditTrail.runAsGranted(
-                            requestId,
-                            authentication,
-                            action,
-                            request,
-                            authzInfo.getAuthenticatedUserAuthorizationInfo()
-                        );
-                    }
+                    auditTrail.runAsGranted(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
                     authorizeAction(requestInfo, requestId, authzInfo, listener);
                 } else {
-                    if (result.isAuditable()) {
-                        auditTrail.runAsDenied(
-                            requestId,
-                            authentication,
-                            action,
-                            request,
-                            authzInfo.getAuthenticatedUserAuthorizationInfo()
-                        );
-                    }
+                    auditTrail.runAsDenied(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
                     listener.onFailure(runAsDenied(authentication, authzInfo, action));
                 }
             }, e -> {
@@ -747,7 +730,6 @@ public class AuthorizationService {
             final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener = ActionListener.wrap(
                 collection -> {
                     final Map<String, IndicesAccessControl> actionToIndicesAccessControl = new HashMap<>();
-                    final AtomicBoolean audit = new AtomicBoolean(false);
                     collection.forEach(tuple -> {
                         final IndicesAccessControl existing = actionToIndicesAccessControl.putIfAbsent(
                             tuple.v1(),
@@ -755,9 +737,6 @@ public class AuthorizationService {
                         );
                         if (existing != null) {
                             throw new IllegalStateException("a value already exists for action " + tuple.v1());
-                        }
-                        if (tuple.v2().isAuditable()) {
-                            audit.set(true);
                         }
                     });
 
@@ -790,7 +769,7 @@ public class AuthorizationService {
                                     null
                                 )
                             );
-                        } else if (audit.get()) {
+                        } else {
                             auditTrail.explicitIndexAccessEvent(
                                 requestId,
                                 AuditLevel.ACCESS_GRANTED,
@@ -950,38 +929,34 @@ public class AuthorizationService {
         @Override
         public void onResponse(T result) {
             if (result.isGranted()) {
-                if (result.isAuditable()) {
-                    auditTrailService.get()
-                        .accessGranted(
-                            requestId,
-                            requestInfo.getAuthentication(),
-                            requestInfo.getAction(),
-                            requestInfo.getRequest(),
-                            authzInfo
-                        );
-                }
+                auditTrailService.get()
+                    .accessGranted(
+                        requestId,
+                        requestInfo.getAuthentication(),
+                        requestInfo.getAction(),
+                        requestInfo.getRequest(),
+                        authzInfo
+                    );
                 try {
                     responseConsumer.accept(result);
                 } catch (Exception e) {
                     failureConsumer.accept(e);
                 }
             } else {
-                handleFailure(result.isAuditable(), result.getFailureContext(requestInfo, restrictedIndices), null);
+                handleFailure(result.getFailureContext(requestInfo, restrictedIndices), null);
             }
         }
 
         @Override
         public void onFailure(Exception e) {
-            handleFailure(true, null, e);
+            handleFailure(null, e);
         }
 
-        private void handleFailure(boolean audit, @Nullable String context, @Nullable Exception e) {
+        private void handleFailure(@Nullable String context, @Nullable Exception e) {
             Authentication authentication = requestInfo.getAuthentication();
             String action = requestInfo.getAction();
             TransportRequest request = requestInfo.getRequest();
-            if (audit) {
-                auditTrailService.get().accessDenied(requestId, authentication, action, request, authzInfo);
-            }
+            auditTrailService.get().accessDenied(requestId, authentication, action, request, authzInfo);
             failureConsumer.accept(actionDenied(authentication, authzInfo, action, request, context, e));
         }
     }

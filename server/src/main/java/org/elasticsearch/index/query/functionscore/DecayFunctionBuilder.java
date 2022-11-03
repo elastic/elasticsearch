@@ -79,9 +79,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         if (scale == null) {
             throw new IllegalArgumentException("decay function: scale must not be null");
         }
-        if (decay <= 0 || decay >= 1.0) {
-            throw new IllegalStateException("decay function: decay must be in range 0..1!");
-        }
+        validateDecay(decay);
         this.fieldName = fieldName;
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -110,6 +108,15 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
         this.fieldName = fieldName;
         this.functionBytes = functionBytes;
+    }
+
+    /**
+    * Override this function if you have different validation rules per score function
+    */
+    protected void validateDecay(double decay) {
+        if (decay <= 0 || decay >= 1.0) {
+            throw new IllegalStateException("decay function: decay must be in range (0..1)!");
+        }
     }
 
     /**

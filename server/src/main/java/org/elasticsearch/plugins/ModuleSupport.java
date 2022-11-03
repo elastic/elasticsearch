@@ -50,12 +50,12 @@ public class ModuleSupport {
         Path[] jarPaths,
         Set<String> requires,
         Set<String> uses,
-        Predicate<String> packageInParentLayers
+        Predicate<String> isPackageInParentLayers
     ) {
         try {
             return new InMemoryModuleFinder(
                 new InMemoryModuleReference(
-                    createModuleDescriptor(name, jarPaths, requires, uses, packageInParentLayers),
+                    createModuleDescriptor(name, jarPaths, requires, uses, isPackageInParentLayers),
                     URI.create("module:/" + name)
                 )
             );
@@ -70,7 +70,7 @@ public class ModuleSupport {
         Path[] jarPaths,
         Set<String> requires,
         Set<String> uses,
-        Predicate<String> packageInParentLayers
+        Predicate<String> isPackageInParentLayers
     ) throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
@@ -120,7 +120,7 @@ public class ModuleSupport {
         // Services that aren't exported in the parent layer or defined in our
         // bundle. This can happen for optional (compile-time) dependencies
         Set<String> missingServices = servicesUsedInBundle.stream()
-            .filter(s -> packageInParentLayers.test(toPackageName(s, ".").orElseThrow()) == false)
+            .filter(s -> isPackageInParentLayers.test(toPackageName(s, ".").orElseThrow()) == false)
             .filter(s -> pkgs.contains(toPackageName(s, ".").orElseThrow()) == false)
             .collect(Collectors.toSet());
 

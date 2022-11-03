@@ -438,12 +438,13 @@ public class LocalExecutionPlanner {
             }
         } else if (exp instanceof Round round) {
             ExpressionEvaluator fieldEvaluator = toEvaluator(round.field(), layout);
+            // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
+            ExpressionEvaluator decimalsEvaluator = round.decimals() != null ? toEvaluator(round.decimals(), layout) : null;
             if (round.field().dataType().isRational()) {
                 return (page, pos) -> {
-                    Object decimals = null;
-                    if (round.decimals() != null) {
-                        decimals = toEvaluator(round.decimals(), layout).computeRow(page, pos);
-                    }
+                    // decimals could be null
+                    // it's not the same null as round.decimals() being null
+                    Object decimals = decimalsEvaluator != null ? decimalsEvaluator.computeRow(page, pos) : null;
                     return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
                 };
             } else {

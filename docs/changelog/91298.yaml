@@ -1,0 +1,5 @@
+pr: 91298
+summary: Support `cartesian_bounds` aggregation on point and shape
+area: Geo
+type: enhancement
+issues: []

@@ -1447,6 +1447,8 @@ public class TransportService extends AbstractLifecycleComponent
                 handler.handleResponse(response);
             } catch (Exception e) {
                 processException(handler, wrapInRemote(new ResponseHandlerFailureTransportException(e)));
+            } finally {
+                response.decRef();
             }
         }
 

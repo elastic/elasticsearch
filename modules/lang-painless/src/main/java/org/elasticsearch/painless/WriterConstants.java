@@ -46,6 +46,8 @@ public final class WriterConstants {
 
     public static final Type OBJECT_TYPE = Type.getType(Object.class);
 
+    public static final Method OBJECT_EQUALS = getAsmMethod(boolean.class, "equals", Object.class);
+
     public static final MethodType NEEDS_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
 
     public static final Type ITERATOR_TYPE = Type.getType(Iterator.class);

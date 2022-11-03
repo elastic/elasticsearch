@@ -174,6 +174,8 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.OBJECT_EQUALS;
+import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 
 public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
@@ -1026,7 +1028,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     if (irRightNode instanceof NullNode) {
                         methodWriter.ifNull(jump);
                     } else if (irLeftNode instanceof NullNode == false && operation == Operation.EQ) {
-                        methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        // if one of the types is a String, can use String.equals here
+                        if (irLeftNode.getDecorationValue(IRDExpressionType.class) == String.class) {
+                            methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
+                        }
+                        else if (irRightNode.getDecorationValue(IRDExpressionType.class) == String.class) {
+                            // swap the args to call equals on right object
+                            methodWriter.swap();
+                            methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
+                        }
+                        else {
+                            methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        }
                         writejump = false;
                     } else {
                         methodWriter.ifCmp(type, MethodWriter.EQ, jump);
@@ -1035,7 +1048,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     if (irRightNode instanceof NullNode) {
                         methodWriter.ifNonNull(jump);
                     } else if (irLeftNode instanceof NullNode == false && operation == Operation.NE) {
-                        methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        // if one of the types is a String, can use String.equals here
+                        if (irLeftNode.getDecorationValue(IRDExpressionType.class) == String.class) {
+                            methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
+                        }
+                        else if (irRightNode.getDecorationValue(IRDExpressionType.class) == String.class) {
+                            // swap the args to call equals on right object
+                            methodWriter.swap();
+                            methodWriter.invokeVirtual(STRING_TYPE, OBJECT_EQUALS);
+                        }
+                        else {
+                            methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        }
                         methodWriter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         methodWriter.ifCmp(type, MethodWriter.NE, jump);

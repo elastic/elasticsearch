@@ -12,6 +12,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.text.ParseException;
@@ -20,12 +21,14 @@ import java.util.List;
 public class JwtStringClaimValidator implements JwtClaimValidator {
 
     private final String claimName;
+    private final List<String> allowedClaimValues;
     // Whether the claim should be a single string
     private final boolean singleValuedClaim;
     private final StringMatcher claimValueMatcher;
 
     public JwtStringClaimValidator(String claimName, List<String> allowedClaimValues, boolean singleValuedClaim) {
         this.claimName = claimName;
+        this.allowedClaimValues = allowedClaimValues;
         this.singleValuedClaim = singleValuedClaim;
         // if (allowedClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
         // throw new ElasticsearchException("invalid allowed claim values, cannot use wildcard or regex");
@@ -39,19 +42,22 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
         try {
             claimValues = getStringClaimValues(jwt.getJWTClaimsSet());
         } catch (ParseException e) {
-            throw new ElasticsearchSecurityException("string parsing failed: claim [" + claimName + "]", e);
+            throw new ElasticsearchSecurityException("cannot parse string claim [" + claimName + "]", RestStatus.BAD_REQUEST, e);
         }
         if (claimValues == null) {
-            throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] does not exist");
+            throw new ElasticsearchSecurityException("missing string claim [" + claimName + "]", RestStatus.BAD_REQUEST);
         }
 
         if (false == claimValues.stream().anyMatch(claimValueMatcher)) {
             throw new ElasticsearchSecurityException(
-                "validation failed: claim ["
+                "string claim ["
                     + claimName
-                    + "] value ["
+                    + "] has value ["
                     + Strings.collectionToCommaDelimitedString(claimValues)
-                    + "] do not match"
+                    + "] which does not match allowed claim values ["
+                    + Strings.collectionToCommaDelimitedString(allowedClaimValues)
+                    + "]",
+                RestStatus.BAD_REQUEST
             );
         }
     }
@@ -61,7 +67,8 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
         final String actualClaimName = claimName;
 
         if (singleValuedClaim) {
-            return List.of(claimsSet.getStringClaim(actualClaimName));
+            final String claimValue = claimsSet.getStringClaim(actualClaimName);
+            return claimValue != null ? List.of(claimValue) : null;
         } else {
             final Object claimValue = claimsSet.getClaim(actualClaimName);
             if (claimValue instanceof String) {

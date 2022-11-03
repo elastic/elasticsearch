@@ -25,7 +25,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class JwtTimeClaimValidatorTests extends ESTestCase {
+public class JwtDateClaimValidatorTests extends ESTestCase {
     private Clock clock;
 
     @Before
@@ -33,30 +33,31 @@ public class JwtTimeClaimValidatorTests extends ESTestCase {
         clock = mock(Clock.class);
     }
 
-    public void testClaimIsNotADate() throws ParseException {
+    public void testClaimIsNotDate() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final JwtTimeClaimValidator validator = new JwtTimeClaimValidator(
+        final JwtDateClaimValidator validator = new JwtDateClaimValidator(
             clock,
             claimName,
             TimeValue.ZERO,
-            randomFrom(JwtTimeClaimValidator.Relationship.values()),
+            randomFrom(JwtDateClaimValidator.Relationship.values()),
             randomBoolean()
         );
 
         final SignedJWT jwt = prepareJwt(Map.of(claimName, randomAlphaOfLengthBetween(3, 8)));
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
+        assertThat(e.getMessage(), containsString("cannot parse date claim"));
         assertThat(e.getCause(), instanceOf(ParseException.class));
     }
 
     public void testClaimDoesNotExist() throws ParseException {
-        final String claimName = randomFrom(randomAlphaOfLengthBetween(3, 8), "iss", "nbf", "auth_time");
+        final String claimName = randomFrom(randomAlphaOfLengthBetween(3, 8), "iat", "nbf", "auth_time");
         final boolean allowNull = randomBoolean();
 
-        final JwtTimeClaimValidator validator = new JwtTimeClaimValidator(
+        final JwtDateClaimValidator validator = new JwtDateClaimValidator(
             clock,
             claimName,
             TimeValue.ZERO,
-            randomFrom(JwtTimeClaimValidator.Relationship.values()),
+            randomFrom(JwtDateClaimValidator.Relationship.values()),
             allowNull
         );
 
@@ -64,18 +65,19 @@ public class JwtTimeClaimValidatorTests extends ESTestCase {
         if (allowNull) {
             validator.validate(jwt);
         } else {
-            expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
+            final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
+            assertThat(e.getMessage(), containsString("missing date claim"));
         }
     }
 
     public void testBeforeNow() throws ParseException {
         final String claimName = randomFrom(randomAlphaOfLengthBetween(10, 18), "iat", "nbf", "auth_time");
         final long allowedSkewInSeconds = randomLongBetween(0, 300);
-        final JwtTimeClaimValidator validator = new JwtTimeClaimValidator(
+        final JwtDateClaimValidator validator = new JwtDateClaimValidator(
             clock,
             claimName,
             TimeValue.timeValueSeconds(allowedSkewInSeconds),
-            JwtTimeClaimValidator.Relationship.BEFORE_NOW,
+            JwtDateClaimValidator.Relationship.BEFORE_NOW,
             false
         );
 
@@ -90,17 +92,17 @@ public class JwtTimeClaimValidatorTests extends ESTestCase {
             ElasticsearchSecurityException.class,
             () -> validator.validate(prepareJwt(Map.of(claimName, after.getEpochSecond())))
         );
-        assertThat(e.getMessage(), containsString("validation failed: claim [" + claimName + "] must be before now"));
+        assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be before now"));
     }
 
     public void testAfterNow() throws ParseException {
         final String claimName = randomFrom(randomAlphaOfLengthBetween(10, 18), "exp");
         final long allowedSkewInSeconds = randomLongBetween(0, 300);
-        final JwtTimeClaimValidator validator = new JwtTimeClaimValidator(
+        final JwtDateClaimValidator validator = new JwtDateClaimValidator(
             clock,
             claimName,
             TimeValue.timeValueSeconds(allowedSkewInSeconds),
-            JwtTimeClaimValidator.Relationship.AFTER_NOW,
+            JwtDateClaimValidator.Relationship.AFTER_NOW,
             false
         );
 
@@ -112,7 +114,7 @@ public class JwtTimeClaimValidatorTests extends ESTestCase {
             ElasticsearchSecurityException.class,
             () -> validator.validate(prepareJwt(Map.of(claimName, before.getEpochSecond())))
         );
-        assertThat(e.getMessage(), containsString("validation failed: claim [" + claimName + "] must be after now"));
+        assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be after now"));
 
         final Instant after = now.plusSeconds(randomLongBetween(1 - allowedSkewInSeconds, 600));
         validator.validate(prepareJwt(Map.of(claimName, after.getEpochSecond())));

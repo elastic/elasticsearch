@@ -43,10 +43,10 @@ public class JwtAuthenticator implements Releasable {
             new JwtHeaderValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
             new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
-            new JwtTimeClaimValidator(clock, "iat", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, false),
-            new JwtTimeClaimValidator(clock, "exp", allowedClockSkew, JwtTimeClaimValidator.Relationship.AFTER_NOW, false),
-            new JwtTimeClaimValidator(clock, "nbf", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, true),
-            new JwtTimeClaimValidator(clock, "auth_time", allowedClockSkew, JwtTimeClaimValidator.Relationship.BEFORE_NOW, true)
+            new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
+            new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false),
+            new JwtDateClaimValidator(clock, "nbf", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true),
+            new JwtDateClaimValidator(clock, "auth_time", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true)
         );
 
         jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(realmConfig, sslService, reloadNotifier);

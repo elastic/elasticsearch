@@ -16,9 +16,9 @@ import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 
@@ -43,17 +43,18 @@ public class JwtHeaderValidator implements JwtClaimValidator {
         try {
             JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
         } catch (BadJOSEException e) {
-            throw new ElasticsearchException("validation failed: type header", e);
+            throw new ElasticsearchSecurityException("invalid jwt typ header", RestStatus.BAD_REQUEST, e);
         }
 
         final JWSAlgorithm algorithm = jwt.getHeader().getAlgorithm();
         if (algorithm == null) {
-            throw new ElasticsearchSecurityException("JWT algorithm is null");
+            throw new ElasticsearchSecurityException("missing JWT algorithm header", RestStatus.BAD_REQUEST);
         }
 
         if (false == allowedAlgorithms.contains(algorithm.getName())) {
-            throw new ElasticsearchException(
-                "Algorithm [%s] is invalid because it is not one of the allowed algorithms [%s]",
+            throw new ElasticsearchSecurityException(
+                "invalid JWT algorithm [%s], allowed algorithms are [%s]",
+                RestStatus.BAD_REQUEST,
                 algorithm,
                 Strings.collectionToCommaDelimitedString(allowedAlgorithms)
             );

@@ -11,13 +11,14 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 
 import java.text.ParseException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 
-public class JwtTimeClaimValidator implements JwtClaimValidator {
+public class JwtDateClaimValidator implements JwtClaimValidator {
 
     public enum Relationship {
         BEFORE_NOW,
@@ -30,7 +31,7 @@ public class JwtTimeClaimValidator implements JwtClaimValidator {
     private final Relationship relationship;
     private final boolean allowNull;
 
-    public JwtTimeClaimValidator(Clock clock, String claimName, TimeValue allowedClockSkew, Relationship relationship, boolean allowNull) {
+    public JwtDateClaimValidator(Clock clock, String claimName, TimeValue allowedClockSkew, Relationship relationship, boolean allowNull) {
         this.clock = clock;
         this.claimName = claimName;
         this.allowedClockSkewSeconds = allowedClockSkew.seconds();
@@ -44,30 +45,29 @@ public class JwtTimeClaimValidator implements JwtClaimValidator {
         try {
             claimValue = jwt.getJWTClaimsSet().getDateClaim(claimName);
         } catch (ParseException e) {
-            throw new ElasticsearchSecurityException("date parsing failed: claim [" + claimName + "]", e);
+            throw new ElasticsearchSecurityException("cannot parse date claim [" + claimName + "]", RestStatus.BAD_REQUEST, e);
         }
 
         if (claimValue == null) {
             if (allowNull) {
                 return;
             } else {
-                throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] does not exist");
+                throw new ElasticsearchSecurityException("missing date claim [" + claimName + "]");
             }
         }
 
         final Instant claimInstant = claimValue.toInstant();
-        // TODO: pass in clock
         final Instant now = clock.instant();
 
         switch (relationship) {
             case BEFORE_NOW:
                 if (false == claimInstant.isBefore(now.plusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] must be before now");
+                    throw new ElasticsearchSecurityException("date claim [" + claimName + "] must be before now", RestStatus.BAD_REQUEST);
                 }
                 break;
             case AFTER_NOW:
                 if (false == claimInstant.isAfter(now.minusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException("validation failed: claim [" + claimName + "] must be after now");
+                    throw new ElasticsearchSecurityException("date claim [" + claimName + "] must be after now", RestStatus.BAD_REQUEST);
                 }
                 break;
             default:

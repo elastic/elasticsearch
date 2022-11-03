@@ -39,6 +39,7 @@ import java.util.List;
 public class JwtValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtil.class);
 
+    // TODO: rationalise the exceptions, differentiate between 400 and 500
     /**
      * Look through each JWK in the JWKSet to see if they can validate the Signed JWT signature.
      * Apply JWT kid and JWT alg filters to the JWKs to skip unnecessary signature checking.

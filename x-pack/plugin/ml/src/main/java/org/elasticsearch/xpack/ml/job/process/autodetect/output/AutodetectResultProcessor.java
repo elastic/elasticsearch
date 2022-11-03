@@ -586,7 +586,7 @@ public class AutodetectResultProcessor {
         this.deleteInterimRequired = deleteInterimRequired;
     }
 
-    public long currentRunBucketCount() {
+    long getCurrentRunBucketCount() {
         return currentRunBucketCount;
     }
 }

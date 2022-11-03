@@ -10,6 +10,7 @@ package org.elasticsearch.index.fieldvisitor;
 import org.apache.lucene.index.FieldInfo;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -24,7 +25,11 @@ public class CustomFieldsVisitor extends FieldsVisitor {
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
         super(loadSource);
-        this.fields = fields;
+        this.fields = new HashSet<>(fields);
+        // metadata fields are already handled by FieldsVisitor, so removing
+        // them here means that if the only fields requested are metadata
+        // fields then we can shortcut loading
+        List.of("_id", "_routing", "_source").forEach(this.fields::remove);
     }
 
     @Override

@@ -57,6 +57,9 @@ public class FetchContext {
         if (fsc == null) {
             boolean hasStoredFields = in.hasStoredFields();
             boolean hasScriptFields = in.hasScriptFields();
+            // TODO it seems a bit odd that we disable implicit source loading if we've asked
+            // for stored fields or script fields?  But not eg doc_value fields or via
+            // the `fields` API
             if (hasStoredFields == false && hasScriptFields == false) {
                 fsc = FetchSourceContext.of(true);
             }

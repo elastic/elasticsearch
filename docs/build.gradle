@@ -63,8 +63,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    // TODO: remove this once the disk usage indicator feature is finished #84811
-    requiresFeature 'es.health_node_feature_flag_enabled', Version.fromString("8.4.0")
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them

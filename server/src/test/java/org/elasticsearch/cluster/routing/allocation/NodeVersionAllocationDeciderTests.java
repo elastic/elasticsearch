@@ -675,12 +675,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             )
         );
 
-        final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.AbstractRoutingChangesObserver();
+        final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver() {
+        };
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(
             logger,
             routingNodes.initializeShard(primaryShard, "newNode", null, 0, routingChangesObserver),
-            routingChangesObserver
+            routingChangesObserver,
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
         routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
         routingAllocation.debugDecision(true);
@@ -701,7 +703,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         routingNodes.startShard(
             logger,
             routingNodes.relocateShard(startedPrimary, "oldNode", 0, routingChangesObserver).v2(),
-            routingChangesObserver
+            routingChangesObserver,
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
         routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
         routingAllocation.debugDecision(true);

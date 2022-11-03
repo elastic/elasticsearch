@@ -28,8 +28,10 @@ import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -62,7 +64,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -85,6 +86,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -130,13 +132,17 @@ public class ClusterModule extends AbstractModule {
             clusterService.getClusterSettings(),
             threadPool,
             clusterPlugins,
-            rerouteServiceSupplier,
-            clusterService
+            clusterService,
+            this::reconcile
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+    }
+
+    private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
+        return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationConsumer);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -187,10 +193,9 @@ public class ClusterModule extends AbstractModule {
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 
-        if (HealthNode.isEnabled()) {
-            entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
-            entries.addAll(HealthMetadataService.getNamedWriteables());
-        }
+        // Health API
+        entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
+        entries.addAll(HealthMetadataService.getNamedWriteables());
         return entries;
     }
 
@@ -338,18 +343,18 @@ public class ClusterModule extends AbstractModule {
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
-        Supplier<RerouteService> rerouteServiceSupplier,
-        ClusterService clusterService
+        ClusterService clusterService,
+        DesiredBalanceReconcilerAction reconciler
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
-            () -> DesiredBalanceShardsAllocator.create(
+            () -> new DesiredBalanceShardsAllocator(
                 new BalancedShardsAllocator(settings, clusterSettings),
                 threadPool,
                 clusterService,
-                rerouteServiceSupplier
+                reconciler
             )
         );
 

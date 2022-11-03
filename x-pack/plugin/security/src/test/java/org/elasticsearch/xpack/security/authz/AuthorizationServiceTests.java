@@ -116,6 +116,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
@@ -363,11 +364,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         String someRandomHeader = "test_" + UUIDs.randomBase64UUID();
         Object someRandomHeaderValue = mock(Object.class);
         threadContext.putTransient(someRandomHeader, someRandomHeaderValue);
+        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         // the thread context before authorization could contain any of the transient headers
         IndicesAccessControl mockAccessControlHeader = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
         if (mockAccessControlHeader == null && randomBoolean()) {
             mockAccessControlHeader = mock(IndicesAccessControl.class);
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, mockAccessControlHeader);
+            when(mockAccessControlHeader.isGranted()).thenReturn(true);
+            securityContext.putIndicesAccessControl(mockAccessControlHeader);
         }
         String originatingActionHeader = threadContext.getTransient(ORIGINATING_ACTION_KEY);
         if (this.setFakeOriginatingAction) {
@@ -942,7 +945,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(
             securityException,
             throwableWithMessage(
-                containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with roles [non-existent-role],")
+                containsString(
+                    "["
+                        + action
+                        + "] is unauthorized"
+                        + " for user [test user]"
+                        + " with effective roles [] (assigned roles [non-existent-role] were not found)"
+                )
             )
         );
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
@@ -1034,7 +1043,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         assertThat(
             securityException,
-            throwableWithMessage(containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with roles [no_indices],"))
+            throwableWithMessage(
+                containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with effective roles [no_indices]")
+            )
         );
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
@@ -1399,10 +1410,10 @@ public class AuthorizationServiceTests extends ESTestCase {
                         + " for user ["
                         + user.principal()
                         + "]"
-                        + " with roles ["
-                        + indexRole.getName()
-                        + ","
+                        + " with effective roles ["
                         + emptyRole.getName()
+                        + ","
+                        + indexRole.getName()
                         + "]"
                         + " on indices ["
                 )
@@ -1729,12 +1740,13 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testRunAsRequestWithNoRolesUser() {
         final TransportRequest request = mock(TransportRequest.class);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        final Authentication authentication = createAuthentication(new User("run as me"), new User("test user", "admin"));
+        final User authenticatingUser = new User("test user");
+        final Authentication authentication = createAuthentication(new User("run as me"), authenticatingUser);
         assertNotEquals(authentication.getAuthenticatingSubject().getUser(), authentication.getEffectiveSubject().getUser());
         assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, "indices:a", request),
             "indices:a",
-            "test user",
+            authenticatingUser,
             "run as me"
         ); // run as [run as me]
         verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request), authzInfoRoles(Role.EMPTY.names()));
@@ -1752,11 +1764,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             .build(false)
             .runAs(new User("run as me", Strings.EMPTY_ARRAY), null);
         authentication.writeToContext(threadContext);
-        assertNotEquals(authUser, authentication.getUser());
+        assertNotEquals(authUser, authentication.getEffectiveSubject().getUser());
         assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, AuthenticateAction.NAME, AuthenticateRequest.INSTANCE),
             AuthenticateAction.NAME,
-            "test user",
+            authUser,
             "run as me"
         ); // run as [run as me]
         verify(auditTrail).runAsDenied(
@@ -1771,10 +1783,8 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testRunAsRequestRunningAsUnAllowedUser() {
         TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = createAuthentication(
-            new User("run as me", "doesn't exist"),
-            new User("test user", "can run as")
-        );
+        final User authenticatingUser = new User("test user", "can run as");
+        final Authentication authentication = createAuthentication(new User("run as me", "doesn't exist"), authenticatingUser);
         final RoleDescriptor role = new RoleDescriptor(
             "can run as",
             null,
@@ -1787,7 +1797,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, "indices:a", request),
             "indices:a",
-            "test user",
+            authenticatingUser,
             "run as me"
         );
         verify(auditTrail).runAsDenied(
@@ -2023,7 +2033,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest("_all");
         authorize(authentication, SearchAction.NAME, searchRequest);
         assertEquals(2, searchRequest.indices().length);
-        assertEquals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
+        assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
     }
 
     public void testMonitoringOperationsAgainstSecurityIndexRequireAllowRestricted() {

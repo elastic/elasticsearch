@@ -788,8 +788,8 @@ the <<mapping-roles, API request for mapping roles>>.
 +
 [source,js]
 ----
-`{"id": <string>, "name": <string>, "expiration": <string>, "role_descriptors" [<object>],
-"metadata" [<object>]}`
+`{"id": <string>, "name": <string>, "expiration": <string>, "role_descriptors": [<object>],
+"metadata": [<object>]}`
 ----
 // NOTCONSOLE
 +

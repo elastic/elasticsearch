@@ -440,7 +440,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        final String expectedJson = """
+        final String expectedJson = formatted("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -568,10 +568,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "data_frozen": 0,
                     "data_hot": 0,
                     "data_warm": 0,
+                    "index": 0,
                     "ingest": 0,
                     "master": 1,
                     "ml": 0,
                     "remote_cluster_client": 0,
+                    "search": 0,
                     "transform": 0,
                     "voting_only": 0
                   },
@@ -743,7 +745,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""".formatted(needToEnableTLS ? ",\"cluster_needs_tls\": true" : "", mockNodeVersion, Version.CURRENT, apmIndicesExist);
+            }""", needToEnableTLS ? ",\"cluster_needs_tls\": true" : "", mockNodeVersion, Version.CURRENT, apmIndicesExist);
         assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
     }
 

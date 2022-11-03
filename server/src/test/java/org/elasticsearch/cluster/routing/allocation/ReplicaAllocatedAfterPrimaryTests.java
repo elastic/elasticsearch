@@ -50,7 +50,6 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
 
         assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).shard(0).state(), equalTo(UNASSIGNED));
         assertThat(routingTable.index("test").shard(0).shard(1).state(), equalTo(UNASSIGNED));
         assertThat(routingTable.index("test").shard(0).shard(0).currentNodeId(), nullValue());
@@ -69,7 +68,6 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(INITIALIZING));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
@@ -84,7 +82,6 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         assertThat(nodeHoldingPrimary, not(equalTo(nodeHoldingReplica)));
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").size(), equalTo(1));
-        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));

@@ -16,8 +16,8 @@ the operation and returns an error.
 The most common causes of high CPU usage and their solutions.
 
 <<high-jvm-memory-pressure,High JVM memory pressure>>::
-High JVM memory usage can degrade cluster performance and trigger circuit 
-breaker errors. 
+High JVM memory usage can degrade cluster performance and trigger circuit
+breaker errors.
 
 <<red-yellow-cluster-status,Red or yellow cluster status>>::
 A red or yellow cluster status indicates one or more shards are missing or
@@ -29,8 +29,8 @@ When {es} rejects a request, it stops the operation and returns an error with a
 `429` response code.
 
 <<task-queue-backlog,Task queue backlog>>::
-A backlogged task queue can prevent tasks from completing and put the cluster 
-into an unhealthy state. 
+A backlogged task queue can prevent tasks from completing and put the cluster
+into an unhealthy state.
 
 <<diagnose-unassigned-shards,Diagnose unassigned shards>>::
 There are multiple reasons why shards might get unassigned, ranging from 

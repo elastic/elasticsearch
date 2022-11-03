@@ -154,17 +154,21 @@ public class ServiceAccountIT extends ESRestTestCase {
                 {
                     "names": [
                         "search-*",
+                        ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",
                         "enterprise-search-*",
                         "logs-app_search.analytics-default",
+                        "logs-elastic_analytics.events-*",
                         "logs-enterprise_search.api-default",
                         "logs-enterprise_search.audit-default",
                         "logs-app_search.search_relevance_suggestions-default",
                         "logs-crawler-default",
+                        "logs-elastic_crawler-default",
                         "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default"
+                        "logs-workplace_search.content_events-default",
+                        ".elastic-connectors*"
                     ],
                     "privileges": [
                         "manage",
@@ -313,9 +317,9 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity("""
+        refreshTokenRequest.setJsonEntity(formatted("""
             {"grant_type":"refresh_token","refresh_token":"%s"}
-            """.formatted(refreshToken));
+            """, refreshToken));
         final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
         assertOK(refreshTokenResponse);
     }
@@ -505,8 +509,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
-        invalidateApiKeysRequest.setJsonEntity("""
-            {"ids":["%s"],"owner":true}""".formatted(apiKeyId1));
+        invalidateApiKeysRequest.setJsonEntity(formatted("""
+            {"ids":["%s"],"owner":true}""", apiKeyId1));
         invalidateApiKeysRequest.setOptions(requestOptions);
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);
         assertOK(invalidateApiKeysResponse);

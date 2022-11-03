@@ -45,13 +45,16 @@ public class RelativeByteSizeValue {
 
     /**
      * Calculate the size to use, optionally catering for a max headroom.
+     * If a ratio/percentage is used, the resulting bytes are rounded to the next integer value.
      * @param total the total size to use
      * @param maxHeadroom the max headroom to cater for or null (or -1) to ignore.
      * @return the size to use
      */
     public ByteSizeValue calculateValue(ByteSizeValue total, ByteSizeValue maxHeadroom) {
         if (ratio != null) {
-            long ratioBytes = (long) Math.ceil(ratio.getAsRatio() * total.getBytes());
+            // Use percentage instead of ratio, and divide bytes by 100, to make the calculation with double more accurate.
+            double res = total.getBytes() * ratio.getAsPercent() / 100;
+            long ratioBytes = (long) Math.ceil(res);
             if (maxHeadroom != null && maxHeadroom.getBytes() != -1) {
                 return ByteSizeValue.ofBytes(Math.max(ratioBytes, total.getBytes() - maxHeadroom.getBytes()));
             } else {

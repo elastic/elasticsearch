@@ -84,12 +84,12 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
 
     public void testEmptyIsNotMapped() {
         InternalTopMetrics empty = InternalTopMetrics.buildEmptyAggregation(randomAlphaOfLength(5), randomMetricNames(between(1, 5)), null);
-        assertFalse(empty.isMapped());
+        assertFalse(empty.canLeadReduction());
     }
 
     public void testNonEmptyIsMapped() {
         InternalTopMetrics nonEmpty = randomValueOtherThanMany(i -> i.getTopMetrics().isEmpty(), this::createTestInstance);
-        assertTrue(nonEmpty.isMapped());
+        assertTrue(nonEmpty.canLeadReduction());
     }
 
     public void testToXContentDoubleSortValue() throws IOException {

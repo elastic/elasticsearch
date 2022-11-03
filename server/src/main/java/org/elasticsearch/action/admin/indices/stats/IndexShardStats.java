@@ -15,13 +15,28 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Objects;
 
 public class IndexShardStats implements Iterable<ShardStats>, Writeable {
 
     private final ShardId shardId;
 
     private final ShardStats[] shards;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndexShardStats that = (IndexShardStats) o;
+        return shardId.equals(that.shardId) && Arrays.equals(shards, that.shards);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardId, Arrays.hashCode(shards));
+    }
 
     public IndexShardStats(StreamInput in) throws IOException {
         shardId = new ShardId(in);

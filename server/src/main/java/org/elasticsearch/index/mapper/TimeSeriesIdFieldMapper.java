@@ -278,8 +278,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         @Override
         public void addUnsignedLong(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.write((byte) 'u');
-                out.writeLong(value);
+                Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
+                if (ul instanceof Long l) {
+                    out.write((byte) 'l');
+                    out.writeLong(l);
+                } else {
+                    out.write((byte) 'u');
+                    out.writeLong(value);
+                }
                 add(fieldName, out.bytes());
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);

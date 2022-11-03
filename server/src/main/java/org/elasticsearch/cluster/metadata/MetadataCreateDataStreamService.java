@@ -50,20 +50,18 @@ public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
 
-    private final ClusterService clusterService;
-    private final ActiveShardsObserver activeShardsObserver;
-    private final MetadataCreateIndexService metadataCreateIndexService;
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
+    private final MetadataCreateIndexService metadataCreateIndexService;
 
     public MetadataCreateDataStreamService(
         ThreadPool threadPool,
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService
     ) {
-        this.clusterService = clusterService;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-        this.metadataCreateIndexService = metadataCreateIndexService;
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
+        this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
@@ -72,12 +70,12 @@ public class MetadataCreateDataStreamService {
             if (response.isAcknowledged()) {
                 String firstBackingIndexName = firstBackingIndexRef.get();
                 assert firstBackingIndexName != null;
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> finalListener.onResponse(AcknowledgedResponse.TRUE),
-                    finalListener::onFailure
+                    finalListener.map(shardsAcked -> AcknowledgedResponse.TRUE)
                 );
             } else {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);

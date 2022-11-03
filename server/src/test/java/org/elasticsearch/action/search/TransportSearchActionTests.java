@@ -251,11 +251,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
                 new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT) };
             Map<String, AliasFilter> indicesAndAliases = new HashMap<>();
-            indicesAndAliases.put(
-                "foo",
-                new AliasFilter(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias")
-            );
-            indicesAndAliases.put("bar", new AliasFilter(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
+            indicesAndAliases.put("foo", AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"));
+            indicesAndAliases.put("bar", AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
             ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[] {
                 new ClusterSearchShardsGroup(
                     new ShardId("foo", "foo_id", 0),
@@ -283,7 +280,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new ShardRouting[] { TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED) }
                 ) };
             Map<String, AliasFilter> filter = new HashMap<>();
-            filter.put("xyz", new AliasFilter(null, "some_alias_for_xyz"));
+            filter.put("xyz", AliasFilter.of(null, "some_alias_for_xyz"));
             searchShardsResponseMap.put("test_cluster_2", new ClusterSearchShardsResponse(groups2, nodes2, filter));
 
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();

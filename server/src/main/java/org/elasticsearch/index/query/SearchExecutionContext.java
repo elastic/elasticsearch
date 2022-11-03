@@ -61,7 +61,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -392,8 +391,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.sourcePaths(fullName);
     }
 
+    /**
+     * Will there be {@code _source}.
+     */
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
+    }
+
+    /**
+     * Does the source need to be rebuilt on the fly?
+     */
+    public boolean isSourceSynthetic() {
+        return mappingLookup.isSourceSynthetic();
     }
 
     /**
@@ -635,10 +644,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
-        return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-    }
-
     @Override
     public final SearchExecutionContext convertToSearchExecutionContext() {
         return this;
@@ -722,6 +727,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer);
+        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 }

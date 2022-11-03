@@ -625,7 +625,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         void restoreFiles(Store store, ActionListener<Void> listener) {
             ArrayList<FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetadata fileMetadata : sourceMetadata) {
-                ByteSizeValue fileSize = new ByteSizeValue(fileMetadata.length());
+                ByteSizeValue fileSize = ByteSizeValue.ofBytes(fileMetadata.length());
                 fileInfos.add(new FileInfo(fileMetadata.name(), fileMetadata, fileSize));
             }
             SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos, null);

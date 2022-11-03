@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -61,7 +62,10 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         SearchExecutionContext sec = mock(SearchExecutionContext.class);
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.valueFetcher(any(), any())).thenReturn(
-            new DocValueFetcher(DocValueFormat.RAW, new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, null))
+            new DocValueFetcher(
+                DocValueFormat.RAW,
+                new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null)
+            )
         );
         when(sec.getFieldType(any())).thenReturn(fieldType);
         when(sec.getMatchingFieldNames(any())).thenReturn(Set.of("field"));
@@ -78,7 +82,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
             processor.setNextReader(context);
             for (int doc = 0; doc < context.reader().maxDoc(); doc++) {
                 SearchHit searchHit = new SearchHit(doc + context.docBase);
-                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Source.EMPTY));
+                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Source.empty(null)));
                 assertNotNull(searchHit.getFields().get("field"));
             }
         }

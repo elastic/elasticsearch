@@ -11,23 +11,25 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,7 +43,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Status of a snapshot
  */
-public class SnapshotStatus implements ToXContentObject, Writeable {
+public class SnapshotStatus implements ChunkedToXContent, Writeable {
 
     private final Snapshot snapshot;
 
@@ -188,24 +190,20 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(SNAPSHOT, snapshot.getSnapshotId().getName());
-        builder.field(REPOSITORY, snapshot.getRepository());
-        builder.field(UUID, snapshot.getSnapshotId().getUUID());
-        builder.field(STATE, state.name());
-        if (includeGlobalState != null) {
-            builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
-        }
-        builder.field(SnapshotShardsStats.Fields.SHARDS_STATS, shardsStats, params);
-        builder.field(SnapshotStats.Fields.STATS, stats, params);
-        builder.startObject(INDICES);
-        for (SnapshotIndexStatus indexStatus : getIndices().values()) {
-            indexStatus.toXContent(builder, params);
-        }
-        builder.endObject();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked() {
+        return Iterators.concat(Iterators.single((ToXContent) (b, p) -> {
+            b.startObject()
+                .field(SNAPSHOT, snapshot.getSnapshotId().getName())
+                .field(REPOSITORY, snapshot.getRepository())
+                .field(UUID, snapshot.getSnapshotId().getUUID())
+                .field(STATE, state.name());
+            if (includeGlobalState != null) {
+                b.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
+            }
+            return b.field(SnapshotShardsStats.Fields.SHARDS_STATS, shardsStats, p)
+                .field(SnapshotStats.Fields.STATS, stats, p)
+                .startObject(INDICES);
+        }), getIndices().values().iterator(), Iterators.single((b, p) -> b.endObject().endObject()));
     }
 
     static final ConstructingObjectParser<SnapshotStatus, Void> PARSER = new ConstructingObjectParser<>(

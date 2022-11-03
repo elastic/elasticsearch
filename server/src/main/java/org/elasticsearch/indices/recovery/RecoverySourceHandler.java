@@ -600,7 +600,7 @@ public class RecoverySourceHandler {
 
             }
         } catch (Exception e) {
-            throw new RecoverFilesRecoveryException(request.shardId(), 0, new ByteSizeValue(0L), e);
+            throw new RecoverFilesRecoveryException(request.shardId(), 0, ByteSizeValue.ZERO, e);
         }
     }
 
@@ -665,9 +665,9 @@ public class RecoverySourceHandler {
             logger.trace(
                 "recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
                 filesToRecoverNames.size(),
-                new ByteSizeValue(totalSize),
+                ByteSizeValue.ofBytes(totalSize),
                 phase1ExistingFileNames.size(),
-                new ByteSizeValue(existingTotalSize)
+                ByteSizeValue.ofBytes(existingTotalSize)
             );
         }
 

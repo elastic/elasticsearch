@@ -67,7 +67,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     private static ByteSizeValue totalCapacity(ByteSizeValue nodeCapacity, int nodes) {
         if (nodeCapacity != null) {
-            return new ByteSizeValue(nodeCapacity.getBytes() * nodes);
+            return ByteSizeValue.ofBytes(nodeCapacity.getBytes() * nodes);
         } else {
             return null;
         }
@@ -116,8 +116,8 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         }
 
         public FixedReason(StreamInput in) throws IOException {
-            this.storage = in.readOptionalWriteable(ByteSizeValue::new);
-            this.memory = in.readOptionalWriteable(ByteSizeValue::new);
+            this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.nodes = in.readInt();
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
                 this.processors = in.readOptionalWriteable(Processors::readFrom);

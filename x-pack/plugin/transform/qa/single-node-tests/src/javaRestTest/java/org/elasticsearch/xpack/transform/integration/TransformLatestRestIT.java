@@ -47,12 +47,11 @@ public class TransformLatestRestIT extends TransformRestTestCase {
         }
 
         createReviewsIndex();
-        createReviewsIndexNano();
         indicesCreated = true;
     }
 
     public void testLatestWithAggregateMetricDouble() throws Exception {
-        String transformId = "aggregate_metric_double_transform";
+        String transformId = "aggregate_metric_double_latest_transform";
         String transformIndex = "aggregate_metric_double_latest_reviews";
         String statsField = "stars_stats";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
@@ -69,7 +68,7 @@ public class TransformLatestRestIT extends TransformRestTestCase {
                 "unique_key": [ "user_id" ],
                 "sort": "@timestamp"
               }
-            }""", REVIEWS_INDEX_NAME, transformIndex, statsField, statsField, statsField);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
         createPreviewRequest.setJsonEntity(config);

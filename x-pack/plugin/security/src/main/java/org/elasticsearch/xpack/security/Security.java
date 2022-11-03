@@ -489,7 +489,6 @@ public class Security extends Plugin
      * an instance of TransportInterceptor way earlier before createComponents is called. */
     private final SetOnce<TransportInterceptor> securityInterceptor = new SetOnce<>();
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
-    private final SetOnce<RemoteClusterAuthorizationResolver> remoteClusterAuthorizationResolver = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
     private final SetOnce<SecondaryAuthenticator> secondayAuthc = new SetOnce<>();
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
@@ -900,8 +899,11 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
-        remoteClusterAuthorizationResolver.set(new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()));
-        components.add(this.remoteClusterAuthorizationResolver.get());
+        final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = new RemoteClusterAuthorizationResolver(
+            settings,
+            clusterService.getClusterSettings()
+        );
+        components.add(remoteClusterAuthorizationResolver);
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(
@@ -913,7 +915,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                this.remoteClusterAuthorizationResolver.get()
+                remoteClusterAuthorizationResolver
             )
         );
 

@@ -143,6 +143,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
             return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, LOGGER);
         }
     }
+
     /**
      * manually add a specific shard to the allocations the gateway keeps track of
      */

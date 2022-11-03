@@ -43,4 +43,4 @@ setup:
 #    -   match: { routing_table.test.0.current.node_is_desired: false }
     -   match: { routing_table.test.0.current.shard_id: 0 }
     -   match: { routing_table.test.0.current.index: test }
-    -   match: { routing_table.test.0.desired.node_ids: test }
+#    -   match: { routing_table.test.0.desired.node_ids: test }

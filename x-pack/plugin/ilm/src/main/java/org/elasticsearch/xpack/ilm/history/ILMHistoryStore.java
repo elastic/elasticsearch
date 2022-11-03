@@ -59,6 +59,13 @@ public class ILMHistoryStore implements Closeable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> MAX_BULK_REQUEST_RETRY_QUEUE_SIZE_SETTING = Setting.intSetting(
+        "es.indices.lifecycle.history.bulk.request.retry.queue.size",
+        100,
+        1,
+        Setting.Property.NodeScope
+    );
+
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     private static int ILM_HISTORY_BULK_SIZE = StrictMath.toIntExact(
@@ -158,6 +165,7 @@ public class ILMHistoryStore implements Closeable {
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
             .setMaxBulkRequestQueueSize(MAX_BULK_REQUEST_QUEUE_SIZE_SETTING.get(clusterService.getSettings()))
+            .setMaxBulkRequestRetryQueueSize(MAX_BULK_REQUEST_RETRY_QUEUE_SIZE_SETTING.get(clusterService.getSettings()))
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .build();
     }

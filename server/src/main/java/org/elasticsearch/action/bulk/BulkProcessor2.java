@@ -79,6 +79,7 @@ public class BulkProcessor2 implements Closeable {
         private int maxRequestsInBulk = 1000;
         private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
         private int maxBulkRequestQueueSize = 1000;
+        private int maxBulkRequestRetryQueueSize = 1000;
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
 
@@ -117,6 +118,11 @@ public class BulkProcessor2 implements Closeable {
 
         public Builder setMaxBulkRequestQueueSize(int maxBulkRequestQueueSize) {
             this.maxBulkRequestQueueSize = maxBulkRequestQueueSize;
+            return this;
+        }
+
+        public Builder setMaxBulkRequestRetryQueueSize(int maxBulkRequestRetryQueueSize) {
+            this.maxBulkRequestRetryQueueSize = maxBulkRequestRetryQueueSize;
             return this;
         }
 
@@ -168,6 +174,7 @@ public class BulkProcessor2 implements Closeable {
                 maxRequestsInBulk,
                 maxBulkSizeInBytes,
                 maxBulkRequestQueueSize,
+                maxBulkRequestRetryQueueSize,
                 flushInterval,
                 flushScheduler,
                 retryScheduler,
@@ -222,6 +229,7 @@ public class BulkProcessor2 implements Closeable {
         int bulkActions,
         ByteSizeValue bulkSize,
         int maxBulkRequestQueueSize,
+        int maxBulkRequestRetryQueueSize,
         @Nullable TimeValue flushInterval,
         Scheduler flushScheduler,
         Scheduler retryScheduler,
@@ -236,7 +244,8 @@ public class BulkProcessor2 implements Closeable {
             listener,
             retryScheduler,
             concurrentRequests,
-            maxBulkRequestQueueSize
+            maxBulkRequestQueueSize,
+            maxBulkRequestRetryQueueSize
         );
         // Start period flushing task after everything is setup
         this.cancellableFlushTask = startFlushTask(flushInterval, flushScheduler);

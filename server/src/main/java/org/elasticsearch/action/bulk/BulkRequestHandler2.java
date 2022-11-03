@@ -30,13 +30,16 @@ public final class BulkRequestHandler2 {
         BulkProcessor2.Listener listener,
         Scheduler scheduler,
         int concurrentRequests,
-        int maxBulkRequestQueueSize
+        int maxBulkRequestQueueSize,
+        int maxBulkRequestRetryQueueSize
     ) {
         assert concurrentRequests >= 0;
+        assert maxBulkRequestQueueSize >= 0;
+        assert maxBulkRequestRetryQueueSize >= 0;
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(backoffPolicy, scheduler, maxBulkRequestQueueSize, maxBulkRequestQueueSize, concurrentRequests);
+        this.retry = new Retry2(backoffPolicy, scheduler, maxBulkRequestQueueSize, maxBulkRequestRetryQueueSize, concurrentRequests);
         retry.init();
     }
 

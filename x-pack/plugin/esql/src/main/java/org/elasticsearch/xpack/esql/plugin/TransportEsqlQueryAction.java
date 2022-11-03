@@ -65,7 +65,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             x -> Collections.emptySet(),
             request.pragmas()
         );
-        planExecutor.newSession(configuration).execute(request.query(), wrap(r -> {
+        planExecutor.newSession(configuration).execute(request, wrap(r -> {
             computeService.runCompute(r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
                 return new EsqlQueryResponse(columns, pagesToValues(pages));

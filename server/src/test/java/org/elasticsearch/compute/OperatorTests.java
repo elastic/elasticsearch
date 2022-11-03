@@ -9,12 +9,25 @@
 package org.elasticsearch.compute;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -40,7 +53,10 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.exchange.PassthroughExchanger;
 import org.elasticsearch.compute.operator.exchange.RandomExchanger;
 import org.elasticsearch.compute.operator.exchange.RandomUnionSourceOperator;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,7 +66,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,6 +83,7 @@ import java.util.stream.LongStream;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
+import static org.hamcrest.Matchers.equalTo;
 
 @Experimental
 public class OperatorTests extends ESTestCase {
@@ -217,6 +238,58 @@ public class OperatorTests extends ESTestCase {
                 }
                 Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
                 assertEquals(numDocs, rowCount.get());
+            }
+        }
+    }
+
+    public void testQueryOperator() throws IOException {
+        Map<BytesRef, Long> docs = new HashMap<>();
+        CheckedConsumer<DirectoryReader, IOException> verifier = reader -> {
+            final long from = randomBoolean() ? Long.MIN_VALUE : randomLongBetween(0, 10000);
+            final long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 10000);
+            final Query query = LongPoint.newRangeQuery("pt", from, to);
+            final String partition = randomFrom("shard", "segment", "doc");
+            final List<LuceneSourceOperator> queryOperators = switch (partition) {
+                case "shard" -> List.of(new LuceneSourceOperator(reader, 0, query));
+                case "segment" -> new LuceneSourceOperator(reader, 0, query).segmentSlice();
+                case "doc" -> new LuceneSourceOperator(reader, 0, query).docSlice(randomIntBetween(1, 10));
+                default -> throw new AssertionError("unknown partition [" + partition + "]");
+            };
+            List<Driver> drivers = new ArrayList<>();
+            Set<Integer> actualDocIds = Collections.newSetFromMap(ConcurrentCollections.newConcurrentMap());
+            for (LuceneSourceOperator queryOperator : queryOperators) {
+                PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
+                    Block idBlock = page.getBlock(0);
+                    Block segmentBlock = page.getBlock(1);
+                    for (int i = 0; i < idBlock.getPositionCount(); i++) {
+                        int docBase = reader.leaves().get(segmentBlock.getInt(i)).docBase;
+                        int docId = docBase + idBlock.getInt(i);
+                        assertTrue("duplicated docId=" + docId, actualDocIds.add(docId));
+                    }
+                });
+                drivers.add(new Driver(List.of(queryOperator, docCollector), () -> {}));
+            }
+            Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+            Set<Integer> expectedDocIds = searchForDocIds(reader, query);
+            assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
+        };
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            int numDocs = randomIntBetween(0, 10_000);
+            for (int i = 0; i < numDocs; i++) {
+                Document d = new Document();
+                long point = randomLongBetween(0, 5000);
+                d.add(new LongPoint("pt", point));
+                BytesRef id = Uid.encodeId("id-" + randomIntBetween(0, 5000));
+                d.add(new Field("id", id, KeywordFieldMapper.Defaults.FIELD_TYPE));
+                if (docs.put(id, point) != null) {
+                    w.updateDocument(new Term("id", id), d);
+                } else {
+                    w.addDocument(d);
+                }
+            }
+            try (DirectoryReader reader = w.getReader()) {
+                verifier.accept(reader);
             }
         }
     }
@@ -915,5 +988,33 @@ public class OperatorTests extends ESTestCase {
         public void addInput(Page page) {
             throw new UnsupportedOperationException();
         }
+    }
+
+    private static Set<Integer> searchForDocIds(IndexReader reader, Query query) throws IOException {
+        IndexSearcher searcher = new IndexSearcher(reader);
+        Set<Integer> docIds = new HashSet<>();
+        searcher.search(query, new Collector() {
+            @Override
+            public LeafCollector getLeafCollector(LeafReaderContext context) {
+                return new LeafCollector() {
+                    @Override
+                    public void setScorer(Scorable scorer) {
+
+                    }
+
+                    @Override
+                    public void collect(int doc) {
+                        int docId = context.docBase + doc;
+                        assertTrue(docIds.add(docId));
+                    }
+                };
+            }
+
+            @Override
+            public ScoreMode scoreMode() {
+                return ScoreMode.COMPLETE_NO_SCORES;
+            }
+        });
+        return docIds;
     }
 }

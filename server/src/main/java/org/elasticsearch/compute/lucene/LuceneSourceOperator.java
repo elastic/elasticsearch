@@ -218,13 +218,23 @@ public class LuceneSourceOperator implements Operator {
 
         // initializes currentLeafReaderContext, currentScorer, and currentScorerPos when we switch to a new leaf reader
         if (currentLeafReaderContext == null) {
-            currentLeafReaderContext = leaves.get(currentLeaf);
-            try {
-                currentScorer = weight.bulkScorer(currentLeafReaderContext.leafReaderContext);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            currentScorerPos = currentLeafReaderContext.minDoc;
+            assert currentScorer == null : "currentScorer wasn't reset";
+            do {
+                currentLeafReaderContext = leaves.get(currentLeaf);
+                currentScorerPos = currentLeafReaderContext.minDoc;
+                try {
+                    currentScorer = weight.bulkScorer(currentLeafReaderContext.leafReaderContext);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                if (currentScorer == null) {
+                    // doesn't match anything; move to the next leaf or abort if finished
+                    currentLeaf++;
+                    if (isFinished()) {
+                        return null;
+                    }
+                }
+            } while (currentScorer == null);
         }
 
         try {

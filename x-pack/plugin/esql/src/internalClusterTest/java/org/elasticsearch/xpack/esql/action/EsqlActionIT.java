@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +17,8 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -27,9 +30,13 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Assert;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -305,8 +312,45 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(20, results.values().size());
     }
 
+    public void testESFilter() throws Exception {
+        String indexName = "test_filter";
+        ElasticsearchAssertions.assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .get()
+        );
+        ensureYellow(indexName);
+        int numDocs = randomIntBetween(1, 5000);
+        Map<String, Long> docs = new HashMap<>();
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            String id = "id-" + i;
+            long value = randomLongBetween(-100_000, 100_000);
+            docs.put(id, value);
+            indexRequests.add(client().prepareIndex().setIndex(indexName).setId(id).setSource(Map.of("val", value)));
+        }
+        indexRandom(true, randomBoolean(), indexRequests);
+        String command = "from test_filter | stats avg = avg(val)";
+        long from = randomBoolean() ? Long.MIN_VALUE : randomLongBetween(-1000, 1000);
+        long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
+        QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
+        EsqlQueryResponse results = new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(command)
+            .filter(filter)
+            .pragmas(randomPragmas())
+            .get();
+        logger.info(results);
+        OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
+        if (avg.isPresent()) {
+            assertEquals(avg.getAsDouble(), (double) results.values().get(0).get(0), 0.01d);
+        } else {
+            assertEquals(Double.NaN, (double) results.values().get(0).get(0), 0.01d);
+        }
+    }
+
     private EsqlQueryResponse run(String esqlCommands) {
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).get();
+        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(randomPragmas()).get();
     }
 
     private EsqlQueryResponse run(String esqlCommands, Settings pragmas) {
@@ -316,5 +360,25 @@ public class EsqlActionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(EsqlPlugin.class);
+    }
+
+    private static Settings randomPragmas() {
+        Settings.Builder settings = Settings.builder();
+        // pragmas are only enabled on snapshot builds
+        if (Build.CURRENT.isSnapshot()) {
+            if (randomBoolean()) {
+                settings.put("add_task_parallelism_above_query", randomBoolean());
+            }
+            if (randomBoolean()) {
+                settings.put("task_concurrency", randomLongBetween(1, 10));
+            }
+            if (randomBoolean()) {
+                settings.put("buffer_max_pages", randomLongBetween(32, 2048));
+            }
+            if (randomBoolean()) {
+                settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+            }
+        }
+        return settings.build();
     }
 }

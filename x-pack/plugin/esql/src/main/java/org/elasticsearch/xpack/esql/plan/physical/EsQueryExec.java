@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -35,11 +37,13 @@ public class EsQueryExec extends LeafExec {
     }
 
     private final EsIndex index;
+    private final QueryBuilder query;
     private final List<Attribute> attrs;
 
-    public EsQueryExec(Source source, EsIndex index) {
+    public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
         super(source);
         this.index = index;
+        this.query = query;
         this.attrs = List.of(
             new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
             new FieldAttribute(source, SEGMENT_ID_FIELD.getName(), SEGMENT_ID_FIELD),
@@ -49,11 +53,15 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index);
+        return NodeInfo.create(this, EsQueryExec::new, index, query);
     }
 
     public EsIndex index() {
         return index;
+    }
+
+    public QueryBuilder query() {
+        return query;
     }
 
     @Override
@@ -63,7 +71,7 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index);
+        return Objects.hash(index, query);
     }
 
     @Override
@@ -77,7 +85,7 @@ public class EsQueryExec extends LeafExec {
         }
 
         EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(index, other.index);
+        return Objects.equals(index, other.index) && Objects.equals(query, other.query);
     }
 
     @Override
@@ -87,6 +95,6 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+        return nodeName() + "[" + index + "], query[" + Strings.toString(query, false, true) + "]" + NodeUtils.limitedToString(attrs);
     }
 }

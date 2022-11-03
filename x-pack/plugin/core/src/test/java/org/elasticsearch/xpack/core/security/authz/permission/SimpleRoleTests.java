@@ -11,8 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 
 import java.util.Arrays;
 import java.util.List;
@@ -102,7 +102,7 @@ public class SimpleRoleTests extends ESTestCase {
             "expected grant for role with application privilege to be: " + applicationPrivilege,
             role.application()
                 .grants(
-                    new ApplicationPrivilege(
+                    ApplicationPrivilegeTests.createPrivilege(
                         wildcardApplication ? randomAlphaOfLengthBetween(1, 10) : applicationPrivilege.getApplication(),
                         wildcardPrivileges ? Set.of(randomAlphaOfLengthBetween(1, 10)) : Set.of(applicationPrivilege.getPrivileges()),
                         wildcardPrivileges ? randomAlphaOfLengthBetween(1, 10) : allowedApplicationActionPattern
@@ -117,7 +117,7 @@ public class SimpleRoleTests extends ESTestCase {
             "expected grant for role with application privilege to be: " + applicationPrivilege,
             role.application()
                 .grants(
-                    new ApplicationPrivilege(
+                    ApplicationPrivilegeTests.createPrivilege(
                         false == wildcardApplication
                             ? randomValueOtherThan(applicationPrivilege.getApplication(), () -> randomAlphaOfLengthBetween(1, 10))
                             : randomAlphaOfLengthBetween(1, 10),

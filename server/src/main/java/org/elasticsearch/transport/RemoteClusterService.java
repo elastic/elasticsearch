@@ -219,10 +219,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
-    public boolean shouldUseUntrustedRemoteClusterSecurityMode() {
-        return TcpTransport.isUntrustedRemoteClusterEnabled();
-    }
-
     public Transport.Connection getConnection(String cluster) {
         return getRemoteClusterConnection(cluster).getConnection();
     }

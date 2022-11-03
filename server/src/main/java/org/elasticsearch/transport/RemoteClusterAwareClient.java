@@ -61,7 +61,6 @@ final class RemoteClusterAwareClient extends AbstractClient {
                 }
                 throw e;
             }
-
             service.sendRequest(
                 connection,
                 action.name(),

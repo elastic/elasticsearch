@@ -46,6 +46,9 @@ public abstract class StoredFieldLoader {
      * @param fields     a set of additional fields the loader should load
      */
     public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
+        if (loadSource == false && fields.isEmpty()) {
+            return empty();
+        }
         List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
         return new StoredFieldLoader() {
             @Override

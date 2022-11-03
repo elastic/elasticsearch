@@ -10,7 +10,9 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -45,6 +47,10 @@ public class StoredFieldsPhase implements FetchSubPhase {
             return inputs.stream().map(ft::valueForDisplay).toList();
         }
 
+        boolean hasValue(Map<String, List<Object>> loadedFields) {
+            return loadedFields.containsKey(ft.name());
+        }
+
     }
 
     @Override
@@ -55,26 +61,28 @@ public class StoredFieldsPhase implements FetchSubPhase {
         }
 
         // build the StoredFieldsSpec and a list of StoredField records to process
-        boolean requiresSource = false;
         List<StoredField> storedFields = new ArrayList<>();
         Set<String> fieldsToLoad = new HashSet<>();
-        SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
-        for (String field : storedFieldsContext.fieldNames()) {
-            if (SourceFieldMapper.NAME.equals(field)) {
-                requiresSource = true;
-            } else {
-                Collection<String> fieldNames = sec.getMatchingFieldNames(field);
-                for (String fieldName : fieldNames) {
-                    MappedFieldType ft = sec.getFieldType(fieldName);
-                    if (ft.isStored() == false) {
-                        continue;
+        if (storedFieldsContext.fieldNames() != null) {
+            SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
+            for (String field : storedFieldsContext.fieldNames()) {
+                if (SourceFieldMapper.NAME.equals(field) == false) {
+                    Collection<String> fieldNames = sec.getMatchingFieldNames(field);
+                    for (String fieldName : fieldNames) {
+                        MappedFieldType ft = sec.getFieldType(fieldName);
+                        if (ft.isStored() == false) {
+                            continue;
+                        }
+                        storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
+                        fieldsToLoad.add(ft.name());
                     }
-                    storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
-                    fieldsToLoad.add(ft.name());
                 }
             }
         }
-        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(requiresSource, fieldsToLoad);
+        fieldsToLoad.add("_id");    // if stored fields are requested then we always load metadata as well
+        storedFields.add(new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true));
+        storedFields.add(new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true));
+        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(false, fieldsToLoad);
 
         return new FetchSubPhaseProcessor() {
             @Override
@@ -88,11 +96,13 @@ public class StoredFieldsPhase implements FetchSubPhase {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
                 for (StoredField storedField : storedFields) {
-                    DocumentField df = new DocumentField(storedField.name, storedField.process(loadedFields));
-                    if (storedField.isMetadataField) {
-                        metaFields.put(storedField.name, df);
-                    } else {
-                        docFields.put(storedField.name, df);
+                    if (storedField.hasValue(loadedFields)) {
+                        DocumentField df = new DocumentField(storedField.name, storedField.process(loadedFields));
+                        if (storedField.isMetadataField) {
+                            metaFields.put(storedField.name, df);
+                        } else {
+                            docFields.put(storedField.name, df);
+                        }
                     }
                 }
                 hitContext.hit().setDocumentFields(docFields, metaFields);

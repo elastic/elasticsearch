@@ -212,7 +212,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, LENIENT);
         SearchHit searchHit = new SearchHit(1, "1");
-        hit.setDocumentField(fieldName, new DocumentField(fieldName, singletonList(map2)));
+        searchHit.setDocumentField(fieldName, new DocumentField(fieldName, singletonList(map2)));
         assertEquals(new GeoShape(3, 4), lenientFe.extract(searchHit));
     }
 

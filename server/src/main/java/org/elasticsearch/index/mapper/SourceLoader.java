@@ -207,6 +207,9 @@ public interface SourceLoader {
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
 
+        /**
+         * Has this field loaded any values for this document?
+         */
         boolean hasValue();
 
         /**

@@ -50,7 +50,7 @@ public class RoutingAllocation {
 
     private final ClusterState clusterState;
 
-    private final ClusterInfo clusterInfo;
+    private ClusterInfo clusterInfo;
 
     private final SnapshotShardSizeInfo shardSizeInfo;
 
@@ -68,15 +68,15 @@ public class RoutingAllocation {
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
+    private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
         nodesChangedObserver,
         indexMetadataUpdater,
-        restoreInProgressUpdater
+        restoreInProgressUpdater,
+        resizeSourceIndexUpdater
     );
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
-
-    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
 
     @Nullable
     private final DesiredNodes desiredNodes;
@@ -138,16 +138,19 @@ public class RoutingAllocation {
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
         this.isSimulating = isSimulating;
-        this.nodeShutdowns = clusterState.metadata().nodeShutdowns();
-        Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
-        for (SingleNodeShutdownMetadata shutdown : nodeShutdowns.values()) {
-            if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
-                targetNameToShutdown.put(shutdown.getTargetNodeName(), shutdown);
-            }
-        }
-        this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
+        this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+    }
+
+    private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
+        Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
+        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
+            if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
+                nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
+            }
+        }
+        return Map.copyOf(nodeReplacementTargets);
     }
 
     private static Map<String, Long> unaccountedSearchableSnapshotSizes(ClusterState clusterState, ClusterInfo clusterInfo) {
@@ -236,13 +239,6 @@ public class RoutingAllocation {
     @Nullable
     public DesiredNodes desiredNodes() {
         return desiredNodes;
-    }
-
-    /**
-     * Returns the map of node id to shutdown metadata currently in the cluster
-     */
-    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return nodeShutdowns;
     }
 
     /**
@@ -340,7 +336,8 @@ public class RoutingAllocation {
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
     public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        return indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
+        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
+        return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 
     /**
@@ -402,6 +399,11 @@ public class RoutingAllocation {
      */
     public boolean isSimulating() {
         return isSimulating;
+    }
+
+    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
+        assert isSimulating : "Should be called only while simulating";
+        this.clusterInfo = clusterInfo;
     }
 
     public RoutingAllocation immutableClone() {

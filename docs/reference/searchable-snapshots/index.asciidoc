@@ -6,10 +6,11 @@ infrequently accessed and read-only data in a very cost-effective fashion. The
 <<cold-tier,cold>> and <<frozen-tier,frozen>> data tiers use {search-snaps} to
 reduce your storage and operating costs.
 
-{search-snaps-cap} eliminate the need for <<scalability,replica shards>>,
-potentially halving the local storage needed to search your data.
-{search-snaps-cap} rely on the same snapshot mechanism you already use for
-backups and have minimal impact on your snapshot repository storage costs.
+{search-snaps-cap} eliminate the need for <<scalability,replica shards>>
+after rolling over from the hot tier, potentially halving the local storage needed to search 
+your data. {search-snaps-cap} rely on the same snapshot mechanism you already
+use for backups and have minimal impact on your snapshot repository storage
+costs.
 
 [discrete]
 [[using-searchable-snapshots]]

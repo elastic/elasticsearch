@@ -10,7 +10,9 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor;
@@ -18,15 +20,20 @@ import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipFile;
 
 /**
@@ -38,10 +45,10 @@ public class ModuleSupport {
         throw new AssertionError("Utility class, should not be instantiated");
     }
 
-    static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires) {
+    static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires, Set<String> uses) {
         try {
             return new InMemoryModuleFinder(
-                new InMemoryModuleReference(createModuleDescriptor(name, jarPaths, requires), URI.create("module:/" + name))
+                new InMemoryModuleReference(createModuleDescriptor(name, jarPaths, requires, uses), URI.create("module:/" + name))
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -49,22 +56,57 @@ public class ModuleSupport {
     }
 
     @SuppressForbidden(reason = "need access to the jar file")
-    static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires) throws IOException {
+    static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires, Set<String> uses)
+        throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
+        uses.stream().forEach(builder::uses);
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
+        Map<String, List<String>> allBundledProviders = new HashMap<>();
+        Set<String> allBundledServices = new HashSet<>();
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
-                // separator = path.getFileSystem().getSeparator();
-                var scan = scan(jf);
-                scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
+                // if we have a module declaration, trust its uses/provides
+                JarEntry moduleInfo = jf.getJarEntry("module-info.class");
+                if (moduleInfo != null) {
+                    var descriptor = getDescriptorForModularJar(path);
+                    pkgs.addAll(descriptor.packages());
+                    allBundledServices.addAll(descriptor.uses());
+                    for (ModuleDescriptor.Provides p : descriptor.provides()) {
+                        String serviceName = p.service();
+                        List<String> providersInModule = p.providers();
+
+                        allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInModule));
+                        allBundledServices.add(serviceName);
+                    }
+                } else {
+                    var scan = scan(jf);
+                    scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
+
+                    // read providers from the list of service files
+                    for (String serviceFileName : scan.serviceFiles()) {
+                        String serviceName = getServiceName(serviceFileName);
+                        List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
+
+                        allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
+                        allBundledServices.add(serviceName);
+                    }
+                }
             }
         }
+
         builder.packages(pkgs);
-        // TODO: provides and uses - it is possible that one plugin could define a service and another could provide it
+
+        // the module needs to use all services it provides, for the case of internal use
+        allBundledServices.addAll(allBundledProviders.keySet());
+        // but we don't want to add any services we already got from the parent layer
+        allBundledServices.removeAll(uses);
+
+        allBundledServices.forEach(builder::uses);
+        allBundledProviders.forEach(builder::provides);
         return builder.build();
     }
 
@@ -177,5 +219,54 @@ public class ModuleSupport {
             i += Character.charCount(cp);
         }
         return true;
+    }
+
+    /**
+     * If a module has at least one unqualified export, then it has a public API
+     * that can be used by other modules. If all of its exports are qualified, only
+     * modules specified in its descriptor can read from it, and there's no
+     * use in requiring it for a synthetic module.
+     * @param md A module descriptor.
+     * @return true if the module as at least one unqualified export, false otherwise
+     */
+    static boolean hasAtLeastOneUnqualifiedExport(ModuleDescriptor md) {
+        return md.exports().stream().anyMatch(Predicate.not(ModuleDescriptor.Exports::isQualified));
+    }
+
+    /**
+     * We assume that if a module name starts with "java." or "jdk.", it is a Java
+     * platform module. We also assume that there are no Java platform modules that
+     * start with other prefixes. This assumption is true as of Java 17, where "java."
+     * is for Java SE APIs and "jdk." is for JDK-specific modules.
+     */
+    static boolean isJavaPlatformModule(ModuleDescriptor md) {
+        return md.name().startsWith("java.") || md.name().startsWith("jdk.");
+    }
+
+    @SuppressForbidden(reason = "need access to the jar file")
+    private static List<String> getProvidersFromServiceFile(JarFile jf, String sf) throws IOException {
+        try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf)), StandardCharsets.UTF_8))) {
+            return bf.lines().toList();
+        }
+    }
+
+    private static List<String> createListOrAppend(List<String> currentList, List<String> newList) {
+        if (currentList == null) {
+            return List.copyOf(newList);
+        }
+        return Stream.concat(currentList.stream(), newList.stream()).toList();
+    }
+
+    private static String getServiceName(String sf) {
+        return sf.substring("META-INF/services/".length());
+    }
+
+    private static ModuleDescriptor getDescriptorForModularJar(Path path) {
+        return ModuleFinder.of(path)
+            .findAll()
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("found a module descriptor but failed to load a module from " + path))
+            .descriptor();
     }
 }

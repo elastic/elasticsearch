@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -47,7 +48,6 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
-import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
@@ -87,13 +87,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         );
     }
 
-    // TODO these tests should work with both allocators
-    private static final Settings BALANCED_ALLOCATOR_BY_DEFAULT = Settings.builder()
-        .put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR)
-        .build();
-
     private static ShardsAllocator createShardsAllocator(Settings settings) {
-        return switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings, BALANCED_ALLOCATOR_BY_DEFAULT)) {
+        return switch (randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR)) {
             case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
@@ -102,23 +97,25 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        return new DesiredBalanceShardsAllocator(
-            new BalancedShardsAllocator(settings),
-            queue.getThreadPool(),
-            () -> (reason, priority, listener) -> {
-                /* noop as reconciliation will await balance calculation result*/
-            }
-        ) {
+        return new DesiredBalanceShardsAllocator(new BalancedShardsAllocator(settings), queue.getThreadPool(), null, null) {
+            private RoutingAllocation lastAllocation;
+
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                lastAllocation = allocation;
                 super.allocate(allocation, listener);
-                // We have to call clusterChanged to resume listener queue execution. Otherwise, reroute listeners will never be executed.
-                clusterChanged(new ClusterChangedEvent("test", allocation.getClusterState(), allocation.getClusterState()));
+                queue.runAllTasks();
             }
 
             @Override
-            protected void maybeAwaitBalance() {
-                queue.runAllTasks();
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                // do nothing as balance is not computed yet (during allocate)
+            }
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
+                // reconcile synchronously rather than in cluster state update task
+                super.reconcile(desiredBalance, lastAllocation);
             }
         };
     }

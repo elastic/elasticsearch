@@ -60,7 +60,6 @@ public class MetadataMigrateToDataStreamService {
     }
 
     private final ClusterService clusterService;
-    private final ActiveShardsObserver activeShardsObserver;
     private final IndicesService indexServices;
     private final ThreadContext threadContext;
     private final MetadataCreateIndexService metadataCreateIndexService;
@@ -73,7 +72,6 @@ public class MetadataMigrateToDataStreamService {
     ) {
         this.clusterService = clusterService;
         this.indexServices = indexServices;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.threadContext = threadPool.getThreadContext();
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
@@ -88,12 +86,12 @@ public class MetadataMigrateToDataStreamService {
             if (response.isAcknowledged()) {
                 String writeIndexName = writeIndexRef.get();
                 assert writeIndexName != null;
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { writeIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> { finalListener.onResponse(AcknowledgedResponse.TRUE); },
-                    finalListener::onFailure
+                    finalListener.map(shardsAcknowledged -> AcknowledgedResponse.TRUE)
                 );
             } else {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);

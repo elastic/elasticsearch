@@ -97,44 +97,6 @@ import static org.hamcrest.Matchers.startsWith;
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
-    /**
-     * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
-     * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
-     * 3 master-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
-     * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.
-     * Old leader is initiating an election at the same time, and wins election. It becomes leader again, but as it previously
-     * successfully completed state recovery, is never reset to a state where state recovery can be retried.
-     */
-    public void testStateRecoveryResetAfterPreviousLeadership() {
-        try (Cluster cluster = new Cluster(3)) {
-            cluster.runRandomly();
-            cluster.stabilise();
-
-            final ClusterNode leader = cluster.getAnyLeader();
-            final ClusterNode follower1 = cluster.getAnyNodeExcept(leader);
-            final ClusterNode follower2 = cluster.getAnyNodeExcept(leader, follower1);
-
-            // restart follower1 and follower2
-            for (ClusterNode clusterNode : Arrays.asList(follower1, follower2)) {
-                clusterNode.close();
-                cluster.clusterNodes.forEach(cn -> cluster.deterministicTaskQueue.scheduleNow(cn.onNode(new Runnable() {
-                    @Override
-                    public void run() {
-                        cn.transportService.disconnectFromNode(clusterNode.getLocalNode());
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "disconnect from " + clusterNode.getLocalNode() + " after shutdown";
-                    }
-                })));
-                cluster.clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
-            }
-
-            cluster.stabilise();
-        }
-    }
-
     public void testCanUpdateClusterStateAfterStabilisation() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
@@ -751,6 +713,44 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 )
             );
             assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
+        }
+    }
+
+    /**
+     * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
+     * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
+     * 3 master-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
+     * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.
+     * Old leader is initiating an election at the same time, and wins election. It becomes leader again, but as it previously
+     * successfully completed state recovery, is never reset to a state where state recovery can be retried.
+     */
+    public void testStateRecoveryResetAfterPreviousLeadership() {
+        try (Cluster cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterNode follower1 = cluster.getAnyNodeExcept(leader);
+            final ClusterNode follower2 = cluster.getAnyNodeExcept(leader, follower1);
+
+            // restart follower1 and follower2
+            for (ClusterNode clusterNode : Arrays.asList(follower1, follower2)) {
+                clusterNode.close();
+                cluster.clusterNodes.forEach(cn -> cluster.deterministicTaskQueue.scheduleNow(cn.onNode(new Runnable() {
+                    @Override
+                    public void run() {
+                        cn.transportService.disconnectFromNode(clusterNode.getLocalNode());
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "disconnect from " + clusterNode.getLocalNode() + " after shutdown";
+                    }
+                })));
+                cluster.clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
+            }
+
+            cluster.stabilise();
         }
     }
 

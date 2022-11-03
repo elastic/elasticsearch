@@ -371,6 +371,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards.values().toArray(EMPTY_SHARD_ROUTING_ARRAY);
     }
 
+    public Index[] copyIndices() {
+        return shardsByIndex.keySet().toArray(Index.EMPTY_ARRAY);
+    }
+
     public boolean isEmpty() {
         return shards.isEmpty();
     }

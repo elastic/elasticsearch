@@ -207,7 +207,7 @@ To build distributions for all supported platforms, run:
 ./gradlew assemble
 ----
 
-Distributions are output to `distributions/archives`.
+Distributions are output to `distribution/archives`.
 
 To run the test suite, see xref:TESTING.asciidoc[TESTING].
 

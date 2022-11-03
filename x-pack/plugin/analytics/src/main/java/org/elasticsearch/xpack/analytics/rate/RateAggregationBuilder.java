@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -30,9 +29,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
-    ValuesSource,
-    RateAggregationBuilder> {
+public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<RateAggregationBuilder> {
     public static final String NAME = "rate";
     public static final ParseField UNIT_FIELD = new ParseField("unit");
     public static final ParseField MODE_FIELD = new ParseField("mode");

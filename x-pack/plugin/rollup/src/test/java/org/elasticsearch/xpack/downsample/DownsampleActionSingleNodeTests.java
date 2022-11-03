@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
@@ -252,7 +251,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .startObject(FIELD_AGG_METRIC)
-                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("min", randomDoubleBetween(-2000, -1001, true))
                 .field("max", randomDoubleBetween(-1000, 1000, true))
                 .field("sum", randomIntBetween(100, 10000))
                 .field("value_count", randomIntBetween(100, 1000))
@@ -270,7 +269,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
                 .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
                 .startObject(FIELD_LABEL_AGG_METRIC)
-                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("min", randomDoubleBetween(-2000, -1001, true))
                 .field("max", randomDoubleBetween(-1000, 1000, true))
                 .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
                 .field("value_count", randomIntBetween(100, 1000))
@@ -297,7 +296,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .startObject(FIELD_AGG_METRIC)
-                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("min", randomDoubleBetween(-2000, -1001, true))
                 .field("max", randomDoubleBetween(-1000, 1000, true))
                 .field("sum", randomIntBetween(100, 10000))
                 .field("value_count", randomIntBetween(100, 1000))
@@ -305,7 +304,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
                 .startObject(FIELD_LABEL_AGG_METRIC)
-                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("min", randomDoubleBetween(-2000, -1001, true))
                 .field("max", randomDoubleBetween(-1000, 1000, true))
                 .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
                 .field("value_count", randomIntBetween(100, 1000))
@@ -478,7 +477,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
-        Exception exception = expectThrows(RollupActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        Exception exception = expectThrows(ActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
     }
 

@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,7 +33,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -472,6 +473,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
+    static FieldCapabilities buildBasic(String field, String type, String[] indices) {
+        return new FieldCapabilities(field, type, false, false, false, false, null, indices, null, null, null, null, Map.of());
+    }
+
     static class Builder {
         private final String name;
         private final String type;
@@ -532,8 +537,22 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
         }
 
-        void getIndices(Collection<String> indices) {
-            indiceList.forEach(cap -> indices.add(cap.name));
+        Stream<String> getIndices() {
+            return indiceList.stream().map(c -> c.name);
+        }
+
+        private String[] getNonFeatureIndices(boolean featureInAll, int featureIndices, Predicate<IndexCaps> hasFeature) {
+            if (featureInAll || featureIndices == 0) {
+                return null;
+            }
+            String[] nonFeatureIndices = new String[indiceList.size() - featureIndices];
+            int index = 0;
+            for (IndexCaps indexCaps : indiceList) {
+                if (hasFeature.test(indexCaps) == false) {
+                    nonFeatureIndices[index++] = indexCaps.name;
+                }
+            }
+            return nonFeatureIndices;
         }
 
         FieldCapabilities build(boolean withIndices) {
@@ -546,50 +565,17 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             // Iff this field is searchable in some indices AND non-searchable in others
             // we record the list of non-searchable indices
-            final boolean isSearchable = searchableIndices == indiceList.size();
-            final String[] nonSearchableIndices;
-            if (isSearchable || searchableIndices == 0) {
-                nonSearchableIndices = null;
-            } else {
-                nonSearchableIndices = new String[indiceList.size() - searchableIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indiceList) {
-                    if (indexCaps.isSearchable == false) {
-                        nonSearchableIndices[index++] = indexCaps.name;
-                    }
-                }
-            }
+            boolean isSearchable = searchableIndices == indiceList.size();
+            String[] nonSearchableIndices = getNonFeatureIndices(isSearchable, searchableIndices, IndexCaps::isSearchable);
 
             // Iff this field is aggregatable in some indices AND non-aggregatable in others
             // we keep the list of non-aggregatable indices
-            final boolean isAggregatable = aggregatableIndices == indiceList.size();
-            final String[] nonAggregatableIndices;
-            if (isAggregatable || aggregatableIndices == 0) {
-                nonAggregatableIndices = null;
-            } else {
-                nonAggregatableIndices = new String[indiceList.size() - aggregatableIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indiceList) {
-                    if (indexCaps.isAggregatable == false) {
-                        nonAggregatableIndices[index++] = indexCaps.name;
-                    }
-                }
-            }
+            boolean isAggregatable = aggregatableIndices == indiceList.size();
+            String[] nonAggregatableIndices = getNonFeatureIndices(isAggregatable, aggregatableIndices, IndexCaps::isAggregatable);
 
             // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index
-            final boolean isDimension = dimensionIndices == indiceList.size();
-            final String[] nonDimensionIndices;
-            if (isDimension || dimensionIndices == 0) {
-                nonDimensionIndices = null;
-            } else {
-                nonDimensionIndices = new String[indiceList.size() - dimensionIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indiceList) {
-                    if (indexCaps.isDimension == false) {
-                        nonDimensionIndices[index++] = indexCaps.name;
-                    }
-                }
-            }
+            boolean isDimension = dimensionIndices == indiceList.size();
+            String[] nonDimensionIndices = getNonFeatureIndices(isDimension, dimensionIndices, IndexCaps::isDimension);
 
             final String[] metricConflictsIndices;
             if (hasConflictMetricType) {

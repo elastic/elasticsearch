@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.oneOf;
 public class DesiredBalanceReconcilerTests extends ESTestCase {
 
     public void testNoChangesOnEmptyDesiredBalance() {
-        final var clusterState = DesiredBalanceComputerTests.createInitialClusterState();
+        final var clusterState = DesiredBalanceComputerTests.createInitialClusterState(3);
         final var routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
             clusterState.mutableRoutingNodes(),
@@ -103,7 +103,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     }
 
     public void testFailsNewPrimariesIfNoDataNodes() {
-        final var clusterState = ClusterState.builder(DesiredBalanceComputerTests.createInitialClusterState())
+        final var clusterState = ClusterState.builder(DesiredBalanceComputerTests.createInitialClusterState(3))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
@@ -733,6 +733,80 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         );
         for (final var shardRouting : yellowState.routingTable().shardRoutingTable("index-0", 0).replicaShards()) {
             assertEquals(UnassignedInfo.AllocationStatus.NO_ATTEMPT, shardRouting.unassignedInfo().getLastAllocationStatus());
+        }
+    }
+
+    public void testUnassignedPrimariesThrottlingAndFallback() {
+        // we fall back to trying all nodes if an unassigned primary cannot be assigned to a desired node, but only if the desired nodes
+        // aren't just throttled
+
+        final var discoveryNodes = discoveryNodes(2);
+        final var metadata = Metadata.builder();
+        final var routingTable = RoutingTable.builder();
+
+        final var indexMetadata0 = randomPriorityIndex("index-0", 2, 0);
+        metadata.put(indexMetadata0, true);
+        routingTable.addAsNew(indexMetadata0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        final var settings = throttleSettings();
+        final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-0"));
+        final var allocationFilter = new AtomicReference<BiPredicate<Integer, String>>();
+
+        final var allocationService = createTestAllocationService(
+            routingAllocation -> reconcile(routingAllocation, desiredBalance),
+            new SameShardAllocationDecider(settings, clusterSettings),
+            new ReplicaAfterPrimaryActiveAllocationDecider(),
+            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return allocationFilter.get().test(shardRouting.getId(), node.nodeId()) ? Decision.YES : Decision.NO;
+                }
+            }
+        );
+
+        final var unused = ActionListener.<Void>noop();
+
+        // first assign the primary of [index-0][0] (no other shards may be allocated due to allocation filter)
+        allocationFilter.set((shardId, nodeId) -> shardId == 0);
+        final var stateWithOneInitializingPrimary = allocationService.reroute(clusterState, "test", unused);
+        {
+            final var shard0RoutingTable = stateWithOneInitializingPrimary.routingTable().shardRoutingTable("index-0", 0);
+            assertTrue(shard0RoutingTable.primaryShard().initializing());
+            assertThat(shard0RoutingTable.primaryShard().currentNodeId(), equalTo("node-0"));
+            final var shard1RoutingTable = stateWithOneInitializingPrimary.routingTable().shardRoutingTable("index-0", 1);
+            assertTrue(shard1RoutingTable.primaryShard().unassigned());
+        }
+
+        // now relax the allocation filter and ensure that [index-0][1] still isn't assigned due to throttling on the desired node
+        allocationFilter.set((shardId, nodeId) -> true);
+        final var stateStillWithOneInitializingPrimary = allocationService.reroute(stateWithOneInitializingPrimary, "test", unused);
+        {
+            final var shard0RoutingTable = stateStillWithOneInitializingPrimary.routingTable().shardRoutingTable("index-0", 0);
+            assertTrue(shard0RoutingTable.primaryShard().initializing());
+            assertThat(shard0RoutingTable.primaryShard().currentNodeId(), equalTo("node-0"));
+            final var shard1RoutingTable = stateStillWithOneInitializingPrimary.routingTable().shardRoutingTable("index-0", 1);
+            assertTrue(shard1RoutingTable.primaryShard().unassigned());
+        }
+
+        // now forbid [index-0][1] from its desired node and see that it falls back to the undesired node
+        allocationFilter.set((shardId, nodeId) -> nodeId.equals("node-1"));
+        final var stateWithBothInitializingPrimaries = allocationService.reroute(stateStillWithOneInitializingPrimary, "test", unused);
+        {
+            final var shard0RoutingTable = stateWithBothInitializingPrimaries.routingTable().shardRoutingTable("index-0", 0);
+            assertTrue(shard0RoutingTable.primaryShard().initializing());
+            assertThat(shard0RoutingTable.primaryShard().currentNodeId(), equalTo("node-0"));
+            final var shard1RoutingTable = stateWithBothInitializingPrimaries.routingTable().shardRoutingTable("index-0", 1);
+            assertTrue(shard1RoutingTable.primaryShard().initializing());
+            assertThat(shard1RoutingTable.primaryShard().currentNodeId(), equalTo("node-1"));
         }
     }
 

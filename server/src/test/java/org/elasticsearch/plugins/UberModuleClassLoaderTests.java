@@ -150,11 +150,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path jar = tempDir.resolve("my-jar.jar");
         createMinimalJar(jar, "p.MyClassInPackageP");
 
-        URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
+        URL[] urls = new URL[] { toUrl(overlappingJar) };
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(jar.toUri().toURL()))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(toUrl(jar)))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClassInPackageP");
@@ -186,11 +186,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path jar = tempDir.resolve("my-jar.jar");
         createMinimalJar(jar, "p." + className);
 
-        URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
+        URL[] urls = new URL[] { toUrl(overlappingJar) };
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(jar.toUri().toURL()))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(toUrl(jar)))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClass");
@@ -302,8 +302,8 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
                 UberModuleClassLoaderTests.class.getClassLoader(),
                 "synthetic",
-                Set.of(jar.toUri().toURL()),
-                Set.of("java.sql")
+                Set.of(toUrl(jar)),
+                Set.of("java.sql", "java.sql.rowset") // if present, java.sql.rowset requires java.sql transitively
             )
         ) {
             Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");
@@ -333,6 +333,134 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         assertThat(fooBar.toString(), equalTo("FooBar 0"));
     }
 
+    public void testServiceLoadingWithMetaInf() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-service-jar.jar");
+
+        createServiceTestJar(jar, false, true);
+
+        try (
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
+                this.getClass().getClassLoader(),
+                "p.synthetic.test",
+                Set.of(toUrl(jar))
+            )
+        ) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+    }
+
+    public void testServiceLoadingWithModuleInfo() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-service-jar.jar");
+
+        createServiceTestJar(jar, true, false);
+
+        try (
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
+                this.getClass().getClassLoader(),
+                "p.synthetic.test",
+                Set.of(toUrl(jar))
+            )
+        ) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+    }
+
+    public void testServiceLoadingWithRedundantDeclarations() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-service-jar.jar");
+
+        createServiceTestJar(jar, true, true);
+
+        try (
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
+                this.getClass().getClassLoader(),
+                "p.synthetic.test",
+                Set.of(toUrl(jar))
+            )
+        ) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+    }
+
+    private static void createServiceTestJar(Path jar, boolean modularize, boolean addMetaInfService) throws IOException {
+        String serviceInterface = """
+            package p;
+
+            public interface MyService {
+                public String getTestString();
+            }
+            """;
+        String implementingClass = """
+            package p;
+
+            public class MyServiceImpl implements MyService {
+
+                public MyServiceImpl() {
+                    // no-args
+                }
+
+                @Override
+                public String getTestString() {
+                    return "The test string.";
+                }
+            }
+            """;
+        String retrievingClass = """
+            package p;
+
+            import java.util.ServiceLoader;
+            import java.util.random.RandomGenerator;
+
+            public class ServiceCaller {
+                public static String demo() {
+                    // check no error if we load a service from the jdk
+                    ServiceLoader<RandomGenerator> randomLoader = ServiceLoader.load(RandomGenerator.class);
+
+                    ServiceLoader<MyService> loader = ServiceLoader.load(MyService.class, ServiceCaller.class.getClassLoader());
+                    return loader.findFirst().get().getTestString();
+                }
+            }
+            """;
+        String moduleInfo = """
+            module p.services {
+                uses p.MyService;
+                provides p.MyService with p.MyServiceImpl;
+            }
+            """;
+
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("p.MyService", serviceInterface);
+        sources.put("p.MyServiceImpl", implementingClass);
+        sources.put("p.ServiceCaller", retrievingClass);
+        if (modularize) {
+            sources.put("module-info", moduleInfo);
+        }
+        var compiledCode = InMemoryJavaCompiler.compile(sources);
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("p/MyService.class", compiledCode.get("p.MyService"));
+        jarEntries.put("p/MyServiceImpl.class", compiledCode.get("p.MyServiceImpl"));
+        jarEntries.put("p/ServiceCaller.class", compiledCode.get("p.ServiceCaller"));
+        if (modularize) {
+            jarEntries.put("module-info.class", compiledCode.get("module-info"));
+        }
+        if (addMetaInfService) {
+            jarEntries.put("META-INF/services/p.MyService", "p.MyServiceImpl".getBytes(StandardCharsets.UTF_8));
+        }
+
+        JarUtils.createJarWithEntries(jar, jarEntries);
+    }
+
     private static UberModuleClassLoader getLoader(Path jar) {
         return getLoader(List.of(jar));
     }
@@ -347,7 +475,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
     private static URL pathToUrlUnchecked(Path path) {
         try {
-            return path.toUri().toURL();
+            return toUrl(path);
         } catch (MalformedURLException e) {
             throw new IllegalArgumentException(e);
         }
@@ -403,7 +531,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
     private static void createSingleClassJar(Path jar, String canonicalName, String source) throws IOException {
         Map<String, CharSequence> sources = new HashMap<>();
-        // TODO: windows
         String jarPath = canonicalName.replace(".", "/") + ".class";
         sources.put(canonicalName, source);
         var classToBytes = InMemoryJavaCompiler.compile(sources);
@@ -437,5 +564,9 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 }
             }
             """, Strings.isNullOrEmpty(packageName) ? "" : "package " + packageName + ";", className, toStringOutput);
+    }
+
+    private static URL toUrl(Path jar) throws MalformedURLException {
+        return jar.toUri().toURL();
     }
 }

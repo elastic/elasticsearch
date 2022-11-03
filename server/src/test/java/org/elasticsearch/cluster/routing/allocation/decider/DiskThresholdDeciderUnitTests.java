@@ -224,7 +224,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
 
-        double usedPercentage = 100.0 * (totalBytes - freeBytes) / totalBytes;
+        double usedPercentage = 100.0 - (100.0 * freeBytes / totalBytes);
 
         assertThat(
             decision.getExplanation(),
@@ -265,7 +265,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     private void doTestCanRemainUsesLeastAvailableSpace(boolean testMaxHeadroom) {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
-        Map<ShardRouting, String> shardRoutingMap = new HashMap<>();
+        Map<ClusterInfo.NodeAndShard, String> shardRoutingMap = new HashMap<>();
 
         DiscoveryNode node_0 = new DiscoveryNode(
             "node_0",
@@ -295,7 +295,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_0 = ShardRoutingHelper.initialize(test_0, node_0.getId());
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
-        shardRoutingMap.put(test_0, "/node0/least");
+        shardRoutingMap.put(ClusterInfo.NodeAndShard.from(test_0), "/node0/least");
 
         ShardRouting test_1 = ShardRouting.newUnassigned(
             new ShardId(indexMetadata.getIndex(), 1),
@@ -305,7 +305,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_1 = ShardRoutingHelper.initialize(test_1, node_1.getId());
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
-        shardRoutingMap.put(test_1, "/node1/least");
+        shardRoutingMap.put(ClusterInfo.NodeAndShard.from(test_1), "/node1/least");
 
         ShardRouting test_2 = ShardRouting.newUnassigned(
             new ShardId(indexMetadata.getIndex(), 2),
@@ -315,7 +315,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_2 = ShardRoutingHelper.initialize(test_2, node_1.getId());
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
-        shardRoutingMap.put(test_2, "/node1/most");
+        shardRoutingMap.put(ClusterInfo.NodeAndShard.from(test_2), "/node1/most");
 
         ShardRouting test_3 = ShardRouting.newUnassigned(
             new ShardId(indexMetadata.getIndex(), 3),

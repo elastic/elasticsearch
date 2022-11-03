@@ -231,7 +231,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         false,
                         true,
                         indexCreatedVersion
-                    );
+                    ).allowMultipleValues(false);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
@@ -542,7 +542,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed;
     }
 
@@ -571,6 +572,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         XContentParser.Token token;
         XContentSubParser subParser = null;
         EnumSet<Metric> metricsParsed = EnumSet.noneOf(Metric.class);
+        Number max = null, min = null;
         try {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -628,9 +630,19 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             "Aggregate metric [" + metric.name() + "] of field [" + mappedFieldType.name() + "] cannot be a negative number"
                         );
                     }
+                } else if (Metric.max == metric) {
+                    max = context.doc().getByKey(delegateFieldMapper.name()).numericValue();
+                } else if (Metric.min == metric) {
+                    min = context.doc().getByKey(delegateFieldMapper.name()).numericValue();
                 }
                 metricsParsed.add(metric);
                 token = subParser.nextToken();
+            }
+            // check max value must bigger then min value
+            if (max != null && min != null && max.doubleValue() < min.doubleValue()) {
+                throw new IllegalArgumentException(
+                    "Aggregate metric field [" + mappedFieldType.name() + "] max value cannot be smaller than min value"
+                );
             }
 
             // Check if all required metrics have been parsed.

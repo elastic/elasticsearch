@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -67,17 +66,7 @@ public class Round extends ScalarFunction implements OptionalArgument {
         if (fieldVal == null) {
             return null;
         }
-        if (fieldVal instanceof Number == false) {
-            throw new EsqlIllegalArgumentException("A number is required; received [{}]", fieldVal);
-        }
-        if (decimalsVal != null) {
-            if (decimalsVal instanceof Number == false) {
-                throw new EsqlIllegalArgumentException("A number is required; received [{}]", decimalsVal);
-            }
-            if (decimalsVal instanceof Float || decimalsVal instanceof Double) {
-                throw new EsqlIllegalArgumentException("An integer number is required; received [{}] as second parameter", decimalsVal);
-            }
-        } else {
+        if (decimalsVal == null) {
             decimalsVal = 0;
         }
         return Maths.round((Number) fieldVal, (Number) decimalsVal);

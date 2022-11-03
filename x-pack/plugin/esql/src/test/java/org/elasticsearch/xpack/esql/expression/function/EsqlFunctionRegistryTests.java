@@ -32,33 +32,23 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
 
     public void testFunctionResolving() {
         UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
-        FunctionRegistry r = new EsqlFunctionRegistry(def(FunctionRegistryTests.DummyFunction.class, (Source l, Expression e) -> {
-            assertSame(e, ur.children().get(0));
-            return new FunctionRegistryTests.DummyFunction(l);
-        }, "dummyfunction", "dummyfunc"));
+        FunctionRegistry r = new EsqlFunctionRegistry(defineDummyFunction(ur, "dummyfunction", "dummyfunc"));
 
         // Resolve by primary name
-        FunctionDefinition def = r.resolveFunction(r.resolveAlias("DuMMyFuncTIon"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-
-        def = r.resolveFunction(r.resolveAlias("DummyFunction"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-
-        def = r.resolveFunction(r.resolveAlias("dummyfunction"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-
-        def = r.resolveFunction(r.resolveAlias("DUMMYFUNCTION"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
+        FunctionDefinition def;
+        String functionName;
+        for (int i = 0; i < 10; i++) {
+            functionName = randomCapitalizedString("dummyfunction");
+            def = r.resolveFunction(r.resolveAlias(functionName));
+            assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
+        }
 
         // Resolve by alias
-        def = r.resolveFunction(r.resolveAlias("DumMyFunC"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-
-        def = r.resolveFunction(r.resolveAlias("dummyfunc"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-
-        def = r.resolveFunction(r.resolveAlias("DUMMYFUNC"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
+        for (int i = 0; i < 10; i++) {
+            functionName = randomCapitalizedString("dummyfunc");
+            def = r.resolveFunction(r.resolveAlias(functionName));
+            assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
+        }
 
         // Not resolved
         QlIllegalArgumentException e = expectThrows(
@@ -92,10 +82,26 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         return new UnresolvedFunction(SourceTests.randomSource(), "dummyFunction", resolutionStrategy, Arrays.asList(children));
     }
 
-    private static FunctionDefinition defineDummyUnaryFunction(UnresolvedFunction ur) {
+    private static FunctionDefinition defineDummyFunction(UnresolvedFunction ur, String... names) {
         return def(FunctionRegistryTests.DummyFunction.class, (Source l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new FunctionRegistryTests.DummyFunction(l);
-        }, "dummyFunction");
+        }, names);
+    }
+
+    private static FunctionDefinition defineDummyUnaryFunction(UnresolvedFunction ur) {
+        return defineDummyFunction(ur, "dummyFunction");
+    }
+
+    private String randomCapitalizedString(String input) {
+        StringBuilder output = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            if (randomBoolean()) {
+                output.append(Character.toUpperCase(c));
+            } else {
+                output.append(c);
+            }
+        }
+        return output.toString();
     }
 }

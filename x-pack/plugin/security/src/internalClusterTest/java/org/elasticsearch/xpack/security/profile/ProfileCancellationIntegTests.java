@@ -410,7 +410,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     Map<String, IndexAbstraction> aliasOrIndexLookup,
                     ActionListener<IndexAuthorizationResult> listener
                 ) {
-                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                    listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES));
                 }
 
                 @Override

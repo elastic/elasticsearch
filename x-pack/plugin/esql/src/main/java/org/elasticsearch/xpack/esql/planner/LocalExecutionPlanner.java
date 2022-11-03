@@ -447,7 +447,7 @@ public class LocalExecutionPlanner {
                     return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
                 };
             } else {
-                return (page, pos) -> (Number) fieldEvaluator.computeRow(page, pos);
+                return (page, pos) -> fieldEvaluator.computeRow(page, pos);
             }
         } else {
             throw new UnsupportedOperationException(exp.nodeName());

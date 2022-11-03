@@ -8,24 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 
 public class RoundFunctionTests extends ESTestCase {
-
-    public void testRoundFunctionInvalidInputs() {
-        EsqlIllegalArgumentException iae = expectThrows(EsqlIllegalArgumentException.class, () -> Round.process("string", randomInt()));
-        assertEquals("A number is required; received [string]", iae.getMessage());
-
-        iae = expectThrows(EsqlIllegalArgumentException.class, () -> Round.process("string", null));
-        assertEquals("A number is required; received [string]", iae.getMessage());
-
-        iae = expectThrows(EsqlIllegalArgumentException.class, () -> Round.process(123, "string"));
-        assertEquals("A number is required; received [string]", iae.getMessage());
-
-        float fl = randomFloat();
-        iae = expectThrows(EsqlIllegalArgumentException.class, () -> Round.process(randomInt(), fl));
-        assertEquals("An integer number is required; received [" + fl + "] as second parameter", iae.getMessage());
-    }
 
     public void testRoundFunction() {
         assertEquals(123, Round.process(123, null));

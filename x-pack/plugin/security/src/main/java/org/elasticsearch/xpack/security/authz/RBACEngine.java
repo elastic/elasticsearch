@@ -288,11 +288,7 @@ public class RBACEngine implements AuthorizationEngine {
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
-            if (role.checkIndicesAction(action)) {
-                listener.onResponse(new IndexAuthorizationResult(null));
-            } else {
-                listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
-            }
+            listener.onResponse(role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED);
         } else if (request instanceof IndicesRequest == false) {
             if (isScrollRelatedAction(action)) {
                 // scroll is special
@@ -312,13 +308,11 @@ public class RBACEngine implements AuthorizationEngine {
                 if (SearchScrollAction.NAME.equals(action)) {
                     ActionRunnable.supply(ActionListener.wrap(parsedScrollId -> {
                         if (parsedScrollId.hasLocalIndices()) {
-                            if (role.checkIndicesAction(action)) {
-                                listener.onResponse(new IndexAuthorizationResult(null));
-                            } else {
-                                listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
-                            }
+                            listener.onResponse(
+                                role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED
+                            );
                         } else {
-                            listener.onResponse(new IndexAuthorizationResult(null));
+                            listener.onResponse(IndexAuthorizationResult.EMPTY);
                         }
                     }, listener::onFailure), ((SearchScrollRequest) request)::parseScrollId).run();
                 } else {
@@ -330,21 +324,21 @@ public class RBACEngine implements AuthorizationEngine {
                     // The DLS/FLS permissions are used inside the {@code DirectoryReader} that {@code SecurityIndexReaderWrapper}
                     // built while handling the initial search request. In addition, for consistency, the DLS/FLS permissions from
                     // the originating search request are attached to the thread context upon validating the scroll.
-                    listener.onResponse(new IndexAuthorizationResult(null));
+                    listener.onResponse(IndexAuthorizationResult.EMPTY);
                 }
             } else if (isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // authorize submit async search but don't fill in the DLS/FLS permissions
                     // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
                     // which DLS/FLS controls should be applied to this action
-                    listener.onResponse(new IndexAuthorizationResult(null));
+                    listener.onResponse(IndexAuthorizationResult.EMPTY);
                 } else {
                     // async-search actions other than submit have a custom security layer that checks if the current user is
                     // the same as the user that submitted the original request so no additional checks are needed here.
-                    listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES));
+                    listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
             } else if (action.equals(ClosePointInTimeAction.NAME)) {
-                listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES));
+                listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false
                     : "only scroll and async-search related requests are known indices api that don't "
@@ -366,9 +360,9 @@ public class RBACEngine implements AuthorizationEngine {
                 // '-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
                     if (allowsRemoteIndices(request) && role.checkIndicesAction(action) == false) {
-                        listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+                        listener.onResponse(IndexAuthorizationResult.DENIED);
                     } else {
-                        listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES));
+                        listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                     }
                 } else {
                     assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
@@ -385,7 +379,7 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             }, listener::onFailure));
         } else {
-            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+            listener.onResponse(IndexAuthorizationResult.DENIED);
         }
     }
 

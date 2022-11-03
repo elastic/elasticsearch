@@ -380,12 +380,7 @@ public class RBACEngine implements AuthorizationEngine {
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
                     listener.onResponse(
-                        buildIndicesAccessControl(
-                            action,
-                            role,
-                            Sets.newHashSet(resolvedIndices.getLocal()),
-                            aliasOrIndexLookup
-                        )
+                        buildIndicesAccessControl(action, role, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup)
                     );
                 }
             }, listener::onFailure));

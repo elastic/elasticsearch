@@ -630,14 +630,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.externalId = nodeName;
         }
         if (in.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
-            LOGGER.trace("Read ClusterName: [null], SKIPPED because Version: [{}]", in.getVersion());
+            LOGGER.info("Read ClusterName: [null], SKIPPED because Version: [{}]", in.getVersion());
             this.clusterName = ClusterName.DEFAULT;
         } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
-            LOGGER.trace("Read ClusterName: [null], SKIPPED because isUntrustedRemoteClusterEnabled: [disabled]");
+            LOGGER.info("Read ClusterName: [null], SKIPPED because isUntrustedRemoteClusterEnabled: [disabled]");
             this.clusterName = ClusterName.DEFAULT;
         } else {
             this.clusterName = new ClusterName(in);
-            LOGGER.trace("Read ClusterName: [{}], READ because isUntrustedRemoteClusterEnabled: [enabled]", this.clusterName);
+            LOGGER.info("Read ClusterName: [{}], READ because isUntrustedRemoteClusterEnabled: [enabled]", this.clusterName);
         }
         this.roleNames = Set.of(roleNames);
     }
@@ -671,11 +671,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(externalId);
         }
         if (out.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
-            LOGGER.trace("Write ClusterName: [null], SKIPPED because Version: [{}]", out.getVersion());
+            LOGGER.info("Write ClusterName: [null], SKIPPED because Version: [{}]", out.getVersion());
         } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
-            LOGGER.trace("Write ClusterName: [null], SKIPPED because isUntrustedRemoteClusterEnabled: [disabled]");
+            LOGGER.info("Write ClusterName: [null], SKIPPED because isUntrustedRemoteClusterEnabled: [disabled]");
         } else {
-            LOGGER.trace("Write ClusterName: [{}], DONE because isUntrustedRemoteClusterEnabled: [enabled]", this.clusterName);
+            LOGGER.info("Write ClusterName: [{}], DONE because isUntrustedRemoteClusterEnabled: [enabled]", this.clusterName);
             this.clusterName.writeTo(out);
         }
     }

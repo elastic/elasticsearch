@@ -76,14 +76,14 @@ public class ClusterName implements Writeable {
 
     private static boolean readIsRemote(StreamInput input) throws IOException {
         if (input.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
-            LOGGER.trace("Read IsRemote: [false], SKIPPED because Version: [{}]", input.getVersion());
+            LOGGER.info("Read IsRemote: [false], SKIPPED because Version: [{}]", input.getVersion());
             return false;
         } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
-            LOGGER.trace("Read IsRemote: [false], SKIPPED because isUntrustedRemoteClusterEnabled [disabled]");
+            LOGGER.info("Read IsRemote: [false], SKIPPED because isUntrustedRemoteClusterEnabled [disabled]");
             return false;
         }
         final boolean b = input.readBoolean();
-        LOGGER.trace("Read IsRemote: [{}], READ because isUntrustedRemoteClusterEnabled [enabled]", b);
+        LOGGER.info("Read IsRemote: [{}], READ because isUntrustedRemoteClusterEnabled [enabled]", b);
         return b;
     }
 
@@ -92,11 +92,11 @@ public class ClusterName implements Writeable {
         LOGGER.info("Write value: [{}], Version [{}]", value, out.getVersion());
         out.writeString(value);
         if (out.getVersion().onOrAfter(TcpTransport.UNTRUSTED_REMOTE_CLUSTER_FEATURE_VERSION) == false) {
-            LOGGER.trace("Write IsRemote: [{}], SKIPPED because Version: [{}]", out.getVersion(), isRemote);
+            LOGGER.info("Write IsRemote: [{}], SKIPPED because Version: [{}]", out.getVersion(), isRemote);
         } else if (TcpTransport.isUntrustedRemoteClusterEnabled() == false) {
-            LOGGER.trace("Write IsRemote: [{}], SKIPPED because isUntrustedRemoteClusterEnabled [disabled]", isRemote);
+            LOGGER.info("Write IsRemote: [{}], SKIPPED because isUntrustedRemoteClusterEnabled [disabled]", isRemote);
         } else {
-            LOGGER.trace("Write IsRemote: [{}], WRITTEN because isUntrustedRemoteClusterEnabled [enabled]", isRemote);
+            LOGGER.info("Write IsRemote: [{}], WRITTEN because isUntrustedRemoteClusterEnabled [enabled]", isRemote);
             out.writeBoolean(isRemote);
         }
     }

@@ -24,8 +24,8 @@ public class PreserveAllAllocationsTests extends ESTestCase {
     public void testGivenNoPreviousAssignments() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        Model model1 = new Model("m_1", 30, 2, 1, Map.of());
-        Model model2 = new Model("m_2", 30, 2, 4, Map.of());
+        Model model1 = new Model("m_1", 30, 2, 1, Map.of(), 0);
+        Model model2 = new Model("m_2", 30, 2, 4, Map.of(), 0);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node1, node2), List.of(model1, model2));
 
         List<Node> nodesPreservingAllocations = preserveAllAllocations.nodesPreservingAllocations();
@@ -38,8 +38,8 @@ public class PreserveAllAllocationsTests extends ESTestCase {
     public void testGivenPreviousAssignments() {
         Node node1 = new Node("n_1", 100, 8);
         Node node2 = new Node("n_2", 100, 8);
-        Model model1 = new Model("m_1", 30, 2, 1, Map.of("n_1", 1));
-        Model model2 = new Model("m_2", 50, 6, 4, Map.of("n_1", 1, "n_2", 2));
+        Model model1 = new Model("m_1", 30, 2, 1, Map.of("n_1", 1), 1);
+        Model model2 = new Model("m_2", 50, 6, 4, Map.of("n_1", 1, "n_2", 2), 3);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node1, node2), List.of(model1, model2));
 
         List<Node> nodesPreservingAllocations = preserveAllAllocations.nodesPreservingAllocations();
@@ -86,7 +86,7 @@ public class PreserveAllAllocationsTests extends ESTestCase {
 
     public void testGivenModelWithPreviousAssignments_AndPlanToMergeHasNoAssignments() {
         Node node = new Node("n_1", 100, 4);
-        Model model = new Model("m_1", 30, 2, 2, Map.of("n_1", 2));
+        Model model = new Model("m_1", 30, 2, 2, Map.of("n_1", 2), 2);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node), List.of(model));
 
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node), List.of(model)).build();

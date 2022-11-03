@@ -55,9 +55,18 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(zonedDateTime, notNullValue());
     }
 
-    private void assertDateMathEquals(String text, String pattern) {
-        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern));
-        assertThat(gotMillisJava, not(0));
+    private void assertDateMathEquals(String text, String expected, String pattern) {
+        Locale locale = randomLocale(random());
+        assertDateMathEquals(text, expected, pattern, locale);
+    }
+
+    private void assertDateMathEquals(String text, String expected, String pattern, Locale locale) {
+        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern), locale);
+        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).parse(expected))
+            .toInstant()
+            .toEpochMilli();
+
+        assertThat(gotMillisJava, equalTo(expectedMillis));
     }
 
     public void testWeekBasedDates() {
@@ -563,6 +572,14 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
     }
 
+    public void testYearWithoutMonthRoundUp() {
+        assertDateMathEquals("1500", "1500-01-01T23:59:59.999", "uuuu");
+        assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "uuuu");
+        assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "yyyy");
+        // cannot reliably default week based years due to locale changing. See JavaDateFormatter javadocs
+        assertDateMathEquals("2022", "2022-01-03T23:59:59.999", "YYYY", Locale.ROOT);
+    }
+
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
@@ -718,9 +735,13 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testCompositeDateMathParsing() {
         // in all these examples the second pattern will be used
-        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals(
+            "2014-06-06T12:01:02.123",
+            "2014-06-06T12:01:02.123",
+            "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS"
+        );
     }
 
     public void testExceptionWhenCompositeParsingFailsDateMath() {
@@ -730,14 +751,14 @@ public class DateFormattersTests extends ESTestCase {
         String text = "2014-06-06T12:01:02.123";
         ElasticsearchParseException e1 = expectThrows(
             ElasticsearchParseException.class,
-            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern))
+            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern), randomLocale(random()))
         );
         assertThat(e1.getMessage(), containsString(pattern));
         assertThat(e1.getMessage(), containsString(text));
     }
 
-    private long dateMathToMillis(String text, DateFormatter dateFormatter) {
-        DateFormatter javaFormatter = dateFormatter.withLocale(randomLocale(random()));
+    private long dateMathToMillis(String text, DateFormatter dateFormatter, Locale locale) {
+        DateFormatter javaFormatter = dateFormatter.withLocale(locale);
         DateMathParser javaDateMath = javaFormatter.toDateMathParser();
         return javaDateMath.parse(text, () -> 0, true, (ZoneId) null).toEpochMilli();
     }

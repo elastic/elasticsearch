@@ -5,18 +5,28 @@
 ++++
 
 The `geo_shape` data type facilitates the indexing of and searching
-with arbitrary geoshapes such as rectangles and polygons. It should be
-used when either the data being indexed or the queries being executed
-contain shapes other than just points.
+with arbitrary geoshapes such as rectangles, lines and polygons. If the data being
+indexed contains shapes other than just points, it is necessary to use this mapping.
+If the data contains only points, it can be indexed as either
+<<geo-point,`geo_point`>> or `geo_shape`.
 
-You can query documents using this type using
-a <<query-dsl-geo-shape-query,`geo_shape` query>>.
+Documents using this type can be used:
+
+* to find geoshapes within:
+** a <<query-dsl-geo-bounding-box-query,bounding box>>
+** a certain <<query-dsl-geo-distance-query,distance>> of a central point
+** a <<query-dsl-geo-shape-query,`geo_shape` query>> (for example, intersecting polygons).
+* to aggregate documents by geographic grids:
+** either <<search-aggregations-bucket-geohashgrid-aggregation,`geo_hash`>>
+** or <<search-aggregations-bucket-geotilegrid-aggregation,`geo_tile`>>.
+
+Grid aggregations over `geo_hex` grids are not supported for `geo_shape` fields.
 
 [[geo-shape-mapping-options]]
 [discrete]
 ==== Mapping Options
 
-The `geo_shape` mapping maps GeoJSON geometry objects to the `geo_shape`
+The `geo_shape` mapping maps GeoJSON or WKT geometry objects to the `geo_shape`
 type. To enable it, users must explicitly map fields to the `geo_shape`
 type.
 
@@ -258,7 +268,7 @@ POST /example/_doc
 
 A polygon's orientation indicates the order of its vertices: `RIGHT`
 (counterclockwise) or `LEFT` (clockwise). {es} uses a polygon’s orientation to
-determine if it crosses the international dateline (+/-180° longitude). 
+determine if it crosses the international dateline (+/-180° longitude).
 
 You can set a default orientation for WKT polygons using the
 <<geo-shape-mapping-options,`orientation` mapping parameter>>. This is because

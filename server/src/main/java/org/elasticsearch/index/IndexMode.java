@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -84,13 +86,13 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
 
         @Override
-        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
             return ProvidedIdFieldMapper.NO_FIELD_DATA;
         }
 
@@ -100,7 +102,7 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions() {
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
@@ -170,12 +172,11 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
 
-        @Override
-        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
@@ -186,8 +187,9 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions() {
-            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
         }
 
         @Override
@@ -273,9 +275,16 @@ public enum IndexMode {
     @Nullable
     public abstract CompressedXContent getDefaultMapping();
 
+    /**
+     * Build the {@link FieldMapper} for {@code _id}.
+     */
     public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
 
-    public abstract IdFieldMapper buildNoFieldDataIdFieldMapper();
+    /**
+     * Get the singleton {@link FieldMapper} for {@code _id}. It can never support
+     * field data.
+     */
+    public abstract IdFieldMapper idFieldMapperWithoutFieldData();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
@@ -289,18 +298,21 @@ public enum IndexMode {
      * the _tsid field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+    public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
 
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentDimensions buildDocumentDimensions();
+    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.
      */
     public abstract boolean shouldValidateTimestamp();
 
+    /**
+     * Parse a string into an {@link IndexMode}.
+     */
     public static IndexMode fromString(String value) {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;

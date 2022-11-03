@@ -34,8 +34,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     public void testSettingIndexToNullIsError() throws Exception {
         try {
             applyScript((Map<String, Object> ctx) -> ctx.put("_index", null));
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), containsString("Can't reindex without a destination index!"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("_index cannot be null"));
         }
     }
 
@@ -60,13 +60,17 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     }
 
     public void testSettingVersionToJunkIsAnError() throws Exception {
-        Object junkVersion = randomFrom(new Object[] { "junk", Math.PI });
-        try {
-            applyScript((Map<String, Object> ctx) -> ctx.put("_version", junkVersion));
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("_version may only be set to an int or a long but was ["));
-            assertThat(e.getMessage(), containsString(junkVersion.toString()));
-        }
+        IllegalArgumentException err = expectThrows(
+            IllegalArgumentException.class,
+            () -> applyScript((Map<String, Object> ctx) -> ctx.put("_version", "junk"))
+        );
+        assertEquals(err.getMessage(), "_version [junk] is wrong type, expected assignable to [java.lang.Number], not [java.lang.String]");
+
+        err = expectThrows(IllegalArgumentException.class, () -> applyScript((Map<String, Object> ctx) -> ctx.put("_version", Math.PI)));
+        assertEquals(
+            err.getMessage(),
+            "_version may only be set to an int or a long but was [3.141592653589793] with type [java.lang.Double]"
+        );
     }
 
     public void testSetRouting() throws Exception {

@@ -177,7 +177,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     public void testMalformedJson() {
         final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-        String suggest = """
+        String suggest = formatted("""
             {
               "bad-payload" : {
                 "text" : "the amsterdma meetpu",
@@ -185,7 +185,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
                   "field" : { "%s" : "bad-object" }
                 }
               }
-            }""".formatted(field);
+            }""", field);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, suggest)) {
             final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(parser);
             fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);

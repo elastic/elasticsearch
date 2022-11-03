@@ -172,7 +172,9 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         // Verifying the task runs on the new node
         assertThat(taskInfo.taskId().getNodeId(), equalTo(newNodeId));
 
-        internalCluster().stopRandomNode(settings -> "test".equals(settings.get("node.attr.test_attr")));
+        internalCluster().stopNode(
+            internalCluster().getNodeNameThat(settings -> Objects.equals(settings.get("node.attr.test_attr"), "test"))
+        );
 
         assertBusy(() -> {
             // Wait for the task to disappear completely

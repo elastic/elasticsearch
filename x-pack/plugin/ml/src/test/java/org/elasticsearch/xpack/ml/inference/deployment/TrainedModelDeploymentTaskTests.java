@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
@@ -22,6 +23,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -53,7 +55,8 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
                 randomLongBetween(1, Long.MAX_VALUE),
                 randomInt(5),
                 randomInt(5),
-                randomInt(5)
+                randomInt(5),
+                randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE))
             ),
             nodeService,
             licenseState,
@@ -78,4 +81,37 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
         assertTrackingComplete(TrainedModelDeploymentTask::onCancelled, randomAlphaOfLength(10));
     }
 
+    public void testUpdateNumberOfAllocations() {
+        StartTrainedModelDeploymentAction.TaskParams initialParams = new StartTrainedModelDeploymentAction.TaskParams(
+            "test-model",
+            randomLongBetween(1, Long.MAX_VALUE),
+            randomIntBetween(1, 32),
+            randomIntBetween(1, 32),
+            randomInt(5),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE))
+        );
+
+        TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
+            0,
+            TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
+            TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            initialParams,
+            mock(TrainedModelAssignmentNodeService.class),
+            mock(XPackLicenseState.class),
+            mock(LicensedFeature.Persistent.class)
+        );
+
+        int newNumberOfAllocations = randomIntBetween(1, 32);
+
+        task.updateNumberOfAllocations(newNumberOfAllocations);
+
+        StartTrainedModelDeploymentAction.TaskParams updatedParams = task.getParams();
+        assertThat(updatedParams.getModelId(), equalTo(initialParams.getModelId()));
+        assertThat(updatedParams.getModelBytes(), equalTo(initialParams.getModelBytes()));
+        assertThat(updatedParams.getNumberOfAllocations(), equalTo(newNumberOfAllocations));
+        assertThat(updatedParams.getThreadsPerAllocation(), equalTo(initialParams.getThreadsPerAllocation()));
+        assertThat(updatedParams.getCacheSize(), equalTo(initialParams.getCacheSize()));
+    }
 }

@@ -31,6 +31,10 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
 
     Path jvmDll;
 
+    public WindowsServiceInstallCommandTests(boolean spaceInPath) {
+        super(spaceInPath);
+    }
+
     @Before
     public void setupJvm() throws Exception {
         jvmDll = javaHome.resolve("jre/bin/server/jvm.dll");
@@ -80,7 +84,7 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
     }
 
     public void testDll() throws Exception {
-        assertServiceArgs(Map.of("Jvm", jvmDll.toString()));
+        assertServiceArgs(Map.of("Jvm", quote(jvmDll.toString())));
     }
 
     public void testPreExecuteOutput() throws Exception {
@@ -95,9 +99,9 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
         sysprops.put("es.distribution.type", "testdistro");
         List<String> expectedOptions = List.of(
             "" + "-XX:+UseSerialGC",
-            "-Des.path.home=" + esHomeDir.toString(),
-            "-Des.path.conf=" + esHomeDir.resolve("config").toString(),
-            "-Des.distribution.type=testdistro"
+            "-Des.path.home=" + quote(esHomeDir.toString()),
+            "-Des.path.conf=" + quote(esHomeDir.resolve("config").toString()),
+            "-Des.distribution.type=" + quote("testdistro")
         );
         mockProcessValidator = (environment, procrunCall) -> {
             List<String> options = procrunCall.args().get("JvmOptions");
@@ -136,7 +140,7 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
                 entry("StopMode", "jvm"),
                 entry("JvmMs", "4m"),
                 entry("JvmMx", "64m"),
-                entry("StartPath", esHomeDir.toString()),
+                entry("StartPath", quote(esHomeDir.toString())),
                 entry("Classpath", "javaclasspath") // dummy value for tests
             )
         );
@@ -149,13 +153,13 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
     }
 
     public void testDisplayName() throws Exception {
-        assertServiceArgs(Map.of("DisplayName", "\"Elasticsearch %s (elasticsearch-service-x64)\"".formatted(Version.CURRENT)));
+        assertServiceArgs(Map.of("DisplayName", formatted("\"Elasticsearch %s (elasticsearch-service-x64)\"", Version.CURRENT)));
         envVars.put("SERVICE_DISPLAY_NAME", "my service name");
         assertServiceArgs(Map.of("DisplayName", "\"my service name\""));
     }
 
     public void testDescription() throws Exception {
-        String defaultDescription = "\"Elasticsearch %s Windows Service - https://elastic.co\"".formatted(Version.CURRENT);
+        String defaultDescription = formatted("\"Elasticsearch %s Windows Service - https://elastic.co\"", Version.CURRENT);
         assertServiceArgs(Map.of("Description", defaultDescription));
         envVars.put("SERVICE_DESCRIPTION", "my description");
         assertServiceArgs(Map.of("Description", "\"my description\""));

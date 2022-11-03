@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
@@ -32,6 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -284,5 +286,19 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         if (geoPoint.lon() < currentBound.lon()) {
             currentBound.resetLon(geoPoint.lon());
         }
+    }
+
+    protected void assertSameCentroid(SpatialPoint centroid, SpatialPoint expectedCentroid) {
+        String[] names = centroid.getClass() == GeoPoint.class ? new String[] { "longitude", "latitude" } : new String[] { "x", "y" };
+        assertThat(
+            "Mismatching value for '" + names[0] + "' field of centroid",
+            centroid.getX(),
+            closeTo(expectedCentroid.getX(), GEOHASH_TOLERANCE)
+        );
+        assertThat(
+            "Mismatching value for '" + names[1] + "' field of centroid",
+            centroid.getY(),
+            closeTo(expectedCentroid.getY(), GEOHASH_TOLERANCE)
+        );
     }
 }

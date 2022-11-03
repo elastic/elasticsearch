@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
- * clients against against an elasticsearch cluster.
+ * clients against an elasticsearch cluster.
  *
  * The suite timeout is extended to account for projects with a large number of tests.
  */

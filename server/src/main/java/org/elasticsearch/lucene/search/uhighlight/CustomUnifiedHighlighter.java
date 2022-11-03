@@ -193,7 +193,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             maxPassages,
             (noMatchSize > 0 ? 1 : 0),
             getFormatter(field),
-            noMatchSize
+            noMatchSize,
+            queryMaxAnalyzedOffset
         );
     }
 

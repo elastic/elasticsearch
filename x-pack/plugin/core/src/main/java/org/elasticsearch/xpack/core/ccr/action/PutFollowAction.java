@@ -15,9 +15,11 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -43,6 +45,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
         private static final ParseField SETTINGS_FIELD = new ParseField("settings");
+        private static final ParseField DATA_STREAM_NAME = new ParseField("data_stream_name");
 
         // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
         // PutFollowParameters class. But since two minor version are already released with duplicate follow parameters
@@ -52,6 +55,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         static {
             PARSER.declareString((putFollowParameters, value) -> putFollowParameters.remoteCluster = value, REMOTE_CLUSTER_FIELD);
             PARSER.declareString((putFollowParameters, value) -> putFollowParameters.leaderIndex = value, LEADER_INDEX_FIELD);
+            PARSER.declareString((putFollowParameters, value) -> putFollowParameters.dataStreamName = value, DATA_STREAM_NAME);
             PARSER.declareObject(
                 (putFollowParameters, value) -> putFollowParameters.settings = value,
                 (p, c) -> Settings.fromXContent(p),
@@ -69,6 +73,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             request.setFollowerIndex(followerIndex);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndex(parameters.leaderIndex);
+            request.setDataStreamName(parameters.dataStreamName);
             request.setSettings(parameters.settings);
             request.setParameters(parameters);
             return request;
@@ -76,8 +81,10 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
         private String remoteCluster;
         private String leaderIndex;
-        private Settings settings = Settings.EMPTY;
         private String followerIndex;
+        @Nullable
+        private String dataStreamName;
+        private Settings settings = Settings.EMPTY;
         private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
@@ -123,6 +130,15 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.parameters = parameters;
         }
 
+        @Nullable
+        public String getDataStreamName() {
+            return dataStreamName;
+        }
+
+        public void setDataStreamName(String dataStreamName) {
+            this.dataStreamName = dataStreamName;
+        }
+
         public ActiveShardCount waitForActiveShards() {
             return waitForActiveShards;
         }
@@ -156,6 +172,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             if (followerIndex == null) {
                 e = addValidationError("follower_index is missing", e);
             }
+            if (dataStreamName != null && Strings.hasText(dataStreamName) == false) {
+                e = addValidationError("data stream name must contain text if present", e);
+            }
             return e;
         }
 
@@ -179,6 +198,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             }
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+                this.dataStreamName = in.readOptionalString();
+            }
         }
 
         @Override
@@ -188,10 +210,13 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                Settings.writeSettingsToStream(settings, out);
+                settings.writeTo(out);
             }
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+                out.writeOptionalString(this.dataStreamName);
+            }
         }
 
         @Override
@@ -200,6 +225,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             {
                 builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
+                if (dataStreamName != null) {
+                    builder.field(DATA_STREAM_NAME.getPreferredName(), dataStreamName);
+                }
                 if (settings.isEmpty() == false) {
                     builder.startObject(SETTINGS_FIELD.getPreferredName());
                     {
@@ -222,12 +250,14 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
                 && Objects.equals(leaderIndex, request.leaderIndex)
                 && Objects.equals(followerIndex, request.followerIndex)
                 && Objects.equals(parameters, request.parameters)
-                && Objects.equals(waitForActiveShards, request.waitForActiveShards);
+                && Objects.equals(waitForActiveShards, request.waitForActiveShards)
+                && Objects.equals(dataStreamName, request.dataStreamName)
+                && Objects.equals(settings, request.settings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, followerIndex, parameters, waitForActiveShards);
+            return Objects.hash(remoteCluster, leaderIndex, followerIndex, parameters, settings, waitForActiveShards, dataStreamName);
         }
 
         // This class only exists for reuse of the FollowParameters class, see comment above the parser field.
@@ -235,6 +265,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
             private String remoteCluster;
             private String leaderIndex;
+            private String dataStreamName;
             private Settings settings = Settings.EMPTY;
 
         }

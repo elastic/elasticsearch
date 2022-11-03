@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -116,21 +115,18 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         final ClusterState clusterState = clusterService.state();
         TransformNodes.throwIfNoTransformNodes(clusterState);
 
-        // Redirection can only be performed between nodes that are at least 7.13.
-        if (clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
-            boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
-            if (TransformNodes.redirectToAnotherNodeIfNeeded(
-                clusterState,
-                nodeSettings,
-                requiresRemote,
-                transportService,
-                actionName,
-                request,
-                Response::new,
-                listener
-            )) {
-                return;
-            }
+        boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
+        if (TransformNodes.redirectToAnotherNodeIfNeeded(
+            clusterState,
+            nodeSettings,
+            requiresRemote,
+            transportService,
+            actionName,
+            request,
+            Response::new,
+            listener
+        )) {
+            return;
         }
 
         final TransformConfig config = request.getConfig();

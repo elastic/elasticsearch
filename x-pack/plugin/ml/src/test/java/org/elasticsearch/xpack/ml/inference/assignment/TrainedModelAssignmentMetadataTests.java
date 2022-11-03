@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -23,7 +24,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
-public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTestCase<TrainedModelAssignmentMetadata> {
+public class TrainedModelAssignmentMetadataTests extends AbstractXContentSerializingTestCase<TrainedModelAssignmentMetadata> {
 
     public static TrainedModelAssignmentMetadata randomInstance() {
         LinkedHashMap<String, TrainedModelAssignment> map = Stream.generate(() -> randomAlphaOfLength(10))
@@ -64,7 +65,8 @@ public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTest
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),
-            randomIntBetween(1, 10000)
+            randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong())
         );
     }
 

@@ -434,6 +434,8 @@ public abstract class AbstractScopedSettings {
         addSettingsUpdateConsumer(setting, consumer, (s) -> {});
     }
 
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
+
     /**
      * Validates that all settings are registered and valid.
      *
@@ -561,6 +563,9 @@ public abstract class AbstractScopedSettings {
             Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
+            }
+            if (setting.isDeprecatedAndRemoved()) {
+                validateDeprecatedAndRemovedSettingV7(settings, setting);
             }
             if (validateValue && settingsDependencies.isEmpty() == false) {
                 for (final Setting.SettingDependency settingDependency : settingsDependencies) {
@@ -947,6 +952,53 @@ public abstract class AbstractScopedSettings {
                  * and what they need to do to replace them.
                  */
                 builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
+            }
+        }
+        if (changed) {
+            return builder.build();
+        } else {
+            return settings;
+        }
+    }
+
+    /**
+     * Deletes invalid or unknown settings. Any setting that is not recognized or fails validation
+     * will be deleted. This behaviour is desired when dealing with unknown index settings on
+     * system indices.
+     *
+     * @param settings        the {@link Settings} instance to scan for unknown or invalid settings
+     * @param unknownConsumer callback on unknown settings (consumer receives unknown key and its
+     *                        associated value)
+     * @param invalidConsumer callback on invalid settings (consumer receives invalid key, its
+     *                        associated value and an exception)
+     * @return a {@link Settings} instance with the unknown or invalid settings removed
+     */
+    public Settings deleteUnknownOrInvalidSettings(
+        final Settings settings,
+        final Consumer<Map.Entry<String, String>> unknownConsumer,
+        final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer
+    ) {
+        Settings.Builder builder = Settings.builder();
+        boolean changed = false;
+        for (String key : settings.keySet()) {
+            try {
+                Setting<?> setting = get(key);
+                if (setting != null) {
+                    // will throw IllegalArgumentException on invalid setting
+                    setting.get(settings);
+                    builder.copy(key, settings);
+                } else {
+                    if (isPrivateSetting(key)) {
+                        // will throw IllegalArgumentException on invalid setting
+                        builder.copy(key, settings);
+                    } else {
+                        changed = true;
+                        unknownConsumer.accept(new Entry(key, settings));
+                    }
+                }
+            } catch (IllegalArgumentException ex) {
+                changed = true;
+                invalidConsumer.accept(new Entry(key, settings), ex);
             }
         }
         if (changed) {

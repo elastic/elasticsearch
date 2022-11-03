@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -50,7 +51,7 @@ public class AutoscalingNodeInfoService {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    private static final AutoscalingNodeInfo FETCHING_SENTINEL = new AutoscalingNodeInfo(Long.MIN_VALUE, Integer.MIN_VALUE);
+    private static final AutoscalingNodeInfo FETCHING_SENTINEL = new AutoscalingNodeInfo(Long.MIN_VALUE, Processors.MAX_PROCESSORS);
 
     private static final Logger logger = LogManager.getLogger(AutoscalingNodeInfoService.class);
 
@@ -155,7 +156,7 @@ public class AutoscalingNodeInfoService {
                                         : "unexpected missing node when setting processors [" + nodeInfo.getNode().getEphemeralId() + "]";
                                     builderBuilder.computeIfPresent(
                                         nodeInfo.getNode().getEphemeralId(),
-                                        (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getAllocatedProcessors())
+                                        (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getFractionalAllocatedProcessors())
                                     );
                                 });
                                 synchronized (mutex) {

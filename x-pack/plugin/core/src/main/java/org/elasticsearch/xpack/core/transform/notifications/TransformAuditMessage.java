@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.transform.notifications;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
@@ -36,5 +37,10 @@ public class TransformAuditMessage extends AbstractAuditMessage {
     @Override
     protected Optional<String> getResourceField() {
         return Optional.of(TRANSFORM_ID.getPreferredName());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

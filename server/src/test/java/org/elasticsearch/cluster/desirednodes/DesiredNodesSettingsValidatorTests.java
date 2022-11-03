@@ -120,7 +120,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             int desiredNodeProcessors = 128;
             Settings nodeSettings = Settings.builder()
                 .put(NODE_EXTERNAL_ID_SETTING.getKey(), randomAlphaOfLength(10))
-                .put(NODE_PROCESSORS_SETTING.getKey(), desiredNodeProcessors + 1)
+                .put(NODE_PROCESSORS_SETTING.getKey(), desiredNodeProcessors + 1.1)
                 .build();
             final List<DesiredNode> desiredNodes = List.of(
                 new DesiredNode(nodeSettings, desiredNodeProcessors, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
@@ -132,7 +132,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
             assertThat(
                 exception.getSuppressed()[0].getMessage(),
-                containsString("Failed to parse value [129] for setting [node.processors] must be <= 128")
+                containsString("Failed to parse value [129.1] for setting [node.processors] must be <= 128.0")
             );
         }
 

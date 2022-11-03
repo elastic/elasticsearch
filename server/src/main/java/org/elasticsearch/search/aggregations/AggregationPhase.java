@@ -52,8 +52,8 @@ public class AggregationPhase {
             context.queryCollectors().put(AggregationPhase.class, BucketCollector.NO_OP_COLLECTOR);
         } else {
             Collector collector = context.getProfilers() == null
-                ? bucketCollector
-                : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, List.of());
+                ? bucketCollector.asCollector()
+                : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION, List.of());
             context.queryCollectors().put(AggregationPhase.class, collector);
         }
     }

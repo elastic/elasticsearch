@@ -42,9 +42,18 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
             dm -> assertFalse(dm.metadataMapper(SourceFieldMapper.class).enabled())
         );
+        checker.registerUpdateCheck(
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
+            dm -> assertTrue(dm.metadataMapper(SourceFieldMapper.class).isSynthetic())
+        );
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
         checker.registerConflictCheck("excludes", b -> b.array("excludes", "foo*"));
-        checker.registerConflictCheck("synthetic", b -> b.field("synthetic", true));
+        checker.registerConflictCheck(
+            "mode",
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject())
+        );
     }
 
     public void testNoFormat() throws Exception {
@@ -172,13 +181,45 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));
     }
 
-    public void testSyntheticDisabledNotSupported() throws Exception {
+    public void testSyntheticDisabledNotSupported() {
         Exception e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(
-                topMapping(b -> b.startObject("_source").field("enabled", false).field("synthetic", true).endObject())
+                topMapping(b -> b.startObject("_source").field("enabled", false).field("mode", "synthetic").endObject())
             )
         );
-        assertThat(e.getMessage(), containsString("_source may not be disabled when setting [synthetic: true]"));
+        assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
+    }
+
+    public void testSyntheticUpdates() throws Exception {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "_source" : { "mode" : "synthetic" } } }
+            """);
+
+        SourceFieldMapper mapper = mapperService.documentMapper().sourceMapper();
+        assertTrue(mapper.enabled());
+        assertTrue(mapper.isSynthetic());
+
+        merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "synthetic" } } }
+            """);
+        mapper = mapperService.documentMapper().sourceMapper();
+        assertTrue(mapper.enabled());
+        assertTrue(mapper.isSynthetic());
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("{}"));
+        assertNull(doc.rootDoc().get(SourceFieldMapper.NAME));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "stored" } } }
+            """));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [mode] from [synthetic] to [stored]"));
+
+        merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "disabled" } } }
+            """);
+        mapper = mapperService.documentMapper().sourceMapper();
+        assertFalse(mapper.enabled());
+        assertFalse(mapper.isSynthetic());
     }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcess
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME;
@@ -98,9 +97,10 @@ public class DeploymentManagerTests extends ESTestCase {
         deploymentManager.infer(
             task,
             mock(InferenceConfig.class),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             false,
             TimeValue.timeValueMinutes(1),
+            null,
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );
 

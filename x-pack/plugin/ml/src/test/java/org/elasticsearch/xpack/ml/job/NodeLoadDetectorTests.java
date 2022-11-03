@@ -126,7 +126,14 @@ public class NodeLoadDetectorTests extends ESTestCase {
                             .addNewAssignment(
                                 "model1",
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT, 1, 1, 1024)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        "model1",
+                                        MODEL_MEMORY_REQUIREMENT,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT)
+                                    )
                                 )
                                     .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                     .addRoutingEntry("_node_id2", new RoutingInfo(1, 1, RoutingState.FAILED, "test"))

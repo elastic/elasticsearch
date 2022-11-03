@@ -1,6 +1,0 @@
-pr: 87505
-summary: Clamp auto-expand replicas to the closest value
-area: Allocation
-type: bug
-issues:
- - 84788

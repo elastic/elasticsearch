@@ -15,11 +15,11 @@ exception of the <<search-explain,explain API>>.
 * <<search-multi-search>>
 * <<async-search>>
 * <<point-in-time-api>>
-* <<knn-search-api>>
 * <<search-suggesters>>
 * <<search-terms-enum>>
 * <<scroll-api>>
 * <<clear-scroll-api>>
+* <<semantic-search-api>>
 
 [discrete]
 [[search-testing-apis]]
@@ -52,6 +52,8 @@ include::search/async-search.asciidoc[]
 include::search/point-in-time-api.asciidoc[]
 
 include::search/knn-search.asciidoc[]
+
+include::search/semantic-search.asciidoc[]
 
 include::search/scroll-api.asciidoc[]
 

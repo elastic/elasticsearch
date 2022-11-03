@@ -195,9 +195,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
 
         public NodeSnapshotStatus(StreamInput in) throws IOException {
             super(in);
-            status = unmodifiableMap(
-                in.readMap(Snapshot::new, input -> unmodifiableMap(input.readMap(ShardId::new, SnapshotIndexShardStatus::new)))
-            );
+            status = in.readImmutableMap(Snapshot::new, input -> input.readImmutableOpenMap(ShardId::new, SnapshotIndexShardStatus::new));
         }
 
         public NodeSnapshotStatus(DiscoveryNode node, Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status) {

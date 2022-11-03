@@ -9,24 +9,29 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Snapshot status response
  */
-public class SnapshotsStatusResponse extends ActionResponse implements ToXContentObject {
+public class SnapshotsStatusResponse extends ActionResponse implements ChunkedToXContent {
 
     private final List<SnapshotStatus> snapshots;
 
@@ -51,18 +56,6 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(snapshots);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("snapshots");
-        for (SnapshotStatus snapshot : snapshots) {
-            snapshot.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
     private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
@@ -93,5 +86,16 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
     @Override
     public int hashCode() {
         return snapshots != null ? snapshots.hashCode() : 0;
+    }
+
+    @Override
+    public Iterator<? extends ToXContent> toXContentChunked() {
+        return Iterators.concat(
+            Iterators.single((ToXContent) (b, p) -> b.startObject().startArray("snapshots")),
+            snapshots.stream()
+                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
+                .iterator(),
+            Iterators.single((b, p) -> b.endArray().endObject())
+        );
     }
 }

@@ -54,7 +54,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
-    private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver; // handles load/reload of remote cluster API Keys
+    private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
 
     public SecurityServerTransportInterceptor(
         Settings settings,

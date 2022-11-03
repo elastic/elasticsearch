@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.junit.After;
+import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -34,7 +34,6 @@ import java.util.Base64;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assume.assumeThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
@@ -43,28 +42,34 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
 
-    @Override
-    public void setUp() throws Exception {
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            super.setUp();
-            this.threadPool = new TestThreadPool(getTestName());
-        }
-
+    @BeforeClass
+    public static void checkFeatureFlag() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
     }
 
-    @After
-    public void stopThreadPool() throws Exception {
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            this.clusterService.close();
-            terminate(this.threadPool);
-        }
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        this.threadPool = new TestThreadPool(getTestName());
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        this.clusterService.close();
+        terminate(this.threadPool);
     }
 
     public void testRemoteClusterApiKeyChanges() {
-        assumeThat(TcpTransport.isUntrustedRemoteClusterEnabled(), is(true));
-        final String clusterNameA = "action"; // fake cluster name, appears in debug logs as Changed or Added with trace details
+        final String clusterNameA = "clusterA";
         final String clusterNameB = "clusterB";
-        final Settings initialSettings = Settings.builder().put("cluster.remote." + clusterNameA + ".authorization", "initialize").build();
+        final String clusterDoesNotExist = randomAlphaOfLength(10);
+        final Settings.Builder initialSettingsBuilder = Settings.builder();
+        initialSettingsBuilder.put("cluster.remote." + clusterNameA + ".authorization", "initialize");
+        if (randomBoolean()) {
+            initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".authorization", "");
+        }
+        final Settings initialSettings = initialSettingsBuilder.build();
 
         this.clusterService = ClusterServiceUtils.createClusterService(this.threadPool);
         SecurityContext securityContext = spy(new SecurityContext(initialSettings, this.threadPool.getThreadContext()));
@@ -85,6 +90,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         );
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("initialize")));
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(nullValue()));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterDoesNotExist), is(nullValue()));
         final DiscoveryNode masterNodeA = this.clusterService.state().nodes().getMasterNode();
 
         // Add clusterB authorization setting
@@ -97,6 +103,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         ClusterServiceUtils.setState(this.clusterService, newClusterState1);
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("addB")));
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(equalTo(clusterBapiKey1)));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterDoesNotExist), is(nullValue()));
 
         // Change clusterB authorization setting
         final String clusterBapiKey2 = randomApiKey();
@@ -108,15 +115,20 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         ClusterServiceUtils.setState(this.clusterService, newClusterState2);
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("editB")));
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(equalTo(clusterBapiKey2)));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterDoesNotExist), is(nullValue()));
 
         // Remove clusterB authorization setting
-        final Settings newSettingsOmitClusterB = Settings.builder()
-            .put("cluster.remote." + clusterNameA + ".authorization", "omitB")
-            .build();
+        final Settings.Builder newSettingsOmitClusterBBuilder = Settings.builder();
+        newSettingsOmitClusterBBuilder.put("cluster.remote." + clusterNameA + ".authorization", "omitB");
+        if (randomBoolean()) {
+            initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".authorization", "");
+        }
+        final Settings newSettingsOmitClusterB = newSettingsOmitClusterBBuilder.build();
         final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettingsOmitClusterB);
         ClusterServiceUtils.setState(this.clusterService, newClusterState3);
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("omitB")));
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(nullValue()));
+        assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterDoesNotExist), is(nullValue()));
     }
 
     private static ClusterState createClusterState(final String clusterName, final DiscoveryNode masterNode, final Settings newSettings) {

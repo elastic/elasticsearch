@@ -19,10 +19,6 @@ import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
 
-/**
- * Load/reload API Keys from cluster settings.
- * Used by SecurityServerTransportInterceptor to get the latest API Key.
- */
 public class RemoteClusterAuthorizationResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(RemoteClusterAuthorizationResolver.class);
@@ -37,7 +33,9 @@ public class RemoteClusterAuthorizationResolver {
     public RemoteClusterAuthorizationResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
-                this.updateAuthorization(entry.getKey(), entry.getValue());
+                if (Strings.isEmpty(entry.getValue()) == false) {
+                    this.updateAuthorization(entry.getKey(), entry.getValue());
+                }
             }
             clusterSettings.addAffixUpdateConsumer(
                 REMOTE_CLUSTER_AUTHORIZATION,
@@ -56,11 +54,11 @@ public class RemoteClusterAuthorizationResolver {
 
     private void updateAuthorization(final String clusterAlias, final String authorization) {
         if (Strings.isEmpty(authorization)) {
-            final boolean notFound = Strings.isEmpty(apiKeys.remove(clusterAlias));
-            LOGGER.debug("clusterAlias {} {}", clusterAlias, (notFound ? "not found" : "removed"));
+            apiKeys.remove(clusterAlias);
+            LOGGER.debug("Authorization value for clusterAlias {} removed", clusterAlias);
         } else {
             final boolean notFound = Strings.isEmpty(apiKeys.put(clusterAlias, authorization));
-            LOGGER.debug("clusterAlias {} {}", clusterAlias, (notFound ? "added" : "updated"));
+            LOGGER.debug("Authorization value for clusterAlias {} {}", clusterAlias, (notFound ? "added" : "updated"));
         }
     }
 }

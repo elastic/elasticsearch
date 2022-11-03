@@ -373,9 +373,7 @@ public class RBACEngine implements AuthorizationEngine {
                                 .stream()
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
-                    listener.onResponse(
-                        buildIndicesAccessControl(action, role, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup)
-                    );
+                    listener.onResponse(buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup));
                 }
             }, listener::onFailure));
         } else {
@@ -797,10 +795,15 @@ public class RBACEngine implements AuthorizationEngine {
     private IndexAuthorizationResult buildIndicesAccessControl(
         String action,
         Role role,
-        Set<String> indices,
+        ResolvedIndices resolvedIndices,
         Map<String, IndexAbstraction> aliasAndIndexLookup
     ) {
-        final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
+        final IndicesAccessControl accessControl = role.authorize(
+            action,
+            Sets.newHashSet(resolvedIndices.getLocal()),
+            aliasAndIndexLookup,
+            fieldPermissionsCache
+        );
         return new IndexAuthorizationResult(accessControl);
     }
 

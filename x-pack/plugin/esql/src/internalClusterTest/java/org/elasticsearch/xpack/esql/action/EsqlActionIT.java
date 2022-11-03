@@ -69,7 +69,7 @@ public class EsqlActionIT extends ESIntegTestCase {
 
     public void testRow() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
-        EsqlQueryResponse response = run("row" + value);
+        EsqlQueryResponse response = run("row " + value);
         assertEquals(List.of(List.of(value)), response.values());
     }
 

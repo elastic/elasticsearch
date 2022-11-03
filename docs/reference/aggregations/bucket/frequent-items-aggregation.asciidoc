@@ -51,6 +51,7 @@ A `frequent_items` aggregation looks like this in isolation:
 |`minimum_set_size` | (integer) The <<frequent-items-minimum-set-size,minimum size>> of one item set. | Optional | `1`
 |`minimum_support` | (integer) The <<frequent-items-minimum-support,minimum support>> of one item set. | Optional | `0.1`
 |`size` | (integer) The number of top item sets to return. | Optional | `10`
+|`filter` | (object) Query that filters documents from the analysis | Optional | `match_all`
 |===
 
 
@@ -103,6 +104,18 @@ aggregation.
 
 
 [discrete]
+[[frequent-items-filter]]
+==== Filter
+
+A query to filter documents to use as part of the analysis. Documents that
+don't match the filter are ignored when generating the item sets, however still
+count when calculating the support of an item set.
+
+Use the filter if you want to narrow the item set analysis to fields of interest.
+Use a top-level query to filter the data set.
+
+
+[discrete]
 [[frequent-items-example]]
 ==== Examples
 
@@ -123,7 +136,7 @@ example.
 
 [source,console]
 -------------------------------------------------
-POST /kibana_sample_data_ecommerce /_async_search 
+POST /kibana_sample_data_ecommerce/_async_search
 {
   "size": 0,
   "aggs": {
@@ -224,7 +237,45 @@ from New York. Finally, the item set with the third highest support is
 
 
 [discrete]
-==== Analizing numeric values by using a runtime field
+==== Aggregation with two analyzed fields and a filter
+
+We take the first example, but want to narrow the item sets to places in Europe.
+For that we add a filter:
+
+[source,console]
+-------------------------------------------------
+POST /kibana_sample_data_ecommerce/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "my_agg": {
+      "frequent_items": {
+        "minimum_set_size": 3,
+        "fields": [
+          { "field": "category.keyword" },
+          { "field": "geoip.city_name" }
+        ],
+        "size": 3,
+        "filter": {
+          "term": {
+            "geoip.continent_name": "Europe"
+          }
+        }
+      }
+    }
+  }
+}
+-------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+The result will only show item sets that created from documents matching the
+filter, namely purchases in Europe. Using `filter` the calculated `support` still
+takes all purchases into acount. That's different to specifying a query at the
+top-level, in which case `support` gets calculated only from purchases in Europe.
+
+
+[discrete]
+==== Analyzing numeric values by using a runtime field
 
 The frequent items aggregation enables you to bucket numeric values by using 
 <<runtime,runtime fields>>. The next example demonstrates how to use a script to 

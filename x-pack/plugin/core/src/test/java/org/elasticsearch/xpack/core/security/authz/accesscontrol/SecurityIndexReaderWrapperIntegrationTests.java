@@ -159,7 +159,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         for (int i = 0; i < numValues; i++) {
             String termQuery = "{\"term\": {\"field\": \"" + values[i] + "\"} }";
             IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-                new FieldPermissions(),
+                FieldPermissions.DEFAULT,
                 DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery)))
             );
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
@@ -224,7 +224,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\"] } }"));
         queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv32\"] } }"));
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             DocumentPermissions.filteredBy(queries)
         );
         queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
@@ -232,7 +232,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
         }
         IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(
-            new FieldPermissions(),
+            FieldPermissions.DEFAULT,
             DocumentPermissions.filteredBy(queries)
         );
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(

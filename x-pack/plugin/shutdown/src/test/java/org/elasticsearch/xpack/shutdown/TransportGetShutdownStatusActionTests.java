@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -319,6 +320,69 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.STALLED,
+            1,
+            allOf(containsString(index.getName()), containsString("[2] [primary]"))
+        );
+    }
+
+    /**
+     * Ensure we can detect stalled migrations, defined as the inability to move remaining shards off a shutting-down node due to allocation
+     * deciders.
+     */
+    public void testStalledUnassigned() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        var unsignedInfo = new UnassignedInfo(
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            "testing",
+            null,
+            1,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            SHUTTING_DOWN_NODE_ID
+        );
+
+        var unassigned = TestShardRouting.newShardRouting(
+            new ShardId(index, 2),
+            null,
+            null,
+            true,
+            ShardRoutingState.UNASSIGNED,
+            unsignedInfo
+        );
+
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(unassigned)
             .build();
 
         // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck

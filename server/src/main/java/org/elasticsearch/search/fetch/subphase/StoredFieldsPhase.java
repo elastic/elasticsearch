@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -82,6 +83,8 @@ public class StoredFieldsPhase implements FetchSubPhase {
         fieldsToLoad.add("_id");    // if stored fields are requested then we always load metadata as well
         storedFields.add(new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true));
         storedFields.add(new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true));
+        // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
+        storedFields.add(new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true));
         StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(false, fieldsToLoad);
 
         return new FetchSubPhaseProcessor() {

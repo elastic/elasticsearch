@@ -353,14 +353,14 @@ public class IndexNameExpressionResolver {
             IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null) {
                 if (options.ignoreUnavailable() == false) {
-                    // can be reached only if {@code indicesOptions#expandWildcardExpressions} is `false`
+                    assert options.expandWildcardExpressions() == false;
                     throw notFoundException(expression);
                 } else {
                     continue;
                 }
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
                 if (options.ignoreUnavailable() == false) {
-                    // can be reached only if {@code indicesOptions#expandWildcardExpressions} is `false`
+                    assert options.expandWildcardExpressions() == false;
                     throw aliasesNotSupportedException(expression);
                 } else {
                     continue;

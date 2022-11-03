@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.esql.session;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
@@ -66,9 +70,15 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(configuration);
     }
 
-    public void execute(String query, ActionListener<PhysicalPlan> listener) {
-        LOGGER.debug("ESQL query:\n{}", query);
-        optimizedPhysicalPlan(parse(query), listener);
+    public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
+        LOGGER.debug("ESQL query:\n{}", request.query());
+        optimizedPhysicalPlan(parse(request.query()), listener.map(plan -> plan.transformUp(EsQueryExec.class, q -> {
+            // TODO: have an ESFilter and push down to EsQueryExec
+            // This is an ugly hack to push the filter parameter to Lucene
+            final QueryBuilder filter = request.filter() != null ? request.filter() : new MatchAllQueryBuilder();
+            LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+            return new EsQueryExec(q.source(), q.index(), filter);
+        })));
     }
 
     private LogicalPlan parse(String query) {

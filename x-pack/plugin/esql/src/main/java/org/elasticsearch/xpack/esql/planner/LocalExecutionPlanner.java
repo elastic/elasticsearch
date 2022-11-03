@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -37,8 +35,8 @@ import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -83,7 +81,7 @@ import java.util.stream.IntStream;
 @Experimental
 public class LocalExecutionPlanner {
 
-    private final List<IndexReaderReference> indexReaders;
+    private final List<SearchContext> searchContexts;
     private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
         "task_concurrency",
         ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
@@ -99,8 +97,8 @@ public class LocalExecutionPlanner {
     private final int bufferMaxPages;
     private final DataPartitioning dataPartitioning;
 
-    public LocalExecutionPlanner(EsqlConfiguration configuration, List<IndexReaderReference> indexReaders) {
-        this.indexReaders = indexReaders;
+    public LocalExecutionPlanner(EsqlConfiguration configuration, List<SearchContext> searchContexts) {
+        this.searchContexts = searchContexts;
         taskConcurrency = TASK_CONCURRENCY.get(configuration.pragmas());
         bufferMaxPages = BUFFER_MAX_PAGES.get(configuration.pragmas());
         dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
@@ -110,10 +108,6 @@ public class LocalExecutionPlanner {
         SHARD,
         SEGMENT,
         DOC,
-    }
-
-    public record IndexReaderReference(IndexReader indexReader, ShardId shardId) {
-
     }
 
     /**
@@ -230,52 +224,7 @@ public class LocalExecutionPlanner {
             }
             throw new UnsupportedOperationException();
         } else if (node instanceof EsQueryExec esQuery) {
-            Supplier<Operator> operatorFactory;
-            Set<String> indices = Sets.newHashSet(esQuery.index().name());
-            Query query = new MatchAllDocsQuery(); // TODO: esQuery.query
-            if (dataPartitioning == DataPartitioning.SHARD) {
-                context.setDriverInstanceCount(
-                    Math.toIntExact(indexReaders.stream().filter(iRR -> indices.contains(iRR.shardId().getIndexName())).count())
-                );
-                operatorFactory = IntStream.range(0, indexReaders.size())
-                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
-                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
-                    .map(tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), query))
-                    .iterator()::next;
-            } else if (dataPartitioning == DataPartitioning.SEGMENT) {
-                context.setDriverInstanceCount(
-                    indexReaders.stream()
-                        .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
-                        .mapToInt(indexReader -> LuceneSourceOperator.numSegmentSlices(indexReader.indexReader()))
-                        .sum()
-                );
-                operatorFactory = IntStream.range(0, indexReaders.size())
-                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
-                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
-                    .flatMap(tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), query).segmentSlice().stream())
-                    .iterator()::next;
-            } else if (dataPartitioning == DataPartitioning.DOC) {
-                context.setDriverInstanceCount(
-                    indexReaders.stream()
-                        .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
-                        .mapToInt(indexReader -> LuceneSourceOperator.numDocSlices(indexReader.indexReader(), taskConcurrency))
-                        .sum()
-                );
-                operatorFactory = IntStream.range(0, indexReaders.size())
-                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
-                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
-                    .flatMap(
-                        tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), query).docSlice(taskConcurrency).stream()
-                    )
-                    .iterator()::next;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-            Map<Object, Integer> layout = new HashMap<>();
-            for (int i = 0; i < esQuery.output().size(); i++) {
-                layout.put(esQuery.output().get(i).id(), i);
-            }
-            return new PhysicalOperation(operatorFactory, layout);
+            return planEsQueryNode(esQuery, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             PhysicalOperation source = plan(fieldExtractExec.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
@@ -290,7 +239,7 @@ public class LocalExecutionPlanner {
                 Map<Object, Integer> previousLayout = op.layout;
                 op = new PhysicalOperation(
                     () -> new NumericDocValuesExtractor(
-                        indexReaders.stream().map(IndexReaderReference::indexReader).collect(Collectors.toList()),
+                        searchContexts.stream().map(ctx -> ctx.getSearchExecutionContext().getIndexReader()).collect(Collectors.toList()),
                         previousLayout.get(souceAttributes[0].id()),
                         previousLayout.get(souceAttributes[1].id()),
                         previousLayout.get(souceAttributes[2].id()),
@@ -402,6 +351,32 @@ public class LocalExecutionPlanner {
             return new PhysicalOperation(() -> new RowOperator(obj), layout);
         }
         throw new UnsupportedOperationException(node.nodeName());
+    }
+
+    private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlanContext context) {
+        Set<String> indices = Sets.newHashSet(esQuery.index().name());
+        List<SearchExecutionContext> matchedSearchContexts = this.searchContexts.stream()
+            .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
+            .map(SearchContext::getSearchExecutionContext)
+            .toList();
+        final List<LuceneSourceOperator> luceneOperators = new ArrayList<>();
+        for (int shardIndex = 0; shardIndex < matchedSearchContexts.size(); shardIndex++) {
+            final SearchExecutionContext ctx = matchedSearchContexts.get(shardIndex);
+            final Query query = ctx.toQuery(esQuery.query()).query();
+            final LuceneSourceOperator queryOperator = new LuceneSourceOperator(ctx.getIndexReader(), shardIndex, query);
+            switch (dataPartitioning) {
+                case SHARD -> luceneOperators.add(queryOperator);
+                case SEGMENT -> luceneOperators.addAll(queryOperator.segmentSlice());
+                case DOC -> luceneOperators.addAll(queryOperator.docSlice(taskConcurrency));
+                default -> throw new UnsupportedOperationException();
+            }
+        }
+        context.setDriverInstanceCount(luceneOperators.size());
+        Map<Object, Integer> layout = new HashMap<>();
+        for (int i = 0; i < esQuery.output().size(); i++) {
+            layout.put(esQuery.output().get(i).id(), i);
+        }
+        return new PhysicalOperation(luceneOperators.iterator()::next, layout);
     }
 
     private ExpressionEvaluator toEvaluator(Expression exp, Map<Object, Integer> layout) {

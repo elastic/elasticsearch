@@ -19,7 +19,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -126,19 +125,7 @@ public class ComputeService {
         acquireSearchContexts(physicalPlan, ActionListener.wrap(searchContexts -> {
             boolean success = false;
             try {
-                LocalExecutionPlanner planner = new LocalExecutionPlanner(
-                    configuration,
-                    searchContexts.stream()
-                        .map(SearchContext::getSearchExecutionContext)
-                        .map(
-                            sec -> new LocalExecutionPlanner.IndexReaderReference(
-                                sec.getIndexReader(),
-                                new ShardId(sec.index(), sec.getShardId())
-                            )
-                        )
-                        .collect(Collectors.toList())
-                );
-
+                LocalExecutionPlanner planner = new LocalExecutionPlanner(configuration, searchContexts);
                 final List<Page> results = Collections.synchronizedList(new ArrayList<>());
                 LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
                     new OutputExec(physicalPlan, (l, p) -> { results.add(p); })

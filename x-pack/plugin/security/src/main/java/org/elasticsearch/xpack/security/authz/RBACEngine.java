@@ -288,10 +288,10 @@ public class RBACEngine implements AuthorizationEngine {
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
-            try {
-                listener.onResponse(authorizeIndexActionName(action, authorizationInfo, null));
-            } catch (Exception e) {
-                listener.onFailure(e);
+            if (role.checkIndicesAction(action)) {
+                listener.onResponse(new IndexAuthorizationResult(null));
+            } else {
+                listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
             }
         } else if (request instanceof IndicesRequest == false) {
             if (isScrollRelatedAction(action)) {
@@ -312,7 +312,11 @@ public class RBACEngine implements AuthorizationEngine {
                 if (SearchScrollAction.NAME.equals(action)) {
                     ActionRunnable.supply(ActionListener.wrap(parsedScrollId -> {
                         if (parsedScrollId.hasLocalIndices()) {
-                            listener.onResponse(authorizeIndexActionName(action, authorizationInfo, null));
+                            if (role.checkIndicesAction(action)) {
+                                listener.onResponse(new IndexAuthorizationResult(null));
+                            } else {
+                                listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+                            }
                         } else {
                             listener.onResponse(new IndexAuthorizationResult(null));
                         }
@@ -378,7 +382,7 @@ public class RBACEngine implements AuthorizationEngine {
                     listener.onResponse(
                         buildIndicesAccessControl(
                             action,
-                            authorizationInfo,
+                            role,
                             Sets.newHashSet(resolvedIndices.getLocal()),
                             aliasOrIndexLookup
                         )
@@ -456,15 +460,6 @@ public class RBACEngine implements AuthorizationEngine {
 
         // Check if the parent context has already successfully authorized access to the child's indices
         return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
-    }
-
-    private static IndexAuthorizationResult authorizeIndexActionName(
-        String action,
-        AuthorizationInfo authorizationInfo,
-        IndicesAccessControl grantedValue
-    ) {
-        final Role role = ensureRBAC(authorizationInfo).getRole();
-        return new IndexAuthorizationResult(role.checkIndicesAction(action) ? grantedValue : IndicesAccessControl.DENIED);
     }
 
     @Override
@@ -812,11 +807,10 @@ public class RBACEngine implements AuthorizationEngine {
 
     private IndexAuthorizationResult buildIndicesAccessControl(
         String action,
-        AuthorizationInfo authorizationInfo,
+        Role role,
         Set<String> indices,
         Map<String, IndexAbstraction> aliasAndIndexLookup
     ) {
-        final Role role = ensureRBAC(authorizationInfo).getRole();
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(accessControl);
     }

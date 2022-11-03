@@ -1468,7 +1468,7 @@ public class IndexNameExpressionResolver {
                 } else {
                     result.add(resolveExpression(expression, context::getStartTime));
                 }
-                if (Regex.isSimpleMatchPattern(expression)) {
+                if (context.getOptions().expandWildcardExpressions() && Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
                 }
             }

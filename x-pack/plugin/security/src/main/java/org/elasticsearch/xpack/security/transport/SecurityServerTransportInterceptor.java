@@ -94,7 +94,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final String remoteClusterAlias = getRemoteClusterAlias();
                 if (remoteClusterAlias != null) {
-                    logger.info("Remote cluster alias transient header [{}]", remoteClusterAlias);
+                    final String authorization = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
+                    logger.info("Remote cluster alias transient header [{}] and authorization [{}]", remoteClusterAlias, authorization);
                 }
 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request

@@ -55,7 +55,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@SuppressWarnings("removal")
 public class PermissionsIT extends ESRestTestCase {
 
     private static final String jsonDoc = """

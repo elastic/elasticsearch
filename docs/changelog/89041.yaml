@@ -1,8 +1,0 @@
-pr: 89041
-summary: Improve efficiency of `BoundedBreakIteratorScanner` fragmentation algorithm
-area: Highlighting
-type: enhancement
-issues:
- - 73569
- - 73785
-

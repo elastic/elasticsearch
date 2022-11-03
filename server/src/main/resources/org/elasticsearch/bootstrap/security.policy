@@ -27,9 +27,6 @@ grant codeBase "${codebase.elasticsearch}" {
   // required if started with -Djava.net.preferIPv6Addresses=true
   permission java.net.SocketPermission "0:0:0:0:0:0:0:1", "listen, accept";
 
-  // needed for UberModuleClassLoader
-  permission java.lang.RuntimePermission "accessClassInPackage.*";
-
   // for module layer
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";

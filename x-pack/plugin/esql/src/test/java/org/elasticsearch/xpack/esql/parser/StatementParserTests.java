@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -39,6 +40,8 @@ import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionS
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -305,6 +308,88 @@ public class StatementParserTests extends ESTestCase {
 
     public void testSubquerySpacing() {
         assertEquals(statement("explain [ explain [ from a ] | where b == 1 ]"), statement("explain[explain[from a]|where b==1]"));
+    }
+
+    public void testBlockComments() {
+        String query = " explain [ from foo ] | limit 10 ";
+        LogicalPlan expected = statement(query);
+
+        int wsIndex = query.indexOf(' ');
+
+        do {
+            String queryWithComment = query.substring(0, wsIndex)
+                + "/*explain [ \nfrom bar ] | where a > b*/"
+                + query.substring(wsIndex + 1);
+
+            assertEquals(expected, statement(queryWithComment));
+
+            wsIndex = query.indexOf(' ', wsIndex + 1);
+        } while (wsIndex >= 0);
+    }
+
+    public void testSingleLineComments() {
+        String query = " explain [ from foo ] | limit 10 ";
+        LogicalPlan expected = statement(query);
+
+        int wsIndex = query.indexOf(' ');
+
+        do {
+            String queryWithComment = query.substring(0, wsIndex)
+                + "//explain [ from bar ] | where a > b \n"
+                + query.substring(wsIndex + 1);
+
+            assertEquals(expected, statement(queryWithComment));
+
+            wsIndex = query.indexOf(' ', wsIndex + 1);
+        } while (wsIndex >= 0);
+    }
+
+    public void testSuggestAvailableSourceCommandsOnParsingError() {
+        for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
+            Tuple.tuple("frm foo", "frm"),
+            Tuple.tuple("expln[from bar]", "expln"),
+            Tuple.tuple("not-a-thing logs", "not-a-thing"),
+            Tuple.tuple("high5 a", "high5"),
+            Tuple.tuple("a+b = c", "a+b"),
+            Tuple.tuple("a//hi", "a"),
+            Tuple.tuple("a/*hi*/", "a"),
+            Tuple.tuple("explain [ frm a ]", "frm")
+        )) {
+            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
+            assertThat(
+                pe.getMessage(),
+                allOf(
+                    containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
+                    containsString("'explain'"),
+                    containsString("'from'"),
+                    containsString("'row'")
+                )
+            );
+        }
+    }
+
+    public void testSuggestAvailableProcessingCommandsOnParsingError() {
+        for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
+            Tuple.tuple("from a | filter b > 1", "filter"),
+            Tuple.tuple("from a | explain [ row 1 ]", "explain"),
+            Tuple.tuple("from a | not-a-thing", "not-a-thing"),
+            Tuple.tuple("from a | high5 a", "high5"),
+            Tuple.tuple("from a | a+b = c", "a+b"),
+            Tuple.tuple("from a | a//hi", "a"),
+            Tuple.tuple("from a | a/*hi*/", "a"),
+            Tuple.tuple("explain [ from a | evl b = c ]", "evl")
+        )) {
+            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
+            assertThat(
+                pe.getMessage(),
+                allOf(
+                    containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
+                    containsString("'eval'"),
+                    containsString("'stats'"),
+                    containsString("'where'")
+                )
+            );
+        }
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

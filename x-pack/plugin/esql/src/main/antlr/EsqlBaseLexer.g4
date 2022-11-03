@@ -9,6 +9,7 @@ WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
 PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
+UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION);
 
 LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
@@ -128,7 +129,12 @@ SRC_COMMA : ',' -> type(COMMA);
 SRC_ASSIGN : '=' -> type(ASSIGN);
 
 SRC_UNQUOTED_IDENTIFIER
-    : ~[=`|, [\]\t\r\n]+
+    : SRC_UNQUOTED_IDENTIFIER_PART+
+    ;
+
+fragment SRC_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]+
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
     ;
 
 SRC_QUOTED_IDENTIFIER

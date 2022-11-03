@@ -162,7 +162,9 @@ services:
       - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
 
   oidc-provider:
-    image: "c2id/c2id-server-demo:12.16.1"
+    build:
+      context: .
+      dockerfile: ./oidc/Dockerfile
     depends_on:
       - http-proxy
     ports:

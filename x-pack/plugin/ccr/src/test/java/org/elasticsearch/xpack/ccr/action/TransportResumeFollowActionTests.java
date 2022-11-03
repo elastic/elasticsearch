@@ -329,7 +329,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
-            if (setting.isDynamic()) {
+            // removed settings have no effect, they are only there for BWC
+            if (setting.isDynamic() && setting.isDeprecatedAndRemoved() == false) {
                 boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
                 boolean replicated = replicatedSettings.contains(setting);
                 assertThat(

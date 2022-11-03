@@ -1,5 +1,0 @@
-pr: 90067
-summary: Register stable plugins in `ActionModule`
-area: Infra/Plugins
-type: enhancement
-issues: []

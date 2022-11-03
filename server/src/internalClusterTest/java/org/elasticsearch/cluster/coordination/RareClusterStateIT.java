@@ -156,23 +156,26 @@ public class RareClusterStateIT extends ESIntegTestCase {
     private PlainActionFuture<Void> ensureNoPendingMasterTasks() {
         var future = new PlainActionFuture<Void>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(30)) {
+            .submitUnbatchedStateUpdateTask(
+                "ensureNoPendingMasterTasks",
+                new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(30)) {
 
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return currentState;
-                }
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    future.onResponse(null);
-                }
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        future.onResponse(null);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    future.onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        future.onFailure(e);
+                    }
                 }
-            });
+            );
         return future;
     }
 
@@ -305,10 +308,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertEquals(1, docIndexResponse.get(10, TimeUnit.SECONDS).getShardInfo().getTotal());
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/89905",
-        value = "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:DEBUG"
-    )
     public void testDelayedMappingPropagationOnReplica() throws Exception {
         // This is essentially the same thing as testDelayedMappingPropagationOnPrimary
         // but for replicas
@@ -378,6 +377,19 @@ public class RareClusterStateIT extends ESIntegTestCase {
             assertNotNull(mapper.mappers().getMapper("field"));
         });
 
+        // If the put-mapping commit messages arrive out-of-order then the earlier one is acked (with a CoordinationStateRejectedException)
+        // prematurely, bypassing the disruption. Wait for the commit messages to arrive everywhere before proceeding:
+        assertBusy(() -> {
+            long minVersion = Long.MAX_VALUE;
+            long maxVersion = Long.MIN_VALUE;
+            for (final var coordinator : internalCluster().getInstances(Coordinator.class)) {
+                final var clusterStateVersion = coordinator.getApplierState().version();
+                minVersion = Math.min(minVersion, clusterStateVersion);
+                maxVersion = Math.max(maxVersion, clusterStateVersion);
+            }
+            assertEquals(minVersion, maxVersion);
+        });
+
         final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
@@ -408,12 +420,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled
         // and not just because it takes time to replicate the indexing request to the replica
         Thread.sleep(100);
-        final var results = "["
-            + (putMappingResponse.isDone() ? Strings.toString(putMappingResponse.get()) : "null")
-            + ","
-            + (docIndexResponse.isDone() ? Strings.toString(docIndexResponse.get()) : "null")
-            + "]";
-        assertEquals("[null,null]", results);
         assertFalse(putMappingResponse.isDone());
         assertFalse(docIndexResponse.isDone());
 

@@ -18,7 +18,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -579,18 +578,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
-            class MalformedHandler implements CheckedConsumer<IllegalArgumentException, IOException> {
-                boolean someMalformedValues = false;
-
-                @Override
-                public void accept(IllegalArgumentException e) throws IOException {
-                    if (ignoreMalformed && context.parser().currentToken().isValue()) {
-
-                    }
-                    someMalformedValues = true;
-                }
-            }
-            MalformedHandler onMalformed = new MalformedHandler();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an object sub-field with name a metric name
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
@@ -632,13 +619,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 );
             }
 
-            // Check if all required metrics have been parsed.
-            for (Metric m : metrics) {
-                if (metricsParsed.containsKey(m) == false) {
-                    throw new IllegalArgumentException(
-                        "Aggregate metric field [" + mappedFieldType.name() + "] must contain all metrics " + metrics
-                    );
-                }
+            // Check if all metrics have been parsed.
+            if (metricsParsed.size() != metrics.size()) {
+                throw new IllegalArgumentException(
+                    "Aggregate metric field [" + mappedFieldType.name() + "] must contain all metrics " + metrics
+                );
             }
             // Check that there aren't any duplicates already parsed
             for (Metric m : metricsParsed.keySet()) {

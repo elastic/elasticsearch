@@ -1711,7 +1711,9 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     /**
-     * Read the value at the current position of the parser.
+     * Read the value at the current position of the parser. For numeric fields
+     * this is called by {@link #parseCreateField} but it is public so it can
+     * be used by other fields that want to share the behavior of numeric fields.
      * @throws IllegalArgumentException if there was an error parsing the value from the json
      * @throws IOException if there was any other IO error
      */
@@ -1729,6 +1731,11 @@ public class NumberFieldMapper extends FieldMapper {
         return type.parse(parser, coerce());
     }
 
+    /**
+     * Index a value for this field. For numeric fields this is called by
+     * {@link #parseCreateField} but it is public so it can be used by other
+     * fields that want to share the behavior of numeric fields.
+     */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());

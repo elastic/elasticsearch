@@ -1,0 +1,46 @@
+---
+setup:
+    -   skip:
+            version: " - 8.5.99"
+            reason: "API added in in 8.6.0"
+    -   do:
+            indices.create:
+                index: test
+                body:
+                    settings:
+                        number_of_shards: 2
+
+    -   do:
+            bulk:
+                index: test
+                refresh: true
+                body:
+                    - '{ "index": {"_id": "1"}}'
+                    - '{  "field": "foo" }'
+                    - '{ "index": {"_id": "2"}}'
+                    - '{ "field": "foo 2" }'
+                    - '{ "index": {"_id": "3"}}'
+                    - '{ "field": "foo 3" }'
+                    - '{ "index": {"_id": "4"}}'
+                    - '{ "field": "foo 4" }'
+                    - '{ "index": {"_id": "5"}}'
+                    - '{ "field": "bar" }'
+---
+"Test get desired balance":
+    -   do:
+            _internal.get_desired_balance: { }
+    -   match: { stats.computation_active: false }
+    -   gte: { stats.computation_submitted: 0 }
+    -   gte: { stats.computation_executed: 0 }
+    -   gte: { stats.computation_converged: 0 }
+    -   gte: { stats.computation_iterations: 0 }
+    -   gte: { stats.computation_converged_index: 0 }
+    -   gte: { stats.computation_time_in_millis: 0 }
+    -   gte: { stats.reconciliation_time_in_millis: 0 }
+
+    -   match: { routing_table.test.0.current.state: 'STARTED' }
+    -   match: { routing_table.test.0.current.primary: true }
+    -   match: { routing_table.test.0.current.node_is_desired: false }
+    -   match: { routing_table.test.0.current.shard_id: 0 }
+    -   match: { routing_table.test.0.current.index: test }
+    -   match: { routing_table.test.0.desired.node_ids: test }

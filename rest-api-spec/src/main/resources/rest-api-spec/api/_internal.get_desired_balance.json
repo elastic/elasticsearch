@@ -1,0 +1,23 @@
+{
+  "_internal.get_desired_balance":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-desired-balance.html",
+      "description": "Gets the latest desired balance and basic metrics. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_internal/desired_balance",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

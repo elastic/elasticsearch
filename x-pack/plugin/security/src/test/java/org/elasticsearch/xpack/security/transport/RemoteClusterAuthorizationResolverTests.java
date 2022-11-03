@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,10 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -34,8 +29,6 @@ import java.util.Base64;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
 public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
 
@@ -51,6 +44,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.threadPool = new TestThreadPool(getTestName());
+        this.clusterService = ClusterServiceUtils.createClusterService(this.threadPool);
     }
 
     @Override
@@ -70,23 +64,9 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
             initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".authorization", "");
         }
         final Settings initialSettings = initialSettingsBuilder.build();
-
-        this.clusterService = ClusterServiceUtils.createClusterService(this.threadPool);
-        SecurityContext securityContext = spy(new SecurityContext(initialSettings, this.threadPool.getThreadContext()));
-
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = new RemoteClusterAuthorizationResolver(
             initialSettings,
             this.clusterService.getClusterSettings()
-        );
-        new SecurityServerTransportInterceptor(
-            initialSettings,
-            this.threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
-            mock(SSLService.class),
-            securityContext,
-            new DestructiveOperations(initialSettings, this.clusterService.getClusterSettings()),
-            remoteClusterAuthorizationResolver
         );
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameA), is(equalTo("initialize")));
         assertThat(remoteClusterAuthorizationResolver.resolveAuthorization(clusterNameB), is(nullValue()));

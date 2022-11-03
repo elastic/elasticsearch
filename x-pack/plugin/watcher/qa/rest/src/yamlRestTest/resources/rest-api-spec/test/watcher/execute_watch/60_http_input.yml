@@ -83,7 +83,7 @@ setup:
                   "request": {
                     "url": "http://${http_host}/_cluster/health",
                     "headers" : {
-                        "authorization" : "eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZAo="
+                        "authorization" : "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
                     },
                     "auth" : {
                       "basic" : {
@@ -104,7 +104,6 @@ setup:
             }
           }
 
-  - match: { watch_record.result.input.payload.timed_out: false }
   - match: { watch_record.result.input.payload._status_code: 200 }
   - match: { watch_record.input.http.request.auth.basic.password: "::es_redacted::"}
   - match: { watch_record.input.http.request.headers.authorization: "::es_redacted::"}

@@ -41,7 +41,8 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
     public enum Item {
         GEOLINE,
         GEOHEX,
-        CARTESIANCENTROID
+        CARTESIANCENTROID,
+        CARTESIANBOUNDS
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {

@@ -7,32 +7,31 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
 import java.util.Map;
 
-public final class GeoShapeBoundsAggregator extends ShapeBoundsAggregator<GeoPoint> {
-    private final boolean wrapLongitude;
+/**
+ * A metric aggregator that computes a cartesian-bounds from a {@code shape} type field
+ */
+public final class CartesianShapeBoundsAggregator extends ShapeBoundsAggregator<CartesianPoint> {
 
-    public GeoShapeBoundsAggregator(
+    public CartesianShapeBoundsAggregator(
         String name,
         AggregationContext context,
         Aggregator parent,
         ValuesSourceConfig valuesSourceConfig,
-        boolean wrapLongitude,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, valuesSourceConfig, metadata);
-        this.wrapLongitude = wrapLongitude;
     }
 
     @Override
-    protected InternalGeoBounds makeInternalBounds(
+    protected InternalCartesianBounds makeInternalBounds(
         String name,
         double top,
         double bottom,
@@ -42,6 +41,6 @@ public final class GeoShapeBoundsAggregator extends ShapeBoundsAggregator<GeoPoi
         double negRight,
         Map<String, Object> metadata
     ) {
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata);
+        return new InternalCartesianBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, metadata);
     }
 }

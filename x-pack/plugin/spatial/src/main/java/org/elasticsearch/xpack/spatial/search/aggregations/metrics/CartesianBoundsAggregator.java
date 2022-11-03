@@ -1,41 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.metrics.BoundsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
 
-final class GeoBoundsAggregator extends BoundsAggregator<GeoPoint> {
+/**
+ * A metric aggregator that computes a cartesian-bounds from a {@code point} type field
+ */
+public final class CartesianBoundsAggregator extends BoundsAggregator<CartesianPoint> {
 
-    static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
-    private final boolean wrapLongitude;
-
-    GeoBoundsAggregator(
+    public CartesianBoundsAggregator(
         String name,
         AggregationContext context,
         Aggregator parent,
         ValuesSourceConfig valuesSourceConfig,
-        boolean wrapLongitude,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, valuesSourceConfig, metadata);
-        this.wrapLongitude = wrapLongitude;
     }
 
     @Override
@@ -43,12 +39,14 @@ final class GeoBoundsAggregator extends BoundsAggregator<GeoPoint> {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final MultiGeoPointValues values = ((ValuesSource.GeoPoint) valuesSource).geoPointValues(aggCtx.getLeafReaderContext());
+        final CartesianPointValuesSource.MultiCartesianPointValues values = ((CartesianPointValuesSource) valuesSource).pointValues(
+            aggCtx.getLeafReaderContext()
+        );
         return getLeafBucketCollector(values, sub);
     }
 
     @Override
-    protected InternalGeoBounds makeInternalBounds(
+    protected InternalCartesianBounds makeInternalBounds(
         String name,
         double top,
         double bottom,
@@ -58,6 +56,6 @@ final class GeoBoundsAggregator extends BoundsAggregator<GeoPoint> {
         double negRight,
         Map<String, Object> metadata
     ) {
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata);
+        return new InternalCartesianBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, metadata);
     }
 }

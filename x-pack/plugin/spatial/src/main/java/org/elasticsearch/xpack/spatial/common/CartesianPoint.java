@@ -77,8 +77,11 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
     public CartesianPoint resetFromString(String value, final boolean ignoreZValue) {
         if (value.toLowerCase(Locale.ROOT).contains("point")) {
             return resetFromWKT(value, ignoreZValue);
-        } else {
+        } else if (value.contains(",")) {
             return resetFromCoordinates(value, ignoreZValue);
+        } else {
+            // This error mimics the structure of the Geohash.mortonEncode() error to simplify testing
+            throw new ElasticsearchParseException("unsupported symbol [" + value.charAt(0) + "] in point [" + value + "]");
         }
     }
 

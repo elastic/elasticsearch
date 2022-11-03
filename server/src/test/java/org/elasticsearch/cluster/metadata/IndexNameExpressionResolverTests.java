@@ -956,7 +956,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         assertThat(
             newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testXXX", "*testY*", "-testYYY")),
-            equalTo(newHashSet("testYYX", "testYYY", "-testYYY"))
+            equalTo(newHashSet("testYYX", "-testYYY"))
         );
 
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), "-doesnotexist");

@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -57,7 +58,11 @@ public final class TransportActionProxy {
                 targetNode,
                 action,
                 wrappedRequest,
-                new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest))
+                new ProxyResponseHandler<>(
+                    channel,
+                    responseFunction.apply(wrappedRequest),
+                    Objects.equals(service.getLocalNode(), targetNode)
+                )
             );
         }
 
@@ -76,15 +81,9 @@ public final class TransportActionProxy {
         }
     }
 
-    private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
-
-        private final Writeable.Reader<T> reader;
-        private final TransportChannel channel;
-
-        ProxyResponseHandler(TransportChannel channel, Writeable.Reader<T> reader) {
-            this.reader = reader;
-            this.channel = channel;
-        }
+    private record ProxyResponseHandler<T extends TransportResponse> (TransportChannel channel, Writeable.Reader<T> reader, boolean isLocal)
+        implements
+            TransportResponseHandler<T> {
 
         @Override
         public T read(StreamInput in) throws IOException {
@@ -93,11 +92,19 @@ public final class TransportActionProxy {
 
         @Override
         public void handleResponse(T response) {
+            boolean success = false;
             try {
-                response.incRef();
+                if (isLocal == false) {
+                    response.incRef(); // will be decRef by OutboundHandler
+                }
                 channel.sendResponse(response);
+                success = true;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } finally {
+                if (success == false && isLocal == false) {
+                    response.decRef();
+                }
             }
         }
 

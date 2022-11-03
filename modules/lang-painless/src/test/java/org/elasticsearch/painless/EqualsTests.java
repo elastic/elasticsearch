@@ -183,4 +183,18 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(true, exec("HashMap a = new HashMap(); return null != a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null !== a;"));
     }
+
+    public void testStringEquals() {
+        assertEquals(true, exec("\"a\" == \"a\""));
+        assertEquals(true, exec("\"a\" == (def)\"a\""));
+        assertEquals(false, exec("\"a\" == 10.toString()"));
+        assertEquals(false, exec("(String)null == \"foo\""));
+        assertEquals(false, exec("new HashMap().toString() == \"foo\""));
+
+        assertEquals(false, exec("\"a\" != \"a\""));
+        assertEquals(false, exec("\"a\" != (def)\"a\""));
+        assertEquals(true, exec("\"a\" != 10.toString()"));
+        assertEquals(true, exec("(String)null != \"foo\""));
+        assertEquals(true, exec("new HashMap().toString() != \"foo\""));
+    }
 }

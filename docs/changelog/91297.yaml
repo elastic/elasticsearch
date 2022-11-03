@@ -1,0 +1,6 @@
+pr: 91297
+summary: Check for unassigned shards on node shutdown
+area: Infra/Core
+type: enhancement
+issues:
+ - 88635

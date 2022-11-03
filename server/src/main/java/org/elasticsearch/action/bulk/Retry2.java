@@ -179,9 +179,14 @@ class Retry2 {
         TimeValue timeUntilNextRetry = backoff.next();
         long currentTime = System.nanoTime();
         long timeThisRetryMatures = timeUntilNextRetry.nanos() + currentTime;
-        logger.trace("Queueing a retry to start after {}", timeUntilNextRetry);
         retryQueue.offer(
             Tuple.tuple(timeThisRetryMatures, new RetryQueuePayload(bulkRequestForRetry, responsesAccumulator, consumer, listener, backoff))
+        );
+        logger.trace(
+            "Queued a retry to start after {}. Current queue size is {} / {}",
+            timeUntilNextRetry,
+            retryQueue.size(),
+            retryQueueCapacity
         );
     }
 

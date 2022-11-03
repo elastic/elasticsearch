@@ -21,6 +21,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,11 +52,18 @@ import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.IND
 public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
+    public static final Setting<Integer> MAX_BULK_REQUEST_QUEUE_SIZE_SETTING = Setting.intSetting(
+        "es.indices.lifecycle.history.bulk.request.queue.size",
+        100,
+        1,
+        Setting.Property.NodeScope
+    );
+
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     private static int ILM_HISTORY_BULK_SIZE = StrictMath.toIntExact(
         ByteSizeValue.parseBytesSizeValue(
-            System.getProperty("es.indices.lifecycle.history.bulk.size", "50MB"),
+            System.getProperty("es.indices.lifecycle.history.bulk.size", "5MB"),
             "es.indices.lifecycle.history.bulk.size"
         ).getBytes()
     );
@@ -149,7 +157,7 @@ public class ILMHistoryStore implements Closeable {
             .setBulkSize(ByteSizeValue.ofBytes(ILM_HISTORY_BULK_SIZE))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
-            .setMaxBulkRequestQueueSize(10000)
+            .setMaxBulkRequestQueueSize(MAX_BULK_REQUEST_QUEUE_SIZE_SETTING.get(clusterService.getSettings()))
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .build();
     }

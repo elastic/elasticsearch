@@ -222,12 +222,8 @@ public class ILMHistoryStoreTests extends ESTestCase {
     public void testDeadlock() throws Exception {
         String policyId = randomAlphaOfLength(5);
         final long timestamp = randomNonNegativeLong();
-        AtomicInteger batches = new AtomicInteger(0);
         AtomicLong actions = new AtomicLong(0);
-        final int docsPerBatch = 303_057;
         long numberOfDocs = 400_000;
-        int expectedBatches = (int) (numberOfDocs / docsPerBatch) + ((numberOfDocs % docsPerBatch == 0) ? 0 : 1);
-        ;
         CountDownLatch latch = new CountDownLatch((int) numberOfDocs);
         client.setVerifier((action, request, listener) -> {
             assertThat(action, instanceOf(BulkAction.class));
@@ -264,7 +260,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 for (int i = 0; i < itemsInResponse; i++) {
                     latch.countDown();
                 }
-                batches.incrementAndGet();
                 logger.info("cumulative responses: {}", actions.get());
             }
 
@@ -283,11 +278,9 @@ public class ILMHistoryStoreTests extends ESTestCase {
                     LifecycleExecutionState.builder().setPhase("phase").build()
                 );
                 localHistoryStore.putAsync(record1);
-                // threadPool.generic().execute(() -> localHistoryStore.putAsync(record1)); // This gets dangerous with large numbers
             }
             latch.await(60, TimeUnit.SECONDS);
             assertThat(actions.get(), equalTo(numberOfDocs));
-            assertThat(batches.get(), equalTo(expectedBatches));
         }
     }
 

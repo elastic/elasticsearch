@@ -13,12 +13,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 

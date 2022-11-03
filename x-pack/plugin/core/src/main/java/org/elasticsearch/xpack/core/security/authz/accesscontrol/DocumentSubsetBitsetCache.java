@@ -30,7 +30,6 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.set.Sets;
@@ -319,7 +318,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     public Map<String, Object> usageStats() {
-        final ByteSizeValue ram = new ByteSizeValue(ramBytesUsed(), ByteSizeUnit.BYTES);
+        final ByteSizeValue ram = ByteSizeValue.ofBytes(ramBytesUsed());
         return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
     }
 

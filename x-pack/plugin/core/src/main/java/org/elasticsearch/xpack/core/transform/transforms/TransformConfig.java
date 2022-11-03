@@ -246,39 +246,17 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         id = in.readString();
         source = new SourceConfig(in);
         dest = new DestConfig(in);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            frequency = in.readOptionalTimeValue();
-        } else {
-            frequency = null;
-        }
+        frequency = in.readOptionalTimeValue();
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
         latestConfig = in.readOptionalWriteable(LatestConfig::new);
         description = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
-            createTime = in.readOptionalInstant();
-            transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
-        } else {
-            syncConfig = null;
-            createTime = null;
-            transformVersion = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings = new SettingsConfig(in);
-        } else {
-            settings = new SettingsConfig();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            metadata = in.readMap();
-        } else {
-            metadata = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
-        } else {
-            retentionPolicyConfig = null;
-        }
+        syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
+        createTime = in.readOptionalInstant();
+        transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
+        settings = new SettingsConfig(in);
+        metadata = in.readMap();
+        retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
     public String getId() {
@@ -432,32 +410,22 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         out.writeString(id);
         source.writeTo(out);
         dest.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalTimeValue(frequency);
-        }
+        out.writeOptionalTimeValue(frequency);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
         out.writeOptionalWriteable(latestConfig);
         out.writeOptionalString(description);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalNamedWriteable(syncConfig);
-            out.writeOptionalInstant(createTime);
-            if (transformVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(transformVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        out.writeOptionalNamedWriteable(syncConfig);
+        out.writeOptionalInstant(createTime);
+        if (transformVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(transformVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings.writeTo(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeGenericMap(metadata);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalNamedWriteable(retentionPolicyConfig);
-        }
+        settings.writeTo(out);
+        out.writeGenericMap(metadata);
+        out.writeOptionalNamedWriteable(retentionPolicyConfig);
     }
 
     @Override

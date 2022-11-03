@@ -11,10 +11,17 @@ Exposes the desired balance and basic metrics.
 [[get-desired-balance-request]]
 ==== {api-request-title}
 
-//////////////////////////
+// TEST[skip:No tasks to retrieve]
+
 [source,console]
 --------------------------------------------------
 GET /_internal/desired_balance
+--------------------------------------------------
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
 {
 	"stats": {
 		"computation_active": false,

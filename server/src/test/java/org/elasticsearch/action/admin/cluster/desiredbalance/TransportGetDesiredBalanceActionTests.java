@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Map;
 
-public class TransportGetDesiredBalanceActionTest extends ESIntegTestCase {
+public class TransportGetDesiredBalanceActionTests extends ESIntegTestCase {
 
     public void testDesiredBalance() throws Exception {
         String index = "test";

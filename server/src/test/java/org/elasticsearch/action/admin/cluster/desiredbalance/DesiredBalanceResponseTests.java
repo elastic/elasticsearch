@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class DesiredBalanceResponseTest extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
+public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
 
     @Override
     protected Writeable.Reader<DesiredBalanceResponse> instanceReader() {

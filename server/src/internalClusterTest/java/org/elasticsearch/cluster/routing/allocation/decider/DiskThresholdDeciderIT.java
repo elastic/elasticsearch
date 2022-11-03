@@ -35,19 +35,19 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -95,12 +95,12 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         // reduce disk size of node 0 so that no shards fit below the high watermark, forcing all shards onto the other data node
         // (subtract the translog size since the disk threshold decider ignores this and may therefore move the shard back again)
-        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES - 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES - 1L);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, empty());
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES + 1L);
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(smallestShard.getKey()));
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES + 1L);
+        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(smallestShard.shardIds));
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
@@ -148,7 +148,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(indexName).get());
 
         // reduce disk size of node 0 so that no shards fit below the low watermark, forcing shards to be assigned to the other data node
-        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES - 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES - 1L);
         refreshDiskUsage();
 
         assertAcked(
@@ -185,8 +185,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         );
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.getValue() + WATERMARK_BYTES + 1L);
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(smallestShard.getKey()));
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES + 1L);
+        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(smallestShard.shardIds));
     }
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
@@ -216,7 +216,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
     /**
      * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the one with the smallest size
      */
-    private Map.Entry<ShardId, Long> createReasonableSizedShards(final String indexName) throws InterruptedException {
+    private SmallestShards createReasonableSizedShards(final String indexName) throws InterruptedException {
         while (true) {
             final IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[scaledRandomIntBetween(100, 10000)];
             for (int i = 0; i < indexRequestBuilders.length; i++) {
@@ -235,16 +235,23 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .get()
                 .getShards();
 
-            var min = Arrays.stream(shardStates)
-                .min(Comparator.comparing(it -> it.getStats().getStore().sizeInBytes()))
+            var smallestShardSize = Arrays.stream(shardStates)
+                .mapToLong(it -> it.getStats().getStore().sizeInBytes())
+                .min()
                 .orElseThrow(() -> new AssertionError("no shards"));
-            var entry = Map.entry(removeIndexUUID(min.getShardRouting().shardId()), min.getStats().getStore().sizeInBytes());
 
-            if (entry.getValue() > WATERMARK_BYTES) {
-                return entry;
+            if (smallestShardSize > WATERMARK_BYTES) {
+                var smallestShardIds = Arrays.stream(shardStates)
+                    .filter(it -> it.getStats().getStore().sizeInBytes() == smallestShardSize)
+                    .map(it -> removeIndexUUID(it.getShardRouting().shardId()))
+                    .collect(toSet());
+
+                return new SmallestShards(smallestShardSize, smallestShardIds);
             }
         }
     }
+
+    private record SmallestShards(long size, Set<ShardId> shardIds) {}
 
     private static ShardId removeIndexUUID(ShardId shardId) {
         return ShardId.fromString(shardId.toString());
@@ -285,5 +292,24 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             final Set<ShardId> shardRoutings = getShardIds(nodeName, indexName);
             assertThat("Mismatching shard routings: " + shardRoutings, shardRoutings, matcher);
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    private static final class ContainsExactlyOneOf<T> extends TypeSafeMatcher<Set<T>> {
+
+        private final Set<T> expectedValues;
+
+        ContainsExactlyOneOf(Set<T> expectedValues) {
+            this.expectedValues = expectedValues;
+        }
+
+        @Override
+        protected boolean matchesSafely(Set<T> item) {
+            return item.size() == 1 && expectedValues.contains(item.iterator().next());
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("Expected to contain exactly one value from ").appendValueList("[", ",", "]", expectedValues);
+        }
     }
 }

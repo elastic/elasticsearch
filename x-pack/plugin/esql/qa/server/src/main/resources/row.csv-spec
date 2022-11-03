@@ -25,3 +25,17 @@ row a = 1, b = 2 | eval c = a + b;
 a:integer | b:integer | c:integer
 1 | 2 | 3
 ;
+
+evalRowWithRound
+row a = 1, b = 2 | eval y = round(-123.5);
+
+a:integer | b:integer | y:double
+1 | 2 | -124.0
+;
+
+evalRowWithComplexRound
+row a = 1, b = 2 | eval y = round(-123.56789, 3) + ROUND(a + b / 2);
+
+a:integer | b:integer | y:double
+1 | 2 | -121.568
+;

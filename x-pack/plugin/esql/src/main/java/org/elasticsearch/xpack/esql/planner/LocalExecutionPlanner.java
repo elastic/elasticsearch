@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -409,6 +410,20 @@ public class LocalExecutionPlanner {
             } else {
                 long l = Long.parseLong(lit.value().toString());
                 return (page, pos) -> l;
+            }
+        } else if (exp instanceof Round round) {
+            ExpressionEvaluator fieldEvaluator = toEvaluator(round.field(), layout);
+            // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
+            ExpressionEvaluator decimalsEvaluator = round.decimals() != null ? toEvaluator(round.decimals(), layout) : null;
+            if (round.field().dataType().isRational()) {
+                return (page, pos) -> {
+                    // decimals could be null
+                    // it's not the same null as round.decimals() being null
+                    Object decimals = decimalsEvaluator != null ? decimalsEvaluator.computeRow(page, pos) : null;
+                    return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
+                };
+            } else {
+                return (page, pos) -> fieldEvaluator.computeRow(page, pos);
             }
         } else {
             throw new UnsupportedOperationException(exp.nodeName());

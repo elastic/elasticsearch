@@ -12,31 +12,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
-public class UntrustedRemoteClusterAwareClient extends AbstractClient {
+public class UntrustedRemoteClusterAwareClient extends FilterClient {
 
-    private final RemoteClusterAwareClient delegate;
     private final String clusterAlias;
 
     public UntrustedRemoteClusterAwareClient(
-        Settings settings,
-        ThreadPool threadPool,
-        TransportService service,
-        String clusterAlias,
-        boolean ensureConnected
+        final Settings settings,
+        final ThreadPool threadPool,
+        final TransportService service,
+        final String clusterAlias,
+        final boolean ensureConnected
     ) {
-        super(settings, threadPool);
-        this.delegate = new RemoteClusterAwareClient(settings, threadPool, service, clusterAlias, ensureConnected);
+        super(new RemoteClusterAwareClient(settings, threadPool, service, clusterAlias, ensureConnected));
         this.clusterAlias = clusterAlias;
-    }
-
-    @Override
-    public void close() {
-        delegate.close();
     }
 
     @Override
@@ -47,12 +39,7 @@ public class UntrustedRemoteClusterAwareClient extends AbstractClient {
     ) {
         try (var ignored = threadPool().getThreadContext().newStoredContext()) {
             threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
-            delegate.doExecute(action, request, listener);
+            in.execute(action, request, listener);
         }
-    }
-
-    @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
-        return delegate.getRemoteClusterClient(clusterAlias);
     }
 }

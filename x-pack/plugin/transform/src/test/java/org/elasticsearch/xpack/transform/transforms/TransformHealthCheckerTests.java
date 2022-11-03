@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -37,7 +38,7 @@ public class TransformHealthCheckerTests extends ESTestCase {
     public void testPersistenceFailure() {
         TransformTask task = mock(TransformTask.class);
         TransformContext context = createTestContext();
-        Instant now = Instant.now();
+        Instant now = getNow();
 
         withIdStateAndContext(task, randomAlphaOfLength(10), context);
         assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
@@ -58,7 +59,7 @@ public class TransformHealthCheckerTests extends ESTestCase {
     public void testStatusSwitchingAndMultipleFailures() {
         TransformTask task = mock(TransformTask.class);
         TransformContext context = createTestContext();
-        Instant now = Instant.now();
+        Instant now = getNow();
 
         withIdStateAndContext(task, randomAlphaOfLength(10), context);
         assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
@@ -103,6 +104,10 @@ public class TransformHealthCheckerTests extends ESTestCase {
 
     private TransformContext createTestContext() {
         return new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+    }
+
+    private static Instant getNow() {
+        return Instant.now().truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static void withIdStateAndContext(TransformTask task, String transformId, TransformContext context) {

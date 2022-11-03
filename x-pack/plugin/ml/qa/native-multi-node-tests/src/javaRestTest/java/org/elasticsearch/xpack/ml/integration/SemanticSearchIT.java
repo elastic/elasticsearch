@@ -17,6 +17,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasSize;
+
 /**
  * This test uses a tiny text embedding model to simulate an trained
  * NLP model.The output tensor is randomly generated but the RNG is
@@ -93,7 +95,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testModel() throws IOException {
+    public void testSemanticSearch() throws IOException {
         String modelId = "semantic-search-test";
         String indexName = modelId + "-index";
 
@@ -114,6 +116,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             "the octopus comforter is leaking",
             "washing machine smells"
         );
+        List<String> filters = List.of("foo", "bar", "baz", "foo", "bar", "baz", "foo");
         List<List<Double>> embeddings = new ArrayList<>();
 
         // Generate the text embeddings via the inference API
@@ -128,7 +131,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
 
         // index dense vectors
         createVectorSearchIndex(indexName);
-        bulkIndexDocs(inputs, embeddings, indexName);
+        bulkIndexDocs(inputs, filters, embeddings, indexName);
         forceMergeIndex(indexName);
 
         // Test semantic search against the indexed vectors
@@ -143,6 +146,33 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
             assertEquals(inputs.get(randomInput), sourceText);
         }
+
+        // Test semantic search with filters
+        {
+            var semanticSearchResponse = semanticSearch(indexName, inputs.get(0), "foo", modelId, "embedding");
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            assertThat(hits, hasSize(3));
+            for (var hit : hits) {
+                String filter = (String) MapHelper.dig("_source.filter_field", hit);
+                assertEquals("foo", filter);
+            }
+        }
+
+        {
+            var semanticSearchResponse = semanticSearch(indexName, inputs.get(2), "baz", modelId, "embedding");
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            assertThat(hits, hasSize(2));
+            for (var hit : hits) {
+                String filter = (String) MapHelper.dig("_source.filter_field", hit);
+                assertEquals("baz", filter);
+            }
+        }
     }
 
     private void createVectorSearchIndex(String indexName) throws IOException {
@@ -153,6 +183,9 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
                 "properties": {
                   "source_text": {
                     "type": "text"
+                  },
+                  "filter_field": {
+                    "type": "keyword"
                   },
                   "embedding": {
                     "type": "dense_vector",
@@ -167,15 +200,18 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
         assertOkWithErrorMessage(response);
     }
 
-    private void bulkIndexDocs(List<String> inputs, List<List<Double>> embeddings, String indexName) throws IOException {
+    private void bulkIndexDocs(List<String> sourceText, List<String> filters, List<List<Double>> embeddings, String indexName)
+        throws IOException {
         String createAction = "{\"create\": {\"_index\": \"" + indexName + "\"}}\n";
 
         StringBuilder bulkBuilder = new StringBuilder();
 
-        for (int i = 0; i < inputs.size(); i++) {
+        for (int i = 0; i < sourceText.size(); i++) {
             bulkBuilder.append(createAction);
             bulkBuilder.append("{\"source_text\": \"")
-                .append(inputs.get(i))
+                .append(sourceText.get(i))
+                .append("\", \"filter_field\":\"")
+                .append(filters.get(i))
                 .append("\", \"embedding\":")
                 .append(embeddings.get(i))
                 .append("}\n");

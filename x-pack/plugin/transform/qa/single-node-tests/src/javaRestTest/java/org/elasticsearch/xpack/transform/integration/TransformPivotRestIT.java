@@ -500,8 +500,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     }
 
     public void testContinuousPivotStartAfter() throws Exception {
-        String indexName = "continuous_reviews";
-        createReviewsIndex(indexName, 1000, 27, "date", false, 5, "user_id");
+        String indexName = REVIEWS_INDEX_NAME;
         String transformId = "continuous_pivot_start_after";
         String transformIndex = "pivot_reviews_continuous_start_after";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);

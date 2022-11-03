@@ -923,9 +923,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
             SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()));
             hit.setDocumentFields(fields, Collections.emptyMap());
-            hit.sourceRef(
-                BytesReference.bytes(XContentFactory.jsonBuilder().map(_source))
-            );
+            hit.sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);
         }

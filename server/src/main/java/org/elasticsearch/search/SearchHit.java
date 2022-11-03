@@ -118,11 +118,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this(docId, id, null);
     }
 
-    public SearchHit(
-        int nestedTopDocId,
-        String id,
-        NestedIdentity nestedIdentity
-    ) {
+    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
         this.docId = nestedTopDocId;
         if (id != null) {
             this.id = new Text(id);

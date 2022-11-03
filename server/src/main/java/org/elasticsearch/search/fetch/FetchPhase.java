@@ -104,7 +104,8 @@ public class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(
             StoredFieldLoader.create(storedFieldsSpec.requiresSource(), storedFieldsSpec.requiredStoredFields())
         );
-        boolean requiresSource = storedFieldsSpec.requiresSource();;
+        boolean requiresSource = storedFieldsSpec.requiresSource();
+        ;
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
@@ -342,7 +343,13 @@ public class FetchPhase {
                     current = next;
                 }
             }
-            return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.fromMap(nestedSourceAsMap, rootSourceContentType));
+            return new HitContext(
+                hit,
+                subReaderContext,
+                nestedInfo.doc(),
+                childFieldLoader.storedFields(),
+                Source.fromMap(nestedSourceAsMap, rootSourceContentType)
+            );
         }
         return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.empty(null));
     }

@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchLongSortValues;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchSortValues;

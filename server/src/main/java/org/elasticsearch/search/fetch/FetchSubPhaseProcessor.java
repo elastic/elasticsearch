@@ -12,9 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Executes the logic for a {@link FetchSubPhase} against a particular leaf reader and hit

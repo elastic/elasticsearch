@@ -46,12 +46,7 @@ public class HighlightPhase implements FetchSubPhase {
 
     public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchHighlightContext highlightContext, Query query) {
         Map<String, Object> sharedCache = new HashMap<>();
-        FieldContext fieldContext = contextBuilders(
-            context,
-            highlightContext,
-            query,
-            sharedCache
-        );
+        FieldContext fieldContext = contextBuilders(context, highlightContext, query, sharedCache);
 
         return new FetchSubPhaseProcessor() {
             @Override

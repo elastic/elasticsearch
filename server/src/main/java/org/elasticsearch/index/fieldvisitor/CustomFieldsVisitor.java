@@ -14,10 +14,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A field visitor that allows to load a selection of the stored fields by exact name or by pattern.
- * Supported pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy".
- * The Uid field is always loaded.
- * The class is optimized for source loading as it is a common use case.
+ * A field visitor that allows to load a selection of the stored fields by exact name
+ * {@code _id} and {@code _routing} fields are always loaded.
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
 

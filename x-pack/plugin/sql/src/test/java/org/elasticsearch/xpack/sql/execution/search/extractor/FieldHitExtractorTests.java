@@ -32,7 +32,6 @@ import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.LENIENT;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.NONE;
@@ -214,10 +213,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, LENIENT);
         SearchHit searchHit = new SearchHit(1, "1");
         hit.setDocumentField(fieldName, new DocumentField(fieldName, singletonList(map2)));
-        assertEquals(
-            new GeoShape(3, 4),
-            lenientFe.extract(searchHit)
-        );
+        assertEquals(new GeoShape(3, 4), lenientFe.extract(searchHit));
     }
 
     public void testUnsignedLongExtraction() {

@@ -124,10 +124,6 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
                 new DocumentField("_ignored", Collections.singletonList(randomValueOtherThan(value, () -> randomAlphaOfLength(5))))
             )
         );
-        return new SearchHits(
-            new SearchHit[] { searchHit },
-            totalHits,
-            0.0f
-        );
+        return new SearchHits(new SearchHit[] { searchHit }, totalHits, 0.0f);
     }
 }

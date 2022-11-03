@@ -43,7 +43,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             public StoredFieldsSpec storedFieldsSpec() {
                 // If script fields need source then they will load it via SearchLookup,
                 // which has its own lazy loading config that kicks in if not overridden
-                // by other sub phases that require source.  However, if script fields
+                // by other sub phases that require source. However, if script fields
                 // are present then we enforce metadata loading
                 return new StoredFieldsSpec(false, Set.of("_id"));
             }

@@ -43,7 +43,7 @@ public class DoubleTransformerOperator implements Operator {
         for (int i = 0; i < block.getPositionCount(); i++) {
             newBlock[i] = doubleTransformer.apply(block.getLong(i));
         }
-        Page lastPage = lastInput.appendBlock(new DoubleArrayBlock(newBlock, block.getPositionCount()));
+        Page lastPage = lastInput.replaceBlock(channel, new DoubleArrayBlock(newBlock, block.getPositionCount()));
         lastInput = null;
         return lastPage;
     }

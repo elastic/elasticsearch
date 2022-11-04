@@ -8,62 +8,42 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-
-import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 @Experimental
 public class FieldExtractExec extends UnaryExec {
 
-    private final Set<Attribute> attributesToExtract;
-    private final Set<Attribute> sourceAttributes;
+    private final List<Attribute> attributesToExtract;
+    private final List<Attribute> sourceAttributes;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, Set<Attribute> attributesToExtract) {
+    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, List<Attribute> sourceAttr) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
-
-        var sourceAttr = new LinkedHashSet<Attribute>(mapSize(3));
-        child.outputSet().forEach(a -> {
-            if (EsQueryExec.isSourceAttribute(a)) {
-                sourceAttr.add(a);
-            }
-        });
-        if (sourceAttr.size() != 3) {
-            throw new QlIllegalArgumentException(
-                "Cannot find source attributes in the input to the source extractor from {}, discovered only {}",
-                child.toString(),
-                sourceAttr
-            );
-        }
-
         this.sourceAttributes = sourceAttr;
     }
 
     @Override
     protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, sourceAttributes);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract);
+        return new FieldExtractExec(source(), newChild, attributesToExtract, sourceAttributes);
     }
 
-    public Set<Attribute> attributesToExtract() {
+    public List<Attribute> attributesToExtract() {
         return attributesToExtract;
     }
 
-    public Set<Attribute> sourceAttributes() {
+    public List<Attribute> sourceAttributes() {
         return sourceAttributes;
     }
 
@@ -76,7 +56,7 @@ public class FieldExtractExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributesToExtract);
+        return Objects.hash(attributesToExtract, attributesToExtract, child());
     }
 
     @Override

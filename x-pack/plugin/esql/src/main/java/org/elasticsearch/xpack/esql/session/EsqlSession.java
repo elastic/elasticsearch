@@ -77,7 +77,7 @@ public class EsqlSession {
             // This is an ugly hack to push the filter parameter to Lucene
             final QueryBuilder filter = request.filter() != null ? request.filter() : new MatchAllQueryBuilder();
             LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-            return new EsQueryExec(q.source(), q.index(), filter);
+            return new EsQueryExec(q.source(), q.index(), q.output(), filter);
         })));
     }
 

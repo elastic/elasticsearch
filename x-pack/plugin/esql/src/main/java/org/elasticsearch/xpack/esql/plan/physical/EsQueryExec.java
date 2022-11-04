@@ -41,19 +41,28 @@ public class EsQueryExec extends LeafExec {
     private final List<Attribute> attrs;
 
     public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
+        this(
+            source,
+            index,
+            List.of(
+                new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
+                new FieldAttribute(source, SEGMENT_ID_FIELD.getName(), SEGMENT_ID_FIELD),
+                new FieldAttribute(source, SHARD_ID_FIELD.getName(), SHARD_ID_FIELD)
+            ),
+            query
+        );
+    }
+
+    public EsQueryExec(Source source, EsIndex index, List<Attribute> attrs, QueryBuilder query) {
         super(source);
         this.index = index;
         this.query = query;
-        this.attrs = List.of(
-            new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
-            new FieldAttribute(source, SEGMENT_ID_FIELD.getName(), SEGMENT_ID_FIELD),
-            new FieldAttribute(source, SHARD_ID_FIELD.getName(), SHARD_ID_FIELD)
-        );
+        this.attrs = attrs;
     }
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index, query);
+        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query);
     }
 
     public EsIndex index() {
@@ -71,7 +80,7 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query);
+        return Objects.hash(index, attrs, query);
     }
 
     @Override
@@ -85,7 +94,7 @@ public class EsQueryExec extends LeafExec {
         }
 
         EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(index, other.index) && Objects.equals(query, other.query);
+        return Objects.equals(index, other.index) && Objects.equals(attrs, other.attrs) && Objects.equals(query, other.query);
     }
 
     @Override

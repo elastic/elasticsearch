@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -20,8 +21,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.junit.BeforeClass;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
@@ -44,12 +46,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private static LogicalPlanOptimizer logicalOptimizer;
     private static PhysicalPlanOptimizer physicalPlanOptimizer;
     private static Mapper mapper;
+    private static Map<String, EsField> mapping;
 
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
 
-        Map<String, EsField> mapping = loadMapping("mapping-basic.json");
+        mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer();
@@ -67,10 +70,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = fieldExtractorRule(plan);
         var node = as(optimized, UnaryExec.class);
-        var filter = as(node.child(), FilterExec.class);
-
+        var restExtract = as(node.child(), FieldExtractExec.class);
+        var filter = as(restExtract.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+
+        assertEquals(
+            Sets.difference(mapping.keySet(), Set.of("emp_no")),
+            Sets.newHashSet(Expressions.names(restExtract.attributesToExtract()))
+        );
+        assertEquals(Set.of("emp_no"), Sets.newHashSet(Expressions.names(extract.attributesToExtract())));
     }
 
     public void testExactlyOneExtractorPerField() throws Exception {
@@ -82,10 +90,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = fieldExtractorRule(plan);
         var exchange = as(optimized, ExchangeExec.class);
-        var eval = as(exchange.child(), EvalExec.class);
+        var restExtract = as(exchange.child(), FieldExtractExec.class);
+        var eval = as(restExtract.child(), EvalExec.class);
         var filter = as(eval.child(), FilterExec.class);
-
         var extract = as(filter.child(), FieldExtractExec.class);
+
+        assertEquals(
+            Sets.difference(mapping.keySet(), Set.of("emp_no")),
+            Sets.newHashSet(Expressions.names(restExtract.attributesToExtract()))
+        );
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
 
         var source = as(extract.child(), EsQueryExec.class);
@@ -149,7 +162,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = as(extract.child(), EsQueryExec.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/296")
     public void testExtractorForField() throws Exception {
         var plan = physicalPlan("""
             from test
@@ -161,9 +173,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var aggregate = as(optimized, AggregateExec.class);
+        var aggregateFinal = as(optimized, AggregateExec.class);
+        var aggregatePartial = as(aggregateFinal.child(), AggregateExec.class);
 
-        var extract = as(aggregate.child(), FieldExtractExec.class);
+        var extract = as(aggregatePartial.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("salary"));
 
         var eval = as(extract.child(), EvalExec.class);
@@ -171,10 +184,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         extract = as(eval.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
 
-        var limit = as(extract.child(), LimitExec.class);
-        var order = as(limit.child(), OrderExec.class);
+        var topNFinal = as(extract.child(), TopNExec.class);
+        var exchange = as(topNFinal.child(), ExchangeExec.class);
+        var topNPartial = as(exchange.child(), TopNExec.class);
 
-        extract = as(order.child(), FieldExtractExec.class);
+        extract = as(topNPartial.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
 
         var filter = as(extract.child(), FilterExec.class);
@@ -205,7 +219,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static PhysicalPlan fieldExtractorRule(PhysicalPlan plan) {
         return physicalPlanOptimizer.optimize(plan);
-
     }
 
     private PhysicalPlan physicalPlan(String query) {

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
@@ -34,7 +35,8 @@ public class Mapper {
     public PhysicalPlan map(LogicalPlan p) {
         if (p instanceof EsRelation esRelation) {
             // TODO: Fold with filter
-            return new EsQueryExec(esRelation.source(), esRelation.index(), new MatchAllQueryBuilder());
+            EsQueryExec queryExec = new EsQueryExec(esRelation.source(), esRelation.index(), new MatchAllQueryBuilder());
+            return new FieldExtractExec(esRelation.source(), queryExec, esRelation.output(), queryExec.output());
         }
 
         if (p instanceof Filter f) {

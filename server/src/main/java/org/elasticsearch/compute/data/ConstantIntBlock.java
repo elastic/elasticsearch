@@ -11,7 +11,7 @@ package org.elasticsearch.compute.data;
 /**
  * Block implementation that stores a constant integer value.
  */
-public final class ConstantIntBlock extends Block {
+public class ConstantIntBlock extends Block {
 
     private final int value;
 
@@ -39,6 +39,37 @@ public final class ConstantIntBlock extends Block {
     @Override
     public Object getObject(int position) {
         return getInt(position);
+    }
+
+    @Override
+    public Block getRow(int position) {
+        Block curr = this;
+        return new ConstantIntBlock(value, 1) {
+            @Override
+            public int getInt(int ignored) {
+                return curr.getInt(position);
+            }
+
+            @Override
+            public long getLong(int ignored) {
+                return curr.getLong(position);
+            }
+
+            @Override
+            public double getDouble(int ignored) {
+                return curr.getDouble(position);
+            }
+
+            @Override
+            public Object getObject(int ignored) {
+                return curr.getObject(position);
+            }
+
+            @Override
+            public String toString() {
+                return "only-position " + position + ": " + curr;
+            }
+        };
     }
 
     @Override

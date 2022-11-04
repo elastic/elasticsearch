@@ -564,7 +564,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
 
             Version oldIndexVersion = Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
-            overrideOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+            Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
+            overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
 
             IllegalStateException ex = expectThrows(
                 IllegalStateException.class,
@@ -572,15 +573,21 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            assertThat(ex.getMessage(), containsString("[" + oldIndexVersion + "] exist"));
-            assertThat(ex.getMessage(), startsWith("cannot upgrade node because incompatible indices created with version"));
+            assertThat(
+                ex.getMessage(),
+                allOf(
+                    containsString("Cannot start this node"),
+                    containsString("it holds metadata for indices created with version [" + oldIndexVersion + "]"),
+                    containsString("Revert this node to version [" + previousNodeVersion + "]")
+                )
+            );
 
             // This should work
-            overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), env.nodeDataPaths());
+            overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Trying to boot with newer version should pass this check
-            overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), env.nodeDataPaths());
+            overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Simulate empty old index version, attempting to upgrade before 7.17
@@ -690,7 +697,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
-    private static void overrideOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+    private static void overrideOldestIndexVersion(Version oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
+        throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -705,8 +713,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id));
-                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldVersion.id));
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id));
+                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
                     }

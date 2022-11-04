@@ -314,6 +314,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return builder.endObject().endObject();
     }
 
+    protected final XContentBuilder mappingNoSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        return topMapping(xContentBuilder -> {
+            xContentBuilder.field("subobjects", false);
+            xContentBuilder.startObject("properties");
+            buildFields.accept(xContentBuilder);
+            xContentBuilder.endObject();
+        });
+    }
+
     protected final XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);

@@ -54,7 +54,7 @@ public class RecoverySettings {
     // package private for tests
     static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
         "recovery_settings.total_physical_memory_override",
-        settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
+        settings -> ByteSizeValue.ofBytes(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
         Property.NodeScope
     );
 
@@ -151,7 +151,7 @@ public class RecoverySettings {
                         + "] for bandwidth setting ["
                         + key
                         + "], must be < ["
-                        + new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES).getStringRep()
+                        + ByteSizeValue.ofBytes(Long.MAX_VALUE).getStringRep()
                         + ']'
                 );
             }

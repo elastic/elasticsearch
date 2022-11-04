@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
@@ -49,8 +50,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static final float DEFAULT_BOOST = 1.0f;
     public static final ParseField NAME_FIELD = new ParseField("_name");
     public static final ParseField BOOST_FIELD = new ParseField("boost");
-
-    private static int maxNestedDepth = 20;
+    // We set the default value for tests that don't go through SearchModule
+    private static int maxNestedDepth = INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
 
     protected String queryName;
     protected float boost = DEFAULT_BOOST;
@@ -425,6 +426,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             throw new IllegalArgumentException("maxNestedDepth must be >= 1");
         }
         AbstractQueryBuilder.maxNestedDepth = maxNestedDepth;
+    }
+
+    public static int getMaxNestedDepth() {
+        return maxNestedDepth;
     }
 
     @Override

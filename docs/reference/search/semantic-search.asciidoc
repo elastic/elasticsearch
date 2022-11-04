@@ -1,4 +1,4 @@
-[[knn-search-api]]
+[[semantic-search-api]]
 === Semantic search API
 ++++
 <titleabbrev>Semantic search</titleabbrev>
@@ -6,7 +6,7 @@
 
 experimental::[]
 Semantic search uses a text embedding NLP model to generate a dense vector from the input query string.
-The resulting dense vector is then used in a <Knn Search> against an index containing dense vectors
+The resulting dense vector is then used in a <<knn-search,k-nearest neighbor (knn) search>> against an index containing dense vectors
 created with the same text embedding model. The search results are semantically similar as learned
 by the model.
 
@@ -59,14 +59,14 @@ GET my-index/_semantic_search
 <<privileges-list-indices,index privilege>> for the target data stream, index,
 or alias.
 
-[[Semantic-search-api-desc]]
+[[semantic-search-api-desc]]
 ==== {api-description-title}
 
-The Semantic search API uses a text embedding model to create a dense vector
+The semantic search API uses a text embedding model to create a dense vector
 representation of the query string.
 
 
-[[Semantic-search-api-path-params]]
+[[semantic-search-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
@@ -75,7 +75,7 @@ to search. Supports wildcards (`*`). To search all data streams and indices,
 use `*` or `_all`.
 
 [role="child_attributes"]
-[[Semantic-search-api-query-params]]
+[[semantic-search-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
@@ -89,7 +89,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `query_string`::
-(Required, string) The input text to embed
+(Required, string) The input text to embed.
 
 `knn`::
 (Required, object) Defines the kNN query to run.

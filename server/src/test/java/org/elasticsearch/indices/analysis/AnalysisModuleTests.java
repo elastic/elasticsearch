@@ -476,7 +476,7 @@ public class AnalysisModuleTests extends ESTestCase {
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
     }
 
-    @NamedComponent(name = "stableCharFilterFactory")
+    @NamedComponent("stableCharFilterFactory")
     public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
         @SuppressForbidden(reason = "need a public constructor")
         public TestCharFilterFactory() {}
@@ -506,7 +506,7 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    @NamedComponent(name = "stableTokenFilterFactory")
+    @NamedComponent("stableTokenFilterFactory")
     public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
 
         @SuppressForbidden(reason = "need a public constructor")
@@ -544,7 +544,7 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    @NamedComponent(name = "stableTokenizerFactory")
+    @NamedComponent("stableTokenizerFactory")
     public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
         @SuppressForbidden(reason = "need a public constructor")
         public TestTokenizerFactory() {}
@@ -564,7 +564,7 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    @NamedComponent(name = "stableAnalyzerFactory")
+    @NamedComponent("stableAnalyzerFactory")
     public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
 
         @Override

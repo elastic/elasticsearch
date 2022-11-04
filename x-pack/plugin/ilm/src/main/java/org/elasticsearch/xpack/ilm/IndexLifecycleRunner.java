@@ -220,12 +220,12 @@ class IndexLifecycleRunner {
                 logger.debug(
                     "[{}] stopping in the current phase ({}) as there are no more steps in the policy",
                     index,
-                    currentStep.getKey().getPhase()
+                    currentStep.getKey().phase()
                 );
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().phase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof AsyncWaitStep) {
@@ -431,12 +431,12 @@ class IndexLifecycleRunner {
                 logger.debug(
                     "[{}] stopping in the current phase ({}) as there are no more steps in the policy",
                     index,
-                    currentStep.getKey().getPhase()
+                    currentStep.getKey().phase()
                 );
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().phase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
@@ -690,7 +690,7 @@ class IndexLifecycleRunner {
 
         @Override
         protected void handleFailure(Exception e) {
-            logger.error(() -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().getName(), index), e);
+            logger.error(() -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().name(), index), e);
         }
 
         @Override

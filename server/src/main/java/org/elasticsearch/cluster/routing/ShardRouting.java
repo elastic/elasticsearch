@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -293,8 +294,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
         this.shardId = shardId;
-        currentNodeId = in.readOptionalString();
-        relocatingNodeId = in.readOptionalString();
+        currentNodeId = DiscoveryNode.deduplicateNodeIdentifier(in.readOptionalString());
+        relocatingNodeId = DiscoveryNode.deduplicateNodeIdentifier(in.readOptionalString());
         primary = in.readBoolean();
         state = ShardRoutingState.fromValue(in.readByte());
         if (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) {
@@ -483,24 +484,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource,
             null,
             relocationFailureInfo.incFailedRelocations(),
-            AllocationId.cancelRelocation(allocationId),
-            UNAVAILABLE_EXPECTED_SHARD_SIZE
-        );
-    }
-
-    public ShardRouting asBeforeRelocation() {
-        assert state == ShardRoutingState.RELOCATING : this;
-        assert assignedToNode() : this;
-        assert relocatingNodeId != null : this;
-        return new ShardRouting(
-            shardId,
-            currentNodeId,
-            null,
-            primary,
-            ShardRoutingState.STARTED,
-            recoverySource,
-            null,
-            RelocationFailureInfo.NO_FAILURES,
             AllocationId.cancelRelocation(allocationId),
             UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

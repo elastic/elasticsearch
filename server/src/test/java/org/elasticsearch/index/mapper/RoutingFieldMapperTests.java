@@ -82,7 +82,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
     }

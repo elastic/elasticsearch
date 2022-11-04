@@ -75,7 +75,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(lookup.source());
+            Map<String, DocumentField> fields = fieldFetcher.fetch(lookup.source(), 0);
             assertEquals(1, fields.size());
             assertEquals(List.of("value"), fields.get("field").getValues());
         });

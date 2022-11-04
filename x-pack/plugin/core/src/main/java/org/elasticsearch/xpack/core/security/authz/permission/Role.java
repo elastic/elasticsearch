@@ -31,8 +31,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -49,6 +51,8 @@ public interface Role {
     ApplicationPermission application();
 
     RunAsPermission runAs();
+
+    RemoteIndicesPermission remoteIndices();
 
     /**
      * Whether the Role has any field or document level security enabled index privileges
@@ -174,39 +178,19 @@ public interface Role {
         return new Builder(restrictedIndices, names);
     }
 
-    static Builder builder(RoleDescriptor rd, FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
-        return new Builder(rd, fieldPermissionsCache, restrictedIndices);
-    }
-
     class Builder {
 
         private final String[] names;
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
+        private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;
             this.names = names;
-        }
-
-        private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
-            this.names = new String[] { rd.getName() };
-            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
-            groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));
-
-            final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = rd.getApplicationPrivileges();
-            for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
-                applicationPrivs.add(convertApplicationPrivilege(applicationPrivilege));
-            }
-
-            String[] rdRunAs = rd.getRunAs();
-            if (rdRunAs != null && rdRunAs.length > 0) {
-                this.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
-            }
-            this.restrictedIndices = restrictedIndices;
         }
 
         public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
@@ -244,6 +228,19 @@ public interface Role {
             return this;
         }
 
+        public Builder addRemoteGroup(
+            final Set<String> remoteClusterAliases,
+            final FieldPermissions fieldPermissions,
+            final Set<BytesReference> query,
+            final IndexPrivilege privilege,
+            final boolean allowRestrictedIndices,
+            final String... indices
+        ) {
+            remoteGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
+                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+            return this;
+        }
+
         public Builder addApplicationPrivilege(ApplicationPrivilege privilege, Set<String> resources) {
             applicationPrivs.add(new Tuple<>(privilege, resources));
             return this;
@@ -266,45 +263,32 @@ public interface Role {
                 }
                 indices = indicesBuilder.build();
             }
+
+            final RemoteIndicesPermission remoteIndices;
+            if (remoteGroups.isEmpty()) {
+                remoteIndices = RemoteIndicesPermission.NONE;
+            } else {
+                final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder();
+                for (final Map.Entry<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroupEntry : remoteGroups.entrySet()) {
+                    final var clusterAlias = remoteGroupEntry.getKey();
+                    for (IndicesPermissionGroupDefinition group : remoteGroupEntry.getValue()) {
+                        remoteIndicesBuilder.addGroup(
+                            clusterAlias,
+                            group.privilege,
+                            group.fieldPermissions,
+                            group.query,
+                            group.allowRestrictedIndices,
+                            group.indices
+                        );
+                    }
+                }
+                remoteIndices = remoteIndicesBuilder.build();
+            }
+
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs);
-        }
-
-        static List<IndicesPermissionGroupDefinition> convertFromIndicesPrivileges(
-            RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
-            @Nullable FieldPermissionsCache fieldPermissionsCache
-        ) {
-            List<IndicesPermissionGroupDefinition> list = new ArrayList<>(indicesPrivileges.length);
-            for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
-                final FieldPermissions fieldPermissions;
-                if (fieldPermissionsCache != null) {
-                    fieldPermissions = fieldPermissionsCache.getFieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields());
-                } else {
-                    fieldPermissions = new FieldPermissions(
-                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
-                    );
-                }
-                final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                list.add(
-                    new IndicesPermissionGroupDefinition(
-                        IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                        fieldPermissions,
-                        query,
-                        privilege.allowRestrictedIndices(),
-                        privilege.getIndices()
-                    )
-                );
-            }
-            return list;
-        }
-
-        static Tuple<ApplicationPrivilege, Set<String>> convertApplicationPrivilege(RoleDescriptor.ApplicationResourcePrivileges arp) {
-            return new Tuple<>(
-                new ApplicationPrivilege(arp.getApplication(), Sets.newHashSet(arp.getPrivileges()), arp.getPrivileges()),
-                Sets.newHashSet(arp.getResources())
-            );
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
         }
 
         private static class IndicesPermissionGroupDefinition {
@@ -328,5 +312,59 @@ public interface Role {
                 this.indices = indices;
             }
         }
+    }
+
+    static SimpleRole buildFromRoleDescriptor(
+        final RoleDescriptor roleDescriptor,
+        final FieldPermissionsCache fieldPermissionsCache,
+        final RestrictedIndices restrictedIndices
+    ) {
+        return buildFromRoleDescriptor(roleDescriptor, fieldPermissionsCache, restrictedIndices, List.of());
+    }
+
+    static SimpleRole buildFromRoleDescriptor(
+        final RoleDescriptor roleDescriptor,
+        final FieldPermissionsCache fieldPermissionsCache,
+        final RestrictedIndices restrictedIndices,
+        final Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivilegeDescriptors
+    ) {
+        // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
+        // using this builder
+        assert false == roleDescriptor.hasRemoteIndicesPrivileges();
+        Objects.requireNonNull(fieldPermissionsCache);
+
+        final Builder builder = builder(restrictedIndices, roleDescriptor.getName());
+
+        builder.cluster(
+            Sets.newHashSet(roleDescriptor.getClusterPrivileges()),
+            Arrays.asList(roleDescriptor.getConditionalClusterPrivileges())
+        );
+
+        for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(
+                    new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                ),
+                indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                indexPrivilege.allowRestrictedIndices(),
+                indexPrivilege.getIndices()
+            );
+        }
+
+        for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : roleDescriptor.getApplicationPrivileges()) {
+            ApplicationPrivilege.get(
+                applicationPrivilege.getApplication(),
+                Sets.newHashSet(applicationPrivilege.getPrivileges()),
+                storedApplicationPrivilegeDescriptors
+            ).forEach(priv -> builder.addApplicationPrivilege(priv, Sets.newHashSet(applicationPrivilege.getResources())));
+        }
+
+        final String[] rdRunAs = roleDescriptor.getRunAs();
+        if (rdRunAs != null && rdRunAs.length > 0) {
+            builder.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
+        }
+
+        return builder.build();
     }
 }

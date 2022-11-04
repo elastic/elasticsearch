@@ -78,7 +78,9 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             }
 
             String tierPreference = getTierPreference(context);
-            return tierPreference == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(tierPreference);
+            return tierPreference == null
+                ? (lookup, doc, ignoredValues) -> List.of()
+                : (lookup, doc, ignoredValues) -> List.of(tierPreference);
         }
 
         /**

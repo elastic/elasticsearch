@@ -210,23 +210,11 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
 
                     // TODO: Send the set of red shards to the nodes, and create the result in the listener
                     var nodeIds = nodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-                    var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, "", nodeIds).timeout(request.timeout());
-                    // Should this use executeLocally?
+                    var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, nodeIds).timeout(request.timeout());
                     client.execute(TransportCheckShardsOnDataPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                         @Override
-                        public void onResponse(CheckShardsOnDataPathResponse checkShardsOnDataPathResponse) {
-                            Result result = new Result(IsSafe.NO, "cluster health is RED");
-                            List<NodeResult> nodeResults = nodes.stream()
-                                .map(
-                                    dn -> new NodeResult(
-                                        dn.getName(),
-                                        dn.getId(),
-                                        dn.getExternalId(),
-                                        new Result(IsSafe.NO, "node may contain a copy of a red index shard")
-                                    )
-                                )
-                                .toList();
-                            listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodeResults)));
+                        public void onResponse(CheckShardsOnDataPathResponse response) {
+                            listener.onResponse(new PrevalidateNodeRemovalResponse(createPrevalidationResult(response)));
                         }
 
                         @Override
@@ -235,8 +223,25 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                         }
                     });
                 }
-
             }
         }
+    }
+
+    private NodesRemovalPrevalidation createPrevalidationResult(CheckShardsOnDataPathResponse response) {
+        // TODO: refine the NO response
+        Result result = new Result(IsSafe.NO, "cluster health is RED");
+        List<NodeResult> nodeResults = response.getNodes()
+            .stream()
+            .map(NodeCheckShardsOnDataPathResponse::getNode)
+            .map(
+                dn -> new NodeResult(
+                    dn.getName(),
+                    dn.getId(),
+                    dn.getExternalId(),
+                    new Result(IsSafe.NO, "node may contain a copy of a red index shard")
+                )
+            )
+            .toList();
+        return new NodesRemovalPrevalidation(result, nodeResults);
     }
 }

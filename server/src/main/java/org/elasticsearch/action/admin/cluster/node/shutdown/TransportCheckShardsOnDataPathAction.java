@@ -79,7 +79,7 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
 
     @Override
     protected NodeCheckShardsOnDataPathRequest newNodeRequest(CheckShardsOnDataPathRequest request) {
-        return new NodeCheckShardsOnDataPathRequest(request.getShardIds(), request.getCustomDataPath());
+        return new NodeCheckShardsOnDataPathRequest(request.getShardIds());
     }
 
     @Override
@@ -91,10 +91,9 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
     protected NodeCheckShardsOnDataPathResponse nodeOperation(NodeCheckShardsOnDataPathRequest request, Task task) {
         Set<ShardId> localShards = new HashSet<>();
         ShardPath shardPath = null;
-        String customDataPath = request.getCustomDataPath();
         for (ShardId shardId : request.getShardIDs()) {
             try {
-                shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
+                shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, null);
                 if (shardPath != null) {
                     Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
                 }

@@ -11,7 +11,7 @@ highlight:
     require direct intervention to resolve. For example, a high disk watermark 
     may prevent all ingest activities, including the indexing operation of a 
     transform; however once the original issue is resolved by the system 
-    administrator, the transform automatically continue to operate from where it 
+    administrator, the transform automatically continues to operate from where it 
     stopped working. Neither the system administrator nor the end-user need to 
     restart the transform.
 

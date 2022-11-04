@@ -10,21 +10,26 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class AllocationActionMultiListenerTests extends ESTestCase {
 
     public void testShouldDelegateWhenBothComplete() {
-        var listener = new AllocationActionMultiListener<Integer>();
+        var listener = new AllocationActionMultiListener<Integer>(createEmptyThreadContext());
 
         var l1 = new AtomicInteger();
         var l2 = new AtomicInteger();
@@ -41,7 +46,7 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
     }
 
     public void testShouldNotDelegateWhenOnlyOneComplete() {
-        var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
+        var listener = new AllocationActionMultiListener<AcknowledgedResponse>(createEmptyThreadContext());
 
         var completed = new AtomicBoolean(false);
         var delegate = listener.delay(
@@ -58,7 +63,7 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
     }
 
     public void testShouldDelegateFailureImmediately() {
-        var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
+        var listener = new AllocationActionMultiListener<AcknowledgedResponse>(createEmptyThreadContext());
 
         var completed = new AtomicBoolean(false);
         listener.delay(
@@ -70,7 +75,7 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
 
     public void testConcurrency() throws InterruptedException {
 
-        var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
+        var listener = new AllocationActionMultiListener<AcknowledgedResponse>(createEmptyThreadContext());
 
         var count = randomIntBetween(1, 100);
         var completed = new CountDownLatch(count);
@@ -112,5 +117,52 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
         } catch (InterruptedException e) {
             throw new AssertionError("Interrupted while waiting for test to start", e);
         }
+    }
+
+    public void testShouldExecuteWithCorrectContext() {
+
+        var context = new ThreadContext(Settings.EMPTY);
+        var listener = new AllocationActionMultiListener<Integer>(context);
+
+        context.putHeader("header", "root");
+        var r1 = new AtomicReference<String>();
+        var r2 = new AtomicReference<String>();
+        var l1 = listener.delay(
+            ActionListener.wrap(
+                response -> r1.set(context.getHeader("header")),
+                exception -> { throw new AssertionError("Should not fail in test"); }
+            )
+        );
+        var l2 = listener.delay(
+            ActionListener.wrap(
+                response -> r2.set(context.getHeader("header")),
+                exception -> { throw new AssertionError("Should not fail in test"); }
+            )
+        );
+
+        executeInRandomOrder(
+            context,
+            List.of(
+                new Tuple<>("clusterStateUpdate1", () -> l1.onResponse(1)),
+                new Tuple<>("clusterStateUpdate2", () -> l2.onResponse(2)),
+                new Tuple<>("reroute", () -> listener.reroute().onResponse(null))
+            )
+        );
+
+        assertThat(r1.get(), equalTo("root"));
+        assertThat(r2.get(), equalTo("root"));
+    }
+
+    private static void executeInRandomOrder(ThreadContext context, List<Tuple<String, Runnable>> actions) {
+        for (var action : shuffledList(actions)) {
+            try (var ignored = context.stashContext()) {
+                context.putHeader("header", action.v1());
+                action.v2().run();
+            }
+        }
+    }
+
+    private static ThreadContext createEmptyThreadContext() {
+        return new ThreadContext(Settings.EMPTY);
     }
 }

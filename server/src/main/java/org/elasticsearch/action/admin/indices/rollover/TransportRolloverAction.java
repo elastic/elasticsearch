@@ -87,7 +87,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             ThreadPool.Names.SAME
         );
         this.client = client;
-        this.rolloverTaskExecutor = new RolloverExecutor(clusterService, allocationService, rolloverService);
+        this.rolloverTaskExecutor = new RolloverExecutor(clusterService, allocationService, rolloverService, threadPool);
     }
 
     @Override
@@ -244,12 +244,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    record RolloverExecutor(ClusterService clusterService, AllocationService allocationService, MetadataRolloverService rolloverService)
-        implements
-            ClusterStateTaskExecutor<RolloverTask> {
+    record RolloverExecutor(
+        ClusterService clusterService,
+        AllocationService allocationService,
+        MetadataRolloverService rolloverService,
+        ThreadPool threadPool
+    ) implements ClusterStateTaskExecutor<RolloverTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) {
-            final var listener = new AllocationActionMultiListener<RolloverResponse>();
+            final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
             final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {

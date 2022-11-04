@@ -217,7 +217,7 @@ public class MetadataIndexStateService {
         @Override
         @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
         public ClusterState execute(BatchExecutionContext<CloseIndicesTask> batchExecutionContext) {
-            var listener = new AllocationActionMultiListener<CloseIndexResponse>();
+            var listener = new AllocationActionMultiListener<CloseIndexResponse>(threadPool.getThreadContext());
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
@@ -1055,7 +1055,7 @@ public class MetadataIndexStateService {
 
         @Override
         public ClusterState execute(BatchExecutionContext<OpenIndicesTask> batchExecutionContext) {
-            var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
+            var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
             var state = batchExecutionContext.initialState();
 
             try (var ignored = batchExecutionContext.dropHeadersContext()) {

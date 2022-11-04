@@ -9,9 +9,12 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
 /**
  * This event listener might be needed to delay execution of multiple distinct tasks until followup reroute is complete.
@@ -20,20 +23,26 @@ public class AllocationActionMultiListener<T> {
 
     private volatile boolean complete = false;
     private final List<DelayedListener<T>> delayed = new ArrayList<>();
+    private final ThreadContext context;
+
+    public AllocationActionMultiListener(ThreadContext context) {
+        this.context = context;
+    }
 
     public ActionListener<T> delay(ActionListener<T> delegate) {
+        final var wrappedDelegate = wrapPreservingContext(delegate, context);
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {
-                if (tryDelayListener(delegate, response) == false) {
-                    delegate.onResponse(response);
+                if (tryDelayListener(wrappedDelegate, response) == false) {
+                    wrappedDelegate.onResponse(response);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 // there is no need to delay listener in case of failure
-                delegate.onFailure(e);
+                wrappedDelegate.onFailure(e);
             }
         };
     }

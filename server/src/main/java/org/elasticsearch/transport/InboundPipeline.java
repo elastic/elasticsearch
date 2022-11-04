@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -19,7 +20,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -27,17 +27,17 @@ import java.util.function.Supplier;
 
 public class InboundPipeline implements Releasable {
 
-    private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
     private final LongSupplier relativeTimeInMillis;
     private final StatsTracker statsTracker;
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
-    private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
+
+    private final CheckedBiConsumer<TcpChannel, Object, IOException> fragmentConsumer;
 
     public InboundPipeline(
         Version version,
@@ -69,7 +69,34 @@ public class InboundPipeline implements Releasable {
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
-        this.messageHandler = messageHandler;
+        this.fragmentConsumer = (c, fragment) -> {
+            if (fragment instanceof Header) {
+                assert aggregator.isAggregating() == false;
+                aggregator.headerReceived((Header) fragment);
+            } else if (fragment instanceof Compression.Scheme) {
+                assert aggregator.isAggregating();
+                aggregator.updateCompressionScheme((Compression.Scheme) fragment);
+            } else if (fragment == InboundDecoder.PING) {
+                assert aggregator.isAggregating() == false;
+                messageHandler.accept(c, PING_MESSAGE);
+            } else if (fragment == InboundDecoder.END_CONTENT) {
+                assert aggregator.isAggregating();
+                try (InboundMessage aggregated = aggregator.finishAggregation()) {
+                    statsTracker.markMessageReceived();
+                    messageHandler.accept(c, aggregated);
+                }
+            } else {
+                assert aggregator.isAggregating();
+                assert fragment instanceof ReleasableBytesReference;
+                // fragment will be released by the aggregator
+                final var bytes = (ReleasableBytesReference) fragment;
+                try {
+                    aggregator.aggregate(bytes);
+                } finally {
+                    bytes.decRef();
+                }
+            }
+        };
     }
 
     @Override
@@ -94,70 +121,15 @@ public class InboundPipeline implements Releasable {
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
-
-        final ArrayList<Object> fragments = fragmentList.get();
-        boolean continueHandling = true;
-
-        while (continueHandling && isClosed == false) {
-            boolean continueDecoding = true;
-            while (continueDecoding && pending.isEmpty() == false) {
-                try (ReleasableBytesReference toDecode = getPendingBytes()) {
-                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
-                    if (bytesDecoded != 0) {
-                        releasePendingBytes(bytesDecoded);
-                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
-                            continueDecoding = false;
-                        }
-                    } else {
-                        continueDecoding = false;
-                    }
+        while (pending.isEmpty() == false && isClosed == false) {
+            try (ReleasableBytesReference toDecode = getPendingBytes()) {
+                final int bytesDecoded = decoder.decode(toDecode, channel, fragmentConsumer);
+                if (bytesDecoded == 0) {
+                    break;
                 }
-            }
-
-            if (fragments.isEmpty()) {
-                continueHandling = false;
-            } else {
-                try {
-                    forwardFragments(channel, fragments);
-                } finally {
-                    for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
-                            ((ReleasableBytesReference) fragment).close();
-                        }
-                    }
-                    fragments.clear();
-                }
+                releasePendingBytes(bytesDecoded);
             }
         }
-    }
-
-    private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
-        for (Object fragment : fragments) {
-            if (fragment instanceof Header) {
-                assert aggregator.isAggregating() == false;
-                aggregator.headerReceived((Header) fragment);
-            } else if (fragment instanceof Compression.Scheme) {
-                assert aggregator.isAggregating();
-                aggregator.updateCompressionScheme((Compression.Scheme) fragment);
-            } else if (fragment == InboundDecoder.PING) {
-                assert aggregator.isAggregating() == false;
-                messageHandler.accept(channel, PING_MESSAGE);
-            } else if (fragment == InboundDecoder.END_CONTENT) {
-                assert aggregator.isAggregating();
-                try (InboundMessage aggregated = aggregator.finishAggregation()) {
-                    statsTracker.markMessageReceived();
-                    messageHandler.accept(channel, aggregated);
-                }
-            } else {
-                assert aggregator.isAggregating();
-                assert fragment instanceof ReleasableBytesReference;
-                aggregator.aggregate((ReleasableBytesReference) fragment);
-            }
-        }
-    }
-
-    private static boolean endOfMessage(Object fragment) {
-        return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 
     private ReleasableBytesReference getPendingBytes() {

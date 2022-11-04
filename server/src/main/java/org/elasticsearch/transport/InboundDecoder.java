@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,7 +19,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 
 public class InboundDecoder implements Releasable {
 
@@ -38,23 +38,31 @@ public class InboundDecoder implements Releasable {
         this.recycler = recycler;
     }
 
-    public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int decode(
+        ReleasableBytesReference reference,
+        TcpChannel channel,
+        CheckedBiConsumer<TcpChannel, Object, IOException> fragmentConsumer
+    ) throws IOException {
         ensureOpen();
         try {
-            return internalDecode(reference, fragmentConsumer);
+            return internalDecode(reference, channel, fragmentConsumer);
         } catch (Exception e) {
             cleanDecodeState();
             throw e;
         }
     }
 
-    public int internalDecode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    private int internalDecode(
+        ReleasableBytesReference reference,
+        TcpChannel channel,
+        CheckedBiConsumer<TcpChannel, Object, IOException> fragmentConsumer
+    ) throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
-                fragmentConsumer.accept(PING);
+                fragmentConsumer.accept(channel, PING);
                 return 6;
             } else {
                 int headerBytesToRead = headerBytesToRead(reference);
@@ -68,10 +76,10 @@ public class InboundDecoder implements Releasable {
                     if (header.isCompressed()) {
                         isCompressed = true;
                     }
-                    fragmentConsumer.accept(header);
+                    fragmentConsumer.accept(channel, header);
 
                     if (isDone()) {
-                        finishMessage(fragmentConsumer);
+                        finishMessage(channel, fragmentConsumer);
                     }
                     return headerBytesToRead;
                 }
@@ -84,7 +92,7 @@ public class InboundDecoder implements Releasable {
                     return 0;
                 } else {
                     this.decompressor = decompressor;
-                    fragmentConsumer.accept(this.decompressor.getScheme());
+                    fragmentConsumer.accept(channel, this.decompressor.getScheme());
                 }
             }
             int remainingToConsume = totalNetworkSize - bytesConsumed;
@@ -102,15 +110,15 @@ public class InboundDecoder implements Releasable {
                 bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
-                    fragmentConsumer.accept(decompressed);
+                    fragmentConsumer.accept(channel, decompressed);
                 }
             } else {
                 bytesConsumedThisDecode += maxBytesToConsume;
                 bytesConsumed += maxBytesToConsume;
-                fragmentConsumer.accept(retainedContent);
+                fragmentConsumer.accept(channel, retainedContent);
             }
             if (isDone()) {
-                finishMessage(fragmentConsumer);
+                finishMessage(channel, fragmentConsumer);
             }
 
             return bytesConsumedThisDecode;
@@ -123,9 +131,9 @@ public class InboundDecoder implements Releasable {
         cleanDecodeState();
     }
 
-    private void finishMessage(Consumer<Object> fragmentConsumer) {
+    private void finishMessage(TcpChannel channel, CheckedBiConsumer<TcpChannel, Object, IOException> fragmentConsumer) throws IOException {
         cleanDecodeState();
-        fragmentConsumer.accept(END_CONTENT);
+        fragmentConsumer.accept(channel, END_CONTENT);
     }
 
     private void cleanDecodeState() {

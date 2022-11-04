@@ -346,7 +346,7 @@ public class MappingParserTests extends MapperServiceTestCase {
 
     public void testDynamicFieldEdgeCaseNamesSubobjectsFalse() throws Exception {
         MappingParser mappingParser = createMappingParser(Settings.EMPTY);
-        for (String fieldName : DocumentParserTests.FIELD_NAME_EDGE_CASES) {
+        for (String fieldName : DocumentParserTests.VALID_FIELD_NAMES_NO_SUBOBJECTS) {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             assertNotNull(mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
         }
@@ -356,7 +356,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         // TODO these combinations are not accepted by default, but they are in the runtime section, though they are not accepted when
         // parsing documents with subobjects enabled
         MappingParser mappingParser = createMappingParser(Settings.EMPTY);
-        for (String fieldName : DocumentParserTests.FIELD_NAME_EDGE_CASES) {
+        for (String fieldName : DocumentParserTests.VALID_FIELD_NAMES_NO_SUBOBJECTS) {
             XContentBuilder builder = runtimeMapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
         }

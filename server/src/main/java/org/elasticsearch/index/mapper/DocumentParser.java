@@ -311,7 +311,7 @@ public final class DocumentParser {
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
                     if (currentFieldName.isEmpty()) {
-                        throw new MapperParsingException("Field name cannot be an empty string");
+                        throw new IllegalArgumentException("Field name cannot be an empty string");
                     }
                     if (currentFieldName.isBlank()) {
                         throwFieldNameBlank(context, currentFieldName);

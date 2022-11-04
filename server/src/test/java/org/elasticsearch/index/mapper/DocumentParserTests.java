@@ -1945,7 +1945,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     // these combinations are not accepted by default, but they are when subobjects are disabled
-    public static final String[] FIELD_NAME_EDGE_CASES = new String[] {
+    public static final String[] VALID_FIELD_NAMES_NO_SUBOBJECTS = new String[] {
         ".foo",
         "foo.",
         "top..foo",
@@ -1958,7 +1958,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDynamicFieldEdgeCaseNamesSubobjectsFalse() throws Exception {
         MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {}));
-        for (String fieldName : FIELD_NAME_EDGE_CASES) {
+        for (String fieldName : VALID_FIELD_NAMES_NO_SUBOBJECTS) {
             ParsedDocument doc = mapperService.documentMapper().parse(source("{\"" + fieldName + "\":1}"));
             merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
             assertNotNull(mapperService.fieldType(fieldName));

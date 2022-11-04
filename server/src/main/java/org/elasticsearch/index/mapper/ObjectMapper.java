@@ -364,6 +364,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         Map<String, Mapper> mappers
     ) {
         super(name);
+        // could be blank but not empty on indices created < 8.6.0
         assert name.isEmpty() == false;
         this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;

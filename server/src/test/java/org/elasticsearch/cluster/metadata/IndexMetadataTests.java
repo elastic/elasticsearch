@@ -73,12 +73,7 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
-        IndexWriteLoad indexWriteLoad = randomBoolean()
-            ? IndexWriteLoad.create(
-                randomList(numShard, numShard, () -> randomDoubleBetween(0.0, 128.0, true)),
-                randomList(numShard, numShard, ESTestCase::randomNonNegativeLong)
-            )
-            : null;
+        IndexWriteLoad indexWriteLoad = randomBoolean() ? randomWriteLoad(numShard) : null;
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
@@ -499,5 +494,14 @@ public class IndexMetadataTests extends ESTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(DataTier.TIER_PREFERENCE, dataTier)
             .build();
+    }
+
+    private IndexWriteLoad randomWriteLoad(int numberOfShards) {
+        IndexWriteLoad.Builder indexWriteLoadBuilder = IndexWriteLoad.builder(numberOfShards);
+        int numberOfPopulatedWriteLoads = randomIntBetween(0, numberOfShards);
+        for (int i = 0; i < numberOfPopulatedWriteLoads; i++) {
+            indexWriteLoadBuilder.withShardWriteLoad(i, randomDoubleBetween(0.0, 128.0, true), randomNonNegativeLong());
+        }
+        return indexWriteLoadBuilder.build();
     }
 }

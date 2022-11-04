@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class IndexWriteLoadTestSerializationTests extends AbstractXContentSerializingTestCase<IndexWriteLoad> {
+public class IndexWriteLoadSerializationTests extends AbstractXContentSerializingTestCase<IndexWriteLoad> {
 
     @Override
     protected IndexWriteLoad doParseInstance(XContentParser parser) throws IOException {
@@ -46,9 +46,13 @@ public class IndexWriteLoadTestSerializationTests extends AbstractXContentSerial
         }
         final var indexWriteLoad = IndexWriteLoad.builder(newNumberOfShards);
         for (int i = 0; i < newNumberOfShards; i++) {
-            boolean additionalShard = i < instance.numberOfShards();
-            double shardLoad = additionalShard ? instance.getWriteLoadForShard(i).getAsDouble() : randomDoubleBetween(0, 128, true);
-            long uptimeInMillis = additionalShard ? instance.getUptimeInMillisForShard(i).getAsLong() : randomNonNegativeLong();
+            boolean existingShard = i < instance.numberOfShards();
+            double shardLoad = existingShard && randomBoolean()
+                ? instance.getWriteLoadForShard(i).getAsDouble()
+                : randomDoubleBetween(0, 128, true);
+            long uptimeInMillis = existingShard && randomBoolean()
+                ? instance.getUptimeInMillisForShard(i).getAsLong()
+                : randomNonNegativeLong();
             indexWriteLoad.withShardWriteLoad(i, shardLoad, uptimeInMillis);
         }
         return indexWriteLoad.build();

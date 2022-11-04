@@ -29,8 +29,8 @@ import java.util.OptionalDouble;
 import java.util.OptionalLong;
 
 public class IndexWriteLoad implements Writeable, ToXContentFragment {
-    public static final ParseField SHARDS_WRITE_LOAD_FIELD = new ParseField("shards_write_load");
-    public static final ParseField SHARDS_UPTIME_IN_MILLIS = new ParseField("shards_uptime_in_millis");
+    public static final ParseField SHARDS_WRITE_LOAD_FIELD = new ParseField("loads");
+    public static final ParseField SHARDS_UPTIME_IN_MILLIS = new ParseField("uptimes");
     private static final Double UNKNOWN_LOAD = -1.0;
     private static final long UNKNOWN_UPTIME = -1;
 
@@ -99,12 +99,12 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         return indexWriteLoadBuilder.build();
     }
 
-    private final double[] shardWriteLoadLoad;
+    private final double[] shardWriteLoad;
     private final long[] shardUptimeInMillis;
 
-    private IndexWriteLoad(double[] shardWriteLoadLoad, long[] shardUptimeInMillis) {
-        assert shardWriteLoadLoad.length == shardUptimeInMillis.length;
-        this.shardWriteLoadLoad = shardWriteLoadLoad;
+    private IndexWriteLoad(double[] shardWriteLoad, long[] shardUptimeInMillis) {
+        assert shardWriteLoad.length == shardUptimeInMillis.length;
+        this.shardWriteLoad = shardWriteLoad;
         this.shardUptimeInMillis = shardUptimeInMillis;
     }
 
@@ -114,13 +114,13 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDoubleArray(shardWriteLoadLoad);
+        out.writeDoubleArray(shardWriteLoad);
         out.writeLongArray(shardUptimeInMillis);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(SHARDS_WRITE_LOAD_FIELD.getPreferredName(), shardWriteLoadLoad);
+        builder.field(SHARDS_WRITE_LOAD_FIELD.getPreferredName(), shardWriteLoad);
         builder.field(SHARDS_UPTIME_IN_MILLIS.getPreferredName(), shardUptimeInMillis);
         return builder;
     }
@@ -132,7 +132,7 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
     public OptionalDouble getWriteLoadForShard(int shardId) {
         assertShardInBounds(shardId);
 
-        double load = shardWriteLoadLoad[shardId];
+        double load = shardWriteLoad[shardId];
         return load != UNKNOWN_LOAD ? OptionalDouble.of(load) : OptionalDouble.empty();
     }
 
@@ -145,12 +145,12 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
 
     // Visible for testing
     public int numberOfShards() {
-        return shardWriteLoadLoad.length;
+        return shardWriteLoad.length;
     }
 
     private void assertShardInBounds(int shardId) {
         assert shardId >= 0 : "Unexpected shard id " + shardId;
-        assert shardId < shardWriteLoadLoad.length;
+        assert shardId < shardWriteLoad.length : "Unexpected shard id " + shardId + ", expected < " + shardWriteLoad.length;
     }
 
     @Override
@@ -158,12 +158,12 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexWriteLoad that = (IndexWriteLoad) o;
-        return Arrays.equals(shardWriteLoadLoad, that.shardWriteLoadLoad) && Arrays.equals(shardUptimeInMillis, that.shardUptimeInMillis);
+        return Arrays.equals(shardWriteLoad, that.shardWriteLoad) && Arrays.equals(shardUptimeInMillis, that.shardUptimeInMillis);
     }
 
     @Override
     public int hashCode() {
-        int result = Arrays.hashCode(shardWriteLoadLoad);
+        int result = Arrays.hashCode(shardWriteLoad);
         result = 31 * result + Arrays.hashCode(shardUptimeInMillis);
         return result;
     }

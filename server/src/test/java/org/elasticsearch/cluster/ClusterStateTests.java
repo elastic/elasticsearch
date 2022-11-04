@@ -282,8 +282,8 @@ public class ClusterStateTests extends ESTestCase {
                       "shards": []
                     },
                     "write_load": {
-                      "shards_write_load": [-1.0],
-                      "shards_uptime_in_millis": [-1]
+                      "loads": [-1.0],
+                      "uptimes": [-1]
                     }
                   }
                 },
@@ -496,10 +496,10 @@ public class ClusterStateTests extends ESTestCase {
                       "shards" : [ ]
                     },
                     "write_load" : {
-                      "shards_write_load" : [
+                      "loads" : [
                         -1.0
                       ],
-                      "shards_uptime_in_millis" : [
+                      "uptimes" : [
                         -1
                       ]
                     }
@@ -721,10 +721,10 @@ public class ClusterStateTests extends ESTestCase {
                       "shards" : [ ]
                     },
                     "write_load" : {
-                      "shards_write_load" : [
+                      "loads" : [
                         -1.0
                       ],
-                      "shards_uptime_in_millis" : [
+                      "uptimes" : [
                         -1
                       ]
                     }

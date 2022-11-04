@@ -27,8 +27,11 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -76,6 +79,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexWriteLoad;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
@@ -2018,9 +2022,24 @@ public class DataStreamIT extends ESIntegTestCase {
         final var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
 
-        for (int i = 0; i < 10; i++) {
-            indexDocs(dataStreamName, randomIntBetween(100, 200));
-        }
+        assertBusy(() -> {
+            for (int i = 0; i < 10; i++) {
+                indexDocs(dataStreamName, randomIntBetween(100, 200));
+            }
+
+            final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            final String writeIndex = dataStream.getWriteIndex().getName();
+            final IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(writeIndex).get();
+            for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {
+                for (ShardStats shard : indexShardStats.getShards()) {
+                    final IndexingStats.Stats shardIndexingStats = shard.getStats().getIndexing().getTotal();
+                    // Ensure that we have enough clock granularity before rolling over to ensure that we capture _some_ write load
+                    assertThat(shardIndexingStats.getTotalActiveTimeInMillis(), is(greaterThan(0L)));
+                    assertThat(shardIndexingStats.getWriteLoad(), is(greaterThan(0.0)));
+                }
+            }
+        });
 
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();

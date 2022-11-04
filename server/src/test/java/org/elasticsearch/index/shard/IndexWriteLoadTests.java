@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -81,13 +82,16 @@ public class IndexWriteLoadTests extends ESTestCase {
         // Shard 0 has both primary/replica
         final IndexShardStats indexShard0Stats = new IndexShardStats(
             new ShardId(indexName, "__na__", 0),
-            new ShardStats[] { createShardStats(indexName, 0, true, 128, 1024), createShardStats(indexName, 0, false, 126, 512) }
+            new ShardStats[] {
+                createShardStats(indexName, 0, true, TimeValue.timeValueMillis(2048).nanos(), TimeValue.timeValueMillis(1024).nanos()),
+                createShardStats(indexName, 0, false, TimeValue.timeValueMillis(2048).nanos(), TimeValue.timeValueMillis(512).nanos()) }
         );
 
         // Shard 1 only has a replica available
         final IndexShardStats indexShard1Stats = new IndexShardStats(
             new ShardId(indexName, "__na__", 1),
-            new ShardStats[] { createShardStats(indexName, 1, false, 256, 512) }
+            new ShardStats[] {
+                createShardStats(indexName, 1, false, TimeValue.timeValueMillis(4096).nanos(), TimeValue.timeValueMillis(512).nanos()) }
         );
         // Shard 2 was not available
 
@@ -97,13 +101,13 @@ public class IndexWriteLoadTests extends ESTestCase {
         // Shard 0 uses the results from the primary
         final IndexWriteLoad indexWriteLoadFromStats = IndexWriteLoad.fromStats(indexMetadata, response);
         assertThat(indexWriteLoadFromStats.getWriteLoadForShard(0).isPresent(), is(equalTo(true)));
-        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(0).getAsDouble(), is(equalTo(128.0)));
+        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(0).getAsDouble(), is(equalTo(2.0)));
         assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(0).isPresent(), is(equalTo(true)));
         assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(0).getAsLong(), is(equalTo(1024L)));
 
         // Shard 1 uses the only available stats from a replica
         assertThat(indexWriteLoadFromStats.getWriteLoadForShard(1).isPresent(), is(equalTo(true)));
-        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(1).getAsDouble(), is(equalTo(256.0)));
+        assertThat(indexWriteLoadFromStats.getWriteLoadForShard(1).getAsDouble(), is(equalTo(8.0)));
         assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(1).isPresent(), is(equalTo(true)));
         assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(1).getAsLong(), is(equalTo(512L)));
 
@@ -113,7 +117,13 @@ public class IndexWriteLoadTests extends ESTestCase {
         assertThat(IndexWriteLoad.fromStats(indexMetadata, null), is(nullValue()));
     }
 
-    private ShardStats createShardStats(String indexName, int shard, boolean primary, double writeLoad, long totalActiveTimeInMillis) {
+    private ShardStats createShardStats(
+        String indexName,
+        int shard,
+        boolean primary,
+        long totalIndexingTimeSinceShardStartedInNanos,
+        long totalActiveTimeInNanos
+    ) {
         RecoverySource recoverySource = primary
             ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
             : RecoverySource.PeerRecoverySource.INSTANCE;
@@ -129,7 +139,9 @@ public class IndexWriteLoadTests extends ESTestCase {
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
         commonStats.getIndexing()
             .getTotal()
-            .add(new IndexingStats.Stats(0, 0, 0, 0, 0, 0, 0, 0, false, 0, writeLoad, totalActiveTimeInMillis));
+            .add(
+                new IndexingStats.Stats(0, 0, 0, 0, 0, 0, 0, 0, false, 0, totalIndexingTimeSinceShardStartedInNanos, totalActiveTimeInNanos)
+            );
         return new ShardStats(shardRouting, commonStats, null, null, null, null, null, false);
     }
 }

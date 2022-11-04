@@ -8,6 +8,8 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Objects;
+
 /**
  * A set of methods for non-native boxing and non-native
  * exact math operations used at both compile-time and runtime.
@@ -32,6 +34,14 @@ public class Utility {
         }
 
         return value.charAt(0);
+    }
+
+    /**
+     * Used by {@link org.elasticsearch.painless.phase.DefaultEqualityMethodOptimizationPhase} to call {@code b.equals(a)}
+     * without changing execution order
+     */
+    public static boolean equalsRHS(Object a, Object b) {
+        return Objects.equals(b, a);
     }
 
     private Utility() {}

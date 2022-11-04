@@ -185,16 +185,18 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testStringEquals() {
-        assertEquals(true, exec("\"a\" == \"a\""));
-        assertEquals(true, exec("\"a\" == (def)\"a\""));
-        assertEquals(false, exec("\"a\" == 10.toString()"));
-        assertEquals(false, exec("(String)null == \"foo\""));
-        assertEquals(false, exec("new HashMap().toString() == \"foo\""));
+        assertEquals(false, exec("def x = null; return \"a\" == x"));
+        assertEquals(true, exec("def x = \"a\"; return \"a\" == x"));
+        assertEquals(false, exec("def x = \"a\"; return new HashMap().toString() == x"));
+        assertEquals(true, exec("def x = null; return \"a\" != x"));
+        assertEquals(false, exec("def x = \"a\"; return \"a\" != x"));
+        assertEquals(true, exec("def x = \"a\"; return new HashMap().toString() != x"));
 
-        assertEquals(false, exec("\"a\" != \"a\""));
-        assertEquals(false, exec("\"a\" != (def)\"a\""));
-        assertEquals(true, exec("\"a\" != 10.toString()"));
-        assertEquals(true, exec("(String)null != \"foo\""));
-        assertEquals(true, exec("new HashMap().toString() != \"foo\""));
+        assertEquals(false, exec("def x = null; return x == \"a\""));
+        assertEquals(true, exec("def x = \"a\"; return x == \"a\""));
+        assertEquals(false, exec("def x = \"a\"; return x == new HashMap().toString()"));
+        assertEquals(true, exec("def x = null; return x != \"a\""));
+        assertEquals(false, exec("def x = \"a\"; return x != \"a\""));
+        assertEquals(true, exec("def x = \"a\"; return x != new HashMap().toString()"));
     }
 }

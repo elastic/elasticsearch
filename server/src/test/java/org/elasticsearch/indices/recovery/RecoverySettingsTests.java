@@ -159,7 +159,6 @@ public class RecoverySettingsTests extends ESTestCase {
             .withRandomBandwidths()
             .withRandomMemory()
             .build();
-        assertThat("Node bandwidth settings should all exist", recoverySettings.nodeBandwidthSettingsExist(), equalTo(true));
         assertThat(
             "Non-data nodes have a default 40mb rate limit",
             recoverySettings.getMaxBytesPerSec(),

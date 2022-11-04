@@ -114,6 +114,8 @@ however once the original issue is resolved by the system administrator, the
 transform automatically continues to operate from where it stopped working.
 Neither the system administrator nor the end-user need to restart the transform.
 
+{es-pull}89212[#89212]
+
 [discrete]
 [[frequent-items-agg]]
 === Frequent items aggregation
@@ -125,5 +127,7 @@ is a form of association rule mining that helps to discover relationships
 between different data points. For example, the aggregation can find attributes
 of log events that tend to co-occur and may give a more informative explanation
 for the possible causes of a spike in the logs.
+
+{es-pull}83055[#83055]
 
 // end::notable-highlights[]

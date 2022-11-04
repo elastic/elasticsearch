@@ -50,7 +50,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
         } else {
-            remoteIndex = Set.of();
+            remoteIndex = Collections.emptySet();
         }
     }
 

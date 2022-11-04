@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        final GetUserPrivilegesResponse original = randomResponse(true);
+        final GetUserPrivilegesResponse original = randomResponse();
 
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -91,7 +91,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         );
         out.setVersion(version);
 
-        final GetUserPrivilegesResponse original = randomResponse(randomBoolean());
+        final GetUserPrivilegesResponse original = randomResponse();
         if (original.hasRemoteIndicesPrivileges()) {
             final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
             assertThat(
@@ -189,7 +189,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     }
 
     private GetUserPrivilegesResponse randomResponse() {
-        return randomResponse(false);
+        return randomResponse(true);
     }
 
     private GetUserPrivilegesResponse randomResponse(boolean allowRemoteIndices) {

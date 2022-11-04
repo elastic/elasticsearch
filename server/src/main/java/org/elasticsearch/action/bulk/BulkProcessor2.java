@@ -283,12 +283,12 @@ public class BulkProcessor2 implements Closeable {
     }
 
     /**
-     * Closes the processor. Waits up to 10ms to clear out any queued requests.
+     * Closes the processor. Waits up to 1s to clear out any queued requests.
      */
     @Override
     public void close() {
         try {
-            awaitClose(10, TimeUnit.MILLISECONDS);
+            awaitClose(1, TimeUnit.SECONDS);
         } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
         }

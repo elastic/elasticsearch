@@ -97,4 +97,41 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertThat(nodeResult.name(), equalTo(node2));
         assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
     }
+
+    // The test setup is not working properly, otherwise this should pass!
+    public void testNodeRemovalFromRedClusterWithLocalShardCopy() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startDataOnlyNode();
+        String node2 = internalCluster().startDataOnlyNode();
+        // ...
+        String indexName = "test-idx";
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.require._name", node1)
+                .build()
+        );
+        ensureGreen(indexName);
+        for (int i = 0; i < 100; i++) {
+            client(node1).prepareIndex(indexName).setSource("field", "value").execute().actionGet();
+        }
+        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node2));
+        ensureGreen(indexName);
+        internalCluster().stopNode(node2);
+        assertBusy(() -> {
+            ClusterHealthResponse healthResponse = client().admin()
+                .cluster()
+                .prepareHealth(indexName)
+                .setWaitForStatus(ClusterHealthStatus.RED)
+                .setWaitForEvents(Priority.LANGUID)
+                .execute()
+                .actionGet();
+            assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
+        });
+        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node1).build();
+        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
+        assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.NO));
+    }
 }

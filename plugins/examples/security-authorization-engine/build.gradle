@@ -10,13 +10,27 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
+repositories {
+  ivy {
+    name 'dra snapshots'
+    url 'https://artifacts-snapshot.elastic.co/'
+    metadataSources {
+      // no repository metadata, look directly for the artifact
+      artifact()
+    }
+    patternLayout {
+      artifact '/[module]/[revision]/downloads/[module]/[module]-[revision]-[classifier].[ext]'
+    }
+  }
+}
+
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   testImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
   testImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
-  javaRestTestImplementation("co.elastic.clients:elasticsearch-java:${elasticsearchVersion}")
+  javaRestTestImplementation "co.elastic.clients:elasticsearch-java:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
   javaRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
   javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"

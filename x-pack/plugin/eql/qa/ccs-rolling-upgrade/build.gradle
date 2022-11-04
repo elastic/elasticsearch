@@ -28,12 +28,14 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
    *   scenario where a query request and fetch request are sent via **proxy nodes** that have different version.
    */
   def localCluster = testClusters.register("${baseName}-local") {
+    testDistribution = 'DEFAULT'
     numberOfNodes = 2
     versions = [bwcVersion.toString(), project.version]
     setting 'cluster.remote.node.attr', 'gateway'
     setting 'xpack.security.enabled', 'false'
   }
   def remoteCluster = testClusters.register("${baseName}-remote") {
+    testDistribution = 'DEFAULT'
     numberOfNodes = 3
     versions = [bwcVersion.toString(), project.version]
     firstNode.setting 'node.attr.gateway', 'true'

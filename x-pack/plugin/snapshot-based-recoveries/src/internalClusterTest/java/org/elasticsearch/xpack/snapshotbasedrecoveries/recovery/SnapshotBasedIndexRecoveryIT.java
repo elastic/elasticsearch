@@ -1256,10 +1256,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         );
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.indices.recovery.RemoteRecoveryTargetHandler:TRACE",
-        reason = "Ensure the fix for #90665 is valid"
-    )
     public void testNodeDisconnectsDoNotOverAccountRecoveredBytes() throws Exception {
         // This test reproduces a rare (but possible scenario) where a shard is recovering using
         // snapshots, using logically equivalent index files, but half-way the connection between

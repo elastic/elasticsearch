@@ -364,7 +364,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             minimalMapping(b);
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        assertThat(e.getMessage(), containsString("field name cannot be an empty string"));
+        assertParseMinimalWarnings();
+    }
+
+    public final void testBlankName() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("  ");
+            minimalMapping(b);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("field name cannot contain only whitespaces"));
         assertParseMinimalWarnings();
     }
 

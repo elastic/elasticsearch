@@ -18,6 +18,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Per segment values for a field loaded from stored fields exposing {@link SortedBinaryDocValues}.
+ */
 public abstract class StoredFieldSortedBinaryIndexFieldData extends StoredFieldIndexFieldData<SortedBinaryDocValues> {
 
     protected StoredFieldSortedBinaryIndexFieldData(

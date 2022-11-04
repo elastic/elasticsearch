@@ -23,6 +23,9 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Set;
 
+/**
+ * Per segment values for a field loaded from stored fields.
+ */
 public abstract class StoredFieldIndexFieldData<T> implements IndexFieldData<StoredFieldIndexFieldData<T>.StoredFieldLeafFieldData> {
     private final String fieldName;
     private final ValuesSourceType valuesSourceType;

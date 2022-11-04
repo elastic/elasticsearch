@@ -132,12 +132,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 in.readString(),
                 FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()
             );
-            ByteSizeValue frozenFloodStageMaxHeadroom = new ByteSizeValue(in);
+            ByteSizeValue frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
             ByteSizeValue highMaxHeadroom = in.getVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
-                ? new ByteSizeValue(in)
+                ? ByteSizeValue.readFrom(in)
                 : ByteSizeValue.MINUS_ONE;
             ByteSizeValue floodStageMaxHeadroom = in.getVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
-                ? new ByteSizeValue(in)
+                ? ByteSizeValue.readFrom(in)
                 : ByteSizeValue.MINUS_ONE;
             return new Disk(
                 highWatermark,

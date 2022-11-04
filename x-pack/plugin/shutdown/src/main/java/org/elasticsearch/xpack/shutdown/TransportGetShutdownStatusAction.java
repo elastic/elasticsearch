@@ -207,6 +207,9 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         );
         allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
+        // We also need the set of node IDs which are currently shutting down.
+        Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().keySet();
+
         // Check if we have any unassigned primary shards that have this nodeId as their lastAllocatedNodeId
         var unassignedShards = Stream.iterate(
             currentState.getRoutingNodes().unassigned().iterator(),
@@ -214,13 +217,14 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             UnaryOperator.identity()
         )
             .map(Iterator::next)
-            .filter(s -> s.primary() && s.unassignedInfo().getLastAllocatedNodeId().equals(nodeId))
+            .filter(s -> s.unassignedInfo().getLastAllocatedNodeId() != null && s.unassignedInfo().getLastAllocatedNodeId().equals(nodeId))
             .collect(Collectors.toList());
 
         if (unassignedShards.isEmpty() == false) {
             var shardRouting = unassignedShards.get(0);
             var unassignedInfo = shardRouting.unassignedInfo();
-            if (unassignedInfo.getLastAllocatedNodeId().equals(nodeId)) {
+            if (unassignedInfo.getLastAllocatedNodeId().equals(nodeId)
+                && hasShardCopyOnAnotherNode(currentState, shardRouting, shuttingDownNodes) == false) {
                 ShardAllocationDecision decision = allocationService.explainShardAllocation(shardRouting, allocation);
 
                 return new ShutdownShardMigrationStatus(
@@ -259,10 +263,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         // If there's no relocating shards and shards still on this node, we need to figure out why
-
-        // We also need the set of node IDs which are currently shutting down.
-        Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().keySet();
-
         AtomicInteger shardsToIgnoreForFinalStatus = new AtomicInteger(0);
 
         // Explain shard allocations until we find one that can't move, then stop (as `findFirst` short-circuits)
@@ -283,14 +283,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
             // If the shard that can't move is on every node in the cluster, we shouldn't be `STALLED` on it.
             .filter(pair -> {
-                final boolean hasShardCopyOnOtherNode = currentState.routingTable()
-                    .allShards(pair.v1().index().getName())
-                    .stream()
-                    .filter(shardRouting -> shardRouting.id() == pair.v1().id())
-                    // If any shards are both 1) `STARTED` and 2) are not on a node that's shutting down, we have at least one copy
-                    // of this shard safely on a node that's not shutting down, so we don't want to report `STALLED` because of this shard.
-                    .filter(ShardRouting::started)
-                    .anyMatch(routing -> shuttingDownNodes.contains(routing.currentNodeId()) == false);
+                final boolean hasShardCopyOnOtherNode = hasShardCopyOnAnotherNode(currentState, pair.v1(), shuttingDownNodes);
                 if (hasShardCopyOnOtherNode) {
                     shardsToIgnoreForFinalStatus.incrementAndGet();
                 }
@@ -337,6 +330,17 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         } else {
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);
         }
+    }
+
+    private static boolean hasShardCopyOnAnotherNode(ClusterState clusterState, ShardRouting shardRouting, Set<String> shuttingDownNodes) {
+        return clusterState.routingTable()
+            .allShards(shardRouting.index().getName())
+            .stream()
+            .filter(sr -> sr.id() == shardRouting.id())
+            // If any shards are both 1) `STARTED` and 2) are not on a node that's shutting down, we have at least one copy
+            // of this shard safely on a node that's not shutting down, so we don't want to report `STALLED` because of this shard.
+            .filter(ShardRouting::started)
+            .anyMatch(routing -> shuttingDownNodes.contains(routing.currentNodeId()) == false);
     }
 
     @Override

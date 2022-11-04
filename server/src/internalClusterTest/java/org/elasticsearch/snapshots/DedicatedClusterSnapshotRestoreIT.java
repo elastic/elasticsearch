@@ -383,7 +383,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertDocCount("test-idx-closed", 100L);
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
         internalCluster().startNodes(2);

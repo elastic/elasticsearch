@@ -1,5 +1,0 @@
-pr: 91322
-summary: Make `writeIndex` a property of a data stream
-area: Data streams
-type: enhancement
-issues: []

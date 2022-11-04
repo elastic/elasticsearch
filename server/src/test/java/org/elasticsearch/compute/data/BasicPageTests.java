@@ -53,4 +53,13 @@ public class BasicPageTests extends ESTestCase {
         IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block2.getLong(i))));
     }
 
+    public void testReplace() {
+        Page page1 = new Page(new IntArrayBlock(IntStream.range(0, 10).toArray(), 10));
+        Page page2 = page1.replaceBlock(0, new LongArrayBlock(LongStream.range(0, 10).toArray(), 10));
+        assertThat(1, is(page1.getBlockCount()));
+        assertThat(1, is(page2.getBlockCount()));
+        Block block = page2.getBlock(0);
+        IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block.getLong(i))));
+    }
+
 }

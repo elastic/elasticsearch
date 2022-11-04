@@ -100,6 +100,25 @@ public final class Page {
         return new Page(false, positionCount, newBlocks);
     }
 
+    /**
+     * Creates a new page, replacing a block at the given index with a new block.
+     *
+     * @param blockIndex the index of the block to replace
+     * @param block the replacement block
+     * @return a new Page with the block replaced
+     * @throws IllegalArgumentException if the given block does not have the same number of
+     *         positions as the blocks in this Page
+     */
+    public Page replaceBlock(int blockIndex, Block block) {
+        if (positionCount != block.getPositionCount()) {
+            throw new IllegalArgumentException("Block does not have same position count");
+        }
+
+        Block[] newBlocks = Arrays.copyOf(blocks, blocks.length);
+        newBlocks[blockIndex] = block;
+        return new Page(false, positionCount, newBlocks);
+    }
+
     @Override
     public String toString() {
         return "Page{" + "blocks=" + Arrays.toString(blocks) + '}';

@@ -42,7 +42,9 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 
 @Experimental
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -58,7 +60,18 @@ public class EsqlActionIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
-                .setMapping("time", "type=date")
+                .setMapping(
+                    "data",
+                    "type=long",
+                    "data_d",
+                    "type=double",
+                    "count",
+                    "type=long",
+                    "count_d",
+                    "type=double",
+                    "time",
+                    "type=date"
+                )
                 .get()
         );
         long timestamp = epoch;
@@ -222,6 +235,12 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("count", "long"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("count_d", "double"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data", "long"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data_d", "double"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("time", "date"))));
+        // TODO: we have some extra internal columns as well (_doc_id, ...) that we should drop
     }
 
     public void testFromSortLimit() {
@@ -254,7 +273,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals("avg(ratio)", results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
         assertEquals(1, results.values().get(0).size());
-        assertEquals(0.96d, (double) results.values().get(0).get(0), 0.01d);
+        assertEquals(0.03d, (double) results.values().get(0).get(0), 0.01d);
     }
 
     public void testFromStatsEvalWithPragma() {

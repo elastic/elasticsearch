@@ -14,8 +14,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantIntBlock;
-import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
@@ -90,7 +90,7 @@ public class NumericDocValuesExtractor implements Operator {
 
     @Override
     public void addInput(Page page) {
-        IntArrayBlock docs = (IntArrayBlock) page.getBlock(docChannel);
+        Block docs = page.getBlock(docChannel);
         ConstantIntBlock leafOrd = (ConstantIntBlock) page.getBlock(leafOrdChannel);
         ConstantIntBlock shardOrd = (ConstantIntBlock) page.getBlock(shardChannel);
 

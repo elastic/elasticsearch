@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -251,9 +250,6 @@ public class LocalExecutionPlanner {
                 if (attr.dataType().isRational()) {
                     layout = new HashMap<>(layout);
                     int channel = layout.get(attr.id());
-                    layout.put(new NameId(), channel);
-                    layout.remove(attr.id());
-                    layout.put(attr.id(), layout.size());
                     op = new PhysicalOperation(
                         () -> new DoubleTransformerOperator(channel, NumericUtils::sortableLongToDouble),
                         layout,
@@ -265,7 +261,14 @@ public class LocalExecutionPlanner {
         } else if (node instanceof OutputExec outputExec) {
             PhysicalOperation source = plan(outputExec.child(), context);
             if (outputExec.output().size() != source.layout.size()) {
-                throw new IllegalStateException("expected layout:" + outputExec.output() + ", source.layout:" + source.layout);
+                throw new IllegalStateException(
+                    "expected layout:"
+                        + outputExec.output()
+                        + ": "
+                        + outputExec.output().stream().map(NamedExpression::id).collect(Collectors.toList())
+                        + ", source.layout:"
+                        + source.layout
+                );
             }
             return new PhysicalOperation(
                 () -> new OutputOperator(

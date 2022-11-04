@@ -49,6 +49,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
+    public static final Setting<String> HOST = Setting.simpleString("readiness.host", "localhost", Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
         this.serverChannel = null;
@@ -102,18 +103,26 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     // package private for testing
     ServerSocketChannel setupSocket() {
-        InetAddress localhost = InetAddress.getLoopbackAddress();
         int portNumber = PORT.get(environment.settings());
+        String host = HOST.get(environment.settings());
         assert portNumber >= 0;
+
+        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+            try {
+                return socketAddress(InetAddress.getByName(host), portNumber);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to resolve host " + host, e);
+            }
+        });
 
         try {
             serverChannel = ServerSocketChannel.open();
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
-                    serverChannel.bind(socketAddress(localhost, portNumber));
+                    serverChannel.bind(socketAddress);
                 } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
+                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
                 }
                 return null;
             });
@@ -129,7 +138,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 }
             }
         } catch (Exception e) {
-            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(localhost, portNumber), e);
+            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
         }
 
         return serverChannel;

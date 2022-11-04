@@ -77,9 +77,11 @@
 #
 # --------------------------------- Readiness ----------------------------------
 #
-# Enable an unauthenticated TCP readiness endpoint on localhost
+# Enable an unauthenticated TCP readiness endpoint. Unless specified with readiness.port
+# the readiness service binds to localhost.
 #
 #readiness.port: 9399
+#readiness.host: 192.168.0.1
 #
 # ---------------------------------- Various -----------------------------------
 #

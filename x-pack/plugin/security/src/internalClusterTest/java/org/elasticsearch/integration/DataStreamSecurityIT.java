@@ -97,6 +97,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                     DataStream broken = new DataStream(
                         original.getName(),
                         List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)),
+                        original.getIndices().get(1),
                         original.getGeneration(),
                         original.getMetadata(),
                         original.isHidden(),

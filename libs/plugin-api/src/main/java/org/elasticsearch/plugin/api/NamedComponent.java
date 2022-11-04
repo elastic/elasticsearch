@@ -23,5 +23,5 @@ public @interface NamedComponent {
      * The name used for registration and lookup
      * @return a name
      */
-    String name();
+    String value();
 }

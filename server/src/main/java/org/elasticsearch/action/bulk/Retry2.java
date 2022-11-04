@@ -56,6 +56,7 @@ class Retry2 {
      * matures.
      */
     private final PriorityBlockingQueue<Tuple<Long, RetryQueuePayload>> retryQueue;
+    private final TimeValue queuePollingInterval;
     /**
      * This is the maximum number of items that can be placed on the readyToLoadQueue. If we attempt to add a BulkRequest after this number
      * is reached, the listener is notified with an EsRejectedExecutionException and the BulkRequest is dropped.
@@ -66,6 +67,7 @@ class Retry2 {
      * this number is reached, the listener is notified with an EsRejectedExecutionException and the BulkRequest is dropped.
      */
     private final int retryQueueCapacity;
+    private final int maxNumberOfConcurrentRequests;
     /**
      * This semaphore is used to enforce that only a certain number of BulkRequests are in flight to the server at any given time.
      */
@@ -99,7 +101,8 @@ class Retry2 {
         Scheduler scheduler,
         int readyToLoadQueueCapacity,
         int retryQueueCapacity,
-        int maxNumberOfConcurrentRequests
+        int maxNumberOfConcurrentRequests,
+        TimeValue queuePollingInterval
     ) {
         assert readyToLoadQueueCapacity > 0;
         assert retryQueueCapacity > 0;
@@ -109,6 +112,7 @@ class Retry2 {
         this.scheduler = scheduler;
         this.readyToLoadQueueCapacity = readyToLoadQueueCapacity;
         this.retryQueueCapacity = retryQueueCapacity;
+        this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
         this.requestsInFlightSemaphore = new Semaphore(maxNumberOfConcurrentRequests);
         /*
          * Note that the capacity for ArrayBlockingQueue is a firm capacity, and attempts to add more than that many things will get
@@ -117,13 +121,14 @@ class Retry2 {
          */
         this.readyToLoadQueue = new ArrayBlockingQueue<>(readyToLoadQueueCapacity);
         this.retryQueue = new PriorityBlockingQueue<>(readyToLoadQueueCapacity, Comparator.comparing(Tuple::v1));
+        this.queuePollingInterval = queuePollingInterval;
     }
 
     /**
      * This method starts the regularly-scheduled task that monitors the queues.. It needs to be called before this class can be used.
      */
     public void init() {
-        flushCancellable = scheduler.scheduleWithFixedDelay(this::flush, TimeValue.timeValueMillis(10), ThreadPool.Names.GENERIC);
+        flushCancellable = scheduler.scheduleWithFixedDelay(this::flush, queuePollingInterval, ThreadPool.Names.GENERIC);
     }
 
     private record RetryQueuePayload(
@@ -231,10 +236,7 @@ class Retry2 {
      * has come and (2) It calls the consumer bulk requests that are on the readyToLoadQueue.
      */
     private void flush() {
-        int retryLoopCount = 0;
-        int mainLoopCount = 0;
         while (isClosing == false || System.nanoTime() < closingTime) {
-            retryLoopCount++;
             Tuple<Long, RetryQueuePayload> retry = retryQueue.poll();
             if (retry == null) {
                 break;
@@ -266,7 +268,6 @@ class Retry2 {
             }
         }
         while (isClosing == false || System.nanoTime() < closingTime) {
-            mainLoopCount++;
             boolean allowedToMakeRequest;
             long timeRemaining = isClosing ? closingTime - System.nanoTime() : 0;
             if (isClosing && timeRemaining > 0) {
@@ -283,9 +284,8 @@ class Retry2 {
             } else {
                 allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
             }
-            logger.trace("Semaphore locks remaining: {}", requestsInFlightSemaphore.availablePermits());
             if (allowedToMakeRequest == false) {
-                logger.trace("Unable to acquire semaphore because too many requests are already in flight");
+                logger.trace("Unable to acquire semaphore because {} requests are already in flight", maxNumberOfConcurrentRequests);
                 /*
                  * Too many requests are already in flight, so don't flush a bulk request to Elasticsearch.
                  */
@@ -307,7 +307,6 @@ class Retry2 {
                 new RetryHandler(requestsInFlightSemaphore, bulkRequest, responsesAccumulator, consumer, listener, backoff)
             );
         }
-        logger.trace("Retry loop count: {}, Main loop count: {}", retryLoopCount, mainLoopCount);
     }
 
     /**

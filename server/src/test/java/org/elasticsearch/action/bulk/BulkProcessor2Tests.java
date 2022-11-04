@@ -98,6 +98,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 new ByteSizeValue(5, ByteSizeUnit.MB),
                 10000,
                 10000,
+                TimeValue.timeValueMillis(5),
                 flushInterval,
                 threadPool,
                 threadPool,
@@ -234,6 +235,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 maxDocuments, // We don't want any rejections in this test
                 10000,
+                TimeValue.timeValueMillis(5),
                 null,
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
                     flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
@@ -358,6 +360,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 maxDocuments, // We don't want any rejections in this test
                 10000,
+                TimeValue.timeValueMillis(5),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
                     flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
@@ -456,11 +459,12 @@ public class BulkProcessor2Tests extends ESTestCase {
             consumer,
             BackoffPolicy.noBackoff(),
             emptyListener(),
-            0,
+            1,
             10,
             ByteSizeValue.ofBytes(1000),
             10000,
             10000,
+            TimeValue.timeValueMillis(5),
             null,
             (command, delay, executor) -> null,
             (command, delay, executor) -> null,
@@ -518,6 +522,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             ByteSizeValue.ofBytes(Integer.MAX_VALUE),
             1, // We want rejections
             10000,
+            TimeValue.timeValueMillis(5),
             null,
             (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
                 flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)

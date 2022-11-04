@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.concurrent.TimeUnit;
@@ -31,7 +32,8 @@ public final class BulkRequestHandler2 {
         Scheduler scheduler,
         int concurrentRequests,
         int maxBulkRequestQueueSize,
-        int maxBulkRequestRetryQueueSize
+        int maxBulkRequestRetryQueueSize,
+        TimeValue queuePollingInterval
     ) {
         assert concurrentRequests >= 0;
         assert maxBulkRequestQueueSize >= 0;
@@ -39,7 +41,14 @@ public final class BulkRequestHandler2 {
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(backoffPolicy, scheduler, maxBulkRequestQueueSize, maxBulkRequestRetryQueueSize, concurrentRequests);
+        this.retry = new Retry2(
+            backoffPolicy,
+            scheduler,
+            maxBulkRequestQueueSize,
+            maxBulkRequestRetryQueueSize,
+            concurrentRequests,
+            queuePollingInterval
+        );
         retry.init();
     }
 

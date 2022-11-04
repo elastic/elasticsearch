@@ -80,6 +80,7 @@ public class BulkProcessor2 implements Closeable {
         private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
         private int maxBulkRequestQueueSize = 1000;
         private int maxBulkRequestRetryQueueSize = 1000;
+        private TimeValue queuePollingInterval = TimeValue.timeValueMillis(100);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
 
@@ -116,16 +117,6 @@ public class BulkProcessor2 implements Closeable {
             return this;
         }
 
-        public Builder setMaxBulkRequestQueueSize(int maxBulkRequestQueueSize) {
-            this.maxBulkRequestQueueSize = maxBulkRequestQueueSize;
-            return this;
-        }
-
-        public Builder setMaxBulkRequestRetryQueueSize(int maxBulkRequestRetryQueueSize) {
-            this.maxBulkRequestRetryQueueSize = maxBulkRequestRetryQueueSize;
-            return this;
-        }
-
         /**
          * Sets when to flush a new bulk request based on the size of actions currently added. Defaults to
          * {@code 5mb}. Can be set to {@code -1} to disable it.
@@ -136,7 +127,38 @@ public class BulkProcessor2 implements Closeable {
         }
 
         /**
-         * Sets a flush interval flushing *any* bulk actions pending if the interval passes. Defaults to not set.
+         * Sets the maximum size of the queue of BulkRequests kept in memory to be loaded by this processor. Defaults to 1000.
+         * @param maxBulkRequestQueueSize
+         * @return
+         */
+        public Builder setMaxBulkRequestQueueSize(int maxBulkRequestQueueSize) {
+            this.maxBulkRequestQueueSize = maxBulkRequestQueueSize;
+            return this;
+        }
+
+        /**
+         * Sets the maximum size of the queue of BulkRequests kept in memory that have failed and are to be retried at some point in the
+         * future. Defaults to 1000.
+         * @param maxBulkRequestRetryQueueSize
+         * @return
+         */
+        public Builder setMaxBulkRequestRetryQueueSize(int maxBulkRequestRetryQueueSize) {
+            this.maxBulkRequestRetryQueueSize = maxBulkRequestRetryQueueSize;
+            return this;
+        }
+
+        /**
+         * Sets the interval at which the two queues configured above are to be polled. Defaults to 100ms.
+         * @param queuePollingInterval
+         * @return
+         */
+        public Builder setQueuePollingInterval(TimeValue queuePollingInterval) {
+            this.queuePollingInterval = queuePollingInterval;
+            return this;
+        }
+
+        /**
+         * Sets a flush interval flushing *any* bulk actions pending into a queue if the interval passes. Defaults to not set.
          * <p>
          * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(org.elasticsearch.common.unit.ByteSizeValue)}
          * can be set to {@code -1} with the flush interval set allowing for complete async processing of bulk actions.
@@ -175,6 +197,7 @@ public class BulkProcessor2 implements Closeable {
                 maxBulkSizeInBytes,
                 maxBulkRequestQueueSize,
                 maxBulkRequestRetryQueueSize,
+                queuePollingInterval,
                 flushInterval,
                 flushScheduler,
                 retryScheduler,
@@ -230,6 +253,7 @@ public class BulkProcessor2 implements Closeable {
         ByteSizeValue bulkSize,
         int maxBulkRequestQueueSize,
         int maxBulkRequestRetryQueueSize,
+        TimeValue queuePollingInterval,
         @Nullable TimeValue flushInterval,
         Scheduler flushScheduler,
         Scheduler retryScheduler,
@@ -245,7 +269,8 @@ public class BulkProcessor2 implements Closeable {
             retryScheduler,
             concurrentRequests,
             maxBulkRequestQueueSize,
-            maxBulkRequestRetryQueueSize
+            maxBulkRequestRetryQueueSize,
+            queuePollingInterval
         );
         // Start period flushing task after everything is setup
         this.cancellableFlushTask = startFlushTask(flushInterval, flushScheduler);

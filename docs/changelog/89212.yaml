@@ -22,7 +22,7 @@ highlight:
     The 
     {ref}/search-aggregations-bucket-frequent-items-aggregation.html[frequent items aggregation] 
     is a new bucket aggregation which identifies items that often occur 
-    together. It is a form of association rules mining that helps to discover 
+    together. It is a form of association rule mining that helps to discover 
     relationships between different data points. For example, the aggregation 
     can find attributes of log events that tend to co-occur and may give a more informative 
     explanation for the possible causes of a spike in the logs.

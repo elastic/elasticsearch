@@ -53,7 +53,7 @@ import java.util.Objects;
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static final String ROLE_TYPE = "role";
-    public static final Version VERSION_REMOTE_INDICES = Version.V_8_6_0;
+    public static final Version VERSION_REMOTE_INDICES = TcpTransport.UNTRUSTED_REMOTE_CLUSTER_VERSION;
 
     private final String name;
     private final String[] clusterPrivileges;

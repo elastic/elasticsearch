@@ -105,6 +105,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Setting.Property.NodeScope
     );
 
+    // When feature flag is removed, change this to the actual release version
+    public static final Version UNTRUSTED_REMOTE_CLUSTER_VERSION = Version.CURRENT;
+
     private static final Boolean UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED;
 
     static {

@@ -115,7 +115,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
         TransformNodes.throwIfNoTransformNodes(clusterState);
 

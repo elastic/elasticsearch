@@ -85,6 +85,36 @@ setup:
                         reduce_script:
                           source: "double sum = 0; for (a in states) { if (a != null) { sum += a } } return sum"
 ---
+"Nested, Composite, Top Hits":
+  - skip:
+      version: " - 8.5.99"
+      reason:  fixed in 8.6
+  - do:
+      catch: /Incompatible use of non-scorable and score-required aggregations/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 0
+          track_total_hits: -1
+          aggregations:
+            data:
+              nested:
+                path: "lines"
+              aggregations:
+                my_buckets:
+                  composite:
+                    size: 20
+                    sources:
+                      -
+                        prod_name:
+                          terms:
+                            field: "lines.name"
+                  aggregations:
+                    th:
+                      top_hits:
+                        size: 1
+---
 "Nested, Composite, Scripted Metric (scores disabled)":
   - skip:
       version: " - 8.5.99"

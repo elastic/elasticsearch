@@ -101,7 +101,7 @@ public class EnrollmentSingleNodeTests extends SecuritySingleNodeTestCase {
         );
         final AuthenticateResponse authenticateResponse1 = apiKeyClient.execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
             .actionGet();
-        assertThat(authenticateResponse1.authentication().getUser().principal(), equalTo("_xpack_security"));
+        assertThat(authenticateResponse1.authentication().getEffectiveSubject().getUser().principal(), equalTo("_xpack_security"));
 
         final KibanaEnrollmentResponse kibanaEnrollmentResponse = apiKeyClient.execute(
             KibanaEnrollmentAction.INSTANCE,
@@ -115,6 +115,6 @@ public class EnrollmentSingleNodeTests extends SecuritySingleNodeTestCase {
 
         final AuthenticateResponse authenticateResponse2 = kibanaClient.execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
             .actionGet();
-        assertThat(authenticateResponse2.authentication().getUser().principal(), equalTo("elastic/kibana"));
+        assertThat(authenticateResponse2.authentication().getEffectiveSubject().getUser().principal(), equalTo("elastic/kibana"));
     }
 }

@@ -1,5 +1,0 @@
-pr: 89833
-summary: "Synthetic _source: support histogram field"
-area: TSDB
-type: enhancement
-issues: []

@@ -1,6 +1,0 @@
-pr: 89974
-summary: "Top_metrics: consistently allow sorting by size>1"
-area: Aggregations
-type: bug
-issues:
- - 86663

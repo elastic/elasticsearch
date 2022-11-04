@@ -27,6 +27,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
@@ -111,7 +112,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
         }
         testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
-        whitelists.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
+        whitelists.put(PainlessTestScript.CONTEXT, testWhitelists);
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
@@ -171,7 +172,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public List<ScriptContext<?>> getContexts() {
-        return Collections.singletonList(PainlessExecuteAction.PainlessTestScript.CONTEXT);
+        return Collections.singletonList(PainlessTestScript.CONTEXT);
     }
 
     @Override

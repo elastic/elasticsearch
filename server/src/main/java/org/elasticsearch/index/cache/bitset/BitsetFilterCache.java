@@ -267,7 +267,7 @@ public final class BitsetFilterCache
             MappingLookup lookup = mapperService.mappingLookup();
             NestedLookup nestedLookup = lookup.nestedLookup();
             if (nestedLookup != NestedLookup.EMPTY) {
-                warmUp.add(Queries.newNonNestedFilter());
+                warmUp.add(Queries.newNonNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated()));
                 warmUp.addAll(nestedLookup.getNestedParentFilters().values());
             }
 

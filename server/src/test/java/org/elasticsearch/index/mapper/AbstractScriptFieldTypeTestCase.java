@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -394,5 +395,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             return deterministicSource ? (T) GeoPointFieldScript.PARSE_FROM_SOURCE : (T) GeoPointFieldScriptTests.DUMMY;
         }
         throw new IllegalArgumentException("Unsupported context: " + context);
+    }
+
+    /**
+     * We need to make sure we don't randomize the useThreads parameter for subtests of this abstract test case
+     * because scripted fields use {@link SourceLookup} which isn't thread-safe.
+     * Also Elasticsearch doesn't support concurrent searches so far, so we don't need to test it.
+     */
+    protected IndexSearcher newUnthreadedSearcher(IndexReader reader) {
+        return newSearcher(reader, true, true, false);
     }
 }

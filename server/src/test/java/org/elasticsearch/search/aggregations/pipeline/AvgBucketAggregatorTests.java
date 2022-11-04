@@ -112,10 +112,12 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 avgResult = searchAndReduce(
-                    new AggTestConfig(indexSearcher, avgBuilder, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(avgBuilder, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
                 );
                 histogramResult = searchAndReduce(
-                    new AggTestConfig(indexSearcher, histo, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(histo, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
                 );
             }
 
@@ -171,7 +173,8 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
                 MappedFieldType keywordField = keywordField(textField);
 
                 filterResult = searchAndReduce(
-                    new AggTestConfig(indexSearcher, filterAggregationBuilder, fieldType, valueFieldType, keywordField).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(filterAggregationBuilder, fieldType, valueFieldType, keywordField).withQuery(query)
                 );
             }
 

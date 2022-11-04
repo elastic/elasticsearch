@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -31,6 +33,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -207,14 +210,14 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                             )
                         ) // Convert to ShardId
                         .collect(Collectors.toSet());
-
-                    // TODO: Send the set of red shards to the nodes, and create the result in the listener
                     var nodeIds = nodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
                     var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, nodeIds).timeout(request.timeout());
                     client.execute(TransportCheckShardsOnDataPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(CheckShardsOnDataPathResponse response) {
-                            listener.onResponse(new PrevalidateNodeRemovalResponse(createPrevalidationResult(response)));
+                            listener.onResponse(
+                                new PrevalidateNodeRemovalResponse(createPrevalidationResult(clusterState.nodes(), response))
+                            );
                         }
 
                         @Override
@@ -227,21 +230,59 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         }
     }
 
-    private NodesRemovalPrevalidation createPrevalidationResult(CheckShardsOnDataPathResponse response) {
-        // TODO: refine the NO response
-        Result result = new Result(IsSafe.NO, "cluster health is RED");
-        List<NodeResult> nodeResults = response.getNodes()
-            .stream()
-            .map(NodeCheckShardsOnDataPathResponse::getNode)
-            .map(
-                dn -> new NodeResult(
-                    dn.getName(),
-                    dn.getId(),
-                    dn.getExternalId(),
-                    new Result(IsSafe.NO, "node may contain a copy of a red index shard")
+    private NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, CheckShardsOnDataPathResponse response) {
+        List<NodeResult> nodeResults = new ArrayList<>(response.getNodes().size() + response.failures().size());
+        for (NodeCheckShardsOnDataPathResponse nodeResponse : response.getNodes()) {
+            Result result;
+            if (nodeResponse.getShardIds().isEmpty()) {
+                result = new Result(IsSafe.YES, "");
+            } else {
+                result = new Result(
+                    IsSafe.NO,
+                    Strings.format("node contains copies of the following red shards: %s", nodeResponse.getShardIds())
+                );
+            }
+            nodeResults.add(
+                new NodeResult(
+                    nodeResponse.getNode().getName(),
+                    nodeResponse.getNode().getId(),
+                    nodeResponse.getNode().getExternalId(),
+                    result
                 )
-            )
-            .toList();
-        return new NodesRemovalPrevalidation(result, nodeResults);
+            );
+        }
+        for (FailedNodeException failedResponse : response.failures()) {
+            DiscoveryNode node = nodes.get(failedResponse.nodeId());
+            nodeResults.add(
+                new NodeResult(
+                    node.getName(),
+                    node.getId(),
+                    node.getExternalId(),
+                    new Result(IsSafe.UNKNOWN, Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage()))
+                )
+            );
+        }
+        // determine overall result from the node results.
+        Result prevalidationResult;
+        Set<String> unsafeNodeRemovals = response.getNodes()
+            .stream()
+            .filter(r -> r.getShardIds().isEmpty() == false)
+            .map(r -> r.getNode().getId())
+            .collect(Collectors.toSet());
+        if (unsafeNodeRemovals.isEmpty() == false) {
+            prevalidationResult = new Result(
+                IsSafe.NO,
+                Strings.format("nodes with the following IDs contain copies of red shards: %s", unsafeNodeRemovals)
+            );
+        } else if (response.failures().isEmpty() == false) {
+            Set<String> unknownNodeRemovals = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.toSet());
+            prevalidationResult = new Result(
+                IsSafe.UNKNOWN,
+                Strings.format("cannot prevalidate removal of nodes with the following IDs: %s", unknownNodeRemovals)
+            );
+        } else {
+            prevalidationResult = new Result(IsSafe.YES, "");
+        }
+        return new NodesRemovalPrevalidation(prevalidationResult, nodeResults);
     }
 }

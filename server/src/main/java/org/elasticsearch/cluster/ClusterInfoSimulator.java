@@ -27,8 +27,8 @@ public class ClusterInfoSimulator {
         this.leastAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeMostAvailableDiskUsages());
         this.shardSizes = new HashMap<>(clusterInfo.shardSizes);
-        this.shardDataSetSizes = new HashMap<>(clusterInfo.shardDataSetSizes);
-        this.dataPath = new HashMap<>(clusterInfo.dataPath);
+        this.shardDataSetSizes = Map.copyOf(clusterInfo.shardDataSetSizes);
+        this.dataPath = Map.copyOf(clusterInfo.dataPath);
     }
 
     /**

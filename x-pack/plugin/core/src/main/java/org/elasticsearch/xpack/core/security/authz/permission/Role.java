@@ -228,10 +228,6 @@ public interface Role {
             return this;
         }
 
-        public Builder addRemoteGroup(final Set<String> remoteClusterAliases, final IndexPrivilege privilege, final String... indices) {
-            return addRemoteGroup(remoteClusterAliases, FieldPermissions.DEFAULT, null, privilege, false, indices);
-        }
-
         public Builder addRemoteGroup(
             final Set<String> remoteClusterAliases,
             final FieldPermissions fieldPermissions,

@@ -1391,7 +1391,7 @@ public class RBACEngineTests extends ESTestCase {
             )
             .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
-            .addRemoteGroup(Set.of("remote-1"), IndexPrivilege.READ, "remote-index-1")
+            .addRemoteGroup(Set.of("remote-1"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-1")
             .addRemoteGroup(
                 Set.of("remote-2", "remote-3"),
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),

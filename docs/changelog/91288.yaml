@@ -1,5 +1,5 @@
 pr: 91288
-summary: Do not count interim buckets towards the bucket count
+summary: Interim buckets should not count towards the total bucket count
 area: Machine Learning
 type: bug
 issues: []

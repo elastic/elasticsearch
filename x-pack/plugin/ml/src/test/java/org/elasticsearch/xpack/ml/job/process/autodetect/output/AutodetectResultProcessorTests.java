@@ -178,7 +178,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getBucket()).thenReturn(bucket);
 
         processorUnderTest.processResult(result);
-        assertEquals(1L, processorUnderTest.currentRunBucketCount());
+        assertEquals(1L, processorUnderTest.getCurrentRunBucketCount());
         assertFalse(processorUnderTest.isDeleteInterimRequired());
 
         verify(bulkResultsPersister).persistTimingStats(any(TimingStats.class));
@@ -198,7 +198,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
-        assertEquals(0L, processorUnderTest.currentRunBucketCount());
+        assertEquals(0L, processorUnderTest.getCurrentRunBucketCount());
 
         verify(bulkResultsPersister, never()).persistTimingStats(any(TimingStats.class));
         verify(bulkResultsPersister).persistBucket(bucket);

@@ -586,6 +586,8 @@ public class AutodetectResultProcessor {
         this.deleteInterimRequired = deleteInterimRequired;
     }
 
+    // For testing only.
+    // Reading currentRunBucketCount is not thread safe
     long getCurrentRunBucketCount() {
         return currentRunBucketCount;
     }

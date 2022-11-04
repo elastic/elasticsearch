@@ -551,6 +551,10 @@ public interface AuthorizationEngine {
      */
     class IndexAuthorizationResult extends AuthorizationResult {
 
+        public static final IndexAuthorizationResult DENIED = new IndexAuthorizationResult(IndicesAccessControl.DENIED);
+        public static final IndexAuthorizationResult EMPTY = new IndexAuthorizationResult(null);
+        public static final IndexAuthorizationResult ALLOW_NO_INDICES = new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES);
+
         private final IndicesAccessControl indicesAccessControl;
 
         public IndexAuthorizationResult(IndicesAccessControl indicesAccessControl) {

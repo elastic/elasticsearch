@@ -29,7 +29,6 @@ setup:
 "Test get desired balance":
     -   do:
             _internal.get_desired_balance: { }
-#    -   match: { stats.computation_active: false }
     -   gte: { stats.computation_submitted: 0 }
     -   gte: { stats.computation_executed: 0 }
     -   gte: { stats.computation_converged: 0 }
@@ -37,10 +36,17 @@ setup:
     -   gte: { stats.computation_converged_index: 0 }
     -   gte: { stats.computation_time_in_millis: 0 }
     -   gte: { stats.reconciliation_time_in_millis: 0 }
-
     -   match: { routing_table.test.0.current.state: 'STARTED' }
     -   match: { routing_table.test.0.current.primary: true }
-#    -   match: { routing_table.test.0.current.node_is_desired: false }
     -   match: { routing_table.test.0.current.shard_id: 0 }
     -   match: { routing_table.test.0.current.index: test }
-#    -   match: { routing_table.test.0.desired.node_ids: test }
+    -   gte: { routing_table.test.0.desired.total: 0 }
+    -   gte: { routing_table.test.0.desired.unassigned: 0 }
+    -   gte: { routing_table.test.0.desired.ignored: 0 }
+    -   match: { routing_table.test.1.current.state: 'STARTED' }
+    -   match: { routing_table.test.1.current.primary: true }
+    -   match: { routing_table.test.1.current.shard_id: 1 }
+    -   match: { routing_table.test.1.current.index: test }
+    -   gte: { routing_table.test.1.desired.total: 0 }
+    -   gte: { routing_table.test.1.desired.unassigned: 0 }
+    -   gte: { routing_table.test.1.desired.ignored: 0 }

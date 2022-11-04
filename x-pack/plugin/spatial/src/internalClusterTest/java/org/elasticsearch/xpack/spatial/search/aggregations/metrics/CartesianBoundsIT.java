@@ -1,24 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.BigArray;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
+import org.elasticsearch.search.aggregations.metrics.AbstractGeoTestCase;
+import org.elasticsearch.search.aggregations.metrics.SpatialBounds;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -34,21 +40,24 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.SuiteScopeTestCase
-public class GeoBoundsIT extends AbstractGeoTestCase {
-    private static final String aggName = "geoBounds";
+public class CartesianBoundsIT extends AbstractGeoTestCase {
+    private static final String aggName = "cartesianBounds";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(LocalStateSpatialPlugin.class);
+    }
 
     public void testSingleValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
-            .get();
+        SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)).get();
 
         assertSearchResponse(response);
 
-        SpatialBounds<GeoPoint> geoBounds = response.getAggregations().get(aggName);
+        SpatialBounds<CartesianPoint> geoBounds = response.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
+        CartesianPoint topLeft = geoBounds.topLeft();
+        CartesianPoint bottomRight = geoBounds.bottomRight();
         assertThat(topLeft.getY(), closeTo(singleTopLeft.getY(), GEOHASH_TOLERANCE));
         assertThat(topLeft.getX(), closeTo(singleTopLeft.getX(), GEOHASH_TOLERANCE));
         assertThat(bottomRight.getY(), closeTo(singleBottomRight.getY(), GEOHASH_TOLERANCE));
@@ -58,7 +67,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
     public void testSingleValuedField_getProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
             .setQuery(matchAllQuery())
-            .addAggregation(global("global").subAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)))
+            .addAggregation(global("global").subAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -70,12 +79,12 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
-        SpatialBounds<GeoPoint> geobounds = global.getAggregations().get(aggName);
+        SpatialBounds<CartesianPoint> geobounds = global.getAggregations().get(aggName);
         assertThat(geobounds, notNullValue());
         assertThat(geobounds.getName(), equalTo(aggName));
         assertThat((SpatialBounds<?>) ((InternalAggregation) global).getProperty(aggName), sameInstance(geobounds));
-        GeoPoint topLeft = geobounds.topLeft();
-        GeoPoint bottomRight = geobounds.bottomRight();
+        CartesianPoint topLeft = geobounds.topLeft();
+        CartesianPoint bottomRight = geobounds.bottomRight();
         assertThat(topLeft.getY(), closeTo(singleTopLeft.getY(), GEOHASH_TOLERANCE));
         assertThat(topLeft.getX(), closeTo(singleTopLeft.getX(), GEOHASH_TOLERANCE));
         assertThat(bottomRight.getY(), closeTo(singleBottomRight.getY(), GEOHASH_TOLERANCE));
@@ -96,17 +105,15 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .addAggregation(geoBounds(aggName).field(MULTI_VALUED_FIELD_NAME).wrapLongitude(false))
-            .get();
+        SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(geoBounds(aggName).field(MULTI_VALUED_FIELD_NAME)).get();
 
         assertSearchResponse(response);
 
-        SpatialBounds<GeoPoint> geoBounds = response.getAggregations().get(aggName);
+        SpatialBounds<CartesianPoint> geoBounds = response.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
+        CartesianPoint topLeft = geoBounds.topLeft();
+        CartesianPoint bottomRight = geoBounds.bottomRight();
         assertThat(topLeft.getY(), closeTo(multiTopLeft.getY(), GEOHASH_TOLERANCE));
         assertThat(topLeft.getX(), closeTo(multiTopLeft.getX(), GEOHASH_TOLERANCE));
         assertThat(bottomRight.getY(), closeTo(multiBottomRight.getY(), GEOHASH_TOLERANCE));
@@ -115,32 +122,32 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
-            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
+            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertSearchResponse(response);
 
-        SpatialBounds<GeoPoint> geoBounds = response.getAggregations().get(aggName);
+        SpatialBounds<CartesianPoint> geoBounds = response.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
+        CartesianPoint topLeft = geoBounds.topLeft();
+        CartesianPoint bottomRight = geoBounds.bottomRight();
         assertThat(topLeft, equalTo(null));
         assertThat(bottomRight, equalTo(null));
     }
 
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
-            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
+            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertSearchResponse(response);
 
-        SpatialBounds<GeoPoint> geoBounds = response.getAggregations().get(aggName);
+        SpatialBounds<CartesianPoint> geoBounds = response.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
+        CartesianPoint topLeft = geoBounds.topLeft();
+        CartesianPoint bottomRight = geoBounds.bottomRight();
         assertThat(topLeft.getY(), closeTo(singleTopLeft.getY(), GEOHASH_TOLERANCE));
         assertThat(topLeft.getX(), closeTo(singleTopLeft.getX(), GEOHASH_TOLERANCE));
         assertThat(bottomRight.getY(), closeTo(singleBottomRight.getY(), GEOHASH_TOLERANCE));
@@ -150,70 +157,25 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch(EMPTY_IDX_NAME)
             .setQuery(matchAllQuery())
-            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
+            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
-        SpatialBounds<GeoPoint> geoBounds = searchResponse.getAggregations().get(aggName);
+        SpatialBounds<CartesianPoint> geoBounds = searchResponse.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
+        CartesianPoint topLeft = geoBounds.topLeft();
+        CartesianPoint bottomRight = geoBounds.bottomRight();
         assertThat(topLeft, equalTo(null));
         assertThat(bottomRight, equalTo(null));
     }
 
-    public void testSingleValuedFieldNearDateLine() throws Exception {
-        SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
-            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
-            .get();
-
-        assertSearchResponse(response);
-
-        GeoPoint geoValuesTopLeft = new GeoPoint(38, -179);
-        GeoPoint geoValuesBottomRight = new GeoPoint(-24, 178);
-
-        SpatialBounds<GeoPoint> geoBounds = response.getAggregations().get(aggName);
-        assertThat(geoBounds, notNullValue());
-        assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
-        assertThat(topLeft.getY(), closeTo(geoValuesTopLeft.getY(), GEOHASH_TOLERANCE));
-        assertThat(topLeft.getX(), closeTo(geoValuesTopLeft.getX(), GEOHASH_TOLERANCE));
-        assertThat(bottomRight.getY(), closeTo(geoValuesBottomRight.getY(), GEOHASH_TOLERANCE));
-        assertThat(bottomRight.getX(), closeTo(geoValuesBottomRight.getX(), GEOHASH_TOLERANCE));
-    }
-
-    public void testSingleValuedFieldNearDateLineWrapLongitude() throws Exception {
-
-        GeoPoint geoValuesTopLeft = new GeoPoint(38, 170);
-        GeoPoint geoValuesBottomRight = new GeoPoint(-24, -175);
-        SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
-            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(true))
-            .get();
-
-        assertSearchResponse(response);
-
-        SpatialBounds<GeoPoint> geoBounds = response.getAggregations().get(aggName);
-        assertThat(geoBounds, notNullValue());
-        assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
-        assertThat(topLeft.getY(), closeTo(geoValuesTopLeft.getY(), GEOHASH_TOLERANCE));
-        assertThat(topLeft.getX(), closeTo(geoValuesTopLeft.getX(), GEOHASH_TOLERANCE));
-        assertThat(bottomRight.getY(), closeTo(geoValuesBottomRight.getY(), GEOHASH_TOLERANCE));
-        assertThat(bottomRight.getX(), closeTo(geoValuesBottomRight.getX(), GEOHASH_TOLERANCE));
-    }
-
     /**
-     * This test forces the {@link GeoBoundsAggregator} to resize the {@link BigArray}s it uses to ensure they are resized correctly
+     * This test forces the {@link CartesianBoundsAggregator} to resize the {@link BigArray}s it uses to ensure they are resized correctly
      */
     public void testSingleValuedFieldAsSubAggToHighCardTermsAgg() {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addAggregation(
-                terms("terms").field(NUMBER_FIELD_NAME)
-                    .subAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
-            )
+            .addAggregation(terms("terms").field(NUMBER_FIELD_NAME).subAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)))
             .get();
 
         assertSearchResponse(response);
@@ -227,65 +189,66 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat("InternalBucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1L));
-            SpatialBounds<GeoPoint> geoBounds = bucket.getAggregations().get(aggName);
+            SpatialBounds<CartesianPoint> geoBounds = bucket.getAggregations().get(aggName);
             assertThat(geoBounds, notNullValue());
             assertThat(geoBounds.getName(), equalTo(aggName));
-            assertThat(geoBounds.topLeft().getLat(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
-            assertThat(geoBounds.topLeft().getLon(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
-            assertThat(geoBounds.bottomRight().getLat(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
-            assertThat(geoBounds.bottomRight().getLon(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
+            assertThat(geoBounds.topLeft().getY(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
+            assertThat(geoBounds.topLeft().getX(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
+            assertThat(geoBounds.bottomRight().getY(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
+            assertThat(geoBounds.bottomRight().getX(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
         }
     }
 
     public void testSingleValuedFieldWithZeroLon() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_ZERO_NAME)
-            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
+            .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertSearchResponse(response);
 
-        SpatialBounds<GeoPoint> geoBounds = response.getAggregations().get(aggName);
+        SpatialBounds<CartesianPoint> geoBounds = response.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
-        GeoPoint topLeft = geoBounds.topLeft();
-        GeoPoint bottomRight = geoBounds.bottomRight();
+        CartesianPoint topLeft = geoBounds.topLeft();
+        CartesianPoint bottomRight = geoBounds.bottomRight();
         assertThat(topLeft.getY(), closeTo(1.0, GEOHASH_TOLERANCE));
         assertThat(topLeft.getX(), closeTo(0.0, GEOHASH_TOLERANCE));
         assertThat(bottomRight.getY(), closeTo(1.0, GEOHASH_TOLERANCE));
         assertThat(bottomRight.getX(), closeTo(0.0, GEOHASH_TOLERANCE));
     }
 
-    public static GeoBoundsAggregationBuilder geoBounds(String name) {
-        return new GeoBoundsAggregationBuilder(name);
+    public static CartesianBoundsAggregationBuilder geoBounds(String name) {
+        return new CartesianBoundsAggregationBuilder(name);
     }
 
     @Override
     protected String fieldTypeName() {
-        return "geo_point";
+        return "point";
     }
 
     @Override
-    protected GeoPoint makePoint(double x, double y) {
-        return new GeoPoint(y, x);
+    protected CartesianPoint makePoint(double x, double y) {
+        return new CartesianPoint(x, y);
     }
 
     @Override
-    protected GeoPoint randomPoint() {
-        return RandomGeoGenerator.randomPoint(random());
+    protected CartesianPoint randomPoint() {
+        Point point = ShapeTestUtils.randomPointNotExtreme(false);
+        return new CartesianPoint(point.getX(), point.getY());
     }
 
     @Override
     protected void resetX(SpatialPoint point, double x) {
-        ((GeoPoint) point).resetLon(x);
+        ((CartesianPoint) point).resetX(x);
     }
 
     @Override
     protected void resetY(SpatialPoint point, double y) {
-        ((GeoPoint) point).resetLat(y);
+        ((CartesianPoint) point).resetY(y);
     }
 
     @Override
-    protected GeoPoint reset(SpatialPoint point, double x, double y) {
-        return ((GeoPoint) point).reset(y, x);
+    protected CartesianPoint reset(SpatialPoint point, double x, double y) {
+        return ((CartesianPoint) point).reset(x, y);
     }
 }

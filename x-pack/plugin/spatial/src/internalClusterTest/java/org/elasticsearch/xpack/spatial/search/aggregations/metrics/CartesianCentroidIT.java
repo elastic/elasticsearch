@@ -1,26 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.metrics.AbstractGeoTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -29,11 +31,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Integration Test for GeoCentroid metric aggregator
+ * Integration Test for CartesianCentroid metric aggregator
  */
 @ESIntegTestCase.SuiteScopeTestCase
-public class GeoCentroidIT extends AbstractGeoTestCase {
-    private static final String aggName = "geoCentroid";
+public class CartesianCentroidIT extends AbstractGeoTestCase {
+    private static final String aggName = "cartesianCentroid";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(LocalStateSpatialPlugin.class);
+    }
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)
@@ -42,7 +49,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
+        CartesianCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
@@ -56,7 +63,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
+        CartesianCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         assertThat(geoCentroid.centroid(), equalTo(null));
@@ -69,7 +76,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
+        CartesianCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         assertSameCentroid(geoCentroid.centroid(), singleCentroid);
@@ -83,7 +90,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
+        CartesianCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         assertSameCentroid(geoCentroid.centroid(), singleCentroid);
@@ -104,27 +111,21 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
-        GeoCentroid geoCentroid = global.getAggregations().get(aggName);
+        CartesianCentroid geoCentroid = global.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
-        assertThat((GeoCentroid) ((InternalAggregation) global).getProperty(aggName), sameInstance(geoCentroid));
+        assertThat((CartesianCentroid) ((InternalAggregation) global).getProperty(aggName), sameInstance(geoCentroid));
         assertSameCentroid(geoCentroid.centroid(), singleCentroid);
         assertThat(
-            ((GeoPoint) ((InternalAggregation) global).getProperty(aggName + ".value")).getY(),
+            ((CartesianPoint) ((InternalAggregation) global).getProperty(aggName + ".value")).getY(),
             closeTo(singleCentroid.getY(), GEOHASH_TOLERANCE)
         );
         assertThat(
-            ((GeoPoint) ((InternalAggregation) global).getProperty(aggName + ".value")).getX(),
+            ((CartesianPoint) ((InternalAggregation) global).getProperty(aggName + ".value")).getX(),
             closeTo(singleCentroid.getX(), GEOHASH_TOLERANCE)
         );
-        assertThat(
-            (double) ((InternalAggregation) global).getProperty(aggName + ".lat"),
-            closeTo(singleCentroid.getY(), GEOHASH_TOLERANCE)
-        );
-        assertThat(
-            (double) ((InternalAggregation) global).getProperty(aggName + ".lon"),
-            closeTo(singleCentroid.getX(), GEOHASH_TOLERANCE)
-        );
+        assertThat((double) ((InternalAggregation) global).getProperty(aggName + ".y"), closeTo(singleCentroid.getY(), GEOHASH_TOLERANCE));
+        assertThat((double) ((InternalAggregation) global).getProperty(aggName + ".x"), closeTo(singleCentroid.getX(), GEOHASH_TOLERANCE));
         assertEquals(numDocs, (long) ((InternalAggregation) global).getProperty(aggName + ".count"));
     }
 
@@ -135,64 +136,45 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(searchResponse);
 
-        GeoCentroid geoCentroid = searchResponse.getAggregations().get(aggName);
+        CartesianCentroid geoCentroid = searchResponse.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         assertSameCentroid(geoCentroid.centroid(), multiCentroid);
         assertEquals(2 * numDocs, geoCentroid.count());
     }
 
-    public void testSingleValueFieldAsSubAggToGeohashGrid() {
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addAggregation(
-                geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME).subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
-        assertSearchResponse(response);
-
-        GeoGrid grid = response.getAggregations().get("geoGrid");
-        assertThat(grid, notNullValue());
-        assertThat(grid.getName(), equalTo("geoGrid"));
-        List<? extends GeoGrid.Bucket> buckets = grid.getBuckets();
-        for (GeoGrid.Bucket cell : buckets) {
-            String geohash = cell.getKeyAsString();
-            SpatialPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
-            GeoCentroid centroidAgg = cell.getAggregations().get(aggName);
-            assertSameCentroid(centroidAgg.centroid(), expectedCentroid);
-        }
-    }
-
-    public static GeoCentroidAggregationBuilder geoCentroid(String name) {
-        return new GeoCentroidAggregationBuilder(name);
+    public static CartesianCentroidAggregationBuilder geoCentroid(String name) {
+        return new CartesianCentroidAggregationBuilder(name);
     }
 
     @Override
     protected String fieldTypeName() {
-        return "geo_point";
+        return "point";
     }
 
     @Override
-    protected GeoPoint makePoint(double x, double y) {
-        return new GeoPoint(y, x);
+    protected CartesianPoint makePoint(double x, double y) {
+        return new CartesianPoint(x, y);
     }
 
     @Override
-    protected GeoPoint randomPoint() {
-        return RandomGeoGenerator.randomPoint(random());
+    protected CartesianPoint randomPoint() {
+        Point point = ShapeTestUtils.randomPointNotExtreme(false);
+        return new CartesianPoint(point.getX(), point.getY());
     }
 
     @Override
     protected void resetX(SpatialPoint point, double x) {
-        ((GeoPoint) point).resetLon(x);
+        ((CartesianPoint) point).resetX(x);
     }
 
     @Override
     protected void resetY(SpatialPoint point, double y) {
-        ((GeoPoint) point).resetLat(y);
+        ((CartesianPoint) point).resetY(y);
     }
 
     @Override
-    protected GeoPoint reset(SpatialPoint point, double x, double y) {
-        return ((GeoPoint) point).reset(y, x);
+    protected CartesianPoint reset(SpatialPoint point, double x, double y) {
+        return ((CartesianPoint) point).reset(x, y);
     }
 }

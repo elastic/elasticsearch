@@ -29,8 +29,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class TransportActionProxyTests extends ESTestCase {
     protected ThreadPool threadPool;
@@ -139,28 +141,26 @@ public class TransportActionProxyTests extends ESTestCase {
         latch.await();
     }
 
-    public void testSendMessageToLocalNode() throws InterruptedException {
-        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            assertEquals(request.sourceNode, "TS_A");
-            final SimpleTestResponse response = new SimpleTestResponse("TS_A");
-            channel.sendResponse(response);
-            assertThat(response.hasReferences(), equalTo(false));
-        });
+    public void testSendLocalRequest() throws InterruptedException {
+        final AtomicReference<SimpleTestResponse> response = new AtomicReference<>();
         final boolean cancellable = randomBoolean();
-        TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
+        serviceB.registerRequestHandler(
+            "internal:test",
+            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse responseB = new SimpleTestResponse("TS_B");
+                channel.sendResponse(responseB);
+                response.set(responseB);
+            }
+        );
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
-        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            assertThat(task instanceof CancellableTask, equalTo(cancellable));
-            assertEquals(request.sourceNode, "TS_A");
-            final SimpleTestResponse response = new SimpleTestResponse("TS_B");
-            channel.sendResponse(response);
-            assertThat(response.hasReferences(), equalTo(false));
-        });
-        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
-
         final CountDownLatch latch = new CountDownLatch(1);
-        // Node A -> Node B (Local execution)
+        // Node A -> Proxy Node B (Local execution)
         serviceA.sendRequest(
             nodeB,
             TransportActionProxy.getProxyAction("internal:test"),
@@ -191,6 +191,9 @@ public class TransportActionProxyTests extends ESTestCase {
             }
         );
         latch.await();
+
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().hasReferences(), equalTo(false));
     }
 
     public void testException() throws InterruptedException {

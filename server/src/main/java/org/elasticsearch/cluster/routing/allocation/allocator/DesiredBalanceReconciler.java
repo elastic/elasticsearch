@@ -24,9 +24,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -194,32 +196,12 @@ public class DesiredBalanceReconciler {
             nextShard: for (int i = 0; i < primaryLength; i++) {
                 final var shard = primary[i];
                 final var assignment = desiredBalance.getAssignment(shard.shardId());
-                final boolean[] isThrottled = { false };
+                final var isThrottled = new AtomicBoolean(false);
                 if (assignment != null) {
-                    final Set<String> assignmentNodeIds;
 
-                    final var forcedNodeIds = allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation);
-                    if (forcedNodeIds.isEmpty()) {
-                        assignmentNodeIds = assignment.nodeIds();
-                    } else {
-                        assignmentNodeIds = forcedNodeIds.get();
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(
-                                "Shard assignment is ignored as shard [{}] initial allocation forced to {}",
-                                shard.shardId(),
-                                assignment
-                            );
-                        }
-                    }
-
-                    for (final var nodeIdIterator : List.<Iterable<String>>of(
-                        allocationOrdering.sort(assignmentNodeIds),
-                        // TODO consider ignored nodes here too?
-                        () -> (shard.primary() && isThrottled[0] == false
-                            ? allocationOrdering.sort(
-                                allocation.routingNodes().stream().map(RoutingNode::nodeId).collect(Collectors.toSet())
-                            )
-                            : List.<String>of()).iterator()
+                    for (final var nodeIdIterator : List.of(
+                        getDesiredNodesIds(shard, assignment),
+                        getFallbackNodeIds(shard, isThrottled)
                     )) {
                         for (final var desiredNodeId : nodeIdIterator) {
                             final var routingNode = routingNodes.node(desiredNodeId);
@@ -252,7 +234,7 @@ public class DesiredBalanceReconciler {
                                     }
                                     continue nextShard;
                                 }
-                                case THROTTLE -> isThrottled[0] = true;
+                                case THROTTLE -> isThrottled.set(true);
                                 case NO -> {
                                     if (logger.isTraceEnabled()) {
                                         logger.trace("Couldn't assign shard [{}] to [{}]", shard.shardId(), desiredNodeId);
@@ -270,7 +252,7 @@ public class DesiredBalanceReconciler {
                 final UnassignedInfo.AllocationStatus allocationStatus;
                 if (assignment == null || assignment.isIgnored(shard.primary())) {
                     allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
-                } else if (isThrottled[0]) {
+                } else if (isThrottled.get()) {
                     allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
                 } else {
                     allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_NO;
@@ -290,6 +272,29 @@ public class DesiredBalanceReconciler {
             secondary = tmp;
             secondaryLength = 0;
         } while (primaryLength > 0);
+    }
+
+    private Iterable<String> getDesiredNodesIds(ShardRouting shard, ShardAssignment assignment) {
+        return allocationOrdering.sort(allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
+            }
+            return forced;
+        }).orElse(assignment.nodeIds()));
+    }
+
+    private Iterable<String> getFallbackNodeIds(ShardRouting shard, AtomicBoolean isThrottled) {
+        return () -> {
+            if (shard.primary() && isThrottled.get() == false) {
+                var fallbackNodeIds = allocation.routingNodes().stream().map(RoutingNode::nodeId).toList();
+                if (logger.isDebugEnabled()) {
+                    logger.trace("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
+                }
+                return allocationOrdering.sort(fallbackNodeIds).iterator();
+            } else {
+                return Collections.emptyIterator();
+            }
+        };
     }
 
     private void moveShards() {

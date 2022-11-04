@@ -14,6 +14,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentNodeService;
 import org.mockito.ArgumentCaptor;
@@ -56,7 +57,8 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
                 randomInt(5),
                 randomInt(5),
                 randomInt(5),
-                randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE))
+                randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE)),
+                Priority.NORMAL
             ),
             nodeService,
             licenseState,
@@ -88,7 +90,8 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
             randomIntBetween(1, 32),
             randomIntBetween(1, 32),
             randomInt(5),
-            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE))
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE)),
+            randomFrom(Priority.values())
         );
 
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
@@ -113,5 +116,6 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
         assertThat(updatedParams.getNumberOfAllocations(), equalTo(newNumberOfAllocations));
         assertThat(updatedParams.getThreadsPerAllocation(), equalTo(initialParams.getThreadsPerAllocation()));
         assertThat(updatedParams.getCacheSize(), equalTo(initialParams.getCacheSize()));
+        assertThat(updatedParams.getPriority(), equalTo(initialParams.getPriority()));
     }
 }

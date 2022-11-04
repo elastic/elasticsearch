@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalGeoBounds extends InternalBounds<GeoPoint> {
+public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBounds {
     public final boolean wrapLongitude;
 
     public InternalGeoBounds(

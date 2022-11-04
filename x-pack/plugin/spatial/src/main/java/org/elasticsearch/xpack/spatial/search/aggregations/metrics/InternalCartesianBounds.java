@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import java.io.IOException;
 import java.util.Map;
 
-public class InternalCartesianBounds extends InternalBounds<CartesianPoint> {
+public class InternalCartesianBounds extends InternalBounds<CartesianPoint> implements CartesianBounds {
 
     public InternalCartesianBounds(
         String name,

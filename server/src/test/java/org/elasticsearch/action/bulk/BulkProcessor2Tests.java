@@ -159,10 +159,10 @@ public class BulkProcessor2Tests extends ESTestCase {
         try (
             BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, "BulkProcessor2Tests")
                 .setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.ZERO, Integer.MAX_VALUE))
+                .setFlushInterval(TimeValue.timeValueMillis(1))
                 .build()
         ) {
             bulkProcessor.add(new IndexRequest());
-            bulkProcessor.flush();
             assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         }
 

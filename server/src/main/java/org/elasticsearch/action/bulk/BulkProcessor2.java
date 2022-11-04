@@ -242,6 +242,11 @@ public class BulkProcessor2 implements Closeable {
     private final Runnable onClose;
 
     private volatile boolean closed = false;
+    /*
+     * This lock is used to protect two things related to the bulkRequest object: (1) it makes sure that two threads do not add requests
+     * to the BulkRequest at the same time since BulkRequest is not threadsafe and (2) it makes sure that no other thread is writing to
+     * the BulkRequest when we swap the bulkRequest variable over to a new BulkRequest object.
+     */
     private final ReentrantLock lock = new ReentrantLock();
 
     BulkProcessor2(
@@ -382,7 +387,20 @@ public class BulkProcessor2 implements Closeable {
                 }
             };
         }
-        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.GENERIC);
+        return scheduler.scheduleWithFixedDelay(() -> {
+            lock.lock();
+            try {
+                if (closed) {
+                    return;
+                }
+                if (bulkRequest.numberOfActions() == 0) {
+                    return;
+                }
+                execute();
+            } finally {
+                lock.unlock();
+            }
+        }, flushInterval, ThreadPool.Names.GENERIC);
     }
 
     // needs to be executed under a lock
@@ -416,38 +434,5 @@ public class BulkProcessor2 implements Closeable {
             return true;
         }
         return bulkSize != -1 && bulkRequest.estimatedSizeInBytes() >= bulkSize;
-    }
-
-    /**
-     * Flush pending delete or index requests.
-     */
-    public void flush() {
-        lock.lock();
-        try {
-            ensureOpen();
-            if (bulkRequest.numberOfActions() > 0) {
-                execute();
-            }
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    class Flush implements Runnable {
-        @Override
-        public void run() {
-            lock.lock();
-            try {
-                if (closed) {
-                    return;
-                }
-                if (bulkRequest.numberOfActions() == 0) {
-                    return;
-                }
-                execute();
-            } finally {
-                lock.unlock();
-            }
-        }
     }
 }

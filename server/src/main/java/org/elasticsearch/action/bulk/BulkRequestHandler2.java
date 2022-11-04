@@ -52,6 +52,12 @@ public final class BulkRequestHandler2 {
         retry.init();
     }
 
+    /**
+     * This method queues the given bulkRequest to be executed. The listener will be notified of the result of the bulkRequest along with
+     * the executionId given.
+     * @param bulkRequest
+     * @param executionId
+     */
     public void execute(BulkRequest bulkRequest, long executionId) {
         try {
             listener.beforeBulk(executionId, bulkRequest);

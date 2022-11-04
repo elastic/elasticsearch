@@ -125,6 +125,9 @@ setup:
         ignore_unavailable: true
 ---
 "Get test-* with wildcard_expansion=none ignore_unavailable=false":
+  - skip:
+      version: " - 8.5.99"
+      reason: "bug fixed in 8.6"
   - do:
       catch: missing
       indices.get_mapping:

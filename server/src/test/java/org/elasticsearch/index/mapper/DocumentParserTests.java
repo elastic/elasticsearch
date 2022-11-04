@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -1806,49 +1807,119 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(dateMapper, instanceOf(DateFieldMapper.class));
     }
 
-    public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source("""
-            {"top..foo.":{"a":1}}
-            """)));
+    private void dynamicTrueOrDynamicRuntimeTest(Consumer<DocumentMapper> mapperServiceConsumer) throws Exception {
+        for (XContentBuilder xContentBuilder : new XContentBuilder[] { mapping(b -> {}), topMapping(b -> b.field("dynamic", "runtime")) }) {
+            mapperServiceConsumer.accept(createMapperService(xContentBuilder).documentMapper());
+        }
+    }
 
-        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only whitespace: ['top..foo.']"));
+    public void testDynamicFieldStartingWithDot() throws Exception {
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+                {".foo":1}
+                """)));
+            // TODO isn't this a misleading error?
+            assertThat(e.getCause().getMessage(), containsString("field name cannot contain only whitespace: ['.foo']"));
+        });
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28948")
+    public void testDynamicFieldEndingWithDot() throws Exception {
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+                {"foo.":1}
+                """)));
+            // TODO possibly throw a clearer error?
+            assertThat(e.getCause().getMessage(), containsString("field name cannot contain only whitespace: ['foo.']"));
+        });
+    }
+
+    public void testDynamicDottedFieldWithTrailingDots() throws Exception {
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+                {"top..foo":1}
+                """)));
+            // TODO isn't this a misleading error?
+            assertThat(e.getCause().getMessage(), containsString("field name cannot contain only whitespace: ['top..foo']"));
+        });
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28948")
+    public void testDynamicDottedFieldEndingWithDot() throws Exception {
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+                {"top.foo.":1}
+                """)));
+            // TODO possibly throw a clearer error?
+            assertThat(e.getCause().getMessage(), containsString("field name cannot contain only whitespace: ['top.foo.']"));
+        });
+    }
+
+    public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+                {"top..foo.":1}
+                """)));
+            // TODO isn't this a misleading error?
+            assertThat(e.getCause().getMessage(), containsString("field name cannot contain only whitespace: ['top..foo.']"));
+        });
+    }
+
+    public void testDynamicDottedFieldWithTrailingWhitespace() throws Exception {
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+                {"top. .foo":1}
+                """)));
+            // TODO isn't this a misleading error?
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("field name starting or ending with a [.] makes object resolution ambiguous: [top. .foo]")
+            );
+        });
     }
 
     public void testDynamicFieldsEmptyName() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-
-        Exception emptyFieldNameException = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
-            b.startArray("top");
-            {
-                b.startObject();
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            Exception exception = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+                b.startArray("top");
                 {
-                    b.startObject("aoeu").field("a", 1).field(" ", 2).endObject();
+                    b.startObject();
+                    {
+                        b.startObject("aoeu").field("a", 1).field(" ", 2).endObject();
+                    }
+                    b.endObject();
                 }
-                b.endObject();
-            }
-            b.endArray();
-        })));
+                b.endArray();
+            })));
 
-        assertThat(emptyFieldNameException.getMessage(), containsString("Field name cannot contain only whitespace: [top.aoeu. ]"));
+            assertThat(exception.getMessage(), containsString("Field name cannot contain only whitespace: [top.aoeu. ]"));
+        });
     }
 
     public void testBlankFieldNames() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
-        assertThat(err.getCause(), notNullValue());
-        assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
-
-        err = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.startObject("foo").field("", "bar").endObject()))
-        );
-        assertThat(err.getCause(), notNullValue());
-        assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            {
+                MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
+                assertThat(e.getCause(), notNullValue());
+                assertThat(e.getCause().getMessage(), containsString("field name cannot be an empty string"));
+            }
+            {
+                MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(" ", "foo"))));
+                assertThat(e.getMessage(), containsString("Field name cannot contain only whitespace: [ ]"));
+            }
+            {
+                MapperParsingException e = expectThrows(
+                    MapperParsingException.class,
+                    () -> mapper.parse(source(b -> b.startObject("foo").field("", "bar").endObject()))
+                );
+                assertThat(e.getCause(), notNullValue());
+                assertThat(e.getCause().getMessage(), containsString("field name cannot be an empty string"));
+            }
+        });
     }
 
     public void testBlankFieldNamesSubobjectsFalse() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
         {
             MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
             assertThat(err.getMessage(), containsString("Field name cannot contain only whitespace: []"));
@@ -1860,20 +1931,42 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDotsOnlyFieldNames() throws Exception {
-        dotsOnlyFieldNames(createDocumentMapper(mapping(b -> {})));
+        dynamicTrueOrDynamicRuntimeTest(mapper -> {
+            String[] fieldNames = { ".", "..", "..." };
+            for (String fieldName : fieldNames) {
+                MapperParsingException err = expectThrows(
+                    MapperParsingException.class,
+                    () -> mapper.parse(source(b -> b.field(fieldName, "bar")))
+                );
+                assertThat(err.getCause(), notNullValue());
+                assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
+            }
+        });
     }
 
     public void testDotsOnlyFieldNamesSubobjectsFalse() throws Exception {
-        dotsOnlyFieldNames(createDocumentMapper(topMapping(b -> b.field("subobjects", false))));
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
+        String[] fieldNames = { ".", "..", "..." };
+        for (String fieldName : fieldNames) {
+            MapperParsingException err = expectThrows(
+                MapperParsingException.class,
+                () -> mapper.parse(source(b -> b.field(fieldName, "bar")))
+            );
+            assertThat(err.getCause(), notNullValue());
+            // TODO this is actually accepted in the mappings, shall we revert https://github.com/elastic/elasticsearch/pull/90950 ?
+            assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
+        }
     }
 
-    private void dotsOnlyFieldNames(DocumentMapper mapper) {
-        MapperParsingException err = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field(randomFrom(".", "..", "..."), "bar")))
-        );
-        assertThat(err.getCause(), notNullValue());
-        assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
+    public void testDynamicFieldEdgeCaseNamesSubobjectsFalse() throws Exception {
+        // these combinations are not accepted by default, but they are when subobjects are disabled
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {}));
+        String[] fieldNames = new String[] { ".foo", "foo.", "top..foo", "top.foo.", "top..foo.", "top. .foo" };
+        for (String fieldName : fieldNames) {
+            ParsedDocument doc = mapperService.documentMapper().parse(source("{\"" + fieldName + "\":1}"));
+            merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+            assertNotNull(mapperService.fieldType(fieldName));
+        }
     }
 
     public void testSubobjectsFalseWithInnerObject() throws Exception {
@@ -1916,7 +2009,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRootWithInnerObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(xContentBuilder -> {}));
         MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
@@ -1930,7 +2023,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(xContentBuilder -> {}));
         ParsedDocument doc = mapper.parse(source("""
             {
               "metrics.service.time" : 10,
@@ -2444,7 +2537,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(mpe.getCause().getMessage(), containsString("Limit of mapping depth [20] has been exceeded due to object field"));
 
         // check that multiple-dotted field name underneath an object mapper with subobjects=false does not trigger this
-        DocumentMapper docMapper2 = createMapperService(topMapping(b -> { b.field("subobjects", false); })).documentMapper();
+        DocumentMapper docMapper2 = createMapperService(mappingNoSubobjects(xContentBuilder -> {})).documentMapper();
 
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < depth; i++) {

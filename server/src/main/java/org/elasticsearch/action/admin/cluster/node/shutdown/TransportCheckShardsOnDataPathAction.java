@@ -79,7 +79,7 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
 
     @Override
     protected NodeCheckShardsOnDataPathRequest newNodeRequest(CheckShardsOnDataPathRequest request) {
-        return new NodeCheckShardsOnDataPathRequest(request.getShardIds());
+        return new NodeCheckShardsOnDataPathRequest(request.getShardIds(), request.getCustomDataPath());
     }
 
     @Override

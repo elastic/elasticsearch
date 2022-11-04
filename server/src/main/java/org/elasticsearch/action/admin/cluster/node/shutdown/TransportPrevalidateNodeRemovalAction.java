@@ -85,7 +85,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     ) {
         try {
             Set<DiscoveryNode> discoveryNodes = resolveNodes(request, state.nodes());
-            doPrevalidation(discoveryNodes, state, listener);
+            doPrevalidation(request, discoveryNodes, state, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -149,6 +149,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     }
 
     private void doPrevalidation(
+        PrevalidateNodeRemovalRequest request,
         Set<DiscoveryNode> nodes,
         ClusterState clusterState,
         ActionListener<PrevalidateNodeRemovalResponse> listener
@@ -209,8 +210,9 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
 
                     // TODO: Send the set of red shards to the nodes, and create the result in the listener
                     var nodeIds = nodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-                    var request = new CheckShardsOnDataPathRequest(redShards, nodeIds);
-                    client.execute(TransportCheckShardsOnDataPathAction.TYPE, request, new ActionListener<>() {
+                    var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, "", nodeIds).timeout(request.timeout());
+                    // Should this use executeLocally?
+                    client.execute(TransportCheckShardsOnDataPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(CheckShardsOnDataPathResponse checkShardsOnDataPathResponse) {
                             Result result = new Result(IsSafe.NO, "cluster health is RED");

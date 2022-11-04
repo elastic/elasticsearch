@@ -613,6 +613,50 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         );
     }
 
+    public void testRebalance_GivenLowPriorityModelToAdd_NotEnoughMemoryNorProcessors() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 1);
+        DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 1);
+
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node2, NodeLoad.builder("node-2").setMaxMemory(nodeMemoryBytes).build());
+
+        String modelId1 = "model-1";
+        StartTrainedModelDeploymentAction.TaskParams taskParams1 = lowPriorityParams(modelId1, ByteSizeValue.ofMb(300).getBytes());
+        String modelId2 = "model-2";
+        StartTrainedModelDeploymentAction.TaskParams taskParams2 = normalPriorityParams(modelId2, ByteSizeValue.ofMb(300).getBytes(), 2, 1);
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId2,
+                TrainedModelAssignment.Builder.empty(taskParams2)
+                    .addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                    .addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of("zone-1"), List.of(node1), List.of("zone-2"), List.of(node2)),
+            Optional.of(taskParams1)
+        ).rebalance().build();
+
+        TrainedModelAssignment assignment = result.getModelAssignment(modelId1);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
+        assertThat(assignment.getReason().isPresent(), is(true));
+        assertThat(
+            assignment.getReason().get(),
+            containsString("Could not assign (more) allocations on node [node-1]. Reason: This node has insufficient available memory.")
+        );
+        assertThat(
+            assignment.getReason().get(),
+            containsString("Could not assign (more) allocations on node [node-2]. Reason: This node has insufficient available memory.")
+        );
+    }
+
     public void testRebalance_GivenMixedPriorityModels_NotEnoughMemoryForLowPriority() throws Exception {
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
         DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 7);

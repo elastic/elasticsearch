@@ -118,35 +118,29 @@ class TrainedModelAssignmentRebalancer {
         allModels.addAll(planForNormalPriorityModels.models());
         allModels.addAll(planForLowPriorityModels.models());
 
-        final Map<String, AssignmentPlan.Model> originalModelById = allModels.stream()
-            .collect(Collectors.toMap(AssignmentPlan.Model::id, Function.identity()));
         final Map<String, AssignmentPlan.Node> originalNodeById = allNodes.stream()
             .collect(Collectors.toMap(AssignmentPlan.Node::id, Function.identity()));
         AssignmentPlan.Builder finalPlanBuilder = AssignmentPlan.builder(allNodes, allModels);
-        copyAssignments(planForNormalPriorityModels, finalPlanBuilder, originalModelById, originalNodeById);
-        copyAssignments(planForLowPriorityModels, finalPlanBuilder, originalModelById, originalNodeById);
+        copyAssignments(planForNormalPriorityModels, finalPlanBuilder, originalNodeById);
+        copyAssignments(planForLowPriorityModels, finalPlanBuilder, originalNodeById);
         return finalPlanBuilder.build();
     }
 
     private static void copyAssignments(
         AssignmentPlan source,
         AssignmentPlan.Builder dest,
-        Map<String, AssignmentPlan.Model> originalModelById,
         Map<String, AssignmentPlan.Node> originalNodeById
     ) {
         for (AssignmentPlan.Model m : source.models()) {
-            Optional<Map<AssignmentPlan.Node, Integer>> assignments = source.assignments(m);
-            if (assignments.isPresent()) {
-                assignments.get()
-                    .entrySet()
-                    .stream()
-                    .forEach(
-                        nodeToAllocations -> dest.assignModelToNode(
-                            originalModelById.get(m.id()),
-                            originalNodeById.get(nodeToAllocations.getKey().id()),
-                            nodeToAllocations.getValue()
-                        )
-                    );
+            Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
+            for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
+                AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
+                dest.assignModelToNode(m, originalNode, assignment.getValue());
+                if (m.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                    // As the node has all its available memory we need to manually account memory of models with
+                    // current allocations.
+                    dest.accountMemory(m, originalNode);
+                }
             }
         }
     }

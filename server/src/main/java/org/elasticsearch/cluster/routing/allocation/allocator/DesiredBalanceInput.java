@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -37,10 +38,10 @@ public record DesiredBalanceInput(long index, RoutingAllocation routingAllocatio
             .unassigned()
             .ignored()
             .stream()
-            .map(
-                shardRouting -> shardRouting.updateUnassigned(
-                    discardAllocationStatus(shardRouting.unassignedInfo()),
-                    shardRouting.recoverySource()
+            .flatMap(
+                shardRouting -> Stream.of(
+                    shardRouting,
+                    shardRouting.updateUnassigned(discardAllocationStatus(shardRouting.unassignedInfo()), shardRouting.recoverySource())
                 )
             )
             .collect(toUnmodifiableSet());

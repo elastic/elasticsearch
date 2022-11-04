@@ -96,8 +96,8 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
                 shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, null);
                 if (shardPath != null) {
                     Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
+                    localShards.add(shardId);
                 }
-                localShards.add(shardId);
             } catch (IOException e) {
                 final String path = shardPath != null ? shardPath.resolveIndex().toString() : "";
                 logger.debug(() -> String.format(Locale.ROOT, "cannot open index for shard [%s] in path [%s]", shardId, path), e);

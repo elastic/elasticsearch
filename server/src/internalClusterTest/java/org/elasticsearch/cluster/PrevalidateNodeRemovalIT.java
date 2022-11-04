@@ -63,7 +63,9 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertThat(nodeResult2.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
     }
 
-    public void testNodeRemovalFromRedCluster() throws Exception {
+    // Test that in case the nodes that are being prevalidated do not contain copies of any of the
+    // red shards, their removal is considered to be safe.
+    public void testNodeRemovalFromRedClusterWithNoLocalShardCopy() throws Exception {
         internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
@@ -89,10 +91,10 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         // since that node might have the last copy of the unassigned index.
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
-        assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.NO));
+        assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
         assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().getNodes().get(0);
         assertThat(nodeResult.name(), equalTo(node2));
-        assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.NO));
+        assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
     }
 }

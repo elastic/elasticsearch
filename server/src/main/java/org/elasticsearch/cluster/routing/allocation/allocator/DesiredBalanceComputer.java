@@ -218,8 +218,6 @@ public class DesiredBalanceComputer {
                         iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
                     }
                 }
-
-                // TODO test that we reset ignored shards properly
             }
 
             routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
@@ -238,9 +236,6 @@ public class DesiredBalanceComputer {
                     }
                 }
             }
-
-            // TODO what if we never converge?
-            // TODO maybe expose interim desired balances computed here
 
             i++;
             if (hasChanges == false) {

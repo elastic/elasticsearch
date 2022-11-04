@@ -31,7 +31,7 @@ public class MinSizeCondition extends Condition<ByteSizeValue> {
 
     public MinSizeCondition(StreamInput in) throws IOException {
         super(NAME, Type.MIN);
-        this.value = new ByteSizeValue(in);
+        this.value = ByteSizeValue.readFrom(in);
     }
 
     @Override

@@ -175,10 +175,10 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 state.getIndex().recoveredFileCount(),
                 percent(state.getIndex().recoveredFilesPercent()),
                 state.getIndex().totalFileCount(),
-                new ByteSizeValue(state.getIndex().totalRecoverBytes()),
-                new ByteSizeValue(state.getIndex().recoveredBytes()),
+                ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()),
+                ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()),
                 percent(state.getIndex().recoveredBytesPercent()),
-                new ByteSizeValue(state.getIndex().totalBytes()),
+                ByteSizeValue.ofBytes(state.getIndex().totalBytes()),
                 state.getTranslog().totalOperations(),
                 state.getTranslog().recoveredOperations(),
                 percent(state.getTranslog().recoveredPercent())

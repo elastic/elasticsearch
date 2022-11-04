@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 
@@ -39,7 +40,8 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractXContent
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),
             randomIntBetween(1, 10000),
-            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong())
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            randomFrom(Priority.values())
         );
     }
 }

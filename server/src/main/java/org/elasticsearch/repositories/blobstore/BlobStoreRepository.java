@@ -676,7 +676,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
-            latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
+            latestKnownRepoGen.accumulateAndGet(finalBestGen, Math::max);
         } else {
             final long previousBest = latestKnownRepoGen.getAndSet(metadata.generation());
             if (previousBest != metadata.generation()) {
@@ -861,7 +861,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final long genToLoad;
         final RepositoryData cached;
         if (bestEffortConsistency) {
-            genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, repositoryStateId));
+            genToLoad = latestKnownRepoGen.accumulateAndGet(repositoryStateId, Math::max);
             cached = null;
         } else {
             genToLoad = latestKnownRepoGen.get();
@@ -1906,7 +1906,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     );
                     return;
                 }
-                genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
+                genToLoad = latestKnownRepoGen.accumulateAndGet(generation, Math::max);
                 if (genToLoad > generation) {
                     logger.info(
                         "Determined repository generation [{}] from repository contents but correct generation must be at " + "least [{}]",

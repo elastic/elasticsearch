@@ -90,6 +90,24 @@ public class DateMathExpressionResolverTests extends ESTestCase {
                 equalTo("-after-outer-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())))
             )
         );
+        Context noWildcardExpandContext = new Context(
+            ClusterState.builder(new ClusterName("_name")).build(),
+            IndicesOptions.strictSingleIndexNoExpandForbidClosed(),
+            SystemIndexAccessLevel.NONE
+        );
+        result = DateMathExpressionResolver.resolve(noWildcardExpandContext, indexExpressions);
+        assertThat(
+            result,
+            Matchers.contains(
+                equalTo("-before-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                // doesn't evaluate because it doesn't start with "<" and there can't be exclusions without wildcard expansion
+                equalTo("-<before-outer-{now}>"),
+                equalTo("wild*card-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime())) + "*"),
+                equalTo("-after-inner-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))),
+                // doesn't evaluate because it doesn't start with "<" and there can't be exclusions without wildcard expansion
+                equalTo("-<after-outer-{now}>")
+            )
+        );
     }
 
     public void testEmpty() throws Exception {

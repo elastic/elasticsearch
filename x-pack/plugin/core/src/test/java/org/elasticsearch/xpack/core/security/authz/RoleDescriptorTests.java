@@ -17,11 +17,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -61,6 +63,31 @@ public class RoleDescriptorTests extends ESTestCase {
         XContentBuilder b = jsonBuilder();
         privs.toXContent(b, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
+    }
+
+    public void testRemoteIndexGroup() throws Exception {
+        RoleDescriptor.RemoteIndicesPrivileges privs = RoleDescriptor.RemoteIndicesPrivileges.builder("remote")
+            .indices("idx")
+            .privileges("priv")
+            .allowRestrictedIndices(true)
+            .build();
+        XContentBuilder b = jsonBuilder();
+        privs.toXContent(b, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            "{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true,\"clusters\":[\"remote\"]}",
+            Strings.toString(b)
+        );
+    }
+
+    public void testRemoteIndexGroupThrowsOnEmptyClusters() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> RoleDescriptor.RemoteIndicesPrivileges.builder().indices("idx").privileges("priv").build()
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("the [remote_indices] sub-field [clusters] must refer to at least one cluster alias or cluster alias pattern")
+        );
     }
 
     public void testEqualsOnEmptyRoles() {
@@ -111,13 +138,13 @@ public class RoleDescriptorTests extends ESTestCase {
                     + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
-                    + ", runAs=[sudo], metadata=[{}]]"
+                    + ", runAs=[sudo], metadata=[{}], remoteIndicesPrivileges=[]]"
             )
         );
     }
 
     public void testToXContentRoundtrip() throws Exception {
-        final RoleDescriptor descriptor = randomRoleDescriptor();
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference xContentValue = toShuffledXContent(descriptor, xContentType, ToXContent.EMPTY_PARAMS, false);
         final RoleDescriptor parsed = RoleDescriptor.parse(descriptor.getName(), xContentValue, false, xContentType);
@@ -171,12 +198,44 @@ public class RoleDescriptorTests extends ESTestCase {
                     "match_all": {}
                   }
                 }
+              ],
+              "remote_indices": [
+                {
+                  "names": "idx1",
+                  "privileges": [ "p1", "p2" ],
+                  "clusters": ["r1"]
+                },
+                {
+                  "names": "idx2",
+                  "allow_restricted_indices": true,
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ]
+                  },
+                  "clusters": ["r1", "*-*"]
+                },
+                {
+                  "names": "idx2",
+                  "allow_restricted_indices": false,
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ]
+                  },
+                  "query": {
+                    "match_all": {}
+                  },
+                  "clusters": ["*"]
+                }
               ]
             }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(3, rd.getIndicesPrivileges().length);
+        assertEquals(3, rd.getRemoteIndicesPrivileges().length);
+        assertArrayEquals(new String[] { "r1" }, rd.getRemoteIndicesPrivileges()[0].remoteClusters());
+        assertArrayEquals(new String[] { "r1", "*-*" }, rd.getRemoteIndicesPrivileges()[1].remoteClusters());
+        assertArrayEquals(new String[] { "*" }, rd.getRemoteIndicesPrivileges()[2].remoteClusters());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
         q = """
@@ -335,11 +394,12 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(Version.V_8_6_0);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor();
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, canIncludeRemoteIndices);
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -348,7 +408,42 @@ public class RoleDescriptorTests extends ESTestCase {
         );
         streamInput.setVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+
         assertThat(serialized, equalTo(descriptor));
+    }
+
+    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices
+        );
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(version);
+
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
+        if (descriptor.hasRemoteIndicesPrivileges()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> descriptor.writeTo(output));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                        + version
+                        + "]"
+                )
+            );
+        } else {
+            descriptor.writeTo(output);
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            StreamInput streamInput = new NamedWriteableAwareStreamInput(
+                ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+                registry
+            );
+            streamInput.setVersion(version);
+            final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+            assertThat(descriptor, equalTo(serialized));
+        }
     }
 
     public void testParseEmptyQuery() throws Exception {
@@ -489,6 +584,77 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
     }
 
+    public void testParseRemoteIndicesPrivilegesFailsWhenClustersFieldMissing() {
+        final String json = """
+            {
+              "remote_indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "all" ]
+                }
+              ]
+            }""";
+        final ElasticsearchParseException epe = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)
+        );
+        assertThat(
+            epe,
+            TestMatchers.throwableWithMessage(
+                containsString("failed to parse remote indices privileges for role [test]. missing required [clusters] field")
+            )
+        );
+    }
+
+    public void testParseRemoteIndicesPrivilegesFailsWhenUntrustedRemoteClusterEnabledFlagIsFalse() {
+        final String json = """
+            {
+              "remote_indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "all" ],
+                  "clusters": ["rmt"]
+                }
+              ]
+            }""";
+        final ElasticsearchParseException epe = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse(
+                "test",
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
+                false,
+                false
+            )
+        );
+        assertThat(
+            epe,
+            TestMatchers.throwableWithMessage(containsString("failed to parse role [test]. unexpected field [remote_indices]"))
+        );
+    }
+
+    public void testParseIndicesPrivilegesFailsWhenClustersFieldPresent() {
+        final String json = """
+            {
+              "indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "all" ],
+                  "clusters": ["remote"]
+                }
+              ]
+            }""";
+        final ElasticsearchParseException epe = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)
+        );
+        assertThat(
+            epe,
+            TestMatchers.throwableWithMessage(
+                containsString("failed to parse indices privileges for role [test]. unexpected field [clusters]")
+            )
+        );
+    }
+
     public void testGlobalPrivilegesOrdering() throws IOException {
         final String roleName = randomAlphaOfLengthBetween(3, 30);
         final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
@@ -583,11 +749,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 new ConfigurableClusterPrivilege[0],
                 new String[0],
                 new HashMap<>(),
-                new HashMap<>()
+                new HashMap<>(),
+                new RoleDescriptor.RemoteIndicesPrivileges[0]
             ).isEmpty()
         );
 
         final List<Boolean> booleans = Arrays.asList(
+            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -615,7 +783,11 @@ public class RoleDescriptorTests extends ESTestCase {
                         : new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Collections.singleton("bar")) },
             booleans.get(4) ? new String[0] : new String[] { "foo" },
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
-            Collections.singletonMap("foo", "bar")
+            Collections.singletonMap("foo", "bar"),
+            booleans.get(6)
+                ? new RoleDescriptor.RemoteIndicesPrivileges[0]
+                : new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() }
         );
 
         if (booleans.stream().anyMatch(e -> e.equals(false))) {
@@ -637,28 +809,23 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata) {
-        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
-        for (int i = 0; i < indexPrivileges.length; i++) {
-            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-                .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
-                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-                .allowRestrictedIndices(randomBoolean());
-            if (randomBoolean()) {
-                builder.query(
-                    randomBoolean()
-                        ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
-                        : "{ \"match_all\": {} }"
+        return randomRoleDescriptor(allowReservedMetadata, false);
+    }
+
+    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices) {
+        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = randomIndicesPriveleges();
+        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
+        if (false == allowRemoteIndices || randomBoolean()) {
+            remoteIndexPrivileges = null;
+        } else {
+            final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPriveleges();
+            remoteIndexPrivileges = new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
+            for (int i = 0; i < remoteIndexPrivileges.length; i++) {
+                remoteIndexPrivileges[i] = new RoleDescriptor.RemoteIndicesPrivileges(
+                    innerIndexPrivileges[i],
+                    generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
                 );
             }
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    builder.grantedFields("*");
-                    builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                } else {
-                    builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                }
-            }
-            indexPrivileges[i] = builder.build();
         }
         final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
         for (int i = 0; i < applicationPrivileges.length; i++) {
@@ -720,7 +887,35 @@ public class RoleDescriptorTests extends ESTestCase {
             configurableClusterPrivileges,
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             metadata,
-            Map.of()
+            Map.of(),
+            remoteIndexPrivileges
         );
+    }
+
+    private static RoleDescriptor.IndicesPrivileges[] randomIndicesPriveleges() {
+        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
+        for (int i = 0; i < indexPrivileges.length; i++) {
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
+                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                .allowRestrictedIndices(randomBoolean());
+            if (randomBoolean()) {
+                builder.query(
+                    randomBoolean()
+                        ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
+                        : "{ \"match_all\": {} }"
+                );
+            }
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    builder.grantedFields("*");
+                    builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+                } else {
+                    builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+                }
+            }
+            indexPrivileges[i] = builder.build();
+        }
+        return indexPrivileges;
     }
 }

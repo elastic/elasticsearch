@@ -285,6 +285,16 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
                 }""");
             client().performRequest(request);
         }
+        {
+            final Request request = new Request("PUT", indexName + "/_doc/strange-business-id-4");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("""
+                {
+                  "user_id": "user_0",
+                  "business_id": "..."
+                }""");
+            client().performRequest(request);
+        }
 
         String transformIndex = "empty-terms-agg-key";
         String transformId = "empty-terms-agg-key";
@@ -325,7 +335,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         assertThat(XContentMapValues.extractValue("hits.hits._source.reviewer", searchResult), is(equalTo(List.of("user_0"))));
         assertThat(
             XContentMapValues.extractValue("hits.hits._source.businesses", searchResult),
-            is(equalTo(List.of(Map.of("business_0", 278, "", 1, "business_x.", 1, ".business_y", 1))))
+            is(equalTo(List.of(Map.of("business_0", 278, "", 1, "business_x.", 1, ".business_y", 1, "...", 1))))
         );
 
         {
@@ -340,6 +350,11 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         }
         {
             final Request request = new Request("DELETE", indexName + "/_doc/strange-business-id-3");
+            request.addParameter("refresh", "true");
+            client().performRequest(request);
+        }
+        {
+            final Request request = new Request("DELETE", indexName + "/_doc/strange-business-id-4");
             request.addParameter("refresh", "true");
             client().performRequest(request);
         }

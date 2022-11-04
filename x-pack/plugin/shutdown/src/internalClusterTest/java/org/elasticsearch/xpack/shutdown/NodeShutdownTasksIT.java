@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,6 +41,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -142,7 +144,9 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationDeciders allocationDeciders
         ) {
             taskExecutor = new TaskExecutor(client, clusterService, threadPool);
             return Collections.singletonList(taskExecutor);

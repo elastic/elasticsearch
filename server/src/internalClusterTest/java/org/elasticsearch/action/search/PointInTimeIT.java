@@ -29,6 +29,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
@@ -42,6 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -416,6 +418,12 @@ public class PointInTimeIT extends ESIntegTestCase {
         } finally {
             closePointInTime(pit);
         }
+    }
+
+    public void testCloseInvalidPointInTime() {
+        expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
+        List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        assertThat(tasks, empty());
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

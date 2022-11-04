@@ -266,8 +266,8 @@ public final class IndexSettings {
          * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
          * However, small thresholds are useful for testing so we do not add a large lower bound here.
          */
-        new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ofBytes(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -278,8 +278,8 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.flush_after_merge",
         new ByteSizeValue(512, ByteSizeUnit.MB),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES), // always flush after merge
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES), // never flush after merge
+        ByteSizeValue.ZERO, // always flush after merge
+        ByteSizeValue.ofBytes(Long.MAX_VALUE), // never flush after merge
         Property.Dynamic,
         Property.IndexScope
     );
@@ -297,8 +297,8 @@ public final class IndexSettings {
          * generation threshold. However, small thresholds are useful for testing so we
          * do not add a large lower bound here.
          */
-        new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ofBytes(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -456,6 +456,18 @@ public final class IndexSettings {
     );
 
     /**
+     * This index setting is intentionally undocumented and should be used as an escape hatch to disable BloomFilter of the
+     * _id field of non-data-stream indices, which is enabled by default. This setting doesn't affect data-stream indices.
+     */
+    public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_ENABLED_SETTING = Setting.boolSetting(
+        "index.bloom_filter_for_id_field.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope,
+        Property.DeprecatedWarning
+    );
+
+    /**
      * Is the {@code index.mode} enabled? It should only be enbaled if you
      * pass a jvm parameter or are running a snapshot build.
      */
@@ -536,6 +548,20 @@ public final class IndexSettings {
         },
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING = Setting.intSetting(
+        "index.max_adjacency_matrix_filters",
+        100,
+        2,
+        Property.Dynamic,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private final Index index;
@@ -696,7 +722,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
+        mode = scopedSettings.get(MODE);
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(

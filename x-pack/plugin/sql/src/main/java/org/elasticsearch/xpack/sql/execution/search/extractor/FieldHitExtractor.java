@@ -45,16 +45,16 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
      */
     static final String NAME = "f";
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean arrayLeniency) {
-        super(name, dataType, zoneId, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, MultiValueSupport multiValueSupport) {
+        super(name, dataType, zoneId, multiValueSupport);
     }
 
     public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
         super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, boolean arrayLeniency) {
-        super(name, dataType, zoneId, hitName, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, MultiValueSupport multiValueSupport) {
+        super(name, dataType, zoneId, hitName, multiValueSupport);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {

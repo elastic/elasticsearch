@@ -217,6 +217,7 @@ configurations {
 dependencies {
   constraints {
       integTestImplementation('org.ow2.asm:asm:9.3')
+      implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
   }
   components.all(JacksonAlignmentRule)
   constraints {
@@ -293,6 +294,7 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+
 }
 
 tasks.named('test').configure {
@@ -314,12 +316,12 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   inputs.property('branchWrapper', gradle.gradleVersion)
   filter(ReplaceTokens, tokens: [
           testGitCommit:GitInfo.gitInfo(root).revision,
-          masterWrapper:"${ -> resolveMasterWrapperVersion()}".toString(),
+          mainWrapper:"${ -> resolveMainWrapperVersion()}".toString(),
           branchWrapper:"${-> gradle.gradleVersion}".toString()])
 }
 
-def resolveMasterWrapperVersion() {
-  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/master/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
+def resolveMainWrapperVersion() {
+  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }
 
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {

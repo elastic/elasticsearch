@@ -23,7 +23,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,7 +39,8 @@ import java.util.stream.Collectors;
  */
 public class PluginDescriptor implements Writeable, ToXContentObject {
 
-    public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
+    public static final String INTERNAL_DESCRIPTOR_FILENAME = "plugin-descriptor.properties";
+    public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
     private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
@@ -56,6 +57,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
     private final boolean isLicensed;
+    private final boolean isModular;
+    private final boolean isStable;
 
     /**
      * Construct plugin info.
@@ -70,6 +73,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @param extendedPlugins      other plugins this plugin extends through SPI
      * @param hasNativeController  whether or not the plugin has a native controller
      * @param isLicensed           whether is this a licensed plugin
+     * @param isModular            whether this plugin should be loaded in a module layer
      */
     public PluginDescriptor(
         String name,
@@ -81,7 +85,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String moduleName,
         List<String> extendedPlugins,
         boolean hasNativeController,
-        boolean isLicensed
+        boolean isLicensed,
+        boolean isModular,
+        boolean isStable
     ) {
         this.name = name;
         this.description = description;
@@ -93,6 +99,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
         this.isLicensed = isLicensed;
+        this.isModular = isModular;
+        this.isStable = isStable;
     }
 
     /**
@@ -125,6 +133,14 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         } else {
             isLicensed = false;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            isModular = in.readBoolean();
+            isStable = in.readBoolean();
+        } else {
+            isModular = moduleName != null;
+            isStable = false;
+        }
     }
 
     @Override
@@ -148,96 +164,129 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             }
             out.writeBoolean(isLicensed);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeBoolean(isModular);
+            out.writeBoolean(isStable);
+        }
     }
 
     /**
-     * Reads the plugin descriptor file.
+     * Reads the descriptor file for a plugin.
      *
-     * @param path           the path to the root directory for the plugin
+     * @param pluginDir the path to the root directory for the plugin
      * @return the plugin info
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
-    public static PluginDescriptor readFromProperties(final Path path) throws IOException {
-        final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
+    public static PluginDescriptor readFromProperties(final Path pluginDir) throws IOException {
+        Path internalDescriptorFile = pluginDir.resolve(INTERNAL_DESCRIPTOR_FILENAME);
+        Path stableDescriptorFile = pluginDir.resolve(STABLE_DESCRIPTOR_FILENAME);
+
+        final BiFunction<Map<String, String>, String, PluginDescriptor> reader;
+        final Path descriptorFile;
+
+        boolean internalDescriptorExists = Files.exists(internalDescriptorFile);
+        boolean stableDescriptorExists = Files.exists(stableDescriptorFile);
+        String name = pluginDir.getFileName().toString(); // temporary until descriptor is loaded
+
+        if (internalDescriptorExists && stableDescriptorExists) {
+            throw new IllegalStateException(
+                "Plugin [" + name + "] has both stable and internal descriptor properties. Only one may exist."
+            );
+        } else if (internalDescriptorExists == false && stableDescriptorExists == false) {
+            throw new IllegalStateException("Plugin [" + name + "] is missing a descriptor properties file.");
+        } else if (internalDescriptorExists) {
+            descriptorFile = internalDescriptorFile;
+            reader = PluginDescriptor::readerInternalDescriptor;
+        } else {
+            descriptorFile = stableDescriptorFile;
+            reader = PluginDescriptor::readerStableDescriptor;
+        }
 
         final Map<String, String> propsMap;
         {
             final Properties props = new Properties();
-            try (InputStream stream = Files.newInputStream(descriptor)) {
+            try (InputStream stream = Files.newInputStream(descriptorFile)) {
                 props.load(stream);
             }
             propsMap = props.stringPropertyNames().stream().collect(Collectors.toMap(Function.identity(), props::getProperty));
         }
 
-        final String name = propsMap.remove("name");
-        if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException("property [name] is missing in [" + descriptor + "]");
-        }
-        final String description = propsMap.remove("description");
-        if (description == null) {
-            throw new IllegalArgumentException("property [description] is missing for plugin [" + name + "]");
-        }
-        final String version = propsMap.remove("version");
-        if (version == null) {
-            throw new IllegalArgumentException("property [version] is missing for plugin [" + name + "]");
-        }
-
-        final String esVersionString = propsMap.remove("elasticsearch.version");
-        if (Strings.hasText(esVersionString) == false) {
-            throw new IllegalArgumentException("property [elasticsearch.version] is missing for plugin [" + name + "]");
-        }
-        final Version esVersion = Version.fromString(esVersionString);
-        final String javaVersionString = propsMap.remove("java.version");
-        if (javaVersionString == null) {
-            throw new IllegalArgumentException("property [java.version] is missing for plugin [" + name + "]");
-        }
-        JarHell.checkJavaVersion("plugin " + name, javaVersionString);
-
-        final String extendedString = propsMap.remove("extended.plugins");
-        final List<String> extendedPlugins;
-        if (extendedString == null) {
-            extendedPlugins = Collections.emptyList();
-        } else {
-            extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
-        }
-
-        final boolean hasNativeController = parseBooleanValue(name, "has.native.controller", propsMap.remove("has.native.controller"));
-
-        final String classname = getClassname(name, propsMap.remove("classname"));
-        String modulename = propsMap.remove("modulename");
-        if (modulename != null && modulename.isBlank()) {
-            modulename = null;
-        }
-
-        boolean isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
+        PluginDescriptor descriptor = reader.apply(propsMap, descriptorFile.getFileName().toString());
+        name = descriptor.getName();
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginDescriptor(
-            name,
-            description,
-            version,
-            esVersion,
-            javaVersionString,
-            classname,
-            modulename,
-            extendedPlugins,
-            hasNativeController,
-            isLicensed
-        );
+        return descriptor;
     }
 
-    private static String getClassname(String name, String classname) {
-        if (classname == null) {
-            throw new IllegalArgumentException("property [classname] is missing for plugin [" + name + "]");
+    private static PluginDescriptor readerInternalDescriptor(Map<String, String> propsMap, String filename) {
+        String name = readNonEmptyString(propsMap, filename, "name");
+        String desc = readString(propsMap, name, "description");
+        String ver = readString(propsMap, name, "version");
+        Version esVer = readElasticsearchVersion(propsMap, name);
+        String javaVer = readJavaVersion(propsMap, name);
+
+        String extendedString = propsMap.remove("extended.plugins");
+        List<String> extended = List.of();
+        if (extendedString != null) {
+            extended = List.of(Strings.delimitedListToStringArray(extendedString, ","));
         }
 
-        return classname;
+        boolean nativeCont = readBoolean(propsMap, name, "has.native.controller");
+        String classname = readNonEmptyString(propsMap, name, "classname");
+        String module = propsMap.remove("modulename");
+        if (module != null && module.isBlank()) {
+            module = null;
+        }
+
+        boolean isLicensed = readBoolean(propsMap, name, "licensed");
+        boolean modular = module != null;
+
+        return new PluginDescriptor(name, desc, ver, esVer, javaVer, classname, module, extended, nativeCont, isLicensed, modular, false);
     }
 
-    private static boolean parseBooleanValue(String pluginName, String name, String rawValue) {
+    private static PluginDescriptor readerStableDescriptor(Map<String, String> propsMap, String filename) {
+        String name = readNonEmptyString(propsMap, filename, "name");
+        String desc = readString(propsMap, name, "description");
+        String ver = readString(propsMap, name, "version");
+        Version esVer = readElasticsearchVersion(propsMap, name);
+        String javaVer = readJavaVersion(propsMap, name);
+        boolean isModular = readBoolean(propsMap, name, "modular");
+
+        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, true);
+    }
+
+    private static String readNonEmptyString(Map<String, String> propsMap, String pluginId, String name) {
+        String value = propsMap.remove(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("property [" + name + "] is missing for plugin [" + pluginId + "]");
+        }
+        return value;
+    }
+
+    private static String readString(Map<String, String> propsMap, String pluginId, String name) {
+        String value = propsMap.remove(name);
+        if (value == null) {
+            throw new IllegalArgumentException("property [" + name + "] is missing for plugin [" + pluginId + "]");
+        }
+        return value;
+    }
+
+    private static Version readElasticsearchVersion(Map<String, String> propsMap, String pluginId) {
+        String esVersionString = readNonEmptyString(propsMap, pluginId, "elasticsearch.version");
+        return Version.fromString(esVersionString);
+    }
+
+    private static String readJavaVersion(Map<String, String> propsMap, String pluginId) {
+        String javaVersion = readNonEmptyString(propsMap, pluginId, "java.version");
+        JarHell.checkJavaVersion("plugin " + pluginId, javaVersion);
+        return javaVersion;
+    }
+
+    private static boolean readBoolean(Map<String, String> propsMap, String pluginId, String name) {
+        String rawValue = propsMap.remove(name);
         try {
             return Booleans.parseBoolean(rawValue, false);
         } catch (IllegalArgumentException e) {
@@ -246,7 +295,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
                 "property [%s] must be [true], [false], or unspecified but was [%s] for plugin [%s]",
                 name,
                 rawValue,
-                pluginName
+                pluginId
             );
             throw new IllegalArgumentException(message);
         }
@@ -338,6 +387,20 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      */
     public boolean isLicensed() {
         return isLicensed;
+    }
+
+    /**
+     * Whether this plugin should be loaded in a module layer.
+     */
+    public boolean isModular() {
+        return isModular;
+    }
+
+    /**
+     * Whether this plugin uses only stable APIs.
+     */
+    public boolean isStable() {
+        return isStable;
     }
 
     @Override

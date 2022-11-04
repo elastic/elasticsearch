@@ -60,6 +60,8 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
 
+    private final Set<String> availableRoles;
+
     private DiscoveryNodes(
         Map<String, DiscoveryNode> nodes,
         Map<String, DiscoveryNode> dataNodes,
@@ -84,6 +86,11 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
         assert (localNodeId == null) == (localNode == null);
+        this.availableRoles = dataNodes.values()
+            .stream()
+            .flatMap(n -> n.getRoles().stream())
+            .map(DiscoveryNodeRole::roleName)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
@@ -105,6 +112,16 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             return false;
         }
         return localNodeId.equals(masterNodeId);
+    }
+
+    /**
+     * Checks if any node has the role with the given {@code roleName}.
+     *
+     * @param roleName name to check
+     * @return true if any node has the role of the given name
+     */
+    public boolean isRoleAvailable(String roleName) {
+        return availableRoles.contains(roleName);
     }
 
     /**

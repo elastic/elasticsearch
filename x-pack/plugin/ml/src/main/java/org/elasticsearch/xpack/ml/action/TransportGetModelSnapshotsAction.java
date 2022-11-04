@@ -53,7 +53,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
         GetModelSnapshotsAction.Request request,
         ActionListener<GetModelSnapshotsAction.Response> listener
     ) {
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug(
             () -> format(
                 "Get model snapshots for job %s snapshot ID %s. from = %s, size = %s start = '%s', end='%s', sort=%s descending=%s",

@@ -31,6 +31,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportException;
@@ -235,7 +236,8 @@ public class PeerFinderTests extends ESTestCase {
             boundTransportAddress -> localNode,
             null,
             connectionManager,
-            new TaskManager(settings, threadPool, emptySet())
+            new TaskManager(settings, threadPool, emptySet()),
+            Tracer.NOOP
         );
 
         transportService.start();

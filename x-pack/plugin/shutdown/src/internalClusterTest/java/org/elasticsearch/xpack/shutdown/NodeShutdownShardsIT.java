@@ -145,8 +145,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
         final String nodeBId = getNodeId(nodeB);
 
-        logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
-        logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
+        logger.info("Started NodeB [{}] to replace NodeA [{}]", nodeBId, nodeAId);
 
         assertBusy(() -> {
             assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId);

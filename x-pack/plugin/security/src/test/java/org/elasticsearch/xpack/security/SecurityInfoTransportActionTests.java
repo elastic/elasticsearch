@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -56,6 +59,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
     private NativeRoleMappingStore roleMappingStore;
+    private ProfileService profileService;
     private SecurityUsageServices securityServices;
 
     @Before
@@ -66,7 +70,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         roleMappingStore = mock(NativeRoleMappingStore.class);
-        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter);
+        profileService = mock(ProfileService.class);
+        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter, profileService);
     }
 
     public void testAvailable() {
@@ -166,6 +171,21 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.security.operator_privileges.enabled", true);
         }
 
+        final Map<String, Object> userProfileUsage = Map.of(
+            "total",
+            randomIntBetween(100, 200),
+            "enabled",
+            randomIntBetween(50, 99),
+            "recent",
+            randomIntBetween(1, 42)
+        );
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Map<String, Object>>) invocation.getArguments()[0];
+            listener.onResponse(userProfileUsage);
+            return null;
+        }).when(profileService).usageStats(anyActionListener());
+
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
@@ -234,6 +254,11 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 // operator privileges
                 assertThat(source.getValue("operator_privileges.available"), is(operatorPrivilegesAvailable));
                 assertThat(source.getValue("operator_privileges.enabled"), is(operatorPrivilegesEnabled));
+
+                // user profile
+                assertThat(source.getValue("user_profile.total"), equalTo(userProfileUsage.get("total")));
+                assertThat(source.getValue("user_profile.enabled"), equalTo(userProfileUsage.get("enabled")));
+                assertThat(source.getValue("user_profile.recent"), equalTo(userProfileUsage.get("recent")));
             } else {
                 if (explicitlyDisabled) {
                     assertThat(source.getValue("ssl"), is(nullValue()));
@@ -249,6 +274,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 assertThat(source.getValue("ipfilter"), is(nullValue()));
                 assertThat(source.getValue("roles"), is(nullValue()));
                 assertThat(source.getValue("operator_privileges"), is(nullValue()));
+                assertThat(source.getValue("user_profile"), is(Matchers.nullValue()));
             }
         }
     }

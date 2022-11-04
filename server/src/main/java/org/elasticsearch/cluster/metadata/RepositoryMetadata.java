@@ -152,7 +152,7 @@ public class RepositoryMetadata implements Writeable {
             out.writeString(uuid);
         }
         out.writeString(type);
-        Settings.writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeLong(generation);
         out.writeLong(pendingGeneration);
     }
@@ -209,6 +209,10 @@ public class RepositoryMetadata implements Writeable {
     }
 
     public RepositoryMetadata withSettings(Settings settings) {
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
+    }
+
+    public RepositoryMetadata withGeneration(long generation, long pendingGeneration) {
         return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
     }
 }

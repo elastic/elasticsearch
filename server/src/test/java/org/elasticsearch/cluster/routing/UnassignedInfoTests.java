@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -316,7 +317,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));
         assertThat(shard.unassignedInfo(), notNullValue());
-        shard = shard.moveToStarted();
+        shard = shard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(shard.unassignedInfo(), nullValue());
     }
@@ -384,7 +385,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ShardRouting shardToFail = shardsWithState(clusterState.getRoutingNodes(), STARTED).get(0);
         clusterState = allocation.applyFailedShards(
             clusterState,
-            Collections.singletonList(new FailedShard(shardToFail, "test fail", null, randomBoolean()))
+            Collections.singletonList(new FailedShard(shardToFail, "test fail", null, randomBoolean())),
+            List.of()
         );
         // verify the reason and details
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));

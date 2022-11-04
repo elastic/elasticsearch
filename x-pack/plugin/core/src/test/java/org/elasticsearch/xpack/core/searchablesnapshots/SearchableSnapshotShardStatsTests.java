@@ -51,9 +51,9 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
         return new CacheIndexInputStats(
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
-            new ByteSizeValue(randomNonNegativeLong()),
-            new ByteSizeValue(randomNonNegativeLong()),
-            new ByteSizeValue(randomNonNegativeLong()),
+            ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomCounter(),

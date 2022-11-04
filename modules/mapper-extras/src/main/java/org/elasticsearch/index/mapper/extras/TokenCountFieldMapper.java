@@ -120,9 +120,9 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, ignoredValues) -> List.of();
+                return (lookup, doc, ignoredValues) -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
     }
 

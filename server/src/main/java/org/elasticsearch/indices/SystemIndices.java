@@ -8,17 +8,22 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -104,6 +109,8 @@ public class SystemIndices {
     public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-8";
 
     private static final Automaton EMPTY = Automata.makeEmpty();
+
+    private static final Logger logger = LogManager.getLogger(SystemIndices.class);
 
     /**
      * This is the source for non-plugin system features.
@@ -328,6 +335,11 @@ public class SystemIndices {
      * @return The matching {@link SystemIndexDescriptor} or {@code null} if no descriptor is found
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
+        return findMatchingDescriptor(indexDescriptors, name);
+    }
+
+    @Nullable
+    static SystemIndexDescriptor findMatchingDescriptor(SystemIndexDescriptor[] indexDescriptors, String name) {
         SystemIndexDescriptor matchingDescriptor = null;
         for (SystemIndexDescriptor systemIndexDescriptor : indexDescriptors) {
             if (systemIndexDescriptor.matchesIndexPattern(name)) {
@@ -854,38 +866,14 @@ public class SystemIndices {
             return postMigrationFunction;
         }
 
-        /**
-         * Clean up the state of a feature
-         * @param indexDescriptors List of descriptors of a feature's system indices
-         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
-         * @param name Name of the feature, used in logging
-         * @param clusterService A clusterService, for retrieving cluster metadata
-         * @param client A client, for issuing delete requests
-         * @param listener A listener to return success or failure of cleanup
-         */
-        public static void cleanUpFeature(
-            Collection<? extends IndexPatternMatcher> indexDescriptors,
-            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+        private static void cleanUpFeatureForIndices(
             String name,
-            ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener
+            String[] indexNames,
+            final ActionListener<ResetFeatureStateStatus> listener
         ) {
-            Metadata metadata = clusterService.state().getMetadata();
-
-            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
-                .map(descriptor -> descriptor.getMatchingIndices(metadata))
-                .flatMap(List::stream)
-                .toList();
-
-            if (allIndices.isEmpty()) {
-                // if no actual indices match the pattern, we can stop here
-                listener.onResponse(ResetFeatureStateStatus.success(name));
-                return;
-            }
-
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-            deleteIndexRequest.indices(allIndices.toArray(Strings.EMPTY_ARRAY));
+            deleteIndexRequest.indices(indexNames);
             client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -897,6 +885,78 @@ public class SystemIndices {
                     listener.onResponse(ResetFeatureStateStatus.failure(name, e));
                 }
             });
+        }
+
+        /**
+         * Clean up the state of a feature
+         * @param indexDescriptors List of descriptors of a feature's system indices
+         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
+         * @param name Name of the feature, used in logging
+         * @param clusterService A clusterService, for retrieving cluster metadata
+         * @param client A client, for issuing delete requests
+         * @param listener A listener to return success or failure of cleanup
+         */
+        public static void cleanUpFeature(
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+            String name,
+            ClusterService clusterService,
+            Client client,
+            final ActionListener<ResetFeatureStateStatus> listener
+        ) {
+            Metadata metadata = clusterService.state().getMetadata();
+
+            List<String> associatedIndices = associatedIndexDescriptors.stream()
+                .map(descriptor -> descriptor.getMatchingIndices(metadata))
+                .flatMap(List::stream)
+                .toList();
+
+            final int taskCount = ((associatedIndices.size() > 0) ? 1 : 0) + (int) indexDescriptors.stream()
+                .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
+                .count();
+
+            // check if there's nothing to do and take an early out
+            if (taskCount == 0) {
+                listener.onResponse(ResetFeatureStateStatus.success(name));
+                return;
+            }
+
+            GroupedActionListener<ResetFeatureStateStatus> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(listenerResults -> {
+                    List<ResetFeatureStateStatus> errors = listenerResults.stream()
+                        .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                        .collect(Collectors.toList());
+
+                    if (errors.isEmpty()) {
+                        listener.onResponse(ResetFeatureStateStatus.success(name));
+                    } else {
+                        StringBuilder exceptions = new StringBuilder("[");
+                        exceptions.append(errors.stream().map(e -> e.getException().getMessage()).collect(Collectors.joining(", ")));
+                        exceptions.append(']');
+                        errors.forEach(e -> logger.warn(() -> "error while resetting feature [" + name + "]", e.getException()));
+                        listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
+                    }
+                }, listener::onFailure),
+                taskCount
+            );
+
+            // Send cleanup for the associated indices, they don't need special origin since they are not protected
+            if (associatedIndices.isEmpty() == false) {
+                cleanUpFeatureForIndices(name, client, associatedIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
+            }
+
+            // One descriptor at a time, create an originating client and clean up the feature
+            for (var indexDescriptor : indexDescriptors) {
+                List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
+
+                if (matchingIndices.isEmpty() == false) {
+                    final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
+                        ? client
+                        : new OriginSettingClient(client, indexDescriptor.getOrigin());
+
+                    cleanUpFeatureForIndices(name, clientWithOrigin, matchingIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
+                }
+            }
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.

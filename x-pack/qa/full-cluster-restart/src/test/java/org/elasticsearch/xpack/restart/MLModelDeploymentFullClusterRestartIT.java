@@ -133,8 +133,8 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        request.setJsonEntity(formatted("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
 
@@ -146,9 +146,9 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             { "vocabulary": [%s] }
-            """.formatted(quotedWords));
+            """, quotedWords));
         client().performRequest(request);
     }
 
@@ -205,9 +205,9 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
 
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
@@ -217,9 +217,9 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         var response = client().performRequest(request);
         assertOK(response);
         return response;

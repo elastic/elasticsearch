@@ -74,7 +74,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
         EvaluateDataFrameAction.Request request,
         ActionListener<EvaluateDataFrameAction.Response> listener
     ) {
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<List<Void>> resultsListener = ActionListener.wrap(unused -> {
             EvaluateDataFrameAction.Response response = new EvaluateDataFrameAction.Response(
                 request.getEvaluation().getName(),

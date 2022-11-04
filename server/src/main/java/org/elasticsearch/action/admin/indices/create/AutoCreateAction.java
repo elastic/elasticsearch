@@ -70,7 +70,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
     public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
-        private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
         private final AutoCreateIndex autoCreateIndex;
@@ -103,24 +102,26 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 ThreadPool.Names.SAME
             );
             this.systemIndices = systemIndices;
-            this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            executor = (currentState, taskContexts) -> {
-                ClusterState state = currentState;
+            this.executor = batchExecutionContext -> {
+                final var taskContexts = batchExecutionContext.taskContexts();
                 final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+                ClusterState state = batchExecutionContext.initialState();
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         state = task.execute(state, successfulRequests, taskContext);
                         assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
                 }
-                if (state != currentState) {
-                    state = allocationService.reroute(state, "auto-create");
+                if (state != batchExecutionContext.initialState()) {
+                    try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                        state = allocationService.reroute(state, "auto-create");
+                    }
                 }
                 return state;
             };
@@ -160,11 +161,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 listener.onFailure(e);
             }
 
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                assert false : "should not be called";
-            }
-
             private ClusterStateAckListener getAckListener(String indexName) {
                 return new ClusterStateAckListener() {
                     @Override
@@ -174,12 +170,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     @Override
                     public void onAllNodesAcked() {
-                        activeShardsObserver.waitForActiveShards(
+                        ActiveShardsObserver.waitForActiveShards(
+                            clusterService,
                             new String[] { indexName },
                             ActiveShardCount.DEFAULT,
                             request.timeout(),
-                            shardsAcked -> listener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
-                            listener::onFailure
+                            listener.map(shardsAcked -> new CreateIndexResponse(true, shardsAcked, indexName))
                         );
                     }
 

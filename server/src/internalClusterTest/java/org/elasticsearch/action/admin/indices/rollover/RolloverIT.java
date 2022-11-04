@@ -44,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
@@ -472,6 +471,7 @@ public class RolloverIT extends ESIntegTestCase {
                 .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
+                .addMinIndexDocsCondition(1)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));
@@ -532,6 +532,7 @@ public class RolloverIT extends ESIntegTestCase {
                 .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
+                .addMinIndexDocsCondition(1)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));
@@ -597,6 +598,7 @@ public class RolloverIT extends ESIntegTestCase {
                 .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxPrimaryShardDocsCondition(randomNonNegativeLong())
+                .addMinIndexDocsCondition(1)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));
@@ -835,8 +837,8 @@ public class RolloverIT extends ESIntegTestCase {
                         .prepareRolloverIndex(aliasName)
                         .waitForActiveShards(ActiveShardCount.NONE)
                         .get();
-                    assertThat(response.getOldIndex(), equalTo(aliasName + String.format(Locale.ROOT, "-%06d", j)));
-                    assertThat(response.getNewIndex(), equalTo(aliasName + String.format(Locale.ROOT, "-%06d", j + 1)));
+                    assertThat(response.getOldIndex(), equalTo(aliasName + formatted("-%06d", j)));
+                    assertThat(response.getNewIndex(), equalTo(aliasName + formatted("-%06d", j + 1)));
                     assertThat(response.isDryRun(), equalTo(false));
                     assertThat(response.isRolledOver(), equalTo(true));
                 }
@@ -857,7 +859,7 @@ public class RolloverIT extends ESIntegTestCase {
             for (int j = 1; j <= numOfIndices; j++) {
                 AliasMetadata.Builder amBuilder = new AliasMetadata.Builder(aliasName);
                 amBuilder.writeIndex(j == numOfIndices);
-                expected.add(Map.entry(aliasName + String.format(Locale.ROOT, "-%06d", j), List.of(amBuilder.build())));
+                expected.add(Map.entry(aliasName + formatted("-%06d", j), List.of(amBuilder.build())));
             }
             assertThat(actual, containsInAnyOrder(expected.toArray(Object[]::new)));
         }

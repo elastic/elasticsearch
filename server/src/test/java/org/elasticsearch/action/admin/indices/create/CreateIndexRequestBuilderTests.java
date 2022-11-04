@@ -21,7 +21,6 @@ import org.junit.Before;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 public class CreateIndexRequestBuilderTests extends ESTestCase {
@@ -52,11 +51,11 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
 
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> builder.setSource("{ \"%s\": \"%s\" }".formatted(KEY, VALUE), XContentType.JSON)
+            () -> builder.setSource(formatted("{ \"%s\": \"%s\" }", KEY, VALUE), XContentType.JSON)
         );
-        assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
+        assertEquals(formatted("unknown key [%s] for create index", KEY), e.getMessage());
 
-        builder.setSource("{ \"settings\": { \"%s\": \"%s\" }}".formatted(KEY, VALUE), XContentType.JSON);
+        builder.setSource(formatted("{ \"settings\": { \"%s\": \"%s\" }}", KEY, VALUE), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         XContentBuilder xContent = XContentFactory.jsonBuilder()

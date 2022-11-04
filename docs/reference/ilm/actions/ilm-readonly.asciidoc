@@ -4,8 +4,8 @@
 
 Phases allowed: hot, warm, cold.
 
-Makes the index read-only;
-writes and metadata changes are no longer allowed.
+Makes the index data read-only;
+disables data write operations against the index.
 
 To use the `readonly` action in the `hot` phase, the `rollover` action *must* be present.
 If no rollover action is configured, {ilm-init} will reject the policy.

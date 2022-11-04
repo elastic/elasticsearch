@@ -263,10 +263,10 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
             A terms = (A) aggregation;
-            if (referenceTerms == null && terms.isMapped()) {
+            if (referenceTerms == null && terms.canLeadReduction()) {
                 referenceTerms = terms;
             }
-            if (referenceTerms != null && referenceTerms.getClass().equals(terms.getClass()) == false && terms.isMapped()) {
+            if (referenceTerms != null && referenceTerms.getClass().equals(terms.getClass()) == false && terms.canLeadReduction()) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
                 throw new AggregationExecutionException(

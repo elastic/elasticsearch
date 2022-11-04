@@ -85,7 +85,7 @@ public class BertTokenizerTests extends ESTestCase {
             assertThat(ex.getMessage(), equalTo("Input too large. The tokenized input length [8] exceeds the maximum sequence length [5]"));
 
             // Shouldn't throw
-            tokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0);
 
             // Should throw as special chars add two tokens
             expectThrows(
@@ -100,7 +100,7 @@ public class BertTokenizerTests extends ESTestCase {
             BertTokenizer tokenizer = BertTokenizer.builder(
                 TEST_CASED_VOCAB,
                 new BertTokenization(null, true, 5, Tokenization.Truncate.NONE, 0)
-            ).build();
+            ).build()
         ) {
             List<TokenizationResult.Tokens> tokens = tokenizer.tokenize(
                 "Pancake day fun with Elasticsearch and Godzilla",

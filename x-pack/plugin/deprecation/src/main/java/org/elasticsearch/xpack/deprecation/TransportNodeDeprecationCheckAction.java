@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.tasks.Task;
@@ -158,9 +159,9 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
         DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeId);
         if (usage != null) {
             long freeBytes = usage.getFreeBytes();
-            double freeDiskPercentage = usage.getFreeDiskAsPercentage();
-            if (exceedsLowWatermark(nodeSettings, clusterSettings, freeBytes, freeDiskPercentage)
-                || exceedsLowWatermark(dynamicSettings, clusterSettings, freeBytes, freeDiskPercentage)) {
+            long totalBytes = usage.getTotalBytes();
+            if (exceedsLowWatermark(nodeSettings, clusterSettings, freeBytes, totalBytes)
+                || exceedsLowWatermark(dynamicSettings, clusterSettings, freeBytes, totalBytes)) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "Disk usage exceeds low watermark",
@@ -179,15 +180,9 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
         return null;
     }
 
-    private static boolean exceedsLowWatermark(
-        Settings settingsToCheck,
-        ClusterSettings clusterSettings,
-        long freeBytes,
-        double freeDiskPercentage
-    ) {
+    private static boolean exceedsLowWatermark(Settings settingsToCheck, ClusterSettings clusterSettings, long freeBytes, long totalBytes) {
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(settingsToCheck, clusterSettings);
-        if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()
-            || freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdLow()) {
+        if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLowStage(ByteSizeValue.ofBytes(totalBytes)).getBytes()) {
             return true;
         }
         return false;

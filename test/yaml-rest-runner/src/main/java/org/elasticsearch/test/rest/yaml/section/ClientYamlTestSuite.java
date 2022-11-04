@@ -10,10 +10,10 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
@@ -63,8 +63,7 @@ public class ClientYamlTestSuite {
 
         try (
             XContentParser parser = YamlXContent.yamlXContent.createParser(
-                executeableSectionRegistry,
-                LoggingDeprecationHandler.INSTANCE,
+                XContentParserConfiguration.EMPTY.withRegistry(executeableSectionRegistry),
                 Files.newInputStream(file)
             )
         ) {

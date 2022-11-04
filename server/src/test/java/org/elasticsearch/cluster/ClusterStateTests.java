@@ -139,7 +139,7 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
         builder.endObject();
 
-        assertEquals(XContentHelper.stripWhitespace("""
+        assertEquals(XContentHelper.stripWhitespace(formatted("""
             {
               "cluster_uuid": "clusterUUID",
               "version": 0,
@@ -188,10 +188,12 @@ public class ClusterStateTests extends ESTestCase {
                     "data_frozen",
                     "data_hot",
                     "data_warm",
+                    "index",
                     "ingest",
                     "master",
                     "ml",
                     "remote_cluster_client",
+                    "search",
                     "transform",
                     "voting_only"
                   ]
@@ -301,6 +303,9 @@ public class ClusterStateTests extends ESTestCase {
                           "index": "index",
                           "allocation_id": {
                             "id": "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
                       ]
@@ -321,13 +326,16 @@ public class ClusterStateTests extends ESTestCase {
                       "index": "index",
                       "allocation_id": {
                         "id": "%s"
+                      },
+                      "relocation_failure_info" : {
+                        "failed_attempts" : 0
                       }
                     }
                   ],
                   "nodeId1": []
                 }
               }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)), Strings.toString(builder));
+            }""", ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)), Strings.toString(builder));
 
     }
 
@@ -351,7 +359,7 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -400,10 +408,12 @@ public class ClusterStateTests extends ESTestCase {
                     "data_frozen",
                     "data_hot",
                     "data_warm",
+                    "index",
                     "ingest",
                     "master",
                     "ml",
                     "remote_cluster_client",
+                    "search",
                     "transform",
                     "voting_only"
                   ]
@@ -505,6 +515,9 @@ public class ClusterStateTests extends ESTestCase {
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
                       ]
@@ -525,13 +538,16 @@ public class ClusterStateTests extends ESTestCase {
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
+                      },
+                      "relocation_failure_info" : {
+                        "failed_attempts" : 0
                       }
                     }
                   ],
                   "nodeId1" : [ ]
                 }
               }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
+            }""", ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
 
     }
 
@@ -556,7 +572,7 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -605,10 +621,12 @@ public class ClusterStateTests extends ESTestCase {
                     "data_frozen",
                     "data_hot",
                     "data_warm",
+                    "index",
                     "ingest",
                     "master",
                     "ml",
                     "remote_cluster_client",
+                    "search",
                     "transform",
                     "voting_only"
                   ]
@@ -716,6 +734,9 @@ public class ClusterStateTests extends ESTestCase {
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
                       ]
@@ -736,13 +757,16 @@ public class ClusterStateTests extends ESTestCase {
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
+                      },
+                      "relocation_failure_info" : {
+                        "failed_attempts" : 0
                       }
                     }
                   ],
                   "nodeId1" : [ ]
                 }
               }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
+            }""", ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
 
     }
 
@@ -785,7 +809,7 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -851,7 +875,7 @@ public class ClusterStateTests extends ESTestCase {
                 "unassigned" : [ ],
                 "nodes" : { }
               }
-            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id), Strings.toString(builder));
     }
 
     private ClusterState buildClusterState() throws IOException {

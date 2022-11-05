@@ -75,4 +75,13 @@ public class CountRowsAggregator implements AggregatorFunction {
     public Block evaluateFinal() {
         return new LongArrayBlock(new long[] { state.longValue() }, 1);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("channel=").append(channel);
+        sb.append("]");
+        return sb.toString();
+    }
 }

@@ -56,4 +56,13 @@ public class PageConsumerOperator implements Operator {
     public void close() {
 
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("pageConsumer=").append(pageConsumer);
+        sb.append("]");
+        return sb.toString();
+    }
 }

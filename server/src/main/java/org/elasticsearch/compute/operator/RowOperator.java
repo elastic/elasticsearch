@@ -14,12 +14,28 @@ import org.elasticsearch.compute.data.ConstantLongBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
+import java.util.Objects;
+
+import static java.util.stream.Collectors.joining;
 
 public class RowOperator implements Operator {
 
     private final List<Object> objects;
 
     boolean finished;
+
+    public record RowOperatorFactory(List<Object> objects) implements OperatorFactory {
+
+        @Override
+        public Operator get() {
+            return new RowOperator(objects);
+        }
+
+        @Override
+        public String describe() {
+            return "RowOperator(objects = " + objects.stream().map(Objects::toString).collect(joining(",")) + ")";
+        }
+    }
 
     public RowOperator(List<Object> objects) {
         this.objects = objects;
@@ -65,5 +81,14 @@ public class RowOperator implements Operator {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("objects=").append(objects);
+        sb.append("]");
+        return sb.toString();
     }
 }

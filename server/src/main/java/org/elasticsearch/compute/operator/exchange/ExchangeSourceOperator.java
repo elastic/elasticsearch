@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorFactory;
 
 /**
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
@@ -21,6 +22,19 @@ public class ExchangeSourceOperator implements Operator {
 
     private final ExchangeSource source;
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
+
+    public record ExchangeSourceOperatorFactory(Exchange exchange) implements OperatorFactory {
+
+        @Override
+        public Operator get() {
+            return new ExchangeSourceOperator(exchange.getNextSource());
+        }
+
+        @Override
+        public String describe() {
+            return "ExchangeSourceOperator(partitioning = " + exchange.partitioning() + ")";
+        }
+    }
 
     public ExchangeSourceOperator(ExchangeSource source) {
         this.source = source;

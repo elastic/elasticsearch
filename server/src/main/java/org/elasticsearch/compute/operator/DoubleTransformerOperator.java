@@ -28,6 +28,28 @@ public class DoubleTransformerOperator implements Operator {
 
     Page lastInput;
 
+    public static class DoubleTransformerOperatorFactory implements OperatorFactory {
+
+        private final int channel;
+
+        private final LongFunction<Double> doubleTransformer;
+
+        public DoubleTransformerOperatorFactory(int channel, LongFunction<Double> doubleTransformer) {
+            this.channel = channel;
+            this.doubleTransformer = doubleTransformer;
+        }
+
+        @Override
+        public Operator get() {
+            return new DoubleTransformerOperator(channel, doubleTransformer);
+        }
+
+        @Override
+        public String describe() {
+            return "DoubleTransformerOperator(channel = " + channel + ")";
+        }
+    }
+
     public DoubleTransformerOperator(int channel, LongFunction<Double> doubleTransformer) {
         this.channel = channel;
         this.doubleTransformer = doubleTransformer;
@@ -71,5 +93,15 @@ public class DoubleTransformerOperator implements Operator {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("channel=").append(channel).append(", ");
+        sb.append("doubleTransformer=").append(doubleTransformer);
+        sb.append("]");
+        return sb.toString();
     }
 }

@@ -85,4 +85,13 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
         }
         return new LongArrayBlock(result, positions);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("channel=").append(channel);
+        sb.append("]");
+        return sb.toString();
+    }
 }

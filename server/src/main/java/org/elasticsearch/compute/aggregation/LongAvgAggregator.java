@@ -87,6 +87,15 @@ class LongAvgAggregator implements AggregatorFunction {
         return new DoubleArrayBlock(new double[] { result }, 1);
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("channel=").append(channel);
+        sb.append("]");
+        return sb.toString();
+    }
+
     // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)
     static class AvgState implements AggregatorState<AvgState> {
 

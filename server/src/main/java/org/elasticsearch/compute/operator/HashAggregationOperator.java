@@ -10,8 +10,11 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
@@ -20,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.joining;
 
 @Experimental
 public class HashAggregationOperator implements Operator {
@@ -37,6 +41,32 @@ public class HashAggregationOperator implements Operator {
     private final LongHash longHash;
 
     private final List<GroupingAggregator> aggregators;
+
+    public record HashAggregationOperatorFactory(
+        int groupByChannel,
+        List<GroupingAggregatorFactory> aggregators,
+        BigArrays bigArrays,
+        AggregatorMode mode
+    ) implements OperatorFactory {
+
+        @Override
+        public Operator get() {
+            return new HashAggregationOperator(
+                groupByChannel,
+                aggregators.stream().map(GroupingAggregatorFactory::get).toList(),
+                bigArrays
+            );
+        }
+
+        @Override
+        public String describe() {
+            return "HashAggregationOperator(mode = "
+                + mode
+                + ", aggs = "
+                + aggregators.stream().map(Describable::describe).collect(joining(", "))
+                + ")";
+        }
+    }
 
     public HashAggregationOperator(int groupByChannel, List<GroupingAggregator> aggregators, BigArrays bigArrays) {
         Objects.requireNonNull(aggregators);
@@ -117,5 +147,15 @@ public class HashAggregationOperator implements Operator {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("groupByChannel=").append(groupByChannel).append(", ");
+        sb.append("aggregators=").append(aggregators);
+        sb.append("]");
+        return sb.toString();
     }
 }

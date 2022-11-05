@@ -24,14 +24,21 @@ import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorFactory;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Source operator that incrementally runs Lucene searches
@@ -60,6 +67,73 @@ public class LuceneSourceOperator implements Operator {
     private final int[] currentPage;
 
     private int currentScorerPos;
+
+    public static class LuceneSourceOperatorFactory implements OperatorFactory {
+
+        private final Function<SearchExecutionContext, Query> queryFunction;
+
+        private final DataPartitioning dataPartitioning;
+
+        private final int maxPageSize;
+
+        private final List<SearchExecutionContext> matchedSearchContexts;
+
+        private final int taskConcurrency;
+
+        private Iterator<LuceneSourceOperator> iterator;
+
+        public LuceneSourceOperatorFactory(
+            List<SearchExecutionContext> matchedSearchContexts,
+            Function<SearchExecutionContext, Query> queryFunction,
+            DataPartitioning dataPartitioning,
+            int taskConcurrency
+        ) {
+            this.matchedSearchContexts = matchedSearchContexts;
+            this.queryFunction = queryFunction;
+            this.dataPartitioning = dataPartitioning;
+            this.taskConcurrency = taskConcurrency;
+            this.maxPageSize = PAGE_SIZE;
+        }
+
+        @Override
+        public Operator get() {
+            if (iterator == null) {
+                iterator = sourceOperatorIterator();
+            }
+            if (iterator.hasNext()) {
+                return iterator.next();
+            } else {
+                throw new IllegalStateException("Lucene source operator factory exhausted");
+            }
+        }
+
+        private Iterator<LuceneSourceOperator> sourceOperatorIterator() {
+            final List<LuceneSourceOperator> luceneOperators = new ArrayList<>();
+            for (int shardIndex = 0; shardIndex < matchedSearchContexts.size(); shardIndex++) {
+                final SearchExecutionContext ctx = matchedSearchContexts.get(shardIndex);
+                final Query query = queryFunction.apply(ctx);
+                final LuceneSourceOperator queryOperator = new LuceneSourceOperator(ctx.getIndexReader(), shardIndex, query, maxPageSize);
+                switch (dataPartitioning) {
+                    case SHARD -> luceneOperators.add(queryOperator);
+                    case SEGMENT -> luceneOperators.addAll(queryOperator.segmentSlice());
+                    case DOC -> luceneOperators.addAll(queryOperator.docSlice(taskConcurrency));
+                    default -> throw new UnsupportedOperationException();
+                }
+            }
+            return luceneOperators.iterator();
+        }
+
+        public int size() {
+            return Math.toIntExact(
+                StreamSupport.stream(Spliterators.spliteratorUnknownSize(sourceOperatorIterator(), Spliterator.ORDERED), false).count()
+            );
+        }
+
+        @Override
+        public String describe() {
+            return "LuceneSourceOperator(dataPartitioning = " + dataPartitioning + ")";
+        }
+    }
 
     public LuceneSourceOperator(IndexReader reader, int shardId, Query query) {
         this(reader, shardId, query, PAGE_SIZE);
@@ -310,5 +384,14 @@ public class LuceneSourceOperator implements Operator {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("shardId=").append(shardId);
+        sb.append("]");
+        return sb.toString();
     }
 }

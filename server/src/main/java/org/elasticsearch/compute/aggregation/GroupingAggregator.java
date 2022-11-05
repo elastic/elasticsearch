@@ -8,11 +8,14 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.GroupingAggregatorFunctionFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 @Experimental
 public class GroupingAggregator {
@@ -21,6 +24,21 @@ public class GroupingAggregator {
     private final AggregatorMode mode;
 
     private final int intermediateChannel;
+
+    public record GroupingAggregatorFactory(GroupingAggregatorFunctionFactory aggCreationFunc, AggregatorMode mode, int inputChannel)
+        implements
+            Supplier<GroupingAggregator>,
+            Describable {
+        @Override
+        public GroupingAggregator get() {
+            return new GroupingAggregator(aggCreationFunc, mode, inputChannel);
+        }
+
+        @Override
+        public String describe() {
+            return aggCreationFunc.describe();
+        }
+    }
 
     public GroupingAggregator(
         BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> aggCreationFunc,
@@ -46,5 +64,15 @@ public class GroupingAggregator {
         } else {
             return aggregatorFunction.evaluateFinal();
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("aggregatorFunction=").append(aggregatorFunction).append(", ");
+        sb.append("mode=").append(mode);
+        sb.append("]");
+        return sb.toString();
     }
 }

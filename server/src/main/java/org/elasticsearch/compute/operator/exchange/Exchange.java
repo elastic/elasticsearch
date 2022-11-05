@@ -32,6 +32,8 @@ public class Exchange {
     private final List<ExchangeSource> sources = new ArrayList<>();
     private final Set<ExchangeSink> sinks = new HashSet<>();
 
+    private final Partitioning partitioning;
+
     private int nextSourceIndex;
 
     public enum Partitioning {
@@ -64,6 +66,7 @@ public class Exchange {
         } else {
             throw new UnsupportedOperationException(partitioning.toString());
         }
+        this.partitioning = partitioning;
     }
 
     private void checkAllSourcesFinished() {
@@ -116,5 +119,9 @@ public class Exchange {
         ExchangeSource result = sources.get(nextSourceIndex);
         nextSourceIndex++;
         return result;
+    }
+
+    public Partitioning partitioning() {
+        return partitioning;
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,6 +47,25 @@ public class NumericDocValuesExtractor implements Operator {
     private Page lastPage;
 
     boolean finished;
+
+    public record NumericDocValuesExtractorFactory(
+        List<IndexReader> indexReaders,
+        int docChannel,
+        int leafOrdChannel,
+        int shardChannel,
+        String field
+    ) implements OperatorFactory {
+
+        @Override
+        public Operator get() {
+            return new NumericDocValuesExtractor(indexReaders, docChannel, leafOrdChannel, shardChannel, field);
+        }
+
+        @Override
+        public String describe() {
+            return "NumericDocValuesExtractor(field = " + field + ")";
+        }
+    }
 
     /**
      * Creates a new extractor

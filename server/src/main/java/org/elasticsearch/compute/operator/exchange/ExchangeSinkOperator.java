@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorFactory;
 
 /**
  * Sink operator implementation that pushes data to an {@link ExchangeSink}
@@ -22,6 +23,18 @@ public class ExchangeSinkOperator implements Operator {
     private final ExchangeSink sink;
 
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
+
+    public record ExchangeSinkOperatorFactory(Exchange ex) implements OperatorFactory {
+
+        public Operator get() {
+            return new ExchangeSinkOperator(ex.createSink());
+        }
+
+        @Override
+        public String describe() {
+            return "ExchangeSinkOperator";
+        }
+    }
 
     public ExchangeSinkOperator(ExchangeSink sink) {
         this.sink = sink;

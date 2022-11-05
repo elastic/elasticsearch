@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.Page;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import static java.util.stream.Collectors.joining;
+
 /**
  * Sink operator that calls a given listener for each page received. The listener receives both the page as well as schema information,
  * i.e. the names of the rows that are outputted.
@@ -23,6 +25,18 @@ public class OutputOperator implements Operator {
 
     private final List<String> columns;
     private final BiConsumer<List<String>, Page> pageConsumer;
+
+    public record OutputOperatorFactory(List<String> columns, BiConsumer<List<String>, Page> pageConsumer) implements OperatorFactory {
+        @Override
+        public Operator get() {
+            return new OutputOperator(columns, pageConsumer);
+        }
+
+        @Override
+        public String describe() {
+            return "OutputOperator (columns = " + columns.stream().collect(joining(", ")) + ")";
+        }
+    }
 
     public OutputOperator(List<String> columns, BiConsumer<List<String>, Page> pageConsumer) {
         this.columns = columns;
@@ -59,5 +73,15 @@ public class OutputOperator implements Operator {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("columns=").append(columns).append(", ");
+        sb.append("pageConsumer=").append(pageConsumer);
+        sb.append("]");
+        return sb.toString();
     }
 }

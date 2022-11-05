@@ -8,11 +8,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 @Experimental
 public class Aggregator {
@@ -21,6 +23,21 @@ public class Aggregator {
     private final AggregatorMode mode;
 
     private final int intermediateChannel;
+
+    public record AggregatorFactory(AggregatorFunction.AggregatorFunctionFactory aggCreationFunc, AggregatorMode mode, int inputChannel)
+        implements
+            Supplier<Aggregator>,
+            Describable {
+        @Override
+        public Aggregator get() {
+            return new Aggregator(aggCreationFunc, mode, inputChannel);
+        }
+
+        @Override
+        public String describe() {
+            return aggCreationFunc.describe();
+        }
+    }
 
     public Aggregator(BiFunction<AggregatorMode, Integer, AggregatorFunction> aggCreationFunc, AggregatorMode mode, int inputChannel) {
         this.aggregatorFunction = aggCreationFunc.apply(mode, inputChannel);
@@ -42,5 +59,15 @@ public class Aggregator {
         } else {
             return aggregatorFunction.evaluateFinal();
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("aggregatorFunction=").append(aggregatorFunction).append(", ");
+        sb.append("mode=").append(mode);
+        sb.append("]");
+        return sb.toString();
     }
 }

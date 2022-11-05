@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -25,43 +26,72 @@ public interface AggregatorFunction {
 
     Block evaluateFinal();
 
-    BiFunction<AggregatorMode, Integer, AggregatorFunction> doubleAvg = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return DoubleAvgAggregator.createIntermediate();
-        } else {
-            return DoubleAvgAggregator.create(inputChannel);
+    abstract class AggregatorFunctionFactory implements BiFunction<AggregatorMode, Integer, AggregatorFunction>, Describable {
+
+        private final String name;
+
+        AggregatorFunctionFactory(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String describe() {
+            return name;
+        }
+    }
+
+    AggregatorFunctionFactory doubleAvg = new AggregatorFunctionFactory("doubleAvg") {
+        @Override
+        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return DoubleAvgAggregator.createIntermediate();
+            } else {
+                return DoubleAvgAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, AggregatorFunction> longAvg = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return LongAvgAggregator.createIntermediate();
-        } else {
-            return LongAvgAggregator.create(inputChannel);
+    AggregatorFunctionFactory longAvg = new AggregatorFunctionFactory("longAvg") {
+        @Override
+        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return LongAvgAggregator.createIntermediate();
+            } else {
+                return LongAvgAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, AggregatorFunction> count = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return CountRowsAggregator.createIntermediate();
-        } else {
-            return CountRowsAggregator.create(inputChannel);
+    AggregatorFunctionFactory count = new AggregatorFunctionFactory("count") {
+        @Override
+        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return CountRowsAggregator.createIntermediate();
+            } else {
+                return CountRowsAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, AggregatorFunction> max = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return MaxAggregator.createIntermediate();
-        } else {
-            return MaxAggregator.create(inputChannel);
+    AggregatorFunctionFactory max = new AggregatorFunctionFactory("max") {
+        @Override
+        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return MaxAggregator.createIntermediate();
+            } else {
+                return MaxAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, AggregatorFunction> sum = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return SumAggregator.createIntermediate();
-        } else {
-            return SumAggregator.create(inputChannel);
+    AggregatorFunctionFactory sum = new AggregatorFunctionFactory("sum") {
+        @Override
+        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return SumAggregator.createIntermediate();
+            } else {
+                return SumAggregator.create(inputChannel);
+            }
         }
     };
 }

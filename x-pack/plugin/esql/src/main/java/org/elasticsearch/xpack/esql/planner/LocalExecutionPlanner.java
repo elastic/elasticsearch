@@ -7,34 +7,38 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.aggregation.Aggregator;
+import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
+import org.elasticsearch.compute.aggregation.AggregatorFunction.AggregatorFunctionFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.NumericDocValuesExtractor;
-import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.DoubleTransformerOperator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.GroupingAggregatorFunctionFactory;
+import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
+import org.elasticsearch.compute.lucene.NumericDocValuesExtractor.NumericDocValuesExtractorFactory;
+import org.elasticsearch.compute.operator.AggregationOperator.AggregationOperatorFactory;
+import org.elasticsearch.compute.operator.DoubleTransformerOperator.DoubleTransformerOperatorFactory;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OutputOperator;
-import org.elasticsearch.compute.operator.RowOperator;
-import org.elasticsearch.compute.operator.TopNOperator;
+import org.elasticsearch.compute.operator.OperatorFactory;
+import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
+import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.Exchange;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
-import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,10 +72,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static java.util.stream.Collectors.joining;
 
 /**
  * The local execution planner takes a plan (represented as PlanNode tree / digraph) as input and creates the corresponding
@@ -103,12 +108,6 @@ public class LocalExecutionPlanner {
         dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
     }
 
-    public enum DataPartitioning {
-        SHARD,
-        SEGMENT,
-        DOC,
-    }
-
     /**
      * turn the given plan into a list of drivers to execute
      */
@@ -117,9 +116,7 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation physicalOperation = plan(node, context);
 
-        context.addDriverFactory(
-            new DriverFactory(() -> new Driver(physicalOperation.operators(), () -> {}), context.getDriverInstanceCount())
-        );
+        context.addDriverFactory(new DriverFactory(new DriverSupplier(physicalOperation), context.getDriverInstanceCount()));
 
         LocalExecutionPlan localExecutionPlan = new LocalExecutionPlan();
         localExecutionPlan.driverFactories.addAll(context.driverFactories);
@@ -130,13 +127,13 @@ public class LocalExecutionPlanner {
         if (node instanceof AggregateExec aggregate) {
             PhysicalOperation source = plan(aggregate.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
-            Supplier<Operator> operatorFactory = null;
+            OperatorFactory operatorFactory = null;
 
             if (aggregate.groupings().isEmpty()) {
                 // not grouping
                 for (NamedExpression e : aggregate.aggregates()) {
                     if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                        BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc;
+                        AggregatorFunctionFactory aggregatorFunc;
                         if (aggregateFunction instanceof Avg avg) {
                             aggregatorFunc = avg.dataType().isRational() ? AggregatorFunction.doubleAvg : AggregatorFunction.longAvg;
                         } else if (aggregateFunction instanceof Count) {
@@ -146,20 +143,21 @@ public class LocalExecutionPlanner {
                         }
 
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                            operatorFactory = () -> new AggregationOperator(
+                            operatorFactory = new AggregationOperatorFactory(
                                 List.of(
-                                    new Aggregator(
+                                    new AggregatorFactory(
                                         aggregatorFunc,
                                         AggregatorMode.INITIAL,
                                         source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
-                                )
+                                ),
+                                AggregatorMode.INITIAL
                             );
                             layout.put(alias.id(), 0);
                         } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                            operatorFactory = () -> new AggregationOperator(
-                                // TODO: use intermediate name
-                                List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id())))
+                            operatorFactory = new AggregationOperatorFactory(
+                                List.of(new AggregatorFactory(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
+                                AggregatorMode.FINAL
                             );
                             layout.put(alias.id(), 0);
                         } else {
@@ -180,7 +178,7 @@ public class LocalExecutionPlanner {
 
                 for (NamedExpression e : aggregate.aggregates()) {
                     if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                        BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> aggregatorFunc;
+                        GroupingAggregatorFunctionFactory aggregatorFunc;
                         if (aggregateFunction instanceof Avg) {
                             aggregatorFunc = GroupingAggregatorFunction.avg;
                         } else if (aggregateFunction instanceof Count) {
@@ -190,23 +188,25 @@ public class LocalExecutionPlanner {
                         }
 
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                            operatorFactory = () -> new HashAggregationOperator(
+                            operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.get(grpAttrib.id()),
                                 List.of(
-                                    new GroupingAggregator(
+                                    new GroupingAggregatorFactory(
                                         aggregatorFunc,
                                         AggregatorMode.INITIAL,
                                         source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
                                 ),
-                                BigArrays.NON_RECYCLING_INSTANCE
+                                BigArrays.NON_RECYCLING_INSTANCE,
+                                AggregatorMode.INITIAL
                             );
                             layout.put(alias.id(), 1);  // <<<< TODO: this one looks suspicious
                         } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                            operatorFactory = () -> new HashAggregationOperator(
+                            operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.get(grpAttrib.id()),
-                                List.of(new GroupingAggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
-                                BigArrays.NON_RECYCLING_INSTANCE
+                                List.of(new GroupingAggregatorFactory(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
+                                BigArrays.NON_RECYCLING_INSTANCE,
+                                AggregatorMode.FINAL
                             );
                             layout.put(alias.id(), 1);
                         } else {
@@ -237,7 +237,7 @@ public class LocalExecutionPlanner {
                 layout.put(attr.id(), layout.size());
                 Map<Object, Integer> previousLayout = op.layout;
                 op = new PhysicalOperation(
-                    () -> new NumericDocValuesExtractor(
+                    new NumericDocValuesExtractorFactory(
                         searchContexts.stream().map(ctx -> ctx.getSearchExecutionContext().getIndexReader()).collect(Collectors.toList()),
                         previousLayout.get(souceAttributes[0].id()),
                         previousLayout.get(souceAttributes[1].id()),
@@ -251,7 +251,7 @@ public class LocalExecutionPlanner {
                     layout = new HashMap<>(layout);
                     int channel = layout.get(attr.id());
                     op = new PhysicalOperation(
-                        () -> new DoubleTransformerOperator(channel, NumericUtils::sortableLongToDouble),
+                        new DoubleTransformerOperatorFactory(channel, NumericUtils::sortableLongToDouble),
                         layout,
                         op
                     );
@@ -271,7 +271,7 @@ public class LocalExecutionPlanner {
                 );
             }
             return new PhysicalOperation(
-                () -> new OutputOperator(
+                new OutputOperatorFactory(
                     outputExec.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
                     outputExec.getPageConsumer()
                 ),
@@ -286,15 +286,9 @@ public class LocalExecutionPlanner {
             LocalExecutionPlanContext subContext = context.createSubContext();
             PhysicalOperation source = plan(exchangeExec.child(), subContext);
             Map<Object, Integer> layout = source.layout;
-            PhysicalOperation physicalOperation = new PhysicalOperation(
-                () -> new ExchangeSinkOperator(ex.createSink()),
-                source.layout,
-                source
-            );
-            context.addDriverFactory(
-                new DriverFactory(() -> new Driver(physicalOperation.operators(), () -> {}), subContext.getDriverInstanceCount())
-            );
-            return new PhysicalOperation(() -> new ExchangeSourceOperator(ex.getNextSource()), layout);
+            PhysicalOperation physicalOperation = new PhysicalOperation(new ExchangeSinkOperatorFactory(ex), source.layout, source);
+            context.addDriverFactory(new DriverFactory(new DriverSupplier(physicalOperation), subContext.getDriverInstanceCount()));
+            return new PhysicalOperation(new ExchangeSourceOperatorFactory(ex), layout);
         } else if (node instanceof TopNExec topNExec) {
             PhysicalOperation source = plan(topNExec.child(), context);
             if (topNExec.order().size() != 1) {
@@ -315,7 +309,7 @@ public class LocalExecutionPlanner {
             }
 
             return new PhysicalOperation(
-                () -> new TopNOperator(sortByChannel, order.direction() == Order.OrderDirection.ASC, limit),
+                new TopNOperatorFactory(sortByChannel, order.direction() == Order.OrderDirection.ASC, limit),
                 source.layout,
                 source
             );
@@ -335,7 +329,7 @@ public class LocalExecutionPlanner {
             layout.putAll(source.layout);
             layout.put(namedExpression.toAttribute().id(), layout.size());
             return new PhysicalOperation(
-                () -> new EvalOperator(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
+                new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
                 layout,
                 source
             );
@@ -351,7 +345,7 @@ public class LocalExecutionPlanner {
             for (int i = 0; i < row.output().size(); i++) {
                 layout.put(row.output().get(i).id(), i);
             }
-            return new PhysicalOperation(() -> new RowOperator(obj), layout);
+            return new PhysicalOperation(new RowOperatorFactory(obj), layout);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }
@@ -362,24 +356,18 @@ public class LocalExecutionPlanner {
             .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
             .map(SearchContext::getSearchExecutionContext)
             .toList();
-        final List<LuceneSourceOperator> luceneOperators = new ArrayList<>();
-        for (int shardIndex = 0; shardIndex < matchedSearchContexts.size(); shardIndex++) {
-            final SearchExecutionContext ctx = matchedSearchContexts.get(shardIndex);
-            final Query query = ctx.toQuery(esQuery.query()).query();
-            final LuceneSourceOperator queryOperator = new LuceneSourceOperator(ctx.getIndexReader(), shardIndex, query);
-            switch (dataPartitioning) {
-                case SHARD -> luceneOperators.add(queryOperator);
-                case SEGMENT -> luceneOperators.addAll(queryOperator.segmentSlice());
-                case DOC -> luceneOperators.addAll(queryOperator.docSlice(taskConcurrency));
-                default -> throw new UnsupportedOperationException();
-            }
-        }
-        context.setDriverInstanceCount(luceneOperators.size());
+        LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(
+            matchedSearchContexts,
+            ctx -> ctx.toQuery(esQuery.query()).query(),
+            dataPartitioning,
+            taskConcurrency
+        );
+        context.setDriverInstanceCount(operatorFactory.size());
         Map<Object, Integer> layout = new HashMap<>();
         for (int i = 0; i < esQuery.output().size(); i++) {
             layout.put(esQuery.output().get(i).id(), i);
         }
-        return new PhysicalOperation(luceneOperators.iterator()::next, layout);
+        return new PhysicalOperation(operatorFactory, layout);
     }
 
     private ExpressionEvaluator toEvaluator(Expression exp, Map<Object, Integer> layout) {
@@ -433,23 +421,28 @@ public class LocalExecutionPlanner {
         }
     }
 
-    public static class PhysicalOperation {
-        private final List<Supplier<Operator>> operatorFactories = new ArrayList<>();
+    public static class PhysicalOperation implements Describable {
+        private final List<OperatorFactory> operatorFactories = new ArrayList<>();
         private final Map<Object, Integer> layout; // maps field names to channels
 
-        PhysicalOperation(Supplier<Operator> operatorFactory, Map<Object, Integer> layout) {
+        PhysicalOperation(OperatorFactory operatorFactory, Map<Object, Integer> layout) {
             this.operatorFactories.add(operatorFactory);
             this.layout = layout;
         }
 
-        PhysicalOperation(Supplier<Operator> operatorFactory, Map<Object, Integer> layout, PhysicalOperation source) {
+        PhysicalOperation(OperatorFactory operatorFactory, Map<Object, Integer> layout, PhysicalOperation source) {
             this.operatorFactories.addAll(source.operatorFactories);
             this.operatorFactories.add(operatorFactory);
             this.layout = layout;
         }
 
         public List<Operator> operators() {
-            return operatorFactories.stream().map(Supplier::get).collect(Collectors.toList());
+            return operatorFactories.stream().map(OperatorFactory::get).collect(Collectors.toList());
+        }
+
+        @Override
+        public String describe() {
+            return operatorFactories.stream().map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
         }
     }
 
@@ -487,14 +480,30 @@ public class LocalExecutionPlanner {
         }
     }
 
-    public record DriverFactory(Supplier<Driver> driverSupplier, int driverInstances) {
+    record DriverSupplier(PhysicalOperation physicalOperation) implements Supplier<Driver>, Describable {
 
+        @Override
+        public Driver get() {
+            return new Driver(physicalOperation.operators(), () -> {});
+        }
+
+        @Override
+        public String describe() {
+            return physicalOperation.describe();
+        }
+    }
+
+    record DriverFactory(DriverSupplier driverSupplier, int driverInstances) implements Describable {
+        @Override
+        public String describe() {
+            return "DriverFactory(instances=" + driverInstances + ")\n" + driverSupplier.describe();
+        }
     }
 
     /**
      * Plan representation that is geared towards execution on a single node
      */
-    public static class LocalExecutionPlan {
+    public static class LocalExecutionPlan implements Describable {
         final List<DriverFactory> driverFactories = new ArrayList<>();
 
         public List<Driver> createDrivers() {
@@ -505,6 +514,13 @@ public class LocalExecutionPlanner {
 
         public List<DriverFactory> getDriverFactories() {
             return driverFactories;
+        }
+
+        @Override
+        public String describe() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(driverFactories.stream().map(DriverFactory::describe).collect(joining("\n")));
+            return sb.toString();
         }
     }
 }

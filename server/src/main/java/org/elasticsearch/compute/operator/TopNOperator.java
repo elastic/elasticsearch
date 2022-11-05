@@ -25,6 +25,19 @@ public class TopNOperator implements Operator {
 
     protected final PriorityQueue<Page> pq;
 
+    public record TopNOperatorFactory(int sortByChannel, boolean asc, int topCount) implements OperatorFactory {
+
+        @Override
+        public Operator get() {
+            return new TopNOperator(sortByChannel, asc, topCount);
+        }
+
+        @Override
+        public String describe() {
+            return "TopNOperator(count = " + topCount + ", order = " + (asc ? "ascending" : "descending") + ")";
+        }
+    }
+
     public TopNOperator(int sortByChannel, boolean asc, int topCount) {
         this.pq = new PriorityQueue<>(topCount) {
             @Override

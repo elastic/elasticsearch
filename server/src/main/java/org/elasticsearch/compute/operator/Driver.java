@@ -214,4 +214,9 @@ public class Driver implements Runnable {
         }
         return allOf;
     }
+
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + "[activeOperators=" + activeOperators + "]";
+    }
 }

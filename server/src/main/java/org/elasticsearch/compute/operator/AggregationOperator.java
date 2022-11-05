@@ -10,6 +10,8 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator;
+import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.joining;
 
 /**
  * Blocking aggregation operator.  An aggregation operator aggregates its input with one or more
@@ -38,6 +41,27 @@ public class AggregationOperator implements Operator {
     private int state;
 
     private final List<Aggregator> aggregators;
+
+    public record AggregationOperatorFactory(List<AggregatorFactory> aggregators, AggregatorMode mode) implements OperatorFactory {
+        @Override
+        public Operator get() {
+            return new AggregationOperator(aggregators.stream().map(AggregatorFactory::get).toList());
+        }
+
+        @Override
+        public String toString() {
+            return describe();
+        }
+
+        @Override
+        public String describe() {
+            return "AggregationOperator(mode = "
+                + mode
+                + ", aggs = "
+                + aggregators.stream().map(AggregatorFactory::describe).collect(joining(", "))
+                + ")";
+        }
+    }
 
     public AggregationOperator(List<Aggregator> aggregators) {
         Objects.requireNonNull(aggregators);
@@ -102,5 +126,14 @@ public class AggregationOperator implements Operator {
         if (list.size() < 1) {
             throw new IllegalArgumentException("empty list");
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("aggregators=").append(aggregators).append(", ");
+        sb.append("]");
+        return sb.toString();
     }
 }

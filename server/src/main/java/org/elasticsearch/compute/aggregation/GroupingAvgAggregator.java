@@ -86,6 +86,14 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         return new DoubleArrayBlock(result, positions);
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("channel=").append(channel);
+        return sb.toString();
+    }
+
     static class GroupingAvgState implements AggregatorState<GroupingAvgState> {
 
         double[] values;

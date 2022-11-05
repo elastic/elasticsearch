@@ -130,6 +130,7 @@ public class ComputeService {
                 LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
                     new OutputExec(physicalPlan, (l, p) -> { results.add(p); })
                 );
+                LOGGER.info("Local execution plan:\n{}", localExecutionPlan.describe());
                 List<Driver> drivers = localExecutionPlan.createDrivers();
                 if (drivers.isEmpty()) {
                     throw new IllegalStateException("no drivers created");

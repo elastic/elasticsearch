@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -25,43 +26,75 @@ public interface GroupingAggregatorFunction {
 
     Block evaluateFinal();
 
-    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> avg = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return GroupingAvgAggregator.createIntermediate();
-        } else {
-            return GroupingAvgAggregator.create(inputChannel);
+    abstract class GroupingAggregatorFunctionFactory
+        implements
+            BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction>,
+            Describable {
+
+        private final String name;
+
+        GroupingAggregatorFunctionFactory(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String describe() {
+            return name;
+        }
+    }
+
+    GroupingAggregatorFunctionFactory avg = new GroupingAggregatorFunctionFactory("avg") {
+        @Override
+        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return GroupingAvgAggregator.createIntermediate();
+            } else {
+                return GroupingAvgAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> count = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return GroupingCountAggregator.createIntermediate();
-        } else {
-            return GroupingCountAggregator.create(inputChannel);
+    GroupingAggregatorFunctionFactory count = new GroupingAggregatorFunctionFactory("count") {
+        @Override
+        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return GroupingCountAggregator.createIntermediate();
+            } else {
+                return GroupingCountAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> min = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return GroupingMinAggregator.createIntermediate();
-        } else {
-            return GroupingMinAggregator.create(inputChannel);
+    GroupingAggregatorFunctionFactory min = new GroupingAggregatorFunctionFactory("min") {
+        @Override
+        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return GroupingMinAggregator.createIntermediate();
+            } else {
+                return GroupingMinAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> max = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return GroupingMaxAggregator.createIntermediate();
-        } else {
-            return GroupingMaxAggregator.create(inputChannel);
+    GroupingAggregatorFunctionFactory max = new GroupingAggregatorFunctionFactory("max") {
+        @Override
+        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return GroupingMaxAggregator.createIntermediate();
+            } else {
+                return GroupingMaxAggregator.create(inputChannel);
+            }
         }
     };
 
-    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> sum = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputPartial()) {
-            return GroupingSumAggregator.createIntermediate();
-        } else {
-            return GroupingSumAggregator.create(inputChannel);
+    GroupingAggregatorFunctionFactory sum = new GroupingAggregatorFunctionFactory("sum") {
+        @Override
+        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            if (mode.isInputPartial()) {
+                return GroupingSumAggregator.createIntermediate();
+            } else {
+                return GroupingSumAggregator.create(inputChannel);
+            }
         }
     };
 }

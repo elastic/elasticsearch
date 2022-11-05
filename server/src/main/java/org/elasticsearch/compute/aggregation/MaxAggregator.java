@@ -106,4 +106,13 @@ final class MaxAggregator implements AggregatorFunction {
     public Block evaluateFinal() {
         return new DoubleArrayBlock(new double[] { state.doubleValue() }, 1);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("channel=").append(channel);
+        sb.append("]");
+        return sb.toString();
+    }
 }

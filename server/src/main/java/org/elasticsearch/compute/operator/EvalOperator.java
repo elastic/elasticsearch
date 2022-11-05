@@ -23,6 +23,19 @@ public class EvalOperator implements Operator {
 
     Page lastInput;
 
+    public record EvalOperatorFactory(ExpressionEvaluator evaluator, Class<? extends Number> dataType) implements OperatorFactory {
+
+        @Override
+        public Operator get() {
+            return new EvalOperator(evaluator, dataType);
+        }
+
+        @Override
+        public String describe() {
+            return "EvalOperator(datatype = " + dataType + ")";
+        }
+    }
+
     public EvalOperator(ExpressionEvaluator evaluator, Class<? extends Number> dataType) {
         this.evaluator = evaluator;
         this.dataType = dataType;
@@ -76,6 +89,16 @@ public class EvalOperator implements Operator {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName()).append("[");
+        sb.append("dataType=").append(dataType).append(", ");
+        sb.append("evaluator=").append(evaluator);
+        sb.append("]");
+        return sb.toString();
     }
 
     public interface ExpressionEvaluator {

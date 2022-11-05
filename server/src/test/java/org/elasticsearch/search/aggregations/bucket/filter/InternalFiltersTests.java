@@ -59,7 +59,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         for (int i = 0; i < keys.size(); ++i) {
             String key = keys.get(i);
             int docCount = randomIntBetween(0, 1000);
-            buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed));
+            buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed, false));
         }
         return new InternalFilters(name, buckets, keyed, false, metadata);
     }
@@ -96,7 +96,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
             case 0 -> name += randomAlphaOfLength(5);
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
-                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed));
+                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed, false));
             }
             default -> {
                 if (metadata == null) {

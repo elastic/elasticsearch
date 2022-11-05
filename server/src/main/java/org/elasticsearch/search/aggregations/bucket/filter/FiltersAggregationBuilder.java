@@ -42,13 +42,13 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
     private static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     private static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
-    private static final ParseField SORTABLE = new ParseField("sortable");
+    private static final ParseField KEYED_FIELD = new ParseField("keyed");
 
     private final List<KeyedFilter> filters;
     private final boolean keyed;
     private boolean otherBucket = false;
     private String otherBucketKey = "_other_";
-    private boolean sortable = false;
+    private boolean keyedBucket = true;
 
     /**
      * @param name
@@ -94,7 +94,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         this.keyed = clone.keyed;
         this.otherBucket = clone.otherBucket;
         this.otherBucketKey = clone.otherBucketKey;
-        this.sortable = clone.sortable;
+        this.keyedBucket = clone.keyedBucket;
     }
 
     @Override
@@ -126,7 +126,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         otherBucket = in.readBoolean();
         otherBucketKey = in.readString();
-        sortable = in.getVersion().onOrAfter(Version.V_8_5_0) ? in.readBoolean() : false;
+        keyedBucket = in.getVersion().onOrAfter(Version.V_8_5_1) ? in.readBoolean() : false;
     }
 
     @Override
@@ -135,8 +135,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         out.writeCollection(filters, keyed ? (o, v) -> v.writeTo(o) : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
-            out.writeBoolean(sortable);
+        if (out.getVersion().onOrAfter(Version.V_8_5_1)) {
+            out.writeBoolean(keyedBucket);
         }
     }
 
@@ -192,16 +192,16 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     /**
      * Set whether to return keyed bucket in array
      */
-    public FiltersAggregationBuilder sortable(boolean sortable) {
-        this.sortable = sortable;
+    public FiltersAggregationBuilder keyedBucket(boolean keyedBucket) {
+        this.keyedBucket = keyedBucket;
         return this;
     }
 
     /**
      * Get whether to return keyed bucket in array
      */
-    public boolean sortable() {
-        return sortable;
+    public boolean keyedBucket() {
+        return keyedBucket;
     }
 
     @Override
@@ -224,7 +224,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             FiltersAggregationBuilder rewritten = new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);
             rewritten.otherBucket(otherBucket);
             rewritten.otherBucketKey(otherBucketKey);
-            rewritten.sortable(sortable);
+            rewritten.keyedBucket(keyedBucket);
             return rewritten;
         } else {
             return this;
@@ -240,7 +240,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             keyed,
             otherBucket,
             otherBucketKey,
-            sortable,
+            keyedBucket,
             context,
             parent,
             subFactoriesBuilder,
@@ -266,7 +266,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         builder.field(FiltersAggregator.OTHER_BUCKET_FIELD.getPreferredName(), otherBucket);
         builder.field(FiltersAggregator.OTHER_BUCKET_KEY_FIELD.getPreferredName(), otherBucketKey);
-        builder.field(FiltersAggregator.SORTABLE.getPreferredName(), sortable);
+        builder.field(FiltersAggregator.KEYED_FIELD.getPreferredName(), keyedBucket);
         builder.endObject();
         return builder;
     }
@@ -279,7 +279,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         String currentFieldName = null;
         String otherBucketKey = null;
         Boolean otherBucket = null;
-        Boolean sortable = null;
+        Boolean keyedBucket = null;
         boolean keyed = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -287,8 +287,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucket = parser.booleanValue();
-                } else if (SORTABLE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    sortable = parser.booleanValue();
+                } else if (KEYED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    keyedBucket = parser.booleanValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -362,8 +362,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         if (otherBucketKey != null) {
             factory.otherBucketKey(otherBucketKey);
         }
-        if (keyed && sortable != null) {
-            factory.sortable(sortable);
+        if (keyed && keyedBucket != null) {
+            factory.keyedBucket(keyedBucket);
         }
         return factory;
     }

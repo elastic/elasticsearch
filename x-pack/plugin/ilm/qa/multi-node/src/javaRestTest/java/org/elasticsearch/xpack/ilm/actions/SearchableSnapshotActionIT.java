@@ -265,7 +265,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat(
             exception.getMessage(),
             containsString(
-                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]"
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample]"
                     + " actions which are not allowed after a managed index is mounted as a searchable snapshot"
             )
         );
@@ -322,8 +322,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("hot"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("hot"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         createPolicy(
@@ -344,8 +344,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // skip and ILM should not be blocked (not should the managed index move into the ERROR step)
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("cold"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("cold"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -400,8 +400,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("hot"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("hot"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         // snapshot the data stream
@@ -442,8 +442,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // the restored index is now managed by the now updated ILM policy and needs to go through the warm and cold phase
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("cold"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("cold"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -490,8 +490,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("cold"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("cold"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
@@ -551,8 +551,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("frozen"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("frozen"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
@@ -664,6 +664,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
         assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
+
+        assertOK(client().performRequest(new Request("DELETE", "_data_stream/" + dataStream)));
+        assertOK(client().performRequest(new Request("DELETE", "_ilm/policy/" + policy)));
     }
 
     // See: https://github.com/elastic/elasticsearch/issues/77269

@@ -51,12 +51,12 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     protected Map<String, RegexpQueryBuilder> getAlternateVersions() {
         Map<String, RegexpQueryBuilder> alternateVersions = new HashMap<>();
         RegexpQueryBuilder regexpQuery = randomRegexpQuery();
-        String contentString = """
+        String contentString = formatted("""
             {
                 "regexp" : {
                     "%s" : "%s"
                 }
-            }""".formatted(regexpQuery.fieldName(), regexpQuery.value());
+            }""", regexpQuery.fieldName(), regexpQuery.value());
         alternateVersions.put(contentString, regexpQuery);
         return alternateVersions;
     }

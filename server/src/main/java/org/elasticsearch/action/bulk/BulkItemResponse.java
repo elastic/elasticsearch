@@ -341,10 +341,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             return builder;
         }
 
-        public static Failure fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         @Override
         public String toString() {
             return Strings.toString(this);

@@ -99,6 +99,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
@@ -123,7 +124,6 @@ public class MetadataCreateIndexService {
     private final AllocationService allocationService;
     private final Environment env;
     private final IndexScopedSettings indexScopedSettings;
-    private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
@@ -150,7 +150,6 @@ public class MetadataCreateIndexService {
         this.allocationService = allocationService;
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
@@ -259,11 +258,12 @@ public class MetadataCreateIndexService {
                     request.index(),
                     request.waitForActiveShards()
                 );
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { request.index() },
                     request.waitForActiveShards(),
                     request.ackTimeout(),
-                    shardsAcknowledged -> {
+                    listener.map(shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
                                 "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
@@ -272,9 +272,8 @@ public class MetadataCreateIndexService {
                         } else {
                             logger.trace("[{}] index created and shards acknowledged", request.index());
                         }
-                        listener.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
-                    },
-                    listener::onFailure
+                        return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
+                    })
                 );
             } else {
                 logger.trace("index creation not acknowledged for [{}]", request);
@@ -1179,11 +1178,14 @@ public class MetadataCreateIndexService {
         BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) {
-        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
+        final Metadata newMetadata;
         if (metadataTransformer != null) {
+            Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
             metadataTransformer.accept(builder, indexMetadata);
+            newMetadata = builder.build();
+        } else {
+            newMetadata = currentState.metadata().withAddedIndex(indexMetadata);
         }
-        Metadata newMetadata = builder.build();
 
         String indexName = indexMetadata.getIndex().getName();
         ClusterBlocks.Builder blocks = createClusterBlocksBuilder(currentState, indexName, clusterBlocks);
@@ -1479,10 +1481,6 @@ public class MetadataCreateIndexService {
         final boolean copySettings,
         final IndexScopedSettings indexScopedSettings
     ) {
-        // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
-        // once we are allocated.
-        final String initialRecoveryIdFilter = IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id";
-
         final IndexMetadata sourceMetadata = currentState.metadata().index(resizeSourceIndex.getName());
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(
@@ -1491,13 +1489,13 @@ public class MetadataCreateIndexService {
                 resizeIntoName,
                 indexSettingsBuilder.build()
             );
-            indexSettingsBuilder.put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
+            indexSettingsBuilder.put(INDEX_SHRINK_INITIAL_RECOVERY_KEY, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), resizeIntoName, indexSettingsBuilder.build());
-            indexSettingsBuilder.putNull(initialRecoveryIdFilter);
+            indexSettingsBuilder.putNull(INDEX_SHRINK_INITIAL_RECOVERY_KEY);
         } else if (type == ResizeType.CLONE) {
             validateCloneIndex(currentState, resizeSourceIndex.getName(), resizeIntoName, indexSettingsBuilder.build());
-            indexSettingsBuilder.putNull(initialRecoveryIdFilter);
+            indexSettingsBuilder.putNull(INDEX_SHRINK_INITIAL_RECOVERY_KEY);
         } else {
             throw new IllegalStateException("unknown resize type is " + type);
         }

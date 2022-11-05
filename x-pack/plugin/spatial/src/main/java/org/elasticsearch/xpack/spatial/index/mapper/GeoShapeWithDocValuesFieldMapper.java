@@ -47,7 +47,7 @@ import org.elasticsearch.script.field.Field;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
@@ -183,7 +183,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance(), GeoShapeDocValuesField::new);
+            return (cache, breakerService) -> new LatLonShapeIndexFieldData(
+                name(),
+                GeoShapeValuesSourceType.instance(),
+                GeoShapeDocValuesField::new
+            );
         }
 
         @Override
@@ -289,6 +293,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     @Override
     protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
+        // TODO: Make common with the index method ShapeFieldMapper
         if (geometry == null) {
             return;
         }
@@ -344,7 +349,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         implements
             Field<GeoShapeValues.GeoShapeValue>,
             DocValuesScriptFieldFactory,
-            ScriptDocValues.GeometrySupplier<GeoShapeValues.GeoShapeValue> {
+            ScriptDocValues.GeometrySupplier<GeoPoint, GeoShapeValues.GeoShapeValue> {
 
         private final GeoShapeValues in;
         protected final String name;
@@ -354,7 +359,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         // maintain bwc by making bounding box and centroid available to GeoShapeValues (ScriptDocValues)
         private final GeoPoint centroid = new GeoPoint();
         private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
-        private AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues geoShapeScriptValues;
+        private ScriptDocValues<GeoShapeValues.GeoShapeValue> geoShapeScriptValues;
 
         public GeoShapeDocValuesField(GeoShapeValues in, String name) {
             this.in = in;
@@ -365,7 +370,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
                 value = in.value();
-                centroid.reset(value.lat(), value.lon());
+                centroid.reset(value.getY(), value.getX());
                 boundingBox.topLeft().reset(value.boundingBox().maxY(), value.boundingBox().minX());
                 boundingBox.bottomRight().reset(value.boundingBox().minY(), value.boundingBox().maxX());
             } else {
@@ -406,7 +411,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoPoint getInternalLabelPosition() {
             try {
-                return value.labelPosition();
+                return new GeoPoint(value.labelPosition());
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to parse geo shape label position: " + e.getMessage(), e);
             }
@@ -441,7 +446,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         public Iterator<GeoShapeValues.GeoShapeValue> iterator() {
-            return new Iterator<GeoShapeValues.GeoShapeValue>() {
+            return new Iterator<>() {
                 private int index = 0;
 
                 @Override

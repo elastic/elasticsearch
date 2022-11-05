@@ -111,18 +111,17 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType fieldType = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", null);
         ValueFetcher fetcher = fieldType.valueFetcher(null, null);
 
-        SourceLookup missingValueLookup = new SourceLookup();
-        SourceLookup nullValueLookup = new SourceLookup();
-        nullValueLookup.setSource(Collections.singletonMap("field", null));
+        SourceLookup missingValueLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
+        SourceLookup nullValueLookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap("field", null)));
 
         List<Object> ignoredValues = new ArrayList<>();
-        assertTrue(fetcher.fetchValues(missingValueLookup, ignoredValues).isEmpty());
-        assertTrue(fetcher.fetchValues(nullValueLookup, ignoredValues).isEmpty());
+        assertTrue(fetcher.fetchValues(missingValueLookup, -1, ignoredValues).isEmpty());
+        assertTrue(fetcher.fetchValues(nullValueLookup, -1, ignoredValues).isEmpty());
 
         MappedFieldType valued = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "foo");
         fetcher = valued.valueFetcher(null, null);
 
-        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, ignoredValues));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, ignoredValues));
+        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, -1, ignoredValues));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, -1, ignoredValues));
     }
 }

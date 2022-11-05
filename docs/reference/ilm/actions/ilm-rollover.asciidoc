@@ -50,7 +50,8 @@ A rollover action must specify at least one max_* condition, it may include zero
 or more min_* conditions. An empty rollover action is invalid.
 
 The index will rollover once any max_* condition is satisfied and all
-min_* conditions are satisfied.
+min_* conditions are satisfied. Note, however, that empty indices are not rolled
+over by default.
 
 // tag::rollover-conditions[]
 `max_age`::
@@ -121,6 +122,12 @@ Prevents rollover until the largest primary shard in the index reaches a certain
 See notes on `max_primary_shard_docs`.
 
 // end::rollover-conditions[]
+
+IMPORTANT: Empty indices will not be rolled over, even if they have an associated `max_age` that
+would otherwise result in a roll over occurring. A policy can override this behavior, and explicitly
+opt in to rolling over empty indices, by adding a `"min_docs": 0` condition. This can also be
+disabled on a cluster-wide basis by setting `indices.lifecycle.rollover.only_if_has_documents` to
+`false`.
 
 [[ilm-rollover-ex]]
 ==== Example
@@ -246,7 +253,7 @@ PUT _ilm/policy/my_policy
 When you specify multiple rollover conditions,
 the index is rolled over when _any_ of the max_* and _all_ of the min_* conditions are met.
 This example rolls the index over if it is at least 7 days old or at least 100 gigabytes,
-but only as long as the index is not empty.
+but only as long as the index contains at least 1000 documents.
 
 [source,console]
 --------------------------------------------------
@@ -259,7 +266,7 @@ PUT _ilm/policy/my_policy
           "rollover" : {
             "max_age": "7d",
             "max_size": "100gb",
-            "min_docs": 1
+            "min_docs": 1000
           }
         }
       }

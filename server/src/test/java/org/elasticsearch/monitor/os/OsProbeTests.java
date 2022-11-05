@@ -9,6 +9,7 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,7 +56,7 @@ public class OsProbeTests extends ESTestCase {
             }
 
         };
-        final OsInfo info = osProbe.osInfo(refreshInterval, allocatedProcessors);
+        final OsInfo info = osProbe.osInfo(refreshInterval, Processors.of((double) allocatedProcessors));
         assertNotNull(info);
         assertThat(info.getRefreshInterval(), equalTo(refreshInterval));
         assertThat(info.getName(), equalTo(Constants.OS_NAME));

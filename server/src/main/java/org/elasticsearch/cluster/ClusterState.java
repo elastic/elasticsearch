@@ -358,10 +358,30 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      */
     public void initializeAsync(Executor executor) {
         if (routingNodes == null) {
-            executor.execute(this::getRoutingNodes);
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    getRoutingNodes();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of routing nodes for cluster state " + version();
+                }
+            });
         }
         if (metadata.indicesLookupInitialized() == false) {
-            executor.execute(metadata::getIndicesLookup);
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    metadata.getIndicesLookup();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of indices lookup for cluster state " + version();
+                }
+            });
         }
     }
 
@@ -729,8 +749,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder fromDiff(boolean fromDiff) {
-            this.fromDiff = fromDiff;
+        // set previous cluster state that this builder is created from during diff application
+        private Builder fromDiff(ClusterState previous) {
+            this.fromDiff = true;
+            this.previous = previous;
             return this;
         }
 
@@ -901,7 +923,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.fromDiff(true);
+            builder.fromDiff(state);
             return builder.build();
         }
     }

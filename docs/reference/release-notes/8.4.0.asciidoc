@@ -82,7 +82,8 @@ Machine Learning::
 * Fix BERT and MPNet tokenization bug when handling unicode accents {es-pull}88907[#88907] (issue: {es-issue}88900[#88900])
 * Fix NLP `question_answering` task when best answer is only one token {es-pull}88347[#88347]
 * Include start params in `_stats` for non-started model deployments {es-pull}89091[#89091]
-* fix minor tokenization bug when using fill_mask task with roberta tokenizer {es-pull}88825[#88825]
+* Fix minor tokenization bug when using fill_mask task with roberta tokenizer {es-pull}88825[#88825]
+* Fix potential cause of classification and regression job failures {ml-pull}2385[#2385]
 
 Mapping::
 * Assign the right path to objects merged when parsing mappings {es-pull}89389[#89389] (issue: {es-issue}88573[#88573])
@@ -219,6 +220,11 @@ Machine Learning::
 * Improve scalability of NLP models {es-pull}87366[#87366]
 * Indicate overall deployment failure if all node routes are failed {es-pull}88378[#88378]
 * New `frequent_items` aggregation {es-pull}83055[#83055]
+* Fairer application of size penalty for model selection for training classification and regression models {ml-pull}2291[#2291]
+* Accelerate training for data frame analytics by skipping fine parameter tuning if it is unnecessary {ml-pull}2298[#2298]
+* Address some causes of high runtimes training regression and classification models on large data sets with many features {ml-pull}2332[#2332]
+* Add caching for PyTorch inference {ml-pull}2305[#2305]
+* Improve accuracy of anomaly detection median estimation {ml-pull}2367[#2367] (issue: {ml-issue}2364[#2364])
 
 Mapping::
 * Enable synthetic source support on constant keyword fields {es-pull}88603[#88603]

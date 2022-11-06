@@ -107,13 +107,14 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             InternalBucket that = (InternalBucket) other;
             return Objects.equals(key, that.key)
                 && Objects.equals(keyed, that.keyed)
+                && Objects.equals(keyedBucket, that.keyedBucket)
                 && Objects.equals(docCount, that.docCount)
                 && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), key, keyed, docCount, aggregations);
+            return Objects.hash(getClass(), key, keyed, keyedBucket, docCount, aggregations);
         }
 
         InternalBucket finalizeSampling(SamplingContext samplingContext) {

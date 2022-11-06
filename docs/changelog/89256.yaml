@@ -1,5 +1,5 @@
 pr: 89256
-summary: Add sortable parameter to filters agg, allowing the user to modify the return type of named filters agg
+summary: Add `keyed` parameter to filters agg, allowing the user to get non-keyed buckets of named filters agg
 area: Aggregations
 type: enhancement
 issues:

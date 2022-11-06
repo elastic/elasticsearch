@@ -57,6 +57,22 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         return new CompressedXContent(Strings.toString(builder));
     }
 
+    /**
+     * Issue-91259: Checks {@link IndexService#getNodeMappingStats()} can be called on a closed index.
+     */
+    public void testNodeMappingStats() throws Exception {
+        final IndexService indexService = createIndex("test", Settings.EMPTY);
+        ensureGreen("test");
+
+        final Index index = indexService.index();
+        assertAcked(client().admin().indices().prepareClose(index.getName()));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertNull(closedIndexService.getNodeMappingStats());
+    }
+
     public void testBaseAsyncTask() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));

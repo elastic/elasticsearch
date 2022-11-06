@@ -147,7 +147,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     public InternalFilters(StreamInput in) throws IOException {
         super(in);
         keyed = in.readBoolean();
-        keyedBucket = in.getVersion().onOrAfter(Version.V_8_5_1) ? in.readBoolean() : false;
+        keyedBucket = in.getVersion().onOrAfter(Version.V_8_6_0) ? in.readBoolean() : false;
         int size = in.readVInt();
         List<InternalBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -160,7 +160,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        if (out.getVersion().onOrAfter(Version.V_8_5_1)) {
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             out.writeBoolean(keyedBucket);
         }
         out.writeList(buckets);

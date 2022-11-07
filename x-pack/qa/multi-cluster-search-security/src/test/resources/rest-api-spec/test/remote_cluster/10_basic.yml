@@ -61,9 +61,7 @@ setup:
             "indices": [
               {
                 "names": ["shared_index"],
-                "privileges": ["read", "read_cross_cluster"],
-                "query": "{ \"term\": { \"public\" : true } }",
-                "field_security": { "grant": ["*"], "except": ["secret"] }
+                "privileges": ["read", "read_cross_cluster"]
               }
             ]
           }
@@ -75,7 +73,7 @@ setup:
           {
             "cluster": ["monitor"],
             "indices": [
-              { "names": ["terms_enum_index"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+              { "names": ["terms_enum_index"], "privileges": ["read"] }
             ]
           }
 
@@ -86,7 +84,7 @@ setup:
           {
             "cluster": ["monitor"],
             "indices": [
-              { "names": ["terms_enum_alias"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+              { "names": ["terms_enum_alias"], "privileges": ["read"]}
             ]
           }
 
@@ -97,7 +95,7 @@ setup:
           {
             "cluster": ["monitor"],
             "indices": [
-              { "names": ["terms_enum_index"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"dynamic\"}}" }
+              { "names": ["terms_enum_index"], "privileges": ["read"]}
             ]
           }
 
@@ -108,7 +106,7 @@ setup:
           {
             "cluster": ["monitor"],
             "indices": [
-              { "names": ["terms_enum_index"], "privileges": ["read"], "field_security" : {"grant" : [ "*"],"except": [ "foo" ]} }
+              { "names": ["terms_enum_index"], "privileges": ["read"] }
             ]
           }
 

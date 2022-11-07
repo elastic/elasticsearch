@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
@@ -245,7 +246,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -277,7 +278,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             );
         }
 
-        createDataStreamService = new MetadataCreateDataStreamService(clusterService, createIndexService);
+        createDataStreamService = new MetadataCreateDataStreamService(testThreadPool, clusterService, createIndexService);
     }
 
     @After
@@ -306,7 +307,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             TimeValue.ZERO,
             false
         );
-        return createDataStreamService.createDataStream(request, state);
+        return createDataStreamService.createDataStream(request, state, ActionListener.noop());
     }
 
     private MetadataRolloverService.RolloverResult rolloverOver(ClusterState state, String name, Instant time) throws Exception {

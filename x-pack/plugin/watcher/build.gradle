@@ -6,7 +6,7 @@ esplugin {
   classname 'org.elasticsearch.xpack.watcher.Watcher'
   hasNativeController false
   requiresKeystore false
-  extendedPlugins = ['x-pack-core', 'lang-painless']
+  extendedPlugins = ['x-pack-core']
 }
 
 archivesBaseName = 'x-pack-watcher'

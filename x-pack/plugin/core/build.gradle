@@ -19,6 +19,7 @@ esplugin {
   classname 'org.elasticsearch.xpack.core.XPackPlugin'
   hasNativeController false
   requiresKeystore false
+  extendedPlugins = ['aggregations']
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -28,7 +29,7 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
-  api project(":modules:aggregations")
+  compileOnly project(":modules:aggregations")
   api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-ssl-config")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"

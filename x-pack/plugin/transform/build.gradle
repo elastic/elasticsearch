@@ -9,6 +9,7 @@ esplugin {
 
 dependencies {
   compileOnly project(":server")
+  compileOnly project(':modules:aggregations')
   compileOnly project(path: xpackModule('core'))
 
   testImplementation(testArtifact(project(xpackModule('core'))))

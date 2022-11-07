@@ -7,12 +7,13 @@ esplugin {
   name 'wildcard'
   description 'A plugin for a keyword field type with efficient wildcard search'
   classname 'org.elasticsearch.xpack.wildcard.Wildcard'
-  extendedPlugins = ['x-pack-core', 'lang-painless']
+  extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-wildcard'
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(':modules:aggregations')
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

@@ -12,6 +12,7 @@ esplugin {
 archivesBaseName = 'x-pack-autoscaling'
 
 dependencies {
+  compileOnly project(':modules:aggregations')
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:data-streams')

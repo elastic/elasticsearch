@@ -32,6 +32,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -116,7 +117,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
             SpatialPlugin.class,
-            PercolatorPlugin.class
+            PercolatorPlugin.class,
+            MapperExtrasPlugin.class
         );
     }
 

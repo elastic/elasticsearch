@@ -624,7 +624,7 @@ public final class RepositoryData {
             }
             snapshotIndices.put(indexId.getName(), indexId);
         }
-        return Collections.unmodifiableMap(snapshotIndices);
+        return Map.copyOf(snapshotIndices);
     }
 
     private static final String SHARD_GENERATIONS = "shard_generations";

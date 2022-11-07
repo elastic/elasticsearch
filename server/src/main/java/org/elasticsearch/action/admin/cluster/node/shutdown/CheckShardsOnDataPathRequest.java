@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 
@@ -28,7 +29,7 @@ public class CheckShardsOnDataPathRequest extends BaseNodesRequest<CheckShardsOn
 
     public CheckShardsOnDataPathRequest(StreamInput in) throws IOException {
         super(in);
-        this.shardIds = in.readSet(ShardId::new);
+        this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
     }
 
     @Override
@@ -39,5 +40,20 @@ public class CheckShardsOnDataPathRequest extends BaseNodesRequest<CheckShardsOn
 
     public Set<ShardId> getShardIds() {
         return shardIds;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof CheckShardsOnDataPathRequest == false) return false;
+        CheckShardsOnDataPathRequest other = (CheckShardsOnDataPathRequest) o;
+        return Objects.equals(shardIds, other.shardIds)
+            && Arrays.equals(nodesIds(), other.nodesIds())
+            && Objects.equals(timeout(), other.timeout());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardIds, Arrays.hashCode(nodesIds()), timeout());
     }
 }

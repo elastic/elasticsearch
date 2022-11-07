@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 public class NodeCheckShardsOnDataPathResponse extends BaseNodeResponse {
@@ -39,5 +40,18 @@ public class NodeCheckShardsOnDataPathResponse extends BaseNodeResponse {
 
     public Set<ShardId> getShardIds() {
         return shardIds;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof NodeCheckShardsOnDataPathResponse == false) return false;
+        NodeCheckShardsOnDataPathResponse other = (NodeCheckShardsOnDataPathResponse) o;
+        return Objects.equals(shardIds, other.shardIds) && Objects.equals(getNode(), other.getNode());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardIds, getNode());
     }
 }

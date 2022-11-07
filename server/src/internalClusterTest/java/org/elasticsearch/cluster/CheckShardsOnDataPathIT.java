@@ -14,13 +14,13 @@ import org.elasticsearch.action.admin.cluster.node.shutdown.NodeCheckShardsOnDat
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportCheckShardsOnDataPathAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -47,7 +47,7 @@ public class CheckShardsOnDataPathIT extends ESIntegTestCase {
         Set<ShardId> shardIdsToCheck = new HashSet<>(shardIds);
         int unknownShardIds = randomIntBetween(0, 3);
         for (int i = 0; i < unknownShardIds; i++) {
-            shardIdsToCheck.add(new ShardId(randomAlphaOfLength(10), UUID.randomUUID().toString(), randomIntBetween(0, 10)));
+            shardIdsToCheck.add(new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)));
         }
         CheckShardsOnDataPathRequest req = new CheckShardsOnDataPathRequest(shardIdsToCheck, node1Id, node2Id);
         CheckShardsOnDataPathResponse resp = client().execute(TransportCheckShardsOnDataPathAction.TYPE, req).get();

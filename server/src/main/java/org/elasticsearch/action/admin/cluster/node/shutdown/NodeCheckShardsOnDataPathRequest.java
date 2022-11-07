@@ -40,4 +40,17 @@ public class NodeCheckShardsOnDataPathRequest extends TransportRequest {
     public Set<ShardId> getShardIDs() {
         return shardIds;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof NodeCheckShardsOnDataPathRequest == false) return false;
+        NodeCheckShardsOnDataPathRequest other = (NodeCheckShardsOnDataPathRequest) o;
+        return Objects.equals(shardIds, other.shardIds);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardIds);
+    }
 }

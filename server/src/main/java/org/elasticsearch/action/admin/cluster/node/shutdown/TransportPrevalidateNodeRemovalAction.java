@@ -87,8 +87,8 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
         try {
-            Set<DiscoveryNode> discoveryNodes = resolveNodes(request, state.nodes());
-            doPrevalidation(request, discoveryNodes, state, listener);
+            Set<DiscoveryNode> requestNodes = resolveNodes(request, state.nodes());
+            doPrevalidation(request, requestNodes, state, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -153,19 +153,20 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
 
     private void doPrevalidation(
         PrevalidateNodeRemovalRequest request,
-        Set<DiscoveryNode> nodes,
+        Set<DiscoveryNode> requestNodes,
         ClusterState clusterState,
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
-        assert nodes != null && nodes.isEmpty() == false;
+        assert requestNodes != null && requestNodes.isEmpty() == false;
 
-        logger.debug(() -> "prevalidate node removal for nodes " + nodes);
+        logger.debug(() -> "prevalidate node removal for nodes " + requestNodes);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         Metadata metadata = clusterState.metadata();
+        DiscoveryNodes clusterNodes = clusterState.getNodes();
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
                 Result result = new Result(IsSafe.YES, "cluster status is not RED");
-                List<NodeResult> nodesResults = nodes.stream()
+                List<NodeResult> nodesResults = requestNodes.stream()
                     .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
                     .toList();
                 listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodesResults)));
@@ -185,7 +186,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .collect(Collectors.toSet());
                 if (redNonSSIndices.isEmpty()) {
                     Result result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");
-                    List<NodeResult> nodeResults = nodes.stream()
+                    List<NodeResult> nodeResults = requestNodes.stream()
                         .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
                         .toList();
                     listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodeResults)));
@@ -210,14 +211,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                             )
                         ) // Convert to ShardId
                         .collect(Collectors.toSet());
-                    var nodeIds = nodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
+                    var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
                     var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, nodeIds).timeout(request.timeout());
                     client.execute(TransportCheckShardsOnDataPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(CheckShardsOnDataPathResponse response) {
-                            listener.onResponse(
-                                new PrevalidateNodeRemovalResponse(createPrevalidationResult(clusterState.nodes(), response))
-                            );
+                            listener.onResponse(new PrevalidateNodeRemovalResponse(createPrevalidationResult(clusterNodes, response)));
                         }
 
                         @Override

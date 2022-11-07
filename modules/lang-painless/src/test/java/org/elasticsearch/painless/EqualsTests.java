@@ -195,4 +195,11 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(true, exec("def x = null; return x != \"a\""));
         assertEquals(false, exec("def x = \"a\"; return x != \"a\""));
     }
+
+    public void testStringEqualsMethodCall() {
+        assertBytecodeExists("def x = \"a\"; return \"a\" == x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return \"a\" != x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return x == \"a\"", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return x != \"a\"", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+    }
 }

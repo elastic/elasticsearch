@@ -319,7 +319,7 @@ You can safely specify a pipeline for this integration in one of two ways: an
 
 When you create Elasticsearch indices for {enterprise-search-ref}/index.html[Enterprise Search^] use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines. 
 These processors help optimize your content for search.
-Refer to the {enterprise-search-ref}/index.html[Enterprise Search documentation^] for more information.
+Refer to the {enterprise-search-ref}/ingest-pipelines.html[Enterprise Search documentation^] for more information.
 
 [[pipeline-custom-logs-index-template]]
 **Option 1: Index template**

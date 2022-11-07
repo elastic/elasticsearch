@@ -67,13 +67,13 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId1,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 3, 2, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 2, 3, 1024, ByteSizeValue.ONE)
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 1, 10, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 10, 1, 1024, ByteSizeValue.ONE)
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                                     .addRoutingEntry(mlNodeId2, new RoutingInfo(8, 8, RoutingState.STARTED, ""))
@@ -118,13 +118,13 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId1,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 8, 1, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 1, 8, 1024, ByteSizeValue.ONE)
                                 )
                             )
                             .addNewAssignment(
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 4, 3, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 3, 4, 1024, ByteSizeValue.ONE)
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                                     .addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))

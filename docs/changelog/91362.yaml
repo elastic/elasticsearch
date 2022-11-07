@@ -3,4 +3,4 @@ summary: "Introduce a phase to use String.equals on constant strings, rather tha
   \ def equality"
 area: Infra/Core
 type: enhancement
-issues: []
+issues: [91235]

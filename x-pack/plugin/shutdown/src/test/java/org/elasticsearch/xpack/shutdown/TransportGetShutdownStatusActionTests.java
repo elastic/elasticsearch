@@ -401,6 +401,14 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             2,
             allOf(containsString(index.getName()), containsString("[2] [primary]"))
         );
+
+        // check if we correctly walk all of the unassigned shards, shard 2 replica, shard 3 primary
+        assertShardMigration(
+            getUnassignedShutdownStatus(index, imd, shard0, shard1, shard2, unassignedReplica, unassigned3),
+            SingleNodeShutdownMetadata.Status.STALLED,
+            2,
+            allOf(containsString(index.getName()), containsString("[3] [primary]"))
+        );
     }
 
     public void testNotStalledIfAllShardsHaveACopyOnAnotherNode() {

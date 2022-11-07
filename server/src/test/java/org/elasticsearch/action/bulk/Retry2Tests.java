@@ -72,10 +72,8 @@ public class Retry2Tests extends ESTestCase {
     }
 
     public void testRetryBacksOff() throws Exception {
-        BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
-
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry2 = new Retry2(backoff, bulkClient.threadPool(), 1000, 1000, 5, TimeValue.timeValueMillis(5));
+        Retry2 retry2 = new Retry2(CALLS_TO_FAIL, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
         retry2.init();
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
@@ -86,11 +84,9 @@ public class Retry2Tests extends ESTestCase {
     }
 
     public void testRetryFailsAfterBackoff() throws Exception {
-        BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
-
         BulkRequest bulkRequest = createBulkRequest();
         try {
-            Retry2 retry2 = new Retry2(backoff, bulkClient.threadPool(), 1000, 1000, 5, TimeValue.timeValueMillis(5));
+            Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
             retry2.init();
             PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
             retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
@@ -110,11 +106,10 @@ public class Retry2Tests extends ESTestCase {
     }
 
     public void testRetryWithListenerBacksOff() throws Exception {
-        BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(backoff, bulkClient.threadPool(), 1000, 1000, 5, TimeValue.timeValueMillis(5));
+        Retry2 retry = new Retry2(CALLS_TO_FAIL, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
         retry.init();
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
@@ -126,11 +121,10 @@ public class Retry2Tests extends ESTestCase {
     }
 
     public void testRetryWithListenerFailsAfterBacksOff() throws Exception {
-        BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(backoff, bulkClient.threadPool(), 1000, 1000, 5, TimeValue.timeValueMillis(5));
+        Retry2 retry = new Retry2(CALLS_TO_FAIL - 1, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
         retry.init();
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 

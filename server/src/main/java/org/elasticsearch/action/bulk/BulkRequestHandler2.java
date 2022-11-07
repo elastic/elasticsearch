@@ -27,28 +27,19 @@ public final class BulkRequestHandler2 {
 
     BulkRequestHandler2(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-        BackoffPolicy backoffPolicy,
+        int maxNumberOfRetries,
         BulkProcessor2.Listener listener,
         Scheduler scheduler,
         int concurrentRequests,
         int maxBulkRequestQueueSize,
-        int maxBulkRequestRetryQueueSize,
         TimeValue queuePollingInterval
     ) {
         assert concurrentRequests >= 0;
         assert maxBulkRequestQueueSize >= 0;
-        assert maxBulkRequestRetryQueueSize >= 0;
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(
-            backoffPolicy,
-            scheduler,
-            maxBulkRequestQueueSize,
-            maxBulkRequestRetryQueueSize,
-            concurrentRequests,
-            queuePollingInterval
-        );
+        this.retry = new Retry2(maxNumberOfRetries, scheduler, maxBulkRequestQueueSize, concurrentRequests, queuePollingInterval);
         retry.init();
     }
 
@@ -78,7 +69,7 @@ public final class BulkRequestHandler2 {
         }
     }
 
-    void awaitClose(long timeout, TimeUnit unit) {
+    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         retry.awaitClose(timeout, unit);
     }
 }

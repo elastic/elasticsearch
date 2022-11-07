@@ -91,12 +91,11 @@ public class BulkProcessor2Tests extends ESTestCase {
             threadPool.getThreadContext().putTransient(transientKey, transientValue);
             bulkProcessor = new BulkProcessor2(
                 consumer,
-                BackoffPolicy.noBackoff(),
+                0,
                 emptyListener(),
                 1,
                 bulkSize,
                 new ByteSizeValue(5, ByteSizeUnit.MB),
-                10000,
                 10000,
                 TimeValue.timeValueMillis(5),
                 flushInterval,
@@ -158,12 +157,12 @@ public class BulkProcessor2Tests extends ESTestCase {
 
         try (
             BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, "BulkProcessor2Tests")
-                .setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.ZERO, Integer.MAX_VALUE))
+                .setMaxNumberOfRetries(maxAttempts)
                 .setFlushInterval(TimeValue.timeValueMillis(1))
                 .build()
         ) {
             bulkProcessor.add(new IndexRequest());
-            assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
+            assertTrue(countDownLatch.await(5, TimeUnit.MINUTES));
         }
 
         assertThat(attemptRef.get(), equalTo(maxAttempts));
@@ -228,13 +227,12 @@ public class BulkProcessor2Tests extends ESTestCase {
         try (
             BulkProcessor2 bulkProcessor = new BulkProcessor2(
                 consumer,
-                BackoffPolicy.noBackoff(),
+                0,
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
                 concurrentBulkRequests,
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 maxDocuments, // We don't want any rejections in this test
-                10000,
                 TimeValue.timeValueMillis(5),
                 null,
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
@@ -353,13 +351,12 @@ public class BulkProcessor2Tests extends ESTestCase {
         try (
             BulkProcessor2 bulkProcessor = new BulkProcessor2(
                 consumer,
-                BackoffPolicy.noBackoff(),
+                0,
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
                 concurrentBulkRequests,
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 maxDocuments, // We don't want any rejections in this test
-                10000,
                 TimeValue.timeValueMillis(5),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
@@ -457,12 +454,11 @@ public class BulkProcessor2Tests extends ESTestCase {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {};
         BulkProcessor2 bulkProcessor = new BulkProcessor2(
             consumer,
-            BackoffPolicy.noBackoff(),
+            0,
             emptyListener(),
             1,
             10,
             ByteSizeValue.ofBytes(1000),
-            10000,
             10000,
             TimeValue.timeValueMillis(5),
             null,
@@ -503,7 +499,7 @@ public class BulkProcessor2Tests extends ESTestCase {
         };
         ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(2);
         CountDownLatch failureLatch = new CountDownLatch(1);
-        try (BulkProcessor2 bulkProcessor = new BulkProcessor2(consumer, BackoffPolicy.noBackoff(), new BulkProcessor2.Listener() {
+        try (BulkProcessor2 bulkProcessor = new BulkProcessor2(consumer, 0, new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -521,7 +517,6 @@ public class BulkProcessor2Tests extends ESTestCase {
             maxBatchSize,
             ByteSizeValue.ofBytes(Integer.MAX_VALUE),
             1, // We want rejections
-            10000,
             TimeValue.timeValueMillis(5),
             null,
             (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(

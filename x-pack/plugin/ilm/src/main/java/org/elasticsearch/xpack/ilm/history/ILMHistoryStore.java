@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -54,13 +53,6 @@ public class ILMHistoryStore implements Closeable {
 
     public static final Setting<Integer> MAX_BULK_REQUEST_QUEUE_SIZE_SETTING = Setting.intSetting(
         "es.indices.lifecycle.history.bulk.request.queue.size",
-        100,
-        1,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<Integer> MAX_BULK_REQUEST_RETRY_QUEUE_SIZE_SETTING = Setting.intSetting(
-        "es.indices.lifecycle.history.bulk.request.retry.queue.size",
         100,
         1,
         Setting.Property.NodeScope
@@ -165,8 +157,7 @@ public class ILMHistoryStore implements Closeable {
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
             .setMaxBulkRequestQueueSize(MAX_BULK_REQUEST_QUEUE_SIZE_SETTING.get(clusterService.getSettings()))
-            .setMaxBulkRequestRetryQueueSize(MAX_BULK_REQUEST_RETRY_QUEUE_SIZE_SETTING.get(clusterService.getSettings()))
-            .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
+            .setMaxNumberOfRetries(3)
             .build();
     }
 

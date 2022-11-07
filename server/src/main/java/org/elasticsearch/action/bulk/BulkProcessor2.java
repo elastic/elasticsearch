@@ -79,10 +79,9 @@ public class BulkProcessor2 implements Closeable {
         private int maxRequestsInBulk = 1000;
         private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
         private int maxBulkRequestQueueSize = 1000;
-        private int maxBulkRequestRetryQueueSize = 1000;
         private TimeValue queuePollingInterval = TimeValue.timeValueMillis(100);
         private TimeValue flushInterval = null;
-        private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
+        int maxNumberOfRetries = 3;
 
         private Builder(
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
@@ -137,17 +136,6 @@ public class BulkProcessor2 implements Closeable {
         }
 
         /**
-         * Sets the maximum size of the queue of BulkRequests kept in memory that have failed and are to be retried at some point in the
-         * future. Defaults to 1000.
-         * @param maxBulkRequestRetryQueueSize
-         * @return
-         */
-        public Builder setMaxBulkRequestRetryQueueSize(int maxBulkRequestRetryQueueSize) {
-            this.maxBulkRequestRetryQueueSize = maxBulkRequestRetryQueueSize;
-            return this;
-        }
-
-        /**
          * Sets the interval at which the two queues configured above are to be polled. Defaults to 100ms.
          * @param queuePollingInterval
          * @return
@@ -169,18 +157,11 @@ public class BulkProcessor2 implements Closeable {
         }
 
         /**
-         * Sets a custom backoff policy. The backoff policy defines how the bulk processor should handle retries of bulk requests internally
-         * in case they have failed due to resource constraints (i.e. a thread pool was full).
-         *
-         * The default is to back off exponentially.
-         *
-         * @see org.elasticsearch.action.bulk.BackoffPolicy#exponentialBackoff()
+         * Sets the maximum number of times a BulkLoad will be retried if it fails.
          */
-        public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
-            if (backoffPolicy == null) {
-                throw new NullPointerException("'backoffPolicy' must not be null. To disable backoff, pass BackoffPolicy.noBackoff()");
-            }
-            this.backoffPolicy = backoffPolicy;
+        public Builder setMaxNumberOfRetries(int maxNumberOfRetries) {
+            assert maxNumberOfRetries >= 0;
+            this.maxNumberOfRetries = maxNumberOfRetries;
             return this;
         }
 
@@ -190,13 +171,12 @@ public class BulkProcessor2 implements Closeable {
         public BulkProcessor2 build() {
             return new BulkProcessor2(
                 consumer,
-                backoffPolicy,
+                maxNumberOfRetries,
                 listener,
                 concurrentRequests,
                 maxRequestsInBulk,
                 maxBulkSizeInBytes,
                 maxBulkRequestQueueSize,
-                maxBulkRequestRetryQueueSize,
                 queuePollingInterval,
                 flushInterval,
                 flushScheduler,
@@ -251,13 +231,12 @@ public class BulkProcessor2 implements Closeable {
 
     BulkProcessor2(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-        BackoffPolicy backoffPolicy,
+        int maxNumberOfRetries,
         Listener listener,
         int concurrentRequests,
         int bulkActions,
         ByteSizeValue bulkSize,
         int maxBulkRequestQueueSize,
-        int maxBulkRequestRetryQueueSize,
         TimeValue queuePollingInterval,
         @Nullable TimeValue flushInterval,
         Scheduler flushScheduler,
@@ -269,12 +248,11 @@ public class BulkProcessor2 implements Closeable {
         this.bulkRequest = new BulkRequest();
         this.bulkRequestHandler = new BulkRequestHandler2(
             consumer,
-            backoffPolicy,
+            maxNumberOfRetries,
             listener,
             retryScheduler,
             concurrentRequests,
             maxBulkRequestQueueSize,
-            maxBulkRequestRetryQueueSize,
             queuePollingInterval
         );
         // Start period flushing task after everything is setup

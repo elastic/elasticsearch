@@ -8,16 +8,17 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class BulkProcessor2RetryIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test";
+    Map<String, Integer> requestToExecutionCountMap = new ConcurrentHashMap<>();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -49,24 +51,29 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
 
     public void testBulkRejectionLoadWithoutBackoff() throws Throwable {
         boolean rejectedExecutionExpected = true;
-        executeBulkRejectionLoad(BackoffPolicy.noBackoff(), rejectedExecutionExpected);
+        executeBulkRejectionLoad(0, rejectedExecutionExpected);
     }
 
+    // @TestLogging(
+    // value = "org.elasticsearch.action.bulk.Retry2:trace",
+    // reason = "Logging information about locks useful for tracking down deadlock"
+    // )
     public void testBulkRejectionLoadWithBackoff() throws Throwable {
         boolean rejectedExecutionExpected = false;
-        executeBulkRejectionLoad(BackoffPolicy.exponentialBackoff(), rejectedExecutionExpected);
+        executeBulkRejectionLoad(8, rejectedExecutionExpected);
     }
 
-    private void executeBulkRejectionLoad(BackoffPolicy backoffPolicy, boolean rejectedExecutionExpected) throws Throwable {
-        final CorrelatingBackoffPolicy internalPolicy = new CorrelatingBackoffPolicy(backoffPolicy);
+    @SuppressWarnings("unchecked")
+    private void executeBulkRejectionLoad(int maxRetries, boolean rejectedExecutionExpected) throws Throwable {
         int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final Set<Object> responses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<BulkResponse> successfulResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<Tuple<BulkRequest, Throwable>> failedResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
 
-        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client()::bulk, new BulkProcessor2.Listener() {
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(this::countAndBulk, new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 // no op
@@ -74,58 +81,61 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                internalPolicy.logResponse(response);
-                responses.add(response);
+                successfulResponses.add(response);
                 latch.countDown();
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                internalPolicy.logResponse(failure);
-                responses.add(failure);
+                failedResponses.add(Tuple.tuple(request, failure));
                 latch.countDown();
             }
         }, "BulkProcssorRetryIT")
             .setBulkActions(1)
             // zero means that we're in the sync case, more means that we're in the async case
-            .setConcurrentRequests(randomIntBetween(0, 100))
-            .setBackoffPolicy(internalPolicy)
+            .setConcurrentRequests(randomIntBetween(1, 100))
+            .setMaxNumberOfRetries(maxRetries)
             .build();
         indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
         bulkProcessor.close();
-
-        assertThat(responses.size(), equalTo(numberOfAsyncOps));
-
+        assertThat(successfulResponses.size() + failedResponses.size(), equalTo(numberOfAsyncOps));
         // validate all responses
         boolean rejectedAfterAllRetries = false;
-        for (Object response : responses) {
-            if (response instanceof BulkResponse bulkResponse) {
-                for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                    if (bulkItemResponse.isFailed()) {
-                        BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-                        if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                            if (rejectedExecutionExpected == false) {
-                                assertRetriedCorrectly(internalPolicy, bulkResponse, failure.getCause());
-                                rejectedAfterAllRetries = true;
+        for (BulkResponse bulkResponse : successfulResponses) {
+            for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                if (bulkItemResponse.isFailed()) {
+                    BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+                    if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                        if (rejectedExecutionExpected == false) {
+                            int count = requestToExecutionCountMap.get(bulkItemResponse.getId());
+                            if (count < maxRetries + 1) {
+                                throw new AssertionError("Got rejected although backoff policy would allow more retries");
                             }
-                        } else {
-                            throw new AssertionError("Unexpected failure status: " + failure.getStatus());
+                            rejectedAfterAllRetries = true;
+                        }
+                    } else {
+                        throw new AssertionError("Unexpected failure status: " + failure.getStatus());
+                    }
+                }
+            }
+        }
+        for (Tuple<BulkRequest, Throwable> failureTuple : failedResponses) {
+            if (ExceptionsHelper.status(failureTuple.v2()) == RestStatus.TOO_MANY_REQUESTS) {
+                if (rejectedExecutionExpected == false) {
+                    for (DocWriteRequest<?> request : failureTuple.v1().requests) {
+                        int count = requestToExecutionCountMap.get(request.id());
+                        if (count < maxRetries + 1) {
+                            throw new AssertionError("Got rejected although backoff policy would allow more retries");
                         }
                     }
+                    rejectedAfterAllRetries = true;
                 }
+                // ignored, we exceeded the write queue size when dispatching the initial bulk request
             } else {
-                if (ExceptionsHelper.status((Throwable) response) == RestStatus.TOO_MANY_REQUESTS) {
-                    if (rejectedExecutionExpected == false) {
-                        assertRetriedCorrectly(internalPolicy, response, ((Throwable) response).getCause());
-                        rejectedAfterAllRetries = true;
-                    }
-                    // ignored, we exceeded the write queue size when dispatching the initial bulk request
-                } else {
-                    Throwable t = (Throwable) response;
-                    // we're not expecting any other errors
-                    throw new AssertionError("Unexpected failure", t);
-                }
+                Throwable t = failureTuple.v2();
+                // we're not expecting any other errors
+                throw new AssertionError("Unexpected failure", t);
             }
         }
 
@@ -142,17 +152,6 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
         }
     }
 
-    private void assertRetriedCorrectly(CorrelatingBackoffPolicy internalPolicy, Object bulkResponse, Throwable failure) {
-        Iterator<TimeValue> backoffState = internalPolicy.backoffStateFor(bulkResponse);
-        assertNotNull("backoffState is null (indicates a bulk request got rejected without retry)", backoffState);
-        if (backoffState.hasNext()) {
-            // we're not expecting that we overwhelmed it even once when we maxed out the number of retries
-            throw new AssertionError("Got rejected although backoff policy would allow more retries", failure);
-        } else {
-            logger.debug("We maxed out the number of bulk retries and got rejected (this is ok).");
-        }
-    }
-
     private static void indexDocs(BulkProcessor2 processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
@@ -165,70 +164,11 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
         }
     }
 
-    /**
-     * Internal helper class to correlate backoff states with bulk responses. This is needed to check whether we maxed out the number
-     * of retries but still got rejected (which is perfectly fine and can also happen from time to time under heavy load).
-     *
-     * This implementation relies on an implementation detail in Retry, namely that the bulk listener is notified on the same thread
-     * as the last call to the backoff policy's iterator. The advantage is that this is non-invasive to the rest of the production code.
-     */
-    private static class CorrelatingBackoffPolicy extends BackoffPolicy {
-        private final Map<Object, Iterator<TimeValue>> correlations = new ConcurrentHashMap<>();
-        // this is intentionally *not* static final. We will only ever have one instance of this class per test case and want the
-        // thread local to be eligible for garbage collection right after the test to avoid leaks.
-        private final ThreadLocal<Iterator<TimeValue>> iterators = new ThreadLocal<>();
-
-        private final BackoffPolicy delegate;
-
-        private CorrelatingBackoffPolicy(BackoffPolicy delegate) {
-            this.delegate = delegate;
+    void countAndBulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+        for (DocWriteRequest<?> docWriteRequest : request.requests) {
+            requestToExecutionCountMap.compute(docWriteRequest.id(), (key, value) -> value == null ? 1 : value + 1);
         }
-
-        public Iterator<TimeValue> backoffStateFor(Object response) {
-            return correlations.get(response);
-        }
-
-        // Assumption: This method is called from the same thread as the last call to the internal iterator's #hasNext() / #next()
-        // see also Retry.AbstractRetryHandler#onResponse().
-        public void logResponse(Object response) {
-            Iterator<TimeValue> iterator = iterators.get();
-            // did we ever retry?
-            if (iterator != null) {
-                // we should correlate any iterator only once
-                iterators.remove();
-                correlations.put(response, iterator);
-            }
-        }
-
-        @Override
-        public Iterator<TimeValue> iterator() {
-            return new CorrelatingIterator(iterators, delegate.iterator());
-        }
-
-        private static class CorrelatingIterator implements Iterator<TimeValue> {
-            private final Iterator<TimeValue> delegate;
-            private final ThreadLocal<Iterator<TimeValue>> iterators;
-
-            private CorrelatingIterator(ThreadLocal<Iterator<TimeValue>> iterators, Iterator<TimeValue> delegate) {
-                this.iterators = iterators;
-                this.delegate = delegate;
-            }
-
-            @Override
-            public boolean hasNext() {
-                // update on every invocation as we might get rescheduled on a different thread. Unfortunately, there is a chance that
-                // we pollute the thread local map with stale values. Due to the implementation of Retry and the life cycle of the
-                // enclosing class CorrelatingBackoffPolicy this should not pose a major problem though.
-                iterators.set(this);
-                return delegate.hasNext();
-            }
-
-            @Override
-            public TimeValue next() {
-                // update on every invocation
-                iterators.set(this);
-                return delegate.next();
-            }
-        }
+        client().bulk(request, listener);
     }
+
 }

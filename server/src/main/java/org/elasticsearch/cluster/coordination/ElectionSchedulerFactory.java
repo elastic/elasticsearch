@@ -77,7 +77,7 @@ public class ElectionSchedulerFactory {
         ELECTION_MAX_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueSeconds(10),
         TimeValue.timeValueMillis(200),
-        TimeValue.timeValueSeconds(300),
+        TimeValue.timeValueSeconds(600),
         Property.NodeScope
     );
 
@@ -85,7 +85,7 @@ public class ElectionSchedulerFactory {
         ELECTION_DURATION_SETTING_KEY,
         TimeValue.timeValueMillis(500),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueSeconds(300),
+        TimeValue.timeValueSeconds(600),
         Property.NodeScope
     );
 

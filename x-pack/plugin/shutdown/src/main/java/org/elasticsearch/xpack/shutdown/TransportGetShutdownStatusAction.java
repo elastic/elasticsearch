@@ -215,28 +215,26 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             currentState.getRoutingNodes().unassigned().iterator(),
             Iterator::hasNext,
             UnaryOperator.identity()
-        )
-            .map(Iterator::next)
-            .filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId))
-            .toList();
+        ).map(Iterator::next).filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId)).toList();
 
         if (unassignedShards.isEmpty() == false) {
-            var shardRouting = unassignedShards.get(0);
-            if (shardRouting.primary() || hasShardCopyOnAnotherNode(currentState, shardRouting, shuttingDownNodes) == false) {
-                ShardAllocationDecision decision = allocationService.explainShardAllocation(shardRouting, allocation);
+            for (var shardRouting : unassignedShards) {
+                if (shardRouting.primary() || hasShardCopyOnAnotherNode(currentState, shardRouting, shuttingDownNodes) == false) {
+                    ShardAllocationDecision decision = allocationService.explainShardAllocation(shardRouting, allocation);
 
-                return new ShutdownShardMigrationStatus(
-                    SingleNodeShutdownMetadata.Status.STALLED,
-                    unassignedShards.size(),
-                    format(
-                        "shard [%s] [%s] of index [%s] is unassigned, see [%s] for details or use the cluster allocation explain API",
-                        shardRouting.shardId().getId(),
-                        shardRouting.primary() ? "primary" : "replica",
-                        shardRouting.index().getName(),
-                        NODE_ALLOCATION_DECISION_KEY
-                    ),
-                    decision
-                );
+                    return new ShutdownShardMigrationStatus(
+                        SingleNodeShutdownMetadata.Status.STALLED,
+                        unassignedShards.size(),
+                        format(
+                            "shard [%s] [%s] of index [%s] is unassigned, see [%s] for details or use the cluster allocation explain API",
+                            shardRouting.shardId().getId(),
+                            shardRouting.primary() ? "primary" : "replica",
+                            shardRouting.index().getName(),
+                            NODE_ALLOCATION_DECISION_KEY
+                        ),
+                        decision
+                    );
+                }
             }
         }
 

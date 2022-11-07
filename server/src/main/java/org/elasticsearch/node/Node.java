@@ -1083,7 +1083,9 @@ public class Node implements Closeable {
             });
 
             if (ReadinessService.enabled(environment)) {
-                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+                modules.add(
+                    b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(networkService, clusterService, environment))
+                );
             }
 
             injector = modules.createInjector();

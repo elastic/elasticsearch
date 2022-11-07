@@ -14,8 +14,10 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -24,21 +26,27 @@ import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
+
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
     private final Environment environment;
+    private final NetworkService networkService;
 
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
@@ -49,9 +57,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
-    public ReadinessService(ClusterService clusterService, Environment environment) {
+    public ReadinessService(NetworkService networkService, ClusterService clusterService, Environment environment) {
         this.serverChannel = null;
         this.environment = environment;
+        this.networkService = networkService;
         clusterService.addListener(this);
     }
 
@@ -89,11 +98,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     // package private for testing
-    InetSocketAddress socketAddress(int portNumber) {
+    InetSocketAddress socketAddress(InetAddress host, int portNumber) {
         // If we have previously bound to a specific port, we always rebind to the same one.
         var socketAddress = boundSocket.get();
         if (socketAddress == null) {
-            socketAddress = new InetSocketAddress(portNumber);
+            socketAddress = new InetSocketAddress(host, portNumber);
         }
 
         return socketAddress;
@@ -101,10 +110,22 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     // package private for testing
     ServerSocketChannel setupSocket() {
-        int portNumber = PORT.get(environment.settings());
+        var settings = environment.settings();
+        int portNumber = PORT.get(settings);
+        List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
+        var publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
+            .toArray(Strings.EMPTY_ARRAY);
+
         assert portNumber >= 0;
 
-        var socketAddress = socketAddress(portNumber);
+        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+            try {
+                var host = networkService.resolvePublishHostAddresses(publishHosts);
+                return socketAddress(host, portNumber);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to resolve readiness host address: " + Arrays.toString(publishHosts), e);
+            }
+        });
 
         try {
             serverChannel = ServerSocketChannel.open();

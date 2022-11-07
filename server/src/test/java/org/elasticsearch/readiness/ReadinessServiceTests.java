@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -35,10 +36,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -49,6 +52,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     private ThreadPool threadpool;
     private Environment env;
     private FakeHttpTransport httpTransport;
+    private NetworkService networkService;
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
         final DiscoveryNode node;
@@ -102,7 +106,8 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
 
         httpTransport = new FakeHttpTransport();
-        readinessService = new ReadinessService(clusterService, env);
+        networkService = new NetworkService(List.of());
+        readinessService = new ReadinessService(networkService, clusterService, env);
     }
 
     @After
@@ -113,7 +118,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     public void testEphemeralSocket() throws Exception {
         Environment tempEnv = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
-        ReadinessService tempService = new ReadinessService(clusterService, tempEnv);
+        ReadinessService tempService = new ReadinessService(networkService, clusterService, tempEnv);
         try (ServerSocketChannel channel = tempService.setupSocket()) {
             assertTrue(channel.isOpen());
             assertTrue(tempService.boundAddress().publishAddress().getPort() > 0);
@@ -122,7 +127,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     public void testBoundPortDoesntChange() throws Exception {
         Environment tempEnv = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
-        ReadinessService tempService = new ReadinessService(clusterService, tempEnv);
+        ReadinessService tempService = new ReadinessService(networkService, clusterService, tempEnv);
         tempService.start();
         tempService.startListener();
 
@@ -148,8 +153,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     }
 
     public void testSocketAddress() throws UnknownHostException {
-        InetSocketAddress socketAddress = readinessService.socketAddress(123);
+        InetSocketAddress socketAddress = readinessService.socketAddress(InetAddress.getByName("localhost"), 123);
         assertEquals(123, socketAddress.getPort());
+        assertEquals("localhost", socketAddress.getHostString());
     }
 
     public void testEnabled() {

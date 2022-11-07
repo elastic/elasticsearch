@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RemoteIndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -391,6 +393,45 @@ public class CompositeRolesStore {
                 });
             }
         );
+    }
+
+    public void getRoleDescriptorsIntersection(
+        final String remoteClusterAlias,
+        final Subject subject,
+        final ActionListener<RoleDescriptorsIntersection> listener
+    ) {
+        getRoleDescriptorsList(subject, ActionListener.wrap(roleDescriptorList -> {
+            final Collection<Set<RoleDescriptor>> roleDescriptorGroups = new ArrayList<>();
+            for (var roleDescriptorGroup : roleDescriptorList) {
+                final Set<RoleDescriptor> roleDescriptors = new HashSet<>();
+                for (var roleDescriptor : roleDescriptorGroup) {
+                    final List<RoleDescriptor.IndicesPrivileges> indexPrivileges = new ArrayList<>();
+                    for (var remoteIndexPrivilege : roleDescriptor.getRemoteIndicesPrivileges()) {
+                        if (StringMatcher.of(remoteIndexPrivilege.remoteClusters()).test(remoteClusterAlias)) {
+                            indexPrivileges.add(remoteIndexPrivilege.indicesPrivileges());
+                        }
+                    }
+                    if (false == indexPrivileges.isEmpty()) {
+                        roleDescriptors.add(
+                            new RoleDescriptor(
+                                roleDescriptor.getName(),
+                                null,
+                                indexPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[0]),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        );
+                    }
+                }
+                if (false == roleDescriptors.isEmpty()) {
+                    roleDescriptorGroups.add(roleDescriptors);
+                }
+            }
+            listener.onResponse(new RoleDescriptorsIntersection(roleDescriptorGroups));
+        }, listener::onFailure));
     }
 
     // Package private for testing

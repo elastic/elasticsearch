@@ -33,11 +33,14 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Collections;
 import java.util.Map;
@@ -57,6 +60,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
 
+    private final CompositeRolesStore rolesStore;
+
     public SecurityServerTransportInterceptor(
         Settings settings,
         ThreadPool threadPool,
@@ -67,6 +72,30 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         DestructiveOperations destructiveOperations,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
+        this(
+            settings,
+            threadPool,
+            authcService,
+            authzService,
+            sslService,
+            securityContext,
+            destructiveOperations,
+            remoteClusterAuthorizationResolver,
+            null
+        );
+    }
+
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
+        CompositeRolesStore rolesStore
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -75,6 +104,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
+        this.rolesStore = rolesStore;
     }
 
     @Override
@@ -159,7 +189,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         TransportResponseHandler<T> handler,
         AsyncSender sender
     ) {
-        if (securityContext.getAuthentication() == null) {
+        final Authentication authentication = securityContext.getAuthentication();
+        if (authentication == null) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
             assertNoAuthentication(action);
@@ -167,10 +198,54 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         try {
-            sender.sendRequest(connection, action, request, options, handler);
+            if (shouldSendWithRemoteAccessHeaders()) {
+                final String remoteClusterAlias = securityContext.getThreadContext()
+                    .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
+                final String remoteClusterAuthorization = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
+                rolesStore.getRoleDescriptorsIntersection(
+                    remoteClusterAlias,
+                    authentication.getEffectiveSubject(),
+                    ActionListener.wrap(roleDescriptorsIntersection -> {
+                        logger.info("Original context {}", securityContext.getThreadContext().getHeaders());
+                        final ThreadContext.StoredContext original = securityContext.getThreadContext()
+                            .newStoredContextPreservingResponseHeaders();
+                        try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
+                            new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(
+                                securityContext.getThreadContext()
+                            );
+                            securityContext.getThreadContext().putHeader("_remote_access_credential", remoteClusterAuthorization);
+                            logger.info("New context {}", securityContext.getThreadContext().getHeaders());
+                            sender.sendRequest(
+                                connection,
+                                action,
+                                request,
+                                options,
+                                new ContextRestoreResponseHandler<>(() -> original, handler)
+                            );
+                        }
+                    }, ex -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, ex)))
+                );
+            } else {
+                sender.sendRequest(connection, action, request, options, handler);
+            }
         } catch (Exception e) {
             handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
         }
+    }
+
+    private boolean shouldSendWithRemoteAccessHeaders() {
+        // TODO we might need to exclude users with reserved roles for now; if a user has a reserved role, fall back of legacy
+        final Authentication authentication = securityContext.getAuthentication();
+        if (User.isInternal(authentication.getEffectiveSubject().getUser())
+            || authentication.isApiKey()
+            || authentication.isServiceAccount()) {
+            // TODO these authentication subject types are not yet supported, so use legacy remote cluster security mode
+            return false;
+        }
+        final String remoteClusterAlias = securityContext.getThreadContext()
+            .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
+        logger.info("Remote cluster alias {}", remoteClusterAlias);
+        return remoteClusterAlias != null && remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias) != null;
     }
 
     // pkg-private method to allow overriding for tests

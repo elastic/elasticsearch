@@ -1917,7 +1917,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE);
 
         // If the delay variability is high, set election duration accordingly, to avoid the possible endless repetition of voting rounds.
-        if (ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getDefault(settings.build()).getMillis() < delayVariabilityMillis) {
+        if (ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getDefault(Settings.EMPTY).getMillis() < delayVariabilityMillis) {
             settings = settings.put(
                 ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getKey(),
                 TimeValue.timeValueMillis(delayVariabilityMillis)

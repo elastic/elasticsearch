@@ -33,11 +33,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
-import org.elasticsearch.xpack.esql.compute.transport.ComputeAction;
-import org.elasticsearch.xpack.esql.compute.transport.RestComputeAction;
-import org.elasticsearch.xpack.esql.compute.transport.TransportComputeAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
@@ -87,10 +83,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
-            new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class)
-        );
+        return List.of(new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class));
     }
 
     @Override
@@ -103,11 +96,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestEsqlQueryAction(), new RestComputeAction());
-    }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return PlanNode.getNamedXContentParsers();
+        return List.of(new RestEsqlQueryAction());
     }
 }

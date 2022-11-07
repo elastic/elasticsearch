@@ -65,7 +65,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
     ) throws Exception {
         DesiredBalance latestDesiredBalance = desiredBalanceShardsAllocator.getDesiredBalance();
         if (latestDesiredBalance == null) {
-            listener.onFailure(new ResourceNotFoundException("Desired balance not found"));
+            listener.onFailure(new ResourceNotFoundException("Desired balance is not computed yet"));
             return;
         }
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();

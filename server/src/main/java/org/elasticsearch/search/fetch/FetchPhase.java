@@ -392,10 +392,10 @@ public class FetchPhase {
 
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
         assert nestedIdentity != null;
-        rootSource = nestedIdentity.extractSource(rootSource);
+        Source nestedSource = nestedIdentity.extractSource(rootSource);
 
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), rootSource);
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), nestedSource);
     }
 
     public static List<Object> processStoredField(Function<String, MappedFieldType> fieldTypeLookup, String field, List<Object> input) {

@@ -217,8 +217,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             UnaryOperator.identity()
         )
             .map(Iterator::next)
-            .filter(s -> s.unassignedInfo().getLastAllocatedNodeId() != null && s.unassignedInfo().getLastAllocatedNodeId().equals(nodeId))
-            .collect(Collectors.toList());
+            .filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId))
+            .toList();
 
         if (unassignedShards.isEmpty() == false) {
             var shardRouting = unassignedShards.get(0);

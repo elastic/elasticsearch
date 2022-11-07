@@ -1,0 +1,6 @@
+pr: 91329
+summary: Allow configuring readiness host
+area: Infra/Core
+type: enhancement
+issues:
+ - 90997

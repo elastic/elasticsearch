@@ -8,12 +8,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class BasicBlockTests extends ESTestCase {
 
@@ -94,6 +97,62 @@ public class BasicBlockTests extends ESTestCase {
             expectThrows(UOE, () -> block.getInt(pos));
             expectThrows(UOE, () -> block.getLong(pos));
         }
+    }
+
+    public void testBytesRefBlock() {
+        int positionCount = randomIntBetween(0, 16 * 1024);
+        BytesRefArrayBlock.Builder builder = BytesRefArrayBlock.builder(positionCount);
+        BytesRef[] values = new BytesRef[positionCount];
+        for (int i = 0; i < positionCount; i++) {
+            BytesRef bytesRef = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            if (bytesRef.length > 0 && randomBoolean()) {
+                bytesRef.offset = randomIntBetween(0, bytesRef.length - 1);
+                // TODO: tests zero length BytesRefs after fixing BytesRefArray
+                bytesRef.length = randomIntBetween(1, bytesRef.length - bytesRef.offset);
+            }
+            values[i] = bytesRef;
+            if (randomBoolean()) {
+                bytesRef = BytesRef.deepCopyOf(bytesRef);
+            }
+            builder.append(bytesRef);
+        }
+        BytesRefArrayBlock block = builder.build();
+        assertThat(positionCount, is(block.getPositionCount()));
+        BytesRef bytes = new BytesRef();
+        for (int i = 0; i < positionCount; i++) {
+            int pos = randomIntBetween(0, positionCount - 1);
+            bytes = block.getBytesRef(pos, bytes);
+            assertThat(bytes, equalTo(values[pos]));
+            assertThat(block.getObject(pos), equalTo(values[pos]));
+            expectThrows(UOE, () -> block.getInt(pos));
+            expectThrows(UOE, () -> block.getLong(pos));
+            expectThrows(UOE, () -> block.getDouble(pos));
+        }
+    }
+
+    public void testBytesRefBlockBuilder() {
+        int positionCount = randomIntBetween(1, 128);
+        BytesRefArrayBlock.Builder builder = BytesRefArrayBlock.builder(positionCount);
+        int firstBatch = randomIntBetween(0, positionCount - 1);
+        for (int i = 0; i < firstBatch; i++) {
+            builder.append(new BytesRef(randomByteArrayOfLength(between(1, 20))));
+            IllegalStateException error = expectThrows(IllegalStateException.class, builder::build);
+            assertThat(error.getMessage(), startsWith("Incomplete block; expected "));
+        }
+        int secondBatch = positionCount - firstBatch;
+        for (int i = 0; i < secondBatch; i++) {
+            IllegalStateException error = expectThrows(IllegalStateException.class, builder::build);
+            assertThat(error.getMessage(), startsWith("Incomplete block; expected "));
+            builder.append(new BytesRef(randomByteArrayOfLength(between(1, 20))));
+        }
+        int extra = between(1, 10);
+        for (int i = 0; i < extra; i++) {
+            BytesRef bytes = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            IllegalStateException error = expectThrows(IllegalStateException.class, () -> builder.append(bytes));
+            assertThat(error.getMessage(), startsWith("Block is full; "));
+        }
+        BytesRefArrayBlock block = builder.build();
+        assertThat(block.getPositionCount(), equalTo(positionCount));
     }
 
     static final Class<UnsupportedOperationException> UOE = UnsupportedOperationException.class;

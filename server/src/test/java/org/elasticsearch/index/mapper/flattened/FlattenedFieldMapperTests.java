@@ -239,6 +239,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                     .field("d.e", "value4")
             )
         );
+        assertNull(parsedDoc.dynamicMappingsUpdate());
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(6, fields.length);
         fields = parsedDoc.rootDoc().getFields("a.b");

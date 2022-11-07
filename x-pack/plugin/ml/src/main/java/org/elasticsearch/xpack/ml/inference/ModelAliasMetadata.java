@@ -230,7 +230,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
         @Override
         public String toString() {
-            return "ModelAliasEntry{" + "modelId='" + modelId + '\'' + '}';
+            return "ModelAliasEntry{modelId='" + modelId + "'}";
         }
     }
 }

@@ -77,7 +77,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        // Update the requests model ID its an alias
+        // Update the requests model ID if it's an alias
         Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getModelId()))
             .ifPresent(request::setModelId);
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the

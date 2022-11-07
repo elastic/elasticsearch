@@ -1921,7 +1921,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testEmptyFieldNameSubobjectsFalse() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
         MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
-        assertThat(err.getMessage(), containsString("Field name cannot be an empty string"));
+        assertThat(err.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(err.getCause().getMessage(), containsString("Field name cannot be an empty string"));
     }
 
     public void testBlankFieldNameSubobjectsFalse() throws Exception {

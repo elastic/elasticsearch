@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -22,18 +24,19 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.
-   * - The local cluster is unchanged and it consists of an old version node and a new version node.
+   * - The local cluster is unchanged and it consists of two new version nodes.
    * - Nodes in the remote cluster are upgraded one by one in three steps.
-   * - Only node-0 and node-2 of the remote cluster can accept remote connections. This can creates a test
-   *   scenario where a query request and fetch request are sent via **proxy nodes** that have different version.
+   * - Only node-0 and node-2 of the remote cluster can accept remote connections.
    */
   def localCluster = testClusters.register("${baseName}-local") {
+    testDistribution = 'DEFAULT'
     numberOfNodes = 2
-    versions = [bwcVersion.toString(), project.version]
+    versions = [project.version, project.version]
     setting 'cluster.remote.node.attr', 'gateway'
     setting 'xpack.security.enabled', 'false'
   }
   def remoteCluster = testClusters.register("${baseName}-remote") {
+    testDistribution = 'DEFAULT'
     numberOfNodes = 3
     versions = [bwcVersion.toString(), project.version]
     firstNode.setting 'node.attr.gateway', 'true'

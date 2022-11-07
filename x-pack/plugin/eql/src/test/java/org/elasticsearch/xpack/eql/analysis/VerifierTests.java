@@ -487,8 +487,7 @@ public class VerifierTests extends ESTestCase {
         assertTrue(
             e.getMessage()
                 .contains(
-                    "the following remote cluster is incompatible, being on a version different than local "
-                        + "cluster's ["
+                    "the following remote cluster is incompatible, being on a version incompatible with local cluster's ["
                         + Version.CURRENT
                         + "]: [one]"
                 )
@@ -499,8 +498,7 @@ public class VerifierTests extends ESTestCase {
         assertTrue(
             e.getMessage()
                 .contains(
-                    "the following remote clusters are incompatible, being on a version different than local "
-                        + "cluster's ["
+                    "the following remote clusters are incompatible, being on a version incompatible with local cluster's ["
                         + Version.CURRENT
                         + "]: [one, two]"
                 )

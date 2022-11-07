@@ -16,15 +16,15 @@ restResources {
   }
 }
 
-tasks.register('remote-cluster', RestIntegTestTask) {
+tasks.register('fulfilling-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
-  systemProperty 'tests.rest.suite', 'remote_cluster'
+  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 
 // randomise between sniff and proxy modes
 boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
-def remoteCluster = testClusters.register('remote-cluster') {
+def fulfillingCluster = testClusters.register('fulfilling-cluster') {
 
   setting 'xpack.security.enabled', 'true'
   module ':modules:analysis-common'
@@ -38,7 +38,7 @@ def remoteCluster = testClusters.register('remote-cluster') {
   user username: "test_user", password: "x-pack-test-password"
 }
 
-testClusters.register('local-cluster') {
+testClusters.register('querying-cluster') {
 
   setting 'xpack.security.enabled', 'true'
   module ':modules:analysis-common'
@@ -51,11 +51,11 @@ testClusters.register('local-cluster') {
   if (proxyMode) {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
     setting 'cluster.remote.my_remote_cluster.proxy_address', {
-      "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\""
+      "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
     }
   } else {
     setting 'cluster.remote.my_remote_cluster.seeds', {
-      remoteCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
+      fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
     }
   }
   setting 'cluster.remote.connections_per_cluster', "1"
@@ -63,10 +63,10 @@ testClusters.register('local-cluster') {
   user username: "test_user", password: "x-pack-test-password"
 }
 
-tasks.register('local-cluster', RestIntegTestTask) {
-  dependsOn 'remote-cluster'
-  useCluster remoteCluster
-  systemProperty 'tests.rest.suite', 'local_cluster'
+tasks.register('querying-cluster', RestIntegTestTask) {
+  dependsOn 'fulfilling-cluster'
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'querying_cluster'
   if (proxyMode) {
     systemProperty 'tests.rest.blacklist', [
       'local_cluster/10_basic/Add persistent remote cluster based on the preset cluster',
@@ -78,7 +78,7 @@ tasks.register('local-cluster', RestIntegTestTask) {
 }
 
 tasks.register("integTest") {
-  dependsOn 'local-cluster'
+  dependsOn 'querying-cluster'
 }
 
 tasks.named("check").configure { dependsOn("integTest") }

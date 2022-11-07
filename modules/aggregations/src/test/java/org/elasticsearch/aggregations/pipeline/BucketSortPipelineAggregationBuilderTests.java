@@ -5,9 +5,12 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -19,7 +22,11 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortPipelineAggregationBuilder> {
+public class BucketSortPipelineAggregationBuilderTests extends BasePipelineAggregationTestCase<BucketSortPipelineAggregationBuilder> {
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return List.of(new AggregationsPlugin());
+    }
 
     @Override
     protected BucketSortPipelineAggregationBuilder createTestAggregatorFactory() {

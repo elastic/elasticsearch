@@ -45,8 +45,7 @@ public class DefaultEqualityMethodOptimizationPhase extends IRExpressionModifyin
             if (irComparisonNode.getLeftNode().getDecorationValue(IRDConstant.class) instanceof String) {
                 constantNode = irComparisonNode.getLeftNode();
                 argumentNode = irComparisonNode.getRightNode();
-            }
-            else if (irComparisonNode.getRightNode().getDecorationValue(IRDConstant.class) instanceof String) {
+            } else if (irComparisonNode.getRightNode().getDecorationValue(IRDConstant.class) instanceof String) {
                 // it's ok to reorder these, RHS is a constant that has no effect on execution
                 constantNode = irComparisonNode.getRightNode();
                 argumentNode = irComparisonNode.getLeftNode();
@@ -57,8 +56,7 @@ public class DefaultEqualityMethodOptimizationPhase extends IRExpressionModifyin
             if (constantNode != null) {
                 // call String.equals directly
                 InvokeCallNode invoke = new InvokeCallNode(loc);
-                PainlessMethod method = scriptScope.getPainlessLookup().lookupPainlessMethod(
-                    String.class, false, "equals", 1);
+                PainlessMethod method = scriptScope.getPainlessLookup().lookupPainlessMethod(String.class, false, "equals", 1);
                 invoke.setMethod(method);
                 invoke.setBox(String.class);
                 invoke.addArgumentNode(argumentNode);

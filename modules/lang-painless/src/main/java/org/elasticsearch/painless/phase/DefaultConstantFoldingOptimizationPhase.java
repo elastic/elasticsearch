@@ -49,7 +49,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
     public void visitUnaryMath(UnaryMathNode irUnaryMathNode, Consumer<ExpressionNode> scope) {
         irUnaryMathNode.getChildNode().visit(this, irUnaryMathNode::setChildNode);
 
-        if (irUnaryMathNode.getChildNode() instanceof ConstantNode irConstantNode) {
+        if (irUnaryMathNode.getChildNode()instanceof ConstantNode irConstantNode) {
             Object constantValue = irConstantNode.getDecorationValue(IRDConstant.class);
             Operation operation = irUnaryMathNode.getDecorationValue(IRDOperation.class);
             Class<?> type = irUnaryMathNode.getDecorationValue(IRDExpressionType.class);
@@ -139,8 +139,8 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
         irBinaryMathNode.getLeftNode().visit(this, irBinaryMathNode::setLeftNode);
         irBinaryMathNode.getRightNode().visit(this, irBinaryMathNode::setRightNode);
 
-        if (irBinaryMathNode.getLeftNode() instanceof ConstantNode irLeftConstantNode
-            && irBinaryMathNode.getRightNode() instanceof ConstantNode irRightConstantNode) {
+        if (irBinaryMathNode.getLeftNode()instanceof ConstantNode irLeftConstantNode
+            && irBinaryMathNode.getRightNode()instanceof ConstantNode irRightConstantNode) {
             Object leftConstantValue = irLeftConstantNode.getDecorationValue(IRDConstant.class);
             Object rightConstantValue = irRightConstantNode.getDecorationValue(IRDConstant.class);
             Operation operation = irBinaryMathNode.getDecorationValue(IRDOperation.class);
@@ -531,8 +531,8 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
         irBooleanNode.getLeftNode().visit(this, irBooleanNode::setLeftNode);
         irBooleanNode.getRightNode().visit(this, irBooleanNode::setRightNode);
 
-        if (irBooleanNode.getLeftNode() instanceof ConstantNode irLeftConstantNode
-            && irBooleanNode.getRightNode() instanceof ConstantNode irRightConstantNode) {
+        if (irBooleanNode.getLeftNode()instanceof ConstantNode irLeftConstantNode
+            && irBooleanNode.getRightNode()instanceof ConstantNode irRightConstantNode) {
             Operation operation = irBooleanNode.getDecorationValue(IRDOperation.class);
             Class<?> type = irBooleanNode.getDecorationValue(IRDExpressionType.class);
 
@@ -811,7 +811,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
     public void visitCast(CastNode irCastNode, Consumer<ExpressionNode> scope) {
         irCastNode.getChildNode().visit(this, irCastNode::setChildNode);
 
-        if (irCastNode.getChildNode() instanceof ConstantNode irConstantNode
+        if (irCastNode.getChildNode()instanceof ConstantNode irConstantNode
             && PainlessLookupUtility.isConstantType(irCastNode.getDecorationValue(IRDExpressionType.class))) {
             Object constantValue = irConstantNode.getDecorationValue(IRDConstant.class);
             constantValue = AnalyzerCaster.constCast(irCastNode.getLocation(), constantValue, irCastNode.getDecorationValue(IRDCast.class));

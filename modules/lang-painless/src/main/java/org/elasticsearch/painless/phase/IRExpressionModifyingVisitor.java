@@ -58,7 +58,7 @@ import java.util.function.Consumer;
 public class IRExpressionModifyingVisitor extends IRTreeBaseVisitor<Consumer<ExpressionNode>> {
 
     private void visitList(List<ExpressionNode> nodes) {
-        for (int i=0; i<nodes.size(); i++) {
+        for (int i = 0; i < nodes.size(); i++) {
             int ii = i;
             nodes.get(i).visit(this, e -> nodes.set(ii, e));
         }

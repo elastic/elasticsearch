@@ -12,7 +12,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.Assert;
 
@@ -25,72 +24,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 public class RestEsqlIT extends RestEsqlTestCase {
-
-    @Experimental
-    public void testComputeEndpoint() throws IOException {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            b.append(String.format(Locale.ROOT, """
-                {"create":{"_index":"compute-index"}}
-                {"@timestamp":"2020-12-12","test":"value%s","value":%d}
-                """, i, i));
-        }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.addParameter("filter_path", "errors");
-        bulk.setJsonEntity(b.toString());
-        Response response = client().performRequest(bulk);
-        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-
-        Request computeRequest = new Request("POST", "/_compute");
-        computeRequest.setJsonEntity("""
-            {
-              "plan" : {
-                "aggregation" : {
-                  "mode" : "FINAL",
-                  "groupBy" : { },
-                  "aggs" : {
-                    "value_avg" : {
-                      "avg" : {
-                        "field" : "value"
-                      }
-                    }
-                  },
-                  "source" : {
-                    "aggregation" : {
-                      "mode" : "PARTIAL",
-                      "groupBy" : { },
-                      "aggs" : {
-                        "value_avg" : {
-                          "avg" : {
-                            "field" : "value"
-                          }
-                        }
-                      },
-                      "source" : {
-                        "doc-values" : {
-                          "field" : "value",
-                          "source" : {
-                            "lucene-source" : {
-                              "indices" : "compute-index",
-                              "query" : "*:*",
-                              "parallelism" : "SINGLE"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            """);
-        Response computeResponse = client().performRequest(computeRequest);
-        Assert.assertThat(
-            EntityUtils.toString(computeResponse.getEntity(), StandardCharsets.UTF_8),
-            containsString("\"pages\":1,\"rows\":1")
-        );
-    }
 
     public void testBasicEsql() throws IOException {
         StringBuilder b = new StringBuilder();

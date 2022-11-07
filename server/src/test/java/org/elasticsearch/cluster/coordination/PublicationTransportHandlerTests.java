@@ -180,7 +180,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
                 transportService,
                 writableRegistry(),
-                pu -> null,
+                pu -> new PublishWithJoinResponse(new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong()), Optional.empty()),
                 (pu, l) -> {}
             );
             transportService.start();

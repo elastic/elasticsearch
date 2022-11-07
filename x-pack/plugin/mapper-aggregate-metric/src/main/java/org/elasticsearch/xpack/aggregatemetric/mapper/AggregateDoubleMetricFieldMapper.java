@@ -649,7 +649,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 return;
             }
             // Rethrow exception as is. It is going to be caught and nested in a MapperParsingException
-            // by its FieldMapper.MappedFieldType#parse()
+            // by its FieldMapper#parse()
             throw e;
         }
         for (Map.Entry<Metric, Number> parsed : metricsParsed.entrySet()) {

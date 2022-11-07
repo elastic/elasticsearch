@@ -185,9 +185,40 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     public void testDotOnlyFieldName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("...", "value").endObject()));
+        ParsedDocument parsedDoc = mapper.parse(
+            source(b -> b.startObject("field").field(".", "value1").field("..", "value2").field("...", "value3").endObject())
+        );
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(6, fields.length);
+    }
+
+    public void testMixOfOrdinaryAndFlattenedFields() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(
+            source(
+                b -> b.startObject("field")
+                    .field("", "value")
+                    .field("subfield1", "value1")
+                    .field("subfield2", "value2")
+                    .endObject()
+                    .startObject("a")
+                    .startObject("b")
+                    .field("c", "value3")
+                    .endObject()
+                    .endObject()
+                    .field("d.e.f.g", "value4")
+            )
+        );
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.length);
+        fields = parsedDoc.rootDoc().getFields("a.b");
+        assertEquals(0, fields.length);
+        fields = parsedDoc.rootDoc().getFields("a.b.c");
+        assertEquals(1, fields.length);
+        fields = parsedDoc.rootDoc().getFields("d.e.f");
+        assertEquals(0, fields.length);
+        fields = parsedDoc.rootDoc().getFields("d.e.f.g");
+        assertEquals(1, fields.length);
     }
 
     public void testMalformedJson() throws Exception {

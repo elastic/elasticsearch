@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 
@@ -206,15 +207,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     remoteClusterAlias,
                     authentication.getEffectiveSubject(),
                     ActionListener.wrap(roleDescriptorsIntersection -> {
-                        logger.info("Original context {}", securityContext.getThreadContext().getHeaders());
-                        final ThreadContext.StoredContext original = securityContext.getThreadContext()
-                            .newStoredContextPreservingResponseHeaders();
-                        try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
-                            new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(
-                                securityContext.getThreadContext()
-                            );
-                            securityContext.getThreadContext().putHeader("_remote_access_credential", remoteClusterAuthorization);
-                            logger.info("New context {}", securityContext.getThreadContext().getHeaders());
+                        ThreadContext threadContext = securityContext.getThreadContext();
+                        logger.info("Original context {}", threadContext.getHeaders());
+                        final ThreadContext.StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
+                        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                            new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
+                            threadContext.putHeader("_remote_access_credential", remoteClusterAuthorization);
+                            logger.info("New context {}", threadContext.getHeaders());
                             sender.sendRequest(
                                 connection,
                                 action,

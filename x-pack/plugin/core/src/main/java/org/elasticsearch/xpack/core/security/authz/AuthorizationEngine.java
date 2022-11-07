@@ -504,32 +504,21 @@ public interface AuthorizationEngine {
     }
 
     /**
-     * Represents the result of authorization. This includes whether the actions should be granted
-     * and if this should be considered an auditable event.
+     * Represents the result of authorization to tell whether the actions should be granted
      */
     class AuthorizationResult {
 
         private final boolean granted;
-        private final boolean auditable;
 
         /**
-         * Create an authorization result with the provided granted value that is auditable
+         * Create an authorization result with the provided granted value
          */
         public AuthorizationResult(boolean granted) {
-            this(granted, true);
-        }
-
-        public AuthorizationResult(boolean granted, boolean auditable) {
             this.granted = granted;
-            this.auditable = auditable;
         }
 
         public boolean isGranted() {
             return granted;
-        }
-
-        public boolean isAuditable() {
-            return auditable;
         }
 
         /**
@@ -541,14 +530,14 @@ public interface AuthorizationEngine {
         }
 
         /**
-         * Returns a new authorization result that is granted and auditable
+         * Returns a new authorization result that is granted
          */
         public static AuthorizationResult granted() {
             return new AuthorizationResult(true);
         }
 
         /**
-         * Returns a new authorization result that is denied and auditable
+         * Returns a new authorization result that is denied
          */
         public static AuthorizationResult deny() {
             return new AuthorizationResult(false);
@@ -564,8 +553,8 @@ public interface AuthorizationEngine {
 
         private final IndicesAccessControl indicesAccessControl;
 
-        public IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
-            super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
+        public IndexAuthorizationResult(IndicesAccessControl indicesAccessControl) {
+            super(indicesAccessControl == null || indicesAccessControl.isGranted());
             this.indicesAccessControl = indicesAccessControl;
         }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
@@ -21,9 +20,7 @@ import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineA
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 
-import java.util.List;
 import java.util.Map;
 
 public final class PipelineAggregatorBuilders {
@@ -72,10 +69,6 @@ public final class PipelineAggregatorBuilders {
 
     public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name, Script script, String... bucketsPaths) {
         return new BucketSelectorPipelineAggregationBuilder(name, script, bucketsPaths);
-    }
-
-    public static BucketSortPipelineAggregationBuilder bucketSort(String name, List<FieldSortBuilder> sorts) {
-        return new BucketSortPipelineAggregationBuilder(name, sorts);
     }
 
     public static CumulativeSumPipelineAggregationBuilder cumulativeSum(String name, String bucketsPath) {

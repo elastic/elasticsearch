@@ -139,7 +139,13 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Indicates an index-level setting that is privately managed. Such a setting can not even be set on index creation.
          */
-        PrivateIndex
+        PrivateIndex,
+
+        /**
+         * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
+         * forbidden in indices created from {@link Version#V_8_0_0} onwards.
+         */
+        IndexSettingDeprecatedInV7AndRemovedInV8
     }
 
     private final Key key;
@@ -151,6 +157,11 @@ public class Setting<T> implements ToXContentObject {
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
+    private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
+        Property.Deprecated,
+        Property.DeprecatedWarning,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
 
     private Setting(
         Key key,
@@ -181,12 +192,13 @@ public class Setting<T> implements ToXContentObject {
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
                 throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
-            if (propertiesAsSet.contains(Property.Deprecated) && propertiesAsSet.contains(Property.DeprecatedWarning)) {
-                throw new IllegalArgumentException("setting [" + key + "] cannot be deprecated at both critical and warning levels");
+            if (propertiesAsSet.stream().filter(DEPRECATED_PROPERTIES::contains).count() > 1) {
+                throw new IllegalArgumentException("setting [" + key + "] must be at most one of [" + DEPRECATED_PROPERTIES + "]");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
@@ -409,11 +421,17 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
     private boolean isDeprecated() {
-        return properties.contains(Property.Deprecated) || properties.contains(Property.DeprecatedWarning);
+        return properties.contains(Property.Deprecated)
+            || properties.contains(Property.DeprecatedWarning)
+            || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
     }
 
     private boolean isDeprecatedWarningOnly() {
         return properties.contains(Property.DeprecatedWarning);
+    }
+
+    public boolean isDeprecatedAndRemoved() {
+        return properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
     }
 
     /**
@@ -599,6 +617,13 @@ public class Setting<T> implements ToXContentObject {
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+            } else if (this.isDeprecatedAndRemoved()) {
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    key,
+                    "[{}] setting was deprecated in the previous Elasticsearch release and is removed in this release.",
+                    key
+                );
             } else {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
             }

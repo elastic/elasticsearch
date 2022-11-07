@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -149,7 +150,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
 
         // Test semantic search with filters
         {
-            var semanticSearchResponse = semanticSearch(indexName, inputs.get(0), "foo", modelId, "embedding");
+            var semanticSearchResponse = semanticSearchWithTermsFilter(indexName, inputs.get(0), "foo", modelId, "embedding");
             assertOkWithErrorMessage(semanticSearchResponse);
 
             Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
@@ -160,9 +161,8 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
                 assertEquals("foo", filter);
             }
         }
-
         {
-            var semanticSearchResponse = semanticSearch(indexName, inputs.get(2), "baz", modelId, "embedding");
+            var semanticSearchResponse = semanticSearchWithTermsFilter(indexName, inputs.get(2), "baz", modelId, "embedding");
             assertOkWithErrorMessage(semanticSearchResponse);
 
             Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
@@ -172,6 +172,102 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
                 String filter = (String) MapHelper.dig("_source.filter_field", hit);
                 assertEquals("baz", filter);
             }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testHybridSearch() throws IOException {
+        String modelId = "hybrid-semantic-search-test";
+        String indexName = modelId + "-index";
+
+        createTextEmbeddingModel(modelId);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId
+        );
+        startDeployment(modelId);
+
+        List<String> inputs = List.of(
+            "my words",
+            "the machine is leaking",
+            "washing machine",
+            "these are my words",
+            "the octopus comforter smells",
+            "the octopus comforter is leaking",
+            "washing machine smells"
+        );
+        List<String> filters = List.of("foo", "bar", "baz", "foo", "bar", "baz", "foo");
+        List<List<Double>> embeddings = new ArrayList<>();
+
+        // Generate the text embeddings via the inference API
+        // then index them for search
+        for (var input : inputs) {
+            Response inference = infer(input, modelId);
+            List<Map<String, Object>> responseMap = (List<Map<String, Object>>) entityAsMap(inference).get("inference_results");
+            Map<String, Object> inferenceResult = responseMap.get(0);
+            List<Double> embedding = (List<Double>) inferenceResult.get("predicted_value");
+            embeddings.add(embedding);
+        }
+
+        // index dense vectors
+        createVectorSearchIndex(indexName);
+        bulkIndexDocs(inputs, filters, embeddings, indexName);
+        forceMergeIndex(indexName);
+
+        String queryTemplate = """
+            {"match": {"source_text": {"query": "%s"}}}
+            """;
+        {
+            var query = String.format(Locale.ROOT, queryTemplate, "octopus smell");
+            var semanticSearchResponse = semanticSearchWithQuery(indexName, inputs.get(0), query, modelId, "embedding");
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+
+            String source = (String) MapHelper.dig("_source.source_text", hits.get(0));
+            assertEquals("the octopus comforter smells", source);
+        }
+        {
+            var query = String.format(Locale.ROOT, queryTemplate, "washing machine");
+            var semanticSearchResponse = semanticSearchWithQuery(indexName, inputs.get(0), query, modelId, "embedding");
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+
+            String source = (String) MapHelper.dig("_source.source_text", hits.get(0));
+            assertEquals("washing machine smells", source);
+        }
+        {
+            // The semantic search query text is different to the match query
+            // by boosting the queries the knn hits should come out top.
+            String boostedQuery = """
+                {"match": {"source_text": {"query": "washing machine", "boost": 0.1}}}
+                """;
+
+            Request request = new Request("GET", indexName + "/_semantic_search?error_trace=true");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "model_id": "%s",
+                  "query_string": "the octopus comforter smells",
+                  "knn": {
+                      "field": "embedding",
+                      "k": 5,
+                      "num_candidates": 10,
+                      "boost": 10.0
+                  },
+                  "query": %s
+                }""", modelId, boostedQuery));
+            var semanticSearchResponse = client().performRequest(request);
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+
+            String source = (String) MapHelper.dig("_source.source_text", hits.get(0));
+            assertEquals("the octopus comforter smells", source);
         }
     }
 

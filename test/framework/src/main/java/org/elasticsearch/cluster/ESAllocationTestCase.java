@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -225,13 +226,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
-        ClusterState lastClusterState;
         do {
-            lastClusterState = clusterState;
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
+            final var previousClusterState = clusterState;
+            logger.debug(() -> Strings.format("ClusterState: %s", previousClusterState.getRoutingNodes()));
             clusterState = startInitializingShardsAndReroute(service, clusterState);
-        } while (lastClusterState.equals(clusterState) == false);
-        return clusterState;
+            if (previousClusterState.equals(clusterState)) {
+                return clusterState;
+            }
+        } while (true);
     }
 
     /**

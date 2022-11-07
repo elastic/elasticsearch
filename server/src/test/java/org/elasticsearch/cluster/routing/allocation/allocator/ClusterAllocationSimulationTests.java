@@ -1,0 +1,449 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.cluster.routing.allocation.allocator;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
+
+@TestLogging(reason = "progress reporting", value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer:DEBUG")
+public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
+
+    private static final Logger logger = LogManager.getLogger(ClusterAllocationSimulationTests.class);
+
+    private static int nodeCount(long tierBytes, long nodeBytes, int minCount) {
+        var watermarkNodeBytes = (long) (nodeBytes * 0.85);
+        return Math.max(Math.toIntExact((tierBytes + watermarkNodeBytes - 1) / watermarkNodeBytes), minCount) + between(0, 2);
+    }
+
+    public void testBalanceQuality() {
+
+        final var shardSizesByIndex = new HashMap<String, Long>();
+        final var tiers = new String[] { DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD };
+        final var tierSizes = Arrays.stream(tiers).collect(Collectors.toMap(Function.identity(), s -> 0L));
+        final var maxSizeVariance = ByteSizeValue.ofMb(20).getBytes();
+
+        final var metadataBuilder = Metadata.builder();
+        for (var dataStreamIndex = between(10, 50); dataStreamIndex >= 0; dataStreamIndex -= 1) {
+            final var hotIndices = between(2, 20);
+            final var warmIndices = between(10, 30);
+            final var coldIndices = between(10, 100);
+            final var hotShards = randomFrom(1, 2, 4, 8);
+            final var shrunkShards = randomFrom(1, 2);
+            final var approxIndexSize = randomFrom(ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(10), ByteSizeValue.ofGb(50));
+
+            for (var index = 0; index < hotIndices + warmIndices + coldIndices; index++) {
+                final var tier = index < coldIndices ? DataTier.DATA_COLD
+                    : index < coldIndices + warmIndices ? DataTier.DATA_WARM
+                    : DataTier.DATA_HOT;
+                final var indexName = Strings.format("index-%03d-%s-%03d", dataStreamIndex, tier.charAt(5), index);
+                final var shardCount = DataTier.DATA_HOT.equals(tier) ? hotShards : shrunkShards;
+                final var replicaCount = DataTier.DATA_COLD.equals(tier) ? 0 : 1;
+                metadataBuilder.put(
+                    IndexMetadata.builder(indexName)
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount)
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier", tier)
+                        )
+                );
+                final var shardSize = approxIndexSize.getBytes() / shardCount + randomLongBetween(-maxSizeVariance, maxSizeVariance);
+                shardSizesByIndex.put(indexName, shardSize);
+                tierSizes.computeIfPresent(tier, (ignored, size) -> size + shardSize * shardCount * (replicaCount + 1));
+            }
+        }
+        final var metadata = metadataBuilder.build();
+
+        final var routingTableBuilder = RoutingTable.builder();
+        for (final var indexMetadata : metadata) {
+            routingTableBuilder.addAsNew(indexMetadata);
+        }
+
+        final var nodeSizeBytesByTier = Map.of(
+            DataTier.DATA_HOT,
+            randomLongBetween(ByteSizeValue.ofGb(500).getBytes(), ByteSizeValue.ofTb(4).getBytes()),
+            DataTier.DATA_WARM,
+            randomLongBetween(ByteSizeValue.ofTb(1).getBytes(), ByteSizeValue.ofTb(10).getBytes()),
+            DataTier.DATA_COLD,
+            randomLongBetween(ByteSizeValue.ofTb(1).getBytes(), ByteSizeValue.ofTb(10).getBytes())
+        );
+
+        final var nodeCountByTier = Map.of(
+            DataTier.DATA_HOT,
+            nodeCount(tierSizes.get(DataTier.DATA_HOT), nodeSizeBytesByTier.get(DataTier.DATA_HOT), 8),
+            DataTier.DATA_WARM,
+            nodeCount(tierSizes.get(DataTier.DATA_WARM), nodeSizeBytesByTier.get(DataTier.DATA_WARM), 2),
+            DataTier.DATA_COLD,
+            nodeCount(tierSizes.get(DataTier.DATA_COLD), nodeSizeBytesByTier.get(DataTier.DATA_COLD), 1)
+        );
+
+        final var discoveryNodesBuilder = new DiscoveryNodes.Builder();
+        discoveryNodesBuilder.add(
+            new DiscoveryNode("master", "master", buildNewFakeTransportAddress(), Map.of(), Set.of(MASTER_ROLE), Version.CURRENT)
+        ).localNodeId("master").masterNodeId("master");
+        for (var nodeIndex = 0; nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) + nodeCountByTier.get(DataTier.DATA_WARM)
+            + nodeCountByTier.get(DataTier.DATA_COLD); nodeIndex++) {
+            final var tierRole = nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) ? DATA_HOT_NODE_ROLE
+                : nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) + nodeCountByTier.get(DataTier.DATA_WARM) ? DATA_WARM_NODE_ROLE
+                : DATA_COLD_NODE_ROLE;
+
+            final var nodeId = Strings.format("node-%s-%03d", tierRole.roleNameAbbreviation(), nodeIndex);
+            discoveryNodesBuilder.add(
+                new DiscoveryNode(
+                    nodeId,
+                    nodeId,
+                    buildNewFakeTransportAddress(),
+                    Map.of("fake_tier", tierRole.roleName()),
+                    Set.of(tierRole),
+                    Version.CURRENT
+                )
+            );
+        }
+
+        final var unassignedClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(discoveryNodesBuilder)
+            .metadata(metadata)
+            .routingTable(routingTableBuilder)
+            .build();
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+
+        final var settings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        final var directExecutor = new PrioritizedEsThreadPoolExecutor(
+            "master-service",
+            1,
+            1,
+            1,
+            TimeUnit.SECONDS,
+            r -> { throw new AssertionError("should not create new threads"); },
+            null,
+            null,
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        ) {
+
+            @Override
+            public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+                execute(command);
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                command.run();
+            }
+        };
+
+        final var masterService = new MasterService(
+            settings,
+            clusterSettings,
+            threadPool,
+            new TaskManager(settings, threadPool, Set.of())
+        ) {
+            @Override
+            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                return directExecutor;
+            }
+        };
+
+        final var applierService = new ClusterApplierService("master", settings, clusterSettings, threadPool) {
+            @Override
+            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                return directExecutor;
+            }
+        };
+
+        masterService.setClusterStateSupplier(applierService::state);
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
+            publishListener.onResponse(null);
+        });
+
+        applierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
+        applierService.setInitialState(unassignedClusterState);
+
+        final var clusterService = new ClusterService(settings, clusterSettings, masterService, applierService);
+
+        final var clusterInfoService = new TestClusterInfoService(clusterService);
+
+        for (final var discoveryNode : unassignedClusterState.nodes()) {
+            clusterInfoService.addNode(
+                discoveryNode.getId(),
+                LongStream.of(
+                    discoveryNode.hasRole(DATA_HOT_NODE_ROLE.roleName()) ? nodeSizeBytesByTier.get(DataTier.DATA_HOT) : 0,
+                    discoveryNode.hasRole(DATA_WARM_NODE_ROLE.roleName()) ? nodeSizeBytesByTier.get(DataTier.DATA_WARM) : 0,
+                    discoveryNode.hasRole(DATA_COLD_NODE_ROLE.roleName()) ? nodeSizeBytesByTier.get(DataTier.DATA_COLD) : 0
+                ).sum()
+            );
+        }
+
+        for (final var shardSizeByIndex : shardSizesByIndex.entrySet()) {
+            clusterInfoService.addIndex(shardSizeByIndex.getKey(), shardSizeByIndex.getValue());
+        }
+
+        final var tuple = createNewAllocationService(Settings.EMPTY, threadPool, clusterService, clusterInfoService);
+        final var allocationService = tuple.getKey();
+
+        final var initializingPrimaries = allocationService.executeWithRoutingAllocation(
+            unassignedClusterState,
+            "initialize-primaries",
+            routingAllocation -> {
+                final var routingNodes = routingAllocation.routingNodes();
+                final var nodeIds = routingNodes.stream().map(RoutingNode::nodeId).toArray(String[]::new);
+                final var unassignedIterator = routingNodes.unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    final var shardRouting = unassignedIterator.next();
+                    if (shardRouting.primary()) {
+                        unassignedIterator.initialize(randomFrom(nodeIds), null, 0L, routingAllocation.changes());
+                    }
+                }
+            }
+        );
+
+        final var startedPrimaries = startInitializingShardsAndReroute(allocationService, initializingPrimaries);
+
+        final var initializingReplicas = allocationService.executeWithRoutingAllocation(
+            startedPrimaries,
+            "initialize-replicas",
+            routingAllocation -> {
+                final var routingNodes = routingAllocation.routingNodes();
+                final var nodeIds = routingNodes.stream().map(RoutingNode::nodeId).toArray(String[]::new);
+                final var unassignedIterator = routingNodes.unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    final var shardRouting = unassignedIterator.next();
+                    final var badNodes = routingAllocation.routingTable()
+                        .index(shardRouting.index())
+                        .shard(shardRouting.id())
+                        .assignedShards()
+                        .stream()
+                        .map(ShardRouting::currentNodeId)
+                        .collect(Collectors.toSet());
+                    unassignedIterator.initialize(
+                        randomValueOtherThanMany(badNodes::contains, () -> randomFrom(nodeIds)),
+                        null,
+                        0L,
+                        routingAllocation.changes()
+                    );
+                }
+            }
+        );
+
+        final var startedReplicas = startInitializingShardsAndReroute(allocationService, initializingReplicas);
+
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+
+        final var clusterState = applyStartedShardsUntilNoChange(startedReplicas, allocationService);
+
+        class SizeMetric {
+            int count;
+            long totalSizeBytes;
+            long maxSizeBytes;
+            int totalShardCount;
+
+            void addNode(long sizeBytes, int shardCount) {
+                count += 1;
+                totalSizeBytes += sizeBytes;
+                maxSizeBytes = Math.max(maxSizeBytes, sizeBytes);
+                totalShardCount += shardCount;
+            }
+        }
+
+        final var sizeMetricPerTier = Arrays.stream(tiers).collect(Collectors.toMap(s -> s.substring(5, 6), s -> new SizeMetric()));
+
+        for (final var routingNode : clusterState.getRoutingNodes()
+            .stream()
+            .sorted(Comparator.comparing(shardRoutings -> shardRoutings.nodeId().substring(7)))
+            .toList()) {
+
+            int shards = 0;
+            long totalBytes = 0L;
+
+            for (ShardRouting shardRouting : routingNode) {
+                shards += 1;
+                totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
+            }
+
+            logger.info(
+                Strings.format(
+                    "node %s: %5d shards %20d bytes = %8s ",
+                    routingNode.nodeId(),
+                    shards,
+                    totalBytes,
+                    ByteSizeValue.ofBytes(totalBytes)
+                )
+            );
+
+            sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(totalBytes, routingNode.size());
+        }
+
+        for (final var tier : tiers) {
+            final var tierAbbr = tier.substring(5, 6);
+            final var nodeSizeBytes = nodeSizeBytesByTier.get(tier);
+            final var sizeMetric = sizeMetricPerTier.get(tierAbbr);
+            assert sizeMetric.count > 0;
+            final var meanSizeBytes = sizeMetric.totalSizeBytes / sizeMetric.count;
+            final var maxSizeBytes = sizeMetric.maxSizeBytes;
+            final var overageBytes = maxSizeBytes - meanSizeBytes;
+            final var overageRatio = new RatioValue(Math.ceil((1000.0 * overageBytes) / meanSizeBytes) / 10.0);
+            assert overageBytes >= 0;
+            logger.info(
+                Strings.format(
+                    """
+                        tier %-10s  nodes %3d  node size %20d = %8s  shards %5d  mean size %20d = %8s  max size %20d = %8s  \
+                        overage %20d = %8s = %8s\
+                        """,
+                    tier,
+                    nodeCountByTier.get(tier),
+                    nodeSizeBytes,
+                    ByteSizeValue.ofBytes(nodeSizeBytes),
+                    sizeMetric.totalShardCount,
+                    meanSizeBytes,
+                    ByteSizeValue.ofBytes(meanSizeBytes),
+                    maxSizeBytes,
+                    ByteSizeValue.ofBytes(maxSizeBytes),
+                    overageBytes,
+                    ByteSizeValue.ofBytes(overageBytes),
+                    overageRatio.formatNoTrailingZerosPercent()
+                )
+            );
+        }
+    }
+
+    private Map.Entry<MockAllocationService, ShardsAllocator> createNewAllocationService(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ClusterInfoService clusterInfoService
+    ) {
+        var strategyRef = new SetOnce<AllocationService>();
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            new BalancedShardsAllocator(settings),
+            threadPool,
+            clusterService,
+            (clusterState, routingAllocationAction) -> strategyRef.get()
+                .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
+        );
+        var strategy = new MockAllocationService(
+            randomAllocationDeciders(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+            new TestGatewayAllocator(),
+            desiredBalanceShardsAllocator,
+            clusterInfoService,
+            () -> SnapshotShardSizeInfo.EMPTY
+        );
+        strategyRef.set(strategy);
+        return Map.entry(strategy, desiredBalanceShardsAllocator);
+    }
+
+    private static class TestClusterInfoService implements ClusterInfoService {
+
+        private final ClusterService clusterService;
+        private final Map<String, Long> nodeSizes = new HashMap<>();
+        private final Map<String, Long> indexSizes = new HashMap<>();
+
+        private TestClusterInfoService(ClusterService clusterService) {
+            this.clusterService = clusterService;
+        }
+
+        public void addNode(String nodeId, long size) {
+            nodeSizes.put(nodeId, size);
+        }
+
+        public void addIndex(String indexName, long size) {
+            indexSizes.put(indexName, size);
+        }
+
+        @Override
+        public ClusterInfo getClusterInfo() {
+
+            var state = clusterService.state();
+
+            var diskSpaceUsage = new HashMap<String, DiskUsage>();
+            for (DiscoveryNode node : state.nodes()) {
+                var nodeSize = nodeSizes.getOrDefault(node.getId(), 0L);
+                diskSpaceUsage.put(node.getId(), new DiskUsage(node.getId(), node.getName(), "/data", nodeSize, nodeSize));
+            }
+
+            var shardSizes = new HashMap<String, Long>();
+            var dataPath = new HashMap<ClusterInfo.NodeAndShard, String>();
+            for (IndexRoutingTable indexRoutingTable : state.getRoutingTable()) {
+                var shardRouting = indexRoutingTable.shard(0).primaryShard();
+                var shardSize = indexSizes.get(shardRouting.shardId().getIndexName());
+                if (shardSize == null) {
+                    logger.error("Failed to find index [{}]", shardRouting.shardId().getIndexName());
+                    continue;
+                }
+                if (shardRouting.unassigned()) {
+                    continue;
+                }
+                diskSpaceUsage.compute(shardRouting.currentNodeId(), (k, currentUsage) -> {
+                    if (currentUsage == null) {
+                        logger.error("Failed to find node [{}]", k);
+                    }
+                    return currentUsage.copyWithFreeBytes(currentUsage.freeBytes() - shardSize);
+                });
+                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardRouting), shardSize);
+                dataPath.put(new ClusterInfo.NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId()), "/data");
+            }
+
+            return new ClusterInfo(diskSpaceUsage, diskSpaceUsage, shardSizes, Map.of(), dataPath, Map.of());
+        }
+
+    }
+}

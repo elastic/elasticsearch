@@ -217,14 +217,6 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
-            BucketAggregationSelectorScript.Factory factory = parameters -> new BucketAggregationSelectorScript(parameters) {
-                @Override
-                public boolean execute() {
-                    return (boolean) script.apply(getParams());
-                }
-            };
-            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(SignificantTermsHeuristicScoreScript.class)) {
             return context.factoryClazz.cast(new MockSignificantTermsHeuristicScoreScript(script));
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
@@ -356,7 +348,6 @@ public class MockScriptEngine implements ScriptEngine {
             IngestConditionalScript.CONTEXT,
             UpdateScript.CONTEXT,
             BucketAggregationScript.CONTEXT,
-            BucketAggregationSelectorScript.CONTEXT,
             SignificantTermsHeuristicScoreScript.CONTEXT,
             TemplateScript.CONTEXT,
             FilterScript.CONTEXT,

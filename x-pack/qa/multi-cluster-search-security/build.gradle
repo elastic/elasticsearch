@@ -34,7 +34,7 @@ def remoteCluster = testClusters.register('remote-cluster') {
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
 
-  setting 'xpack.license.self_generated.type', 'trial'
+ // setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_user", password: "x-pack-test-password"
 }
 
@@ -46,7 +46,7 @@ testClusters.register('local-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
-  setting 'xpack.license.self_generated.type', 'trial'
+ // setting 'xpack.license.self_generated.type', 'trial'
 
   if (proxyMode) {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'

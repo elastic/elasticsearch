@@ -795,7 +795,7 @@ public class PluginsServiceTests extends ESTestCase {
             import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
             import org.elasticsearch.plugin.api.NamedComponent;
             import java.io.Reader;
-            @NamedComponent(name = "a_name")
+            @NamedComponent( "a_name")
             public class A  implements CharFilterFactory {
                  @Override
                 public Reader create(Reader reader) {

@@ -289,7 +289,8 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
             numberOfAllocations,
             randomIntBetween(1, 8),
             randomIntBetween(1, 10000),
-            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, modelSize + 1))
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, modelSize + 1)),
+            randomFrom(Priority.values())
         );
     }
 

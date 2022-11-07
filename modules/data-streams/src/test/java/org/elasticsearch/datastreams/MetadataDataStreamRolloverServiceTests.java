@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
@@ -100,6 +102,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+            IndexWriteLoad indexWriteLoad = IndexWriteLoad.builder(1).build();
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
@@ -110,7 +113,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                indexWriteLoad
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -138,12 +142,16 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));
             Instant startTime1 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime1 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+            IndexWriteLoad indexWriteLoad1 = im.getWriteLoad();
             im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
             Instant startTime2 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime2 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+            IndexWriteLoad indexWriteLoad2 = im.getWriteLoad();
             assertThat(startTime1.isBefore(endTime1), is(true));
             assertThat(endTime1, equalTo(startTime2));
             assertThat(endTime2.isAfter(endTime1), is(true));
+            assertThat(indexWriteLoad1, is(equalTo(indexWriteLoad)));
+            assertThat(indexWriteLoad2, is(nullValue()));
         } finally {
             testThreadPool.shutdown();
         }
@@ -204,7 +212,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                null
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -295,7 +304,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                null
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.Architecture
-
 Project idpFixtureProject = project(':x-pack:test:idp-fixture')
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -14,17 +12,17 @@ dependencies {
 testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-def copyIdpFiles = tasks.register("copyIdpFiles", Copy) {
+def copyIdpFiles = tasks.register("copyIdpFiles", Sync) {
   from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
     'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
   into outputDir
+  outputs.upToDateWhen { false } //ensure this copy is always done to prevent stale configuration
 }
 
 def setupPorts = tasks.register("setupPorts") {
   dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
   // Don't attempt to get ephemeral ports when Docker is not available
-  // Also, shibboleth fixture is not available on aarch64
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
   doLast {
     String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
     int ephemeralPort = Integer.valueOf(portString)
@@ -44,7 +42,7 @@ project.sourceSets.javaRestTest.output.dir(outputDir, builtBy: [copyIdpFiles])
 
 tasks.named("javaRestTest").configure {
   dependsOn setupPorts
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {

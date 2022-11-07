@@ -49,7 +49,7 @@ public final class BulkRequestHandler2 {
      * @param bulkRequest
      * @param executionId
      */
-    public void execute(BulkRequest bulkRequest, long executionId) {
+    public void queueRequest(BulkRequest bulkRequest, long executionId) {
         try {
             listener.beforeBulk(executionId, bulkRequest);
             retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {

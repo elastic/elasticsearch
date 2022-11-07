@@ -394,7 +394,7 @@ public class BulkProcessor2 implements Closeable {
 
     // may be executed without a lock
     private void execute(BulkRequest bulkRequest, long executionId) {
-        this.bulkRequestHandler.execute(bulkRequest, executionId);
+        this.bulkRequestHandler.queueRequest(bulkRequest, executionId);
     }
 
     // needs to be executed under a lock

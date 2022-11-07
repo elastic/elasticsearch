@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,7 +25,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -74,7 +74,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
                     .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms"))
                 : new CompositeAggregationBuilder(
                     "buckets",
-                    Collections.singletonList(
+                    List.of(
                         new DateHistogramValuesSourceBuilder("time").field("time")
                             .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms"))
                     )
@@ -135,7 +135,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 

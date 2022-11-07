@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class GetDatafeedsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
@@ -39,7 +39,7 @@ public class GetDatafeedsActionResponseTests extends AbstractWireSerializingTest
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -18,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import org.junit.Before;
 
-import java.util.Collections;
+import java.util.List;
 
 public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
@@ -51,13 +52,13 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

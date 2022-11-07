@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -97,14 +96,10 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
-            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                .put(
-                    "properties",
-                    MapBuilder.<String, Object>newMapBuilder()
-                        .put("bar", MapBuilder.<String, Object>newMapBuilder().put("type", "scaled_float").put("scaling_factor", 100).map())
-                        .map()
-                )
-                .map();
+            Map<String, Object> nakedMapping = Map.<String, Object>of(
+                "properties",
+                Map.<String, Object>of("bar", Map.<String, Object>of("type", "scaled_float", "scaling_factor", 100))
+            );
             request1.mapping(nakedMapping);
             request2.mapping(Map.of("_doc", nakedMapping));
             assertEquals(request1.mappings(), request2.mappings());

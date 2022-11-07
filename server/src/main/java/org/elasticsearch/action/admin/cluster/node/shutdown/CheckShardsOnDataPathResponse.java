@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 public class CheckShardsOnDataPathResponse extends BaseNodesResponse<NodeCheckShardsOnDataPathResponse> {
 
@@ -40,20 +39,5 @@ public class CheckShardsOnDataPathResponse extends BaseNodesResponse<NodeCheckSh
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeCheckShardsOnDataPathResponse> nodes) throws IOException {
         out.writeList(nodes);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o instanceof CheckShardsOnDataPathResponse == false) return false;
-        CheckShardsOnDataPathResponse other = (CheckShardsOnDataPathResponse) o;
-        return Objects.equals(getClusterName(), other.getClusterName())
-            && Objects.equals(failures(), other.failures())
-            && Objects.equals(getNodes(), other.getNodes());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getClusterName(), failures(), getNodes());
     }
 }

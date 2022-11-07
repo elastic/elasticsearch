@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade;
 
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -20,12 +20,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -144,33 +140,19 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
 
     void verify(String localIndex, int localNumDocs, String remoteIndex, int remoteNumDocs) {
         try (RestClient localClient = newLocalClient().getLowLevelClient()) {
-            Request request = new Request("POST", "/_eql/search");
-            final int expectedDocs;
-            if (randomBoolean()) {
-                request.addParameter("index", remoteIndex);
-            } else {
-                request.addParameter("index", localIndex + "," + remoteIndex);
-            }
+
+            Request request = new Request("POST", "/" + randomFrom(remoteIndex, localIndex + "," + remoteIndex) + "/_eql/search");
             int size = between(1, 100);
+            int id1 = between(0, 5);
+            int id2 = between(6, Math.min(localNumDocs - 1, remoteNumDocs - 1));
             request.setJsonEntity(
-                "{\"query\": \"sequence [any where f == "
-                    + between(0, localNumDocs)
-                    + "] [any where f == "
-                    + between(0, remoteNumDocs)
-                    + "] \", \"size\": "
-                    + size
-                    + "}"
+                "{\"query\": \"sequence [any where f == " + id1 + "] [any where f == " + id2 + "] \", \"size\": " + size + "}"
             );
             Response response = localClient.performRequest(request);
-            try (
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    XContentParserConfiguration.EMPTY,
-                    response.getEntity().getContent()
-                )
-            ) {
-                SearchResponse searchResponse = SearchResponse.fromXContent(parser);
-                ElasticsearchAssertions.assertNoFailures(searchResponse);
-            }
+            String responseText = EntityUtils.toString(response.getEntity());
+            assertTrue(responseText.contains("\"sequences\":[{"));
+            assertTrue(responseText.contains("\"_id\":\"id_" + id1 + "\""));
+            assertTrue(responseText.contains("\"_id\":\"id_" + id2 + "\""));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -183,14 +165,17 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
             createIndex(
                 localClient.getLowLevelClient(),
                 localIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build(),
+                "{\"properties\": {\"@timestamp\": {\"type\": \"date\"}}}",
+                null
             );
             int localNumDocs = indexDocs(localClient, localIndex, between(10, 100));
-
             createIndex(
                 remoteClient.getLowLevelClient(),
                 remoteIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build(),
+                "{\"properties\": {\"@timestamp\": {\"type\": \"date\"}}}",
+                null
             );
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 

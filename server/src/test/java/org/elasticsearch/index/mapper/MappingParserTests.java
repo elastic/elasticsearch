@@ -17,6 +17,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
@@ -29,8 +30,12 @@ import java.util.function.Supplier;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
+        return createMappingParser(settings, Version.CURRENT);
+    }
+
+    private static MappingParser createMappingParser(Settings settings, Version version) {
         ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
-        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, settings);
+        IndexSettings indexSettings = createIndexSettings(version, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
@@ -207,18 +212,22 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertEquals("obj.source.geo.location", geoPointFieldMapper.mappedFieldType.name());
     }
 
+    private static String randomFieldType() {
+        return randomBoolean() ? KeywordFieldMapper.CONTENT_TYPE : ObjectMapper.CONTENT_TYPE;
+    }
+
     public void testFieldStartingWithDot() throws Exception {
-        XContentBuilder builder = mapping(b -> b.startObject(".foo").field("type", "keyword").endObject());
+        XContentBuilder builder = mapping(b -> b.startObject(".foo").field("type", randomFieldType()).endObject());
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         // TODO isn't this error misleading?
-        assertEquals("name cannot be empty string", iae.getMessage());
+        assertEquals("field name cannot be an empty string", iae.getMessage());
     }
 
     public void testFieldEndingWithDot() throws Exception {
-        XContentBuilder builder = mapping(b -> b.startObject("foo.").field("type", "keyword").endObject());
+        XContentBuilder builder = mapping(b -> b.startObject("foo.").field("type", randomFieldType()).endObject());
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
         // TODO this needs fixing as part of addressing https://github.com/elastic/elasticsearch/issues/28948
         assertNotNull(mapping.getRoot().mappers.get("foo"));
@@ -226,17 +235,17 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     public void testFieldTrailingDots() throws Exception {
-        XContentBuilder builder = mapping(b -> b.startObject("top..foo").field("type", "keyword").endObject());
+        XContentBuilder builder = mapping(b -> b.startObject("top..foo").field("type", randomFieldType()).endObject());
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         // TODO isn't this error misleading?
-        assertEquals("name cannot be empty string", iae.getMessage());
+        assertEquals("field name cannot be an empty string", iae.getMessage());
     }
 
     public void testDottedFieldEndingWithDot() throws Exception {
-        XContentBuilder builder = mapping(b -> b.startObject("foo.bar.").field("type", "keyword").endObject());
+        XContentBuilder builder = mapping(b -> b.startObject("foo.bar.").field("type", randomFieldType()).endObject());
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
         // TODO this needs fixing as part of addressing https://github.com/elastic/elasticsearch/issues/28948
         assertNotNull(((ObjectMapper) mapping.getRoot().mappers.get("foo")).mappers.get("bar"));
@@ -244,53 +253,81 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     public void testFieldStartingAndEndingWithDot() throws Exception {
-        XContentBuilder builder = mapping(b -> b.startObject("foo..bar.").field("type", "keyword").endObject());
+        XContentBuilder builder = mapping(b -> b.startObject("foo..bar.").field("type", randomFieldType()).endObject());
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         // TODO isn't this error misleading?
-        assertEquals("name cannot be empty string", iae.getMessage());
+        assertEquals("field name cannot be an empty string", iae.getMessage());
     }
 
     public void testDottedFieldWithTrailingWhitespace() throws Exception {
-        XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", "keyword").endObject());
-        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        ObjectMapper top = (ObjectMapper) mapping.getRoot().mappers.get("top");
-        // TODO this needs fixing? This field name is not allowed in documents when subobjects are enabled.
-        ObjectMapper mapper = (ObjectMapper) top.getMapper(" ");
-        assertNotNull(mapper.getMapper("foo"));
+        XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", randomFieldType()).endObject());
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+        );
+        // TODO isn't this error misleading?
+        assertEquals("field name cannot contain only whitespaces", iae.getMessage());
     }
 
     public void testEmptyFieldName() throws Exception {
         {
-            XContentBuilder builder = mapping(b -> b.startObject("").field("type", "keyword").endObject());
+            XContentBuilder builder = mapping(b -> b.startObject("").field("type", randomFieldType()).endObject());
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
             );
-            assertEquals("name cannot be empty string", iae.getMessage());
+            assertEquals("field name cannot be an empty string", iae.getMessage());
         }
         {
-            XContentBuilder builder = mappingNoSubobjects(b -> b.startObject("").field("type", "keyword").endObject());
+            XContentBuilder builder = mappingNoSubobjects(b -> b.startObject("").field("type", randomFieldType()).endObject());
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
             );
-            assertEquals("name cannot be empty string", iae.getMessage());
+            assertEquals("field name cannot be an empty string", iae.getMessage());
         }
     }
 
     public void testBlankFieldName() throws Exception {
-        // TODO this needs fixing? This field name is never allowed in documents hence such a field can never be indexed?
         {
-            XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", "keyword").endObject());
-            Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(mapping.getRoot().getMapper(" "));
+            XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+            );
+            assertEquals("field name cannot contain only whitespaces", iae.getMessage());
         }
         {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(" ").field("type", "keyword").endObject());
-            Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+            );
+            assertEquals("field name cannot contain only whitespaces", iae.getMessage());
+        }
+    }
+
+    public void testBlankFieldNameBefore8_6_0() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.V_8_5_0);
+        {
+            XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+            assertNotNull(mapping.getRoot().getMapper(" "));
+        }
+        {
+            XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", randomFieldType()).endObject());
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+            assertNotNull(((ObjectMapper) mapping.getRoot().getMapper("top")).getMapper(" "));
+        }
+        {
+            XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(" ").field("type", "keyword").endObject());
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
             assertNotNull(mapping.getRoot().getMapper(" "));
         }
     }
@@ -298,31 +335,19 @@ public class MappingParserTests extends MapperServiceTestCase {
     public void testFieldNameDotsOnly() throws Exception {
         String[] fieldNames = { ".", "..", "..." };
         for (String fieldName : fieldNames) {
-            XContentBuilder builder = mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
-            // TODO this should really throw a better error, relates to https://github.com/elastic/elasticsearch/issues/21862
-            expectThrows(
-                ArrayIndexOutOfBoundsException.class,
+            XContentBuilder builder = mapping(b -> b.startObject(fieldName).field("type", randomFieldType()).endObject());
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
                 () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
             );
-        }
-    }
-
-    public void testFieldNameDotsOnlySubobjectsFalse() throws Exception {
-        String[] fieldNames = { ".", "..", "..." };
-        for (String fieldName : fieldNames) {
-            XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(fieldName).field("type", "keyword").endObject());
-
-            createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+            assertEquals("field name cannot contain only dots", iae.getMessage());
         }
     }
 
     public void testDynamicFieldEdgeCaseNamesSubobjectsFalse() throws Exception {
-        // these combinations are not accepted by default, but they are when subobjects are disabled
-        String[] fieldNames = new String[] { ".foo", "foo.", "top..foo", "top.foo.", "top..foo.", "top. .foo" };
         MappingParser mappingParser = createMappingParser(Settings.EMPTY);
-        for (String fieldName : fieldNames) {
+        for (String fieldName : DocumentParserTests.VALID_FIELD_NAMES_NO_SUBOBJECTS) {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(fieldName).field("type", "keyword").endObject());
-            // TODO this is not accepted in documents, shall we revert https://github.com/elastic/elasticsearch/pull/90950 ?
             assertNotNull(mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
         }
     }
@@ -330,9 +355,8 @@ public class MappingParserTests extends MapperServiceTestCase {
     public void testDynamicFieldEdgeCaseNamesRuntimeSection() throws Exception {
         // TODO these combinations are not accepted by default, but they are in the runtime section, though they are not accepted when
         // parsing documents with subobjects enabled
-        String[] fieldNames = new String[] { ".foo", "foo.", "top..foo", "top.foo.", "top..foo.", "top. .foo" };
         MappingParser mappingParser = createMappingParser(Settings.EMPTY);
-        for (String fieldName : fieldNames) {
+        for (String fieldName : DocumentParserTests.VALID_FIELD_NAMES_NO_SUBOBJECTS) {
             XContentBuilder builder = runtimeMapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
         }

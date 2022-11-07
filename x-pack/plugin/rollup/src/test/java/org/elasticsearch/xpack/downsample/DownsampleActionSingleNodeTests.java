@@ -67,7 +67,9 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -78,7 +80,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
@@ -100,6 +102,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -593,11 +596,21 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         IndexService indexService = indexServices.indexServiceSafe(srcIndex);
         int shardNum = randomIntBetween(0, numOfShards - 1);
         IndexShard shard = indexService.getShard(shardNum);
-        RollupShardStatus status = new RollupShardStatus(shard.shardId());
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            config,
+            emptyMap(),
+            shard.shardId()
+        );
+        TaskCancelHelper.cancel(task, "test cancel");
 
         // re-use source index as temp index for test
         RollupShardIndexer indexer = new RollupShardIndexer(
-            status,
+            task,
             client(),
             indexService,
             shard.shardId(),
@@ -607,7 +620,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {}
         );
-        status.setCancelled();
 
         TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
         assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][" + shardNum + "] rollup cancelled"));

@@ -49,7 +49,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -92,15 +92,16 @@ class RollupShardIndexer {
     private final String[] metricFields;
     private final String[] labelFields;
     private final Map<String, FieldValueFetcher> fieldValueFetchers;
-    private final AtomicLong numReceived = new AtomicLong();
-    private final AtomicLong numSent = new AtomicLong();
-    private final AtomicLong numIndexed = new AtomicLong();
-    private final AtomicLong numFailed = new AtomicLong();
+    private final AtomicLong numReceived;
+    private final AtomicLong numSent;
+    private final AtomicLong numIndexed;
+    private final AtomicLong numFailed;
 
-    private final RollupShardStatus status;
+    private final RollupShardTask task;
+    private volatile boolean abort = false;
 
     RollupShardIndexer(
-        RollupShardStatus status,
+        RollupShardTask task,
         Client client,
         IndexService indexService,
         ShardId shardId,
@@ -110,7 +111,11 @@ class RollupShardIndexer {
         String[] metricFields,
         String[] labelFields
     ) {
-        this.status = status;
+        this.task = task;
+        this.numReceived = task.getNumReceived();
+        this.numSent = task.getNumSent();
+        this.numIndexed = task.getNumIndexed();
+        this.numFailed = task.getNumFailed();
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
         this.config = config;
@@ -118,8 +123,6 @@ class RollupShardIndexer {
         this.dimensionFields = dimensionFields;
         this.metricFields = metricFields;
         this.labelFields = labelFields;
-
-        this.status.init(numReceived, numSent, numIndexed, numFailed);
         this.searcher = indexShard.acquireSearcher("downsampling");
         Closeable toClose = searcher;
         try {
@@ -174,12 +177,11 @@ class RollupShardIndexer {
             );
         }
 
-        status.setFinished();
         return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), numIndexed.get());
     }
 
     private void checkCancelled() {
-        if (status.isCancelled()) {
+        if (task.isCancelled() || abort) {
             logger.warn(
                 "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
@@ -218,7 +220,7 @@ class RollupShardIndexer {
                     logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
 
                     // cancel rollup task
-                    status.setCancelled();
+                    abort = true;
                 }
             }
 
@@ -230,7 +232,7 @@ class RollupShardIndexer {
                     logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
 
                     // cancel rollup task
-                    status.setCancelled();
+                    abort = true;
                 }
             }
         };

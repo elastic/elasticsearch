@@ -14,11 +14,16 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class RollupShardTask extends CancellableTask {
     private String rollupIndex;
     private DownsampleConfig config;
-    private volatile RollupShardStatus status;
+    private final RollupShardStatus status;
+    private final AtomicLong numReceived = new AtomicLong(0);
+    private final AtomicLong numSent = new AtomicLong(0);
+    private final AtomicLong numIndexed = new AtomicLong(0);
+    private final AtomicLong numFailed = new AtomicLong(0);
 
     public RollupShardTask(
         long id,
@@ -33,7 +38,7 @@ public class RollupShardTask extends CancellableTask {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
         this.config = config;
-        this.status = new RollupShardStatus(shardId);
+        this.status = new RollupShardStatus(shardId, numReceived, numSent, numIndexed, numFailed);
     }
 
     public String getRollupIndex() {
@@ -49,8 +54,19 @@ public class RollupShardTask extends CancellableTask {
         return status;
     }
 
-    @Override
-    public void onCancelled() {
-        status.setCancelled();
+    public AtomicLong getNumReceived() {
+        return numReceived;
+    }
+
+    public AtomicLong getNumSent() {
+        return numSent;
+    }
+
+    public AtomicLong getNumIndexed() {
+        return numIndexed;
+    }
+
+    public AtomicLong getNumFailed() {
+        return numFailed;
     }
 }

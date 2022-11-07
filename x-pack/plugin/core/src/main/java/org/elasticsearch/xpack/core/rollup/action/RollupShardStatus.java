@@ -27,7 +27,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class RollupShardStatus implements Task.Status {
     public static final String NAME = "rollup-index-shard";
     private static final ParseField SHARD_FIELD = new ParseField("shard");
-    private static final ParseField STATUS_FIELD = new ParseField("status");
     private static final ParseField START_TIME_FIELD = new ParseField("start_time");
     private static final ParseField IN_NUM_DOCS_RECEIVED_FIELD = new ParseField("in_num_docs_received");
     private static final ParseField OUT_NUM_DOCS_SENT_FIELD = new ParseField("out_num_docs_sent");
@@ -36,11 +35,10 @@ public class RollupShardStatus implements Task.Status {
 
     private final ShardId shardId;
     private final long rollupStart;
-    private Status status;
-    private AtomicLong numReceived = new AtomicLong(0);
-    private AtomicLong numSent = new AtomicLong(0);
-    private AtomicLong numIndexed = new AtomicLong(0);
-    private AtomicLong numFailed = new AtomicLong(0);
+    private final AtomicLong numReceived;
+    private final AtomicLong numSent;
+    private final AtomicLong numIndexed;
+    private final AtomicLong numFailed;
 
     private static final ConstructingObjectParser<RollupShardStatus, Void> PARSER;
     static {
@@ -48,7 +46,6 @@ public class RollupShardStatus implements Task.Status {
             NAME,
             args -> new RollupShardStatus(
                 ShardId.fromString((String) args[0]),
-                Status.valueOf((String) args[1]),
                 Instant.parse((String) args[2]).toEpochMilli(),
                 new AtomicLong((Long) args[3]),
                 new AtomicLong((Long) args[4]),
@@ -58,7 +55,6 @@ public class RollupShardStatus implements Task.Status {
         );
 
         PARSER.declareString(constructorArg(), SHARD_FIELD);
-        PARSER.declareString(constructorArg(), STATUS_FIELD);
         PARSER.declareString(constructorArg(), START_TIME_FIELD);
         PARSER.declareLong(constructorArg(), IN_NUM_DOCS_RECEIVED_FIELD);
         PARSER.declareLong(constructorArg(), OUT_NUM_DOCS_SENT_FIELD);
@@ -68,7 +64,6 @@ public class RollupShardStatus implements Task.Status {
 
     public RollupShardStatus(StreamInput in) throws IOException {
         shardId = new ShardId(in);
-        status = in.readEnum(Status.class);
         rollupStart = in.readLong();
         numReceived = new AtomicLong(in.readLong());
         numSent = new AtomicLong(in.readLong());
@@ -78,7 +73,6 @@ public class RollupShardStatus implements Task.Status {
 
     public RollupShardStatus(
         ShardId shardId,
-        Status status,
         long rollupStart,
         AtomicLong numReceived,
         AtomicLong numSent,
@@ -86,7 +80,6 @@ public class RollupShardStatus implements Task.Status {
         AtomicLong numFailed
     ) {
         this.shardId = shardId;
-        this.status = status;
         this.rollupStart = rollupStart;
         this.numReceived = numReceived;
         this.numSent = numSent;
@@ -94,29 +87,13 @@ public class RollupShardStatus implements Task.Status {
         this.numFailed = numFailed;
     }
 
-    public RollupShardStatus(ShardId shardId) {
-        status = Status.STARTED;
+    public RollupShardStatus(ShardId shardId, AtomicLong numReceived, AtomicLong numSent, AtomicLong numIndexed, AtomicLong numFailed) {
         this.shardId = shardId;
         this.rollupStart = System.currentTimeMillis();
-    }
-
-    public void init(AtomicLong numReceived, AtomicLong numSent, AtomicLong numIndexed, AtomicLong numFailed) {
         this.numReceived = numReceived;
         this.numSent = numSent;
         this.numIndexed = numIndexed;
         this.numFailed = numFailed;
-    }
-
-    public void setFinished() {
-        this.status = Status.FINISHED;
-    }
-
-    public boolean isCancelled() {
-        return this.status == Status.ABORT;
-    }
-
-    public void setCancelled() {
-        this.status = Status.ABORT;
     }
 
     public static RollupShardStatus fromXContent(XContentParser parser) throws IOException {
@@ -127,7 +104,6 @@ public class RollupShardStatus implements Task.Status {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SHARD_FIELD.getPreferredName(), shardId);
-        builder.field(STATUS_FIELD.getPreferredName(), status);
         builder.field(START_TIME_FIELD.getPreferredName(), Instant.ofEpochMilli(rollupStart).toString());
         builder.field(IN_NUM_DOCS_RECEIVED_FIELD.getPreferredName(), numReceived.get());
         builder.field(OUT_NUM_DOCS_SENT_FIELD.getPreferredName(), numSent.get());
@@ -145,7 +121,6 @@ public class RollupShardStatus implements Task.Status {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
-        out.writeEnum(status);
         out.writeLong(rollupStart);
         out.writeLong(numReceived.get());
         out.writeLong(numSent.get());
@@ -165,7 +140,6 @@ public class RollupShardStatus implements Task.Status {
         return rollupStart == that.rollupStart
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Objects.equals(shardId.id(), that.shardId.id())
-            && status == that.status
             && Objects.equals(numReceived.get(), that.numReceived.get())
             && Objects.equals(numSent.get(), that.numSent.get())
             && Objects.equals(numIndexed.get(), that.numIndexed.get())
@@ -178,7 +152,6 @@ public class RollupShardStatus implements Task.Status {
             shardId.getIndexName(),
             shardId.id(),
             rollupStart,
-            status,
             numReceived.get(),
             numSent.get(),
             numIndexed.get(),
@@ -189,23 +162,5 @@ public class RollupShardStatus implements Task.Status {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    public enum Status {
-        STARTED,
-        FINISHED,
-        ABORT
-    }
-
-    public void setNumSent(AtomicLong numSent) {
-        this.numSent = numSent;
-    }
-
-    public void setNumIndexed(AtomicLong numIndexed) {
-        this.numIndexed = numIndexed;
-    }
-
-    public void setNumFailed(AtomicLong numFailed) {
-        this.numFailed = numFailed;
     }
 }

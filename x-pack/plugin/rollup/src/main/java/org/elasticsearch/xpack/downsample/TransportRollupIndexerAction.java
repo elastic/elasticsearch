@@ -33,7 +33,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -133,7 +133,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
         RollupShardIndexer indexer = new RollupShardIndexer(
-            (RollupShardStatus) task.getStatus(),
+            (RollupShardTask) task,
             client,
             indexService,
             request.shardId(),
@@ -201,6 +201,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
 
         @Override
         protected void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
+            // when this shard operation failed, cancel other shard operations
             cancelOtherShardIndexers();
             super.onOperation(shard, shardIt, shardIndex, e);
         }

@@ -8,80 +8,83 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Utility;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
-import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.node.EComp;
-import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
 import org.elasticsearch.painless.symbol.ScriptScope;
 
-import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
- * Phases that changes ==/!= to use Objects.equals when we know the type of one side
+ * Phases that changes ==/!= to use String.equals when one side is a constant string
  */
-public class DefaultEqualityMethodOptimizationPhase extends UserTreeBaseVisitor<ScriptScope> {
+public class DefaultEqualityMethodOptimizationPhase extends IRExpressionModifyingVisitor {
+
+    private final ScriptScope scriptScope;
+
+    public DefaultEqualityMethodOptimizationPhase(ScriptScope scriptScope) {
+        this.scriptScope = scriptScope;
+    }
 
     @Override
-    public void visitComp(EComp userCompNode, ScriptScope scriptScope) {
-        ComparisonNode irComp = (ComparisonNode)scriptScope.getDecoration(userCompNode, IRNodeDecoration.class).irNode();
+    public void visitComparison(ComparisonNode irComparisonNode, Consumer<ExpressionNode> scope) {
+        super.visitComparison(irComparisonNode, scope);
 
-        if (userCompNode.getOperation() == Operation.EQ || userCompNode.getOperation() == Operation.NE) {
-            Class<?> staticClass = null;
-            String methodName = null;
-
-            // if one side is know to be a String, use a method that calls Object.equals (that also handles nulls)
-            Class<?> leftType = irComp.getLeftNode().getDecorationValue(IRDExpressionType.class);
-            Class<?> rightType = irComp.getRightNode().getDecorationValue(IRDExpressionType.class);
-            if (leftType == String.class) {
-                staticClass = Objects.class;
-                methodName = "equals";
+        Operation op = irComparisonNode.getDecorationValue(IRDOperation.class);
+        if (op == Operation.EQ || op == Operation.NE) {
+            ExpressionNode constantNode = null;
+            ExpressionNode argumentNode = null;
+            if (irComparisonNode.getLeftNode().getDecorationValue(IRDConstant.class) instanceof String) {
+                constantNode = irComparisonNode.getLeftNode();
+                argumentNode = irComparisonNode.getRightNode();
             }
-            else if (rightType == String.class) {
-                staticClass = Utility.class;
-                methodName = "equalsRHS";
+            else if (irComparisonNode.getRightNode().getDecorationValue(IRDConstant.class) instanceof String) {
+                // it's ok to reorder these, RHS is a constant that has no effect on execution
+                constantNode = irComparisonNode.getRightNode();
+                argumentNode = irComparisonNode.getLeftNode();
             }
 
-            if (staticClass != null) {
-                StaticNode objects = new StaticNode(irComp.getLocation());
-                objects.attachDecoration(new IRDExpressionType(staticClass));
-
-                InvokeCallNode invoke = new InvokeCallNode(irComp.getLocation());
+            ExpressionNode node = null;
+            Location loc = irComparisonNode.getLocation();
+            if (constantNode != null) {
+                // call String.equals directly
+                InvokeCallNode invoke = new InvokeCallNode(loc);
                 PainlessMethod method = scriptScope.getPainlessLookup().lookupPainlessMethod(
-                    staticClass, true, methodName, 2);
+                    String.class, false, "equals", 1);
                 invoke.setMethod(method);
-                invoke.addArgumentNode(irComp.getLeftNode());
-                invoke.addArgumentNode(irComp.getRightNode());
+                invoke.setBox(String.class);
+                invoke.addArgumentNode(argumentNode);
                 invoke.attachDecoration(new IRDExpressionType(boolean.class));
 
-                BinaryImplNode call = new BinaryImplNode(irComp.getLocation());
-                call.setLeftNode(objects);
+                BinaryImplNode call = new BinaryImplNode(loc);
+                call.setLeftNode(constantNode);
                 call.setRightNode(invoke);
                 call.attachDecoration(new IRDExpressionType(boolean.class));
 
-                ExpressionNode node = call;
+                node = call;
+            }
 
-                if (userCompNode.getOperation() == Operation.NE) {
-                    UnaryMathNode not = new UnaryMathNode(irComp.getLocation());
+            if (node != null) {
+                if (op == Operation.NE) {
+                    UnaryMathNode not = new UnaryMathNode(loc);
                     not.setChildNode(node);
                     not.attachDecoration(new IRDOperation(Operation.NOT));
                     not.attachDecoration(new IRDExpressionType(boolean.class));
                     node = not;
                 }
 
-                scriptScope.putDecoration(userCompNode, new IRNodeDecoration(node));
+                // replace the comparison with this node
+                scope.accept(node);
             }
         }
-
-        userCompNode.visitChildren(this, scriptScope);
     }
 
 }

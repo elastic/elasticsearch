@@ -21,10 +21,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -32,6 +34,40 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Represents a failure to search on a specific shard.
  */
 public class ShardSearchFailure extends ShardOperationFailedException {
+
+    public static class ShardUnavailableException extends ElasticsearchException {
+
+        private static final StackTraceElement[] EMPTY_STACK_TRACE = new StackTraceElement[0];
+
+        public ShardUnavailableException(String msg) {
+            super(msg, (Throwable) null);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.SERVICE_UNAVAILABLE;
+        }
+
+        public ShardUnavailableException(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public StackTraceElement[] getStackTrace() {
+            return EMPTY_STACK_TRACE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return super.toXContent(
+                builder,
+                new ToXContent.DelegatingMapParams(
+                    Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "true", REST_EXCEPTION_SKIP_CAUSE, "true"),
+                    params
+                )
+            );
+        }
+    }
 
     private static final String REASON_FIELD = "reason";
     private static final String NODE_FIELD = "node";
@@ -76,6 +112,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     /**
      * The search shard target the failure occurred on.
+     * @return The shardTarget, may be null
      */
     @Nullable
     public SearchShardTarget shard() {
@@ -95,7 +132,6 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {
         return new ShardSearchFailure(in);
-
     }
 
     @Override

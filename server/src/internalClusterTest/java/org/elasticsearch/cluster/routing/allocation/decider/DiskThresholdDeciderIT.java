@@ -100,6 +100,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/91276")
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

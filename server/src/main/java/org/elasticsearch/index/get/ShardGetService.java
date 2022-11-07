@@ -9,7 +9,6 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;

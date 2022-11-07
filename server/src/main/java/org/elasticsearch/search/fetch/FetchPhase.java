@@ -13,9 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -361,16 +358,13 @@ public class FetchPhase {
         boolean needSource = sourceRequired(context) || context.highlight() != null;
 
         String rootId;
-        Map<String, Object> rootSourceAsMap = null;
-        XContentType rootSourceContentType = null;
+        Source rootSource = Source.empty(XContentType.JSON);
 
         if (context instanceof InnerHitsContext.InnerHitSubContext innerHitsContext) {
             rootId = innerHitsContext.getRootId();
 
             if (needSource) {
-                Source rootLookup = innerHitsContext.getRootLookup();
-                rootSourceAsMap = rootLookup.source();
-                rootSourceContentType = rootLookup.sourceContentType();
+                rootSource = innerHitsContext.getRootLookup();
             }
         } else {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(needSource, Collections.emptySet()));
@@ -380,11 +374,7 @@ public class FetchPhase {
 
             if (needSource) {
                 if (leafRootLoader.source() != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(leafRootLoader.source(), false);
-                    rootSourceAsMap = tuple.v2();
-                    rootSourceContentType = tuple.v1();
-                } else {
-                    rootSourceAsMap = Collections.emptyMap();
+                    rootSource = Source.fromBytes(leafRootLoader.source());
                 }
             }
         }
@@ -401,35 +391,11 @@ public class FetchPhase {
         }
 
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
+        assert nestedIdentity != null;
+        rootSource = nestedIdentity.extractSource(rootSource);
 
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
-
-        if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
-            // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
-            // structure with the nested json array object being the actual content. The latter is important, so that
-            // features like source filtering and highlighting work consistent regardless of whether the field points
-            // to a json object array for consistency reasons on how we refer to fields
-            Map<String, Object> nestedSourceAsMap = new HashMap<>();
-            Map<String, Object> current = nestedSourceAsMap;
-            for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
-                String nestedPath = nested.getField().string();
-                current.put(nestedPath, new HashMap<>());
-                List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
-                if (nestedParsedSource == null) {
-                    throw new IllegalStateException("Couldn't find nested source for path " + nestedPath);
-                }
-                rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
-                if (nested.getChild() == null) {
-                    current.put(nestedPath, rootSourceAsMap);
-                } else {
-                    Map<String, Object> next = new HashMap<>();
-                    current.put(nestedPath, next);
-                    current = next;
-                }
-            }
-            return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.fromMap(nestedSourceAsMap, rootSourceContentType));
-        }
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), Source.empty(rootSourceContentType));
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), rootSource);
     }
 
     public static List<Object> processStoredField(Function<String, MappedFieldType> fieldTypeLookup, String field, List<Object> input) {

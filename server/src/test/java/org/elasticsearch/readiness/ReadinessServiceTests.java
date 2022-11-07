@@ -35,7 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
@@ -149,9 +148,8 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     }
 
     public void testSocketAddress() throws UnknownHostException {
-        InetSocketAddress socketAddress = readinessService.socketAddress(InetAddress.getByName("localhost"), 123);
+        InetSocketAddress socketAddress = readinessService.socketAddress(123);
         assertEquals(123, socketAddress.getPort());
-        assertEquals("localhost", socketAddress.getHostString());
     }
 
     public void testEnabled() {

@@ -24,7 +24,6 @@ import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -49,7 +48,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
-    public static final Setting<String> HOST = Setting.simpleString("readiness.host", "localhost", Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
         this.serverChannel = null;
@@ -91,11 +89,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     // package private for testing
-    InetSocketAddress socketAddress(InetAddress host, int portNumber) {
+    InetSocketAddress socketAddress(int portNumber) {
         // If we have previously bound to a specific port, we always rebind to the same one.
         var socketAddress = boundSocket.get();
         if (socketAddress == null) {
-            socketAddress = new InetSocketAddress(host, portNumber);
+            socketAddress = new InetSocketAddress(portNumber);
         }
 
         return socketAddress;
@@ -104,16 +102,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // package private for testing
     ServerSocketChannel setupSocket() {
         int portNumber = PORT.get(environment.settings());
-        String host = HOST.get(environment.settings());
         assert portNumber >= 0;
 
-        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
-            try {
-                return socketAddress(InetAddress.getByName(host), portNumber);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to resolve host " + host, e);
-            }
-        });
+        var socketAddress = socketAddress(portNumber);
 
         try {
             serverChannel = ServerSocketChannel.open();

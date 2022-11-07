@@ -9,6 +9,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -273,11 +274,16 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 }
             }
         }
-        Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
-            .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
-        if (fetchSourceContext.hasFilter()) {
-            source = source.filter(fetchSourceContext.filter());
+        BytesReference sourceBytes = null;
+        if (mapperService.mappingLookup().isSourceEnabled()) {
+            Source source = loader.leaf(docIdAndVersion.reader, new int[]{docIdAndVersion.docId})
+                .source(leafStoredFieldLoader, docIdAndVersion.docId);
+
+            if (fetchSourceContext.hasFilter()) {
+                source = source.filter(fetchSourceContext.filter());
+            }
+            sourceBytes = source.internalSourceRef();
         }
 
         return new GetResult(
@@ -287,7 +293,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             get.docIdAndVersion().primaryTerm,
             get.version(),
             get.exists(),
-            source.internalSourceRef(),
+            sourceBytes,
             documentFields,
             metadataFields
         );

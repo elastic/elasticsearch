@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
@@ -80,6 +81,11 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     public void setIsReleasedVersion(Function<Version, Boolean> isReleasedVersion) {
         this.isReleasedVersion = isReleasedVersion;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static NamedDomainObjectContainer<ElasticsearchCluster> getContainer(Project project) {
+        return (NamedDomainObjectContainer<ElasticsearchCluster>) project.getExtensions().getByName(EXTENSION_NAME);
     }
 
     @Override

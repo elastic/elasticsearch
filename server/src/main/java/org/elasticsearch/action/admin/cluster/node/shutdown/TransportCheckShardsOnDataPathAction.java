@@ -91,7 +91,13 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
     protected NodeCheckShardsOnDataPathResponse nodeOperation(NodeCheckShardsOnDataPathRequest request, Task task) {
         Set<ShardId> localShards = new HashSet<>();
         ShardPath shardPath = null;
+        Set<ShardId> lockedShards = nodeEnv.lockedShards();
         for (ShardId shardId : request.getShardIDs()) {
+            // If the shard is open, no need to check it again (trying to open it would fail anyway).
+            if (lockedShards.contains(shardId)) {
+                localShards.add(shardId);
+                continue;
+            }
             try {
                 shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, null);
                 if (shardPath != null) {

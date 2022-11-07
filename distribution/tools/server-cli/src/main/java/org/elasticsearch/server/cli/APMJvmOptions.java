@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,7 +49,7 @@ class APMJvmOptions {
         // by the agent. Don't disable writing to a log file, as the agent will then
         // require extra Security Manager permissions when it tries to do something
         // else, and it's just painful.
-        "log_file", "_AGENT_HOME_/../../logs/apm.log",
+        "log_file", Paths.get("_AGENT_HOME_", "..", "..", "logs", "apm.log").toString(),
 
         // ES does not use auto-instrumentation.
         "instrument", "false"

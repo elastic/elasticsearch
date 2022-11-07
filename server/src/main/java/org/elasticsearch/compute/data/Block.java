@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.Experimental;
 
 /**
@@ -74,6 +75,18 @@ public abstract class Block {
     }
 
     /**
+     * Retrieves the value stored at the given position as a BytesRef.
+     *
+     * @param position the position
+     * @param spare    the spare BytesRef that can be used as a temporary buffer during retrieving
+     * @return the data value (as a BytesRef)
+     * @throws UnsupportedOperationException if retrieval as this primitive data type is not supported
+     */
+    public BytesRef getBytesRef(int position, BytesRef spare) {
+        throw new UnsupportedOperationException(getClass().getName());
+    }
+
+    /**
      * Retrieves the value stored at the given position.
      *
      * @param position the position
@@ -108,6 +121,11 @@ public abstract class Block {
             @Override
             public double getDouble(int ignored) {
                 return curr.getDouble(position);
+            }
+
+            @Override
+            public BytesRef getBytesRef(int ignored, BytesRef spare) {
+                return curr.getBytesRef(position, spare);
             }
 
             @Override

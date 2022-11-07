@@ -50,7 +50,8 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
             AggregateMetricsAggregatorsRegistrar::registerAvgAggregator,
             AggregateMetricsAggregatorsRegistrar::registerMinAggregator,
             AggregateMetricsAggregatorsRegistrar::registerMaxAggregator,
-            AggregateMetricsAggregatorsRegistrar::registerValueCountAggregator
+            AggregateMetricsAggregatorsRegistrar::registerValueCountAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerTimeSeriesAggregationAggregator
         );
     }
 }

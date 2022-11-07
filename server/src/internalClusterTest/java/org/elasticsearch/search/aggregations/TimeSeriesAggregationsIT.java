@@ -14,7 +14,10 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -25,10 +28,14 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeries;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLineAggreagation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,6 +47,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -50,6 +58,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.timeSeries;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.timeSeriesAggregation;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -521,4 +530,212 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
 
     }
 
+    public void testBasicTimeSeriesAggregations() {
+        DateHistogramInterval fixedInterval = DateHistogramInterval.days(randomIntBetween(10, 100));
+        Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
+        SearchResponse response = client().prepareSearch("index")
+            .setSize(0)
+            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).size(data.size()))
+            .get();
+        Aggregations aggregations = response.getAggregations();
+        assertNotNull(aggregations);
+        InternalTimeSeriesAggregation timeSeries = aggregations.get("by_ts");
+        assertThat(
+            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+            equalTo(data.keySet())
+        );
+        for (InternalTimeSeriesAggregation.InternalBucket bucket : timeSeries.getBuckets()) {
+            Map<String, Object> key = bucket.getKey();
+            Map<Long, Map<String, Double>> dataValues = data.get(key);
+            assertThat((long) dataValues.size(), equalTo(bucket.getDocCount()));
+            Map<Long, Tuple<Double, Long>> dataBucketValues = new HashMap<>();
+            dataValues.forEach((timestamp, metrics) -> {
+                long roundValue = rounding.nextRoundingValue(timestamp);
+                if (dataBucketValues.containsKey(roundValue)) {
+                    if (timestamp > dataBucketValues.get(roundValue).v2()) {
+                        dataBucketValues.put(roundValue, new Tuple<>(metrics.get("metric_0"), timestamp));
+                    }
+                } else {
+                    dataBucketValues.put(roundValue, new Tuple<>(metrics.get("metric_0"), timestamp));
+                }
+            });
+
+            dataBucketValues.forEach((timestamp, value) -> {
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
+                assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
+                assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(value.v1(), 0.0001d));
+            });
+        }
+    }
+
+    public void testTimeSeriesAggregationsDownsample() {
+        DateHistogramInterval fixedInterval = DateHistogramInterval.days(randomIntBetween(10, 100));
+        Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
+        SearchResponse response = client().prepareSearch("index")
+            .setSize(0)
+            .addAggregation(
+                timeSeriesAggregation("by_ts").field("metric_0")
+                    .interval(fixedInterval)
+                    .downsample(fixedInterval, Function.sum_over_time, null)
+                    .size(data.size())
+            )
+            .get();
+        Aggregations aggregations = response.getAggregations();
+        assertNotNull(aggregations);
+        InternalTimeSeriesAggregation timeSeries = aggregations.get("by_ts");
+        assertThat(
+            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+            equalTo(data.keySet())
+        );
+        for (InternalTimeSeriesAggregation.InternalBucket bucket : timeSeries.getBuckets()) {
+            Map<String, Object> key = bucket.getKey();
+            Map<Long, Map<String, Double>> dataValues = data.get(key);
+            assertThat((long) dataValues.size(), equalTo(bucket.getDocCount()));
+            Map<Long, Double> dataBucketValues = new HashMap<>();
+            dataValues.forEach((timestamp, metrics) -> {
+                long roundValue = rounding.nextRoundingValue(timestamp);
+                if (dataBucketValues.containsKey(roundValue)) {
+                    dataBucketValues.put(roundValue, dataBucketValues.get(roundValue) + metrics.get("metric_0"));
+                } else {
+                    dataBucketValues.put(roundValue, metrics.get("metric_0"));
+                }
+            });
+
+            dataBucketValues.forEach((timestamp, value) -> {
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
+                assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
+                assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(value, 0.0001d));
+            });
+        }
+    }
+
+    public void testTimeSeriesAggregationsAggregator() {
+        DateHistogramInterval fixedInterval = DateHistogramInterval.days(randomIntBetween(10, 100));
+        Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
+        SearchResponse response = client().prepareSearch("index")
+            .setSize(0)
+            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).aggregator("sum").size(data.size()))
+            .get();
+        Aggregations aggregations = response.getAggregations();
+        assertNotNull(aggregations);
+        InternalTimeSeriesAggregation timeSeries = aggregations.get("by_ts");
+        assertThat(timeSeries.getBuckets().size(), equalTo(1));
+        assertThat(
+            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+            equalTo(Set.of(Map.of()))
+        );
+
+        Map<Long, Double> aggResults = new HashMap<>();
+        data.forEach((key, value) -> {
+            Map<Long, Tuple<Double, Long>> downsampleResult = new HashMap<>();
+            value.forEach((timestamp, metrics) -> {
+                long roundValue = rounding.nextRoundingValue(timestamp);
+                if (downsampleResult.containsKey(roundValue)) {
+                    if (timestamp > downsampleResult.get(roundValue).v2()) {
+                        downsampleResult.put(roundValue, new Tuple<>(metrics.get("metric_0"), timestamp));
+                    }
+                } else {
+                    downsampleResult.put(roundValue, new Tuple<>(metrics.get("metric_0"), timestamp));
+                }
+            });
+
+            for (Entry<Long, Tuple<Double, Long>> entry : downsampleResult.entrySet()) {
+                Long timestamp = entry.getKey();
+                Double downsampleValue = entry.getValue().v1();
+                if (aggResults.containsKey(timestamp)) {
+                    aggResults.put(timestamp, aggResults.get(timestamp) + downsampleValue);
+                } else {
+                    aggResults.put(timestamp, downsampleValue);
+                }
+            }
+        });
+
+        for (InternalTimeSeriesAggregation.InternalBucket bucket : timeSeries.getBuckets()) {
+            aggResults.forEach((timestamp, metric) -> {
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
+                assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
+                assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(metric, 0.0001d));
+            });
+        }
+    }
+
+    public void testTimeSeriesAggregationsGroupBy() {
+        DateHistogramInterval fixedInterval = DateHistogramInterval.days(randomIntBetween(10, 100));
+        Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
+        SearchResponse response = client().prepareSearch("index")
+            .setSize(0)
+            .addAggregation(
+                timeSeriesAggregation("by_ts").field("metric_0")
+                    .group(List.of("dim_0"))
+                    .interval(fixedInterval)
+                    .downsample(fixedInterval, Function.max_over_time, null)
+                    .aggregator("sum")
+                    .size(data.size())
+            )
+            .get();
+        Aggregations aggregations = response.getAggregations();
+        assertNotNull(aggregations);
+        InternalTimeSeriesAggregation timeSeries = aggregations.get("by_ts");
+        assertThat(
+            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+            equalTo(
+                data.keySet()
+                    .stream()
+                    .map(key -> key.get("dim_0"))
+                    .collect(Collectors.toSet())
+                    .stream()
+                    .map(key -> Map.of("dim_0", key))
+                    .collect(Collectors.toSet())
+            )
+        );
+
+        Map<Map<String, String>, Map<Long, Double>> aggResults = new HashMap<>();
+        data.forEach((key, value) -> {
+            String dim = key.get("dim_0");
+            Map<String, String> bucketKey = Map.of("dim_0", dim);
+            Map<Long, Double> bucketResult = aggResults.get(bucketKey);
+            if (bucketResult == null) {
+                bucketResult = new HashMap<>();
+                aggResults.put(bucketKey, bucketResult);
+            }
+
+            Map<Long, Double> downsampleResult = new HashMap<>();
+            value.forEach((timestamp, metrics) -> {
+                long roundValue = rounding.nextRoundingValue(timestamp);
+                if (downsampleResult.containsKey(roundValue)) {
+                    downsampleResult.put(roundValue, Math.max(downsampleResult.get(roundValue), metrics.get("metric_0")));
+                } else {
+                    downsampleResult.put(roundValue, metrics.get("metric_0"));
+                }
+            });
+
+            for (Entry<Long, Double> entry : downsampleResult.entrySet()) {
+                Long timestamp = entry.getKey();
+                Double downsampleValue = entry.getValue();
+                if (bucketResult.containsKey(timestamp)) {
+                    bucketResult.put(timestamp, bucketResult.get(timestamp) + downsampleValue);
+                } else {
+                    bucketResult.put(timestamp, downsampleValue);
+                }
+            }
+        });
+
+        for (InternalTimeSeriesAggregation.InternalBucket bucket : timeSeries.getBuckets()) {
+            Map<String, Object> key = bucket.getKey();
+            Map<Long, Double> dataValues = aggResults.get(key);
+            dataValues.forEach((timestamp, metric) -> {
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
+                assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
+                assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(metric, 0.0001d));
+            });
+        }
+    }
 }

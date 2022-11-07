@@ -15,6 +15,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.admin.cluster.node.shutdown.CheckShardsOnDataPathRequestSerializationTests.createSetMutation;
+
 public class NodeCheckShardsOnDataPathResponseSerializationTests extends AbstractWireSerializingTestCase<
     NodeCheckShardsOnDataPathResponse> {
 
@@ -46,7 +48,7 @@ public class NodeCheckShardsOnDataPathResponseSerializationTests extends Abstrac
         }
         return new NodeCheckShardsOnDataPathResponse(
             response.getNode(),
-            randomSet(0, 50, CheckShardsOnDataPathRequestSerializationTests::randomShardId)
+            createSetMutation(response.getShardIds(), CheckShardsOnDataPathRequestSerializationTests::randomShardId)
         );
     }
 }

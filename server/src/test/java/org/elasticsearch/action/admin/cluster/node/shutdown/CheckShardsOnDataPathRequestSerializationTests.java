@@ -10,11 +10,18 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 public class CheckShardsOnDataPathRequestSerializationTests extends AbstractWireSerializingTestCase<CheckShardsOnDataPathRequest> {
 
@@ -36,19 +43,42 @@ public class CheckShardsOnDataPathRequestSerializationTests extends AbstractWire
         int i = randomInt(2);
         return switch (i) {
             case 0 -> new CheckShardsOnDataPathRequest(
-                randomSet(0, 50, CheckShardsOnDataPathRequestSerializationTests::randomShardId),
+                createSetMutation(request.getShardIds(), CheckShardsOnDataPathRequestSerializationTests::randomShardId),
                 request.nodesIds()
             ).timeout(request.timeout());
             case 1 -> new CheckShardsOnDataPathRequest(
                 request.getShardIds(),
-                randomArray(1, 10, String[]::new, () -> randomAlphaOfLength(20))
+                createArrayMutation(request.nodesIds(), () -> randomAlphaOfLength(20), String[]::new)
             ).timeout(request.timeout());
-            case 2 -> new CheckShardsOnDataPathRequest(request.getShardIds(), request.nodesIds()).timeout(randomTimeValue());
+            case 2 -> new CheckShardsOnDataPathRequest(request.getShardIds(), request.nodesIds()).timeout(
+                randomValueOtherThan(request.timeout(), () -> new TimeValue(randomLongBetween(1000, 10000)))
+            );
             default -> throw new IllegalStateException("unexpected value: " + i);
         };
     }
 
     public static ShardId randomShardId() {
         return new ShardId(randomAlphaOfLength(20), UUIDs.randomBase64UUID(), randomIntBetween(0, 25));
+    }
+
+    public static <T> void mutateList(List<T> list, Supplier<T> supplier) {
+        if (list.size() > 0 && randomBoolean()) {
+            // just remove one
+            list.remove(randomInt(list.size() - 1));
+        } else {
+            list.add(supplier.get());
+        }
+    }
+
+    public static <T> Set<T> createSetMutation(Set<T> set, Supplier<T> supplier) {
+        List<T> list = new ArrayList<>(set);
+        mutateList(list, supplier);
+        return new HashSet<>(list);
+    }
+
+    public static <T> T[] createArrayMutation(T[] array, Supplier<T> supplier, IntFunction<T[]> arrayConstructor) {
+        List<T> list = new ArrayList<>(Arrays.asList(array));
+        mutateList(list, supplier);
+        return list.toArray(arrayConstructor.apply(list.size()));
     }
 }

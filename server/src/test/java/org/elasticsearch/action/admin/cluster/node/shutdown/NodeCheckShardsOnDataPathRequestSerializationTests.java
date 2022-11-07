@@ -13,6 +13,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.admin.cluster.node.shutdown.CheckShardsOnDataPathRequestSerializationTests.createSetMutation;
+
 public class NodeCheckShardsOnDataPathRequestSerializationTests extends AbstractWireSerializingTestCase<NodeCheckShardsOnDataPathRequest> {
 
     @Override
@@ -26,7 +28,9 @@ public class NodeCheckShardsOnDataPathRequestSerializationTests extends Abstract
     }
 
     @Override
-    protected NodeCheckShardsOnDataPathRequest mutateInstance(NodeCheckShardsOnDataPathRequest instance) throws IOException {
-        return new NodeCheckShardsOnDataPathRequest(randomSet(0, 50, CheckShardsOnDataPathRequestSerializationTests::randomShardId));
+    protected NodeCheckShardsOnDataPathRequest mutateInstance(NodeCheckShardsOnDataPathRequest request) throws IOException {
+        return new NodeCheckShardsOnDataPathRequest(
+            createSetMutation(request.getShardIDs(), CheckShardsOnDataPathRequestSerializationTests::randomShardId)
+        );
     }
 }

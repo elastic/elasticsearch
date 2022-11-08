@@ -249,7 +249,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
                 logger.info(
                     "Created shards with sizes {}",
-                    Arrays.stream(shardStates).collect(toMap(it -> it.getShardRouting().shardId(), it -> it.getStats().getStore().sizeInBytes()))
+                    Arrays.stream(shardStates)
+                        .collect(toMap(it -> it.getShardRouting().shardId(), it -> it.getStats().getStore().sizeInBytes()))
                 );
 
                 return new SmallestShards(smallestShardSize, smallestShardIds);

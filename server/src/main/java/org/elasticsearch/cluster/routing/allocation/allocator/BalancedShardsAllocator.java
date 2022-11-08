@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -86,6 +87,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
+    public static final Setting<Float> WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.load",
+        0.25f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
         1.0f,
@@ -94,7 +102,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-    private volatile WeightFunction weightFunction;
+    private volatile float indexBalanceFactor;
+    private volatile float shardBalanceFactor;
+    private volatile float writeLoadBalanceFactor;
     private volatile float threshold;
 
     public BalancedShardsAllocator(Settings settings) {
@@ -103,18 +113,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
-        setThreshold(THRESHOLD_SETTING.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
-        clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
+        watchSetting(settings, clusterSettings, INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
+        watchSetting(settings, clusterSettings, SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
+        watchSetting(settings, clusterSettings, WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
+        watchSetting(settings, clusterSettings, THRESHOLD_SETTING, value -> this.threshold = value);
     }
 
-    private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
-        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor);
-    }
-
-    private void setThreshold(float threshold) {
-        this.threshold = threshold;
+    private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
+        consumer.accept(setting.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(setting, consumer);
     }
 
     @Override
@@ -125,6 +132,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
+        final WeightFunction weightFunction = new WeightFunction(indexBalanceFactor, shardBalanceFactor, writeLoadBalanceFactor);
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
         balancer.allocateUnassigned();
         balancer.moveShards();
@@ -133,6 +141,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+        WeightFunction weightFunction = new WeightFunction(indexBalanceFactor, shardBalanceFactor, writeLoadBalanceFactor);
         Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -187,14 +196,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * Returns the index related weight factor.
      */
     public float getIndexBalance() {
-        return weightFunction.indexBalance;
+        return indexBalanceFactor;
     }
 
     /**
      * Returns the shard related weight factor.
      */
     public float getShardBalance() {
-        return weightFunction.shardBalance;
+        return shardBalanceFactor;
+    }
+
+    /**
+     * Returns the write load related weight factor.
+     */
+    public float getWriteLoadBalance() {
+        return writeLoadBalanceFactor;
     }
 
     /**
@@ -223,21 +239,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      */
     private static class WeightFunction {
 
-        private final float indexBalance;
-        private final float shardBalance;
         private final float theta0;
         private final float theta1;
-        private final float theta2 = 0.0f; // TODO configure
+        private final float theta2;
 
-        WeightFunction(float indexBalance, float shardBalance) {
-            float sum = indexBalance + shardBalance;
+        WeightFunction(float indexBalance, float shardBalance, float writeLoadBalance) {
+            float sum = indexBalance + shardBalance + writeLoadBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
             theta0 = shardBalance / sum;
             theta1 = indexBalance / sum;
-            this.indexBalance = indexBalance;
-            this.shardBalance = shardBalance;
+            theta2 = writeLoadBalance / sum;
         }
 
         float weight(Balancer balancer, ModelNode node, String index) {

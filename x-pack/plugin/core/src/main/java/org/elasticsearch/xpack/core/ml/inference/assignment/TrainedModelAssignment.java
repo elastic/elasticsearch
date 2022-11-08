@@ -437,7 +437,8 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
                 numberOfAllocations,
                 taskParams.getThreadsPerAllocation(),
                 taskParams.getQueueCapacity(),
-                taskParams.getCacheSize().orElse(null)
+                taskParams.getCacheSize().orElse(null),
+                taskParams.getPriority()
             );
             return this;
         }

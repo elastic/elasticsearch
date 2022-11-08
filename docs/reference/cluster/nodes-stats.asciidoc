@@ -2743,6 +2743,7 @@ response.
 --------------------------------------------------
 GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest
 --------------------------------------------------
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
 
 To further refine the response, change the `filter_path` value.
 For example, the following request only returns ingest pipeline statistics.

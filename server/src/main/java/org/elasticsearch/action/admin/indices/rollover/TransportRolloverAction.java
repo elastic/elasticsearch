@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,11 +88,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             ThreadPool.Names.SAME
         );
         this.client = client;
-        this.rolloverTaskExecutor = new RolloverExecutor(
-            allocationService,
-            rolloverService,
-            new ActiveShardsObserver(clusterService, threadPool)
-        );
+        this.rolloverTaskExecutor = new RolloverExecutor(clusterService, allocationService, rolloverService);
     }
 
     @Override
@@ -123,7 +121,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
-            .docs(true);
+            .docs(true)
+            .indexing(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a
         // "synchronized" block, in that we have a "before" world, where we calculate naming and condition matching, we then enter our
@@ -247,11 +246,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    record RolloverExecutor(
-        AllocationService allocationService,
-        MetadataRolloverService rolloverService,
-        ActiveShardsObserver activeShardsObserver
-    ) implements ClusterStateTaskExecutor<RolloverTask> {
+    record RolloverExecutor(ClusterService clusterService, AllocationService allocationService, MetadataRolloverService rolloverService)
+        implements
+            ClusterStateTaskExecutor<RolloverTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) throws Exception {
             final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
@@ -298,9 +295,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             );
 
             // Re-evaluate the conditions, now with our final source index name
+            IndexMetadata rolloverSourceIndex = currentState.metadata().index(rolloverNames.sourceName());
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditions().values(),
-                buildStats(currentState.metadata().index(rolloverNames.sourceName()), rolloverTask.statsResponse())
+                buildStats(rolloverSourceIndex, rolloverTask.statsResponse())
             );
 
             if (rolloverRequest.areConditionsMet(postConditionResults)) {
@@ -309,6 +307,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .stream()
                     .filter(condition -> postConditionResults.get(condition.toString()))
                     .toList();
+
+                final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
+                    .getIndicesLookup()
+                    .get(rolloverRequest.getRolloverTarget());
+
+                final IndexWriteLoad sourceIndexWriteLoad = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                    ? IndexWriteLoad.fromStats(rolloverSourceIndex, rolloverTask.statsResponse())
+                    : null;
 
                 // Perform the actual rollover
                 final var rolloverResult = rolloverService.rolloverClusterState(
@@ -319,7 +325,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     metConditions,
                     Instant.now(),
                     false,
-                    false
+                    false,
+                    sourceIndexWriteLoad
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
@@ -330,13 +337,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverTaskContext.success(() -> {
                     // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
                     // active shards, as well as return the names of the indices that were rolled/created
-                    activeShardsObserver.waitForActiveShards(
+                    ActiveShardsObserver.waitForActiveShards(
+                        clusterService,
                         new String[] { rolloverIndexName },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                         rolloverRequest.masterNodeTimeout(),
-                        isShardsAcknowledged -> rolloverTask.listener()
-                            .onResponse(
-                                new RolloverResponse(
+                        rolloverTask.listener()
+                            .map(
+                                isShardsAcknowledged -> new RolloverResponse(
                                     // Note that we use the actual rollover result for these, because even though we're single threaded,
                                     // it's possible for the rollover names generated before the actual rollover to be different due to
                                     // things like date resolution
@@ -348,8 +356,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     true,
                                     isShardsAcknowledged
                                 )
-                            ),
-                        rolloverTask.listener()::onFailure
+                            )
                     );
                 });
 

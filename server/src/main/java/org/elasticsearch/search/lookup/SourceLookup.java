@@ -70,6 +70,11 @@ public class SourceLookup implements Source, Map<String, Object> {
         return sourceProvider.sourceAsBytes();
     }
 
+    @Override
+    public Source filter(SourceFilter sourceFilter) {
+        return sourceFilter.filterMap(this);
+    }
+
     /**
      * Checks if the source has been deserialized as a {@link Map} of java objects.
      */

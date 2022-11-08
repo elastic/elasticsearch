@@ -425,6 +425,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     private final Integer queueCapacity;
     @Nullable
     private final ByteSizeValue cacheSize;
+    private final Priority priority;
     private final Instant startTime;
     private final List<AssignmentStats.NodeStats> nodeStats;
 
@@ -435,7 +436,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         @Nullable Integer queueCapacity,
         @Nullable ByteSizeValue cacheSize,
         Instant startTime,
-        List<AssignmentStats.NodeStats> nodeStats
+        List<AssignmentStats.NodeStats> nodeStats,
+        Priority priority
     ) {
         this.modelId = modelId;
         this.threadsPerAllocation = threadsPerAllocation;
@@ -446,6 +448,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         this.cacheSize = cacheSize;
         this.state = null;
         this.reason = null;
+        this.priority = Objects.requireNonNull(priority);
     }
 
     public AssignmentStats(StreamInput in) throws IOException {
@@ -462,6 +465,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         } else {
             cacheSize = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            priority = in.readEnum(Priority.class);
+        } else {
+            priority = Priority.NORMAL;
         }
     }
 
@@ -520,6 +528,10 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         return this;
     }
 
+    public Priority getPriority() {
+        return priority;
+    }
+
     /**
      * @return The overall inference stats for the model assignment
      */
@@ -565,6 +577,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (cacheSize != null) {
             builder.field("cache_size", cacheSize);
         }
+        builder.field("priority", priority);
         builder.timeField("start_time", "start_time_string", startTime.toEpochMilli());
 
         int totalErrorCount = nodeStats.stream().mapToInt(NodeStats::getErrorCount).sum();
@@ -617,6 +630,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeOptionalWriteable(cacheSize);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeEnum(priority);
+        }
     }
 
     @Override
@@ -633,7 +649,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             && Objects.equals(reason, that.reason)
             && Objects.equals(allocationStatus, that.allocationStatus)
             && Objects.equals(cacheSize, that.cacheSize)
-            && Objects.equals(nodeStats, that.nodeStats);
+            && Objects.equals(nodeStats, that.nodeStats)
+            && priority == that.priority;
     }
 
     @Override
@@ -648,7 +665,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             state,
             reason,
             allocationStatus,
-            cacheSize
+            cacheSize,
+            priority
         );
     }
 

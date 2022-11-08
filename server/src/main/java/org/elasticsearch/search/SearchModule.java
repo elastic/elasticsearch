@@ -190,13 +190,10 @@ import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuild
 import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -695,13 +692,6 @@ public class SearchModule {
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {
         registerPipelineAggregation(
             new PipelineAggregationSpec(
-                DerivativePipelineAggregationBuilder.NAME,
-                DerivativePipelineAggregationBuilder::new,
-                DerivativePipelineAggregationBuilder::parse
-            ).addResultReader(InternalDerivative::new)
-        );
-        registerPipelineAggregation(
-            new PipelineAggregationSpec(
                 MaxBucketPipelineAggregationBuilder.NAME,
                 MaxBucketPipelineAggregationBuilder::new,
                 MaxBucketPipelineAggregationBuilder.PARSER
@@ -774,13 +764,6 @@ public class SearchModule {
                 BucketSelectorPipelineAggregationBuilder.NAME,
                 BucketSelectorPipelineAggregationBuilder::new,
                 BucketSelectorPipelineAggregationBuilder::parse
-            )
-        );
-        registerPipelineAggregation(
-            new PipelineAggregationSpec(
-                BucketSortPipelineAggregationBuilder.NAME,
-                BucketSortPipelineAggregationBuilder::new,
-                BucketSortPipelineAggregationBuilder::parse
             )
         );
         registerPipelineAggregation(

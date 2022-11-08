@@ -1,5 +1,0 @@
-pr: 90493
-summary: Add fields to fix logstash cgroup graphs
-area: Monitoring
-type: bug
-issues: []

@@ -20,6 +20,8 @@ import java.util.Objects;
  */
 public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
 
+    public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
+
     public ShardAssignment getAssignment(ShardId shardId) {
         return assignments.get(shardId);
     }
@@ -28,5 +30,4 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
         return Objects.equals(a.assignments, b.assignments) == false;
     }
 
-    public static DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
 }

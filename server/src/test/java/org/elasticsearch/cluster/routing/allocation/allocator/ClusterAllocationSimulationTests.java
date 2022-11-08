@@ -103,7 +103,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var indexWriteLoadBuilder = IndexWriteLoad.builder(shardCount);
                 var totalWriteLoad = 0.0;
                 for (int shardId = 0; shardId < shardCount; shardId++) {
-                    final var shardWriteLoad = index == indexCount - 1 ? randomDoubleBetween(1.0, 8.0, true) : 0.0;
+                    final var shardWriteLoad = index == indexCount - 1 ? (scaledRandomIntBetween(1, 8000) / 1000.0) : 0.0;
                     totalWriteLoad += shardWriteLoad;
                     indexWriteLoadBuilder.withShardWriteLoad(shardId, shardWriteLoad, TimeValue.timeValueHours(1).millis());
                 }

@@ -50,7 +50,6 @@ public class RestPreviewTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient nodeClient) throws IOException {
-        Client client = new RestCancellableNodeClient(nodeClient, restRequest.getHttpChannel());
         String transformId = restRequest.param(TransformField.ID.getPreferredName());
 
         if (Strings.isNullOrEmpty(transformId) && restRequest.hasContentOrSourceParam() == false) {
@@ -75,6 +74,7 @@ public class RestPreviewTransformAction extends BaseRestHandler {
             previewRequestHolder.set(PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser(), timeout));
         }
 
+        Client client = new RestCancellableNodeClient(nodeClient, restRequest.getHttpChannel());
         return channel -> {
             RestToXContentListener<PreviewTransformAction.Response> listener = new RestToXContentListener<>(channel);
 

@@ -82,7 +82,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         );
     }
 
-
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(
             randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),

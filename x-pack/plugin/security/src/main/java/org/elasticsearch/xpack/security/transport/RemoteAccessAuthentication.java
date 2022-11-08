@@ -20,6 +20,8 @@ import java.util.Base64;
 
 public record RemoteAccessAuthentication(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection) {
 
+    private static final String REMOTE_ACCESS_AUTHENTICATION_HEADER = "_remote_access_authentication";
+
     public String encode() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(authentication.getEffectiveSubject().getVersion());
@@ -34,6 +36,6 @@ public record RemoteAccessAuthentication(Authentication authentication, RoleDesc
     }
 
     public void writeToContext(ThreadContext ctx) throws IOException {
-        ctx.putHeader("_remote_access_authentication", encode());
+        ctx.putHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER, encode());
     }
 }

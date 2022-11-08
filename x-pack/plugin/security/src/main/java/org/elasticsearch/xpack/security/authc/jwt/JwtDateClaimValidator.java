@@ -52,7 +52,7 @@ public class JwtDateClaimValidator implements JwtClaimValidator {
             if (allowNull) {
                 return;
             } else {
-                throw new ElasticsearchSecurityException("missing date claim [" + claimName + "]");
+                throw new ElasticsearchSecurityException("missing required date claim [" + claimName + "]");
             }
         }
 
@@ -71,6 +71,7 @@ public class JwtDateClaimValidator implements JwtClaimValidator {
                 }
                 break;
             default:
+                assert false : "unknown date claim relationship " + relationship;
                 throw new IllegalStateException("unknown date claim relationship");
         }
     }

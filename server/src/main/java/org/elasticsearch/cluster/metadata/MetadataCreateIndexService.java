@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -129,6 +130,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ThreadPool threadPool;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -155,6 +157,7 @@ public class MetadataCreateIndexService {
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.threadPool = threadPool;
     }
 
     /**
@@ -284,13 +287,15 @@ public class MetadataCreateIndexService {
 
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
+
+        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, delegate.clusterStateUpdate()) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false);
+                    return applyCreateIndexRequest(currentState, request, false, null, delegate.reroute());
                 }
 
                 @Override
@@ -328,7 +333,8 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        ActionListener<Void> rerouteListener
     ) throws Exception {
 
         normalizeRequestSetting(request);
@@ -342,21 +348,28 @@ public class MetadataCreateIndexService {
         if (sourceMetadata != null) {
             // If source metadata was provided, it means we're recovering from an existing index,
             // in which case templates don't apply, so create the index from the source metadata
-            return applyCreateIndexRequestWithExistingMetadata(currentState, request, silent, sourceMetadata, metadataTransformer);
+            return applyCreateIndexRequestWithExistingMetadata(
+                currentState,
+                request,
+                silent,
+                sourceMetadata,
+                metadataTransformer,
+                rerouteListener
+            );
         } else {
             // The backing index may have a different name or prefix than the data stream name.
             final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
 
             // The index being created is for a system data stream, so the backing index will also be a system index
             if (request.systemDataStreamDescriptor() != null) {
-                return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer);
+                return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer, rerouteListener);
             }
 
             SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(request.index());
             // ignore all templates for all system indices that do not allow templates.
             // Essentially, all but .kibana indices, see KibanaPlugin.java.
             if (Objects.nonNull(descriptor) && descriptor.allowsTemplates() == false) {
-                return applyCreateIndexRequestForSystemIndex(currentState, request, silent, descriptor.getIndexPattern());
+                return applyCreateIndexRequestForSystemIndex(currentState, request, silent, descriptor.getIndexPattern(), rerouteListener);
             }
 
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
@@ -376,7 +389,14 @@ public class MetadataCreateIndexService {
             if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
                 // the index using that template and the request's specified settings
-                return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer);
+                return applyCreateIndexRequestWithV2Template(
+                    currentState,
+                    request,
+                    silent,
+                    v2Template,
+                    metadataTransformer,
+                    rerouteListener
+                );
             } else {
                 // A v2 template wasn't found, check the v1 templates, in the event no templates are
                 // found creation still works using the request's specified index settings
@@ -396,14 +416,25 @@ public class MetadataCreateIndexService {
                     );
                 }
 
-                return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
+                return applyCreateIndexRequestWithV1Templates(
+                    currentState,
+                    request,
+                    silent,
+                    v1Templates,
+                    metadataTransformer,
+                    rerouteListener
+                );
             }
         }
     }
 
-    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent)
-        throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null);
+    public ClusterState applyCreateIndexRequest(
+        ClusterState currentState,
+        CreateIndexClusterStateUpdateRequest request,
+        boolean silent,
+        ActionListener<Void> rerouteListener
+    ) throws Exception {
+        return applyCreateIndexRequest(currentState, request, silent, null, rerouteListener);
     }
 
     /**
@@ -431,7 +462,8 @@ public class MetadataCreateIndexService {
         final List<CompressedXContent> mappings,
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
@@ -471,10 +503,12 @@ public class MetadataCreateIndexService {
             );
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
-            BiFunction<ClusterState, String, ClusterState> rerouteFunction = request.performReroute()
-                ? allocationService::reroute
-                : (cs, reason) -> cs;
-            return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, rerouteFunction, metadataTransformer);
+
+            ClusterState updated = clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, metadataTransformer);
+            if (request.performReroute()) {
+                updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
+            }
+            return updated;
         });
     }
 
@@ -514,7 +548,8 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
@@ -568,7 +603,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
-            metadataTransformer
+            metadataTransformer,
+            rerouteListener
         );
     }
 
@@ -577,7 +613,8 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final String templateName,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
@@ -635,7 +672,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
-            metadataTransformer
+            metadataTransformer,
+            rerouteListener
         );
     }
 
@@ -643,7 +681,8 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final String indexPattern
+        final String indexPattern,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request for system index [{}] matching pattern [{}]", request.index(), indexPattern);
 
@@ -681,7 +720,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            null
+            null,
+            rerouteListener
         );
     }
 
@@ -689,7 +729,8 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         Objects.requireNonNull(request.systemDataStreamDescriptor());
         logger.debug("applying create index request for system data stream [{}]", request.systemDataStreamDescriptor());
@@ -738,7 +779,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer
+            metadataTransformer,
+            rerouteListener
         );
     }
 
@@ -788,7 +830,8 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final IndexMetadata sourceMetadata,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
 
@@ -833,7 +876,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer
+            metadataTransformer,
+            rerouteListener
         );
     }
 
@@ -1175,7 +1219,6 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         Set<ClusterBlock> clusterBlocks,
         IndexMetadata indexMetadata,
-        BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) {
         final Metadata newMetadata;
@@ -1195,8 +1238,7 @@ public class MetadataCreateIndexService {
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
             .addAsNew(updatedState.metadata().index(indexName));
-        updatedState = ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
-        return rerouteRoutingTable.apply(updatedState, "index [" + indexName + "] created");
+        return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
     }
 
     static IndexMetadata buildIndexMetadata(

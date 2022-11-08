@@ -253,7 +253,7 @@ public abstract class DocumentParserContext {
             // we've got the same dynamic mapper added in two ways, maybe due to a difference
             // in dot notation: { "a" : { "b" : "value1" }, "a.b" : "value2" }
             // we merge them together here to check that they are compatible
-            MapperBuilderContext mbc = createMapperBuilderContext();
+            MapperBuilderContext mbc = createDynamicMapperBuilderContext();
             Mapper first = dynamicMappers.get(fullName).build(mbc);
             Mapper second = builder.build(mbc);
             first.merge(second, mbc);

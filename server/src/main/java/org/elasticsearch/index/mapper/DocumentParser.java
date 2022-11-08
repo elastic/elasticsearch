@@ -494,7 +494,7 @@ public final class DocumentParser {
                         ObjectMapper.Defaults.ENABLED
                     );
                 }
-                dynamicObjectMapper = dynamicObjectBuilder.build(context.createMapperBuilderContext());
+                dynamicObjectMapper = dynamicObjectBuilder.build(context.createDynamicMapperBuilderContext());
                 context.addDynamicMapper(dynamicObjectMapper.name(), dynamicObjectBuilder);
             }
             if (parentObjectMapper.subobjects() == false) {
@@ -560,7 +560,7 @@ public final class DocumentParser {
                 if (objectBuilderFromTemplate == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
                 } else {
-                    Mapper objectMapperFromTemplate = objectBuilderFromTemplate.build(context.createMapperBuilderContext());
+                    Mapper objectMapperFromTemplate = objectBuilderFromTemplate.build(context.createDynamicMapperBuilderContext());
                     if (parsesArrayValue(objectMapperFromTemplate)) {
                         context.addDynamicMapper(objectMapperFromTemplate.name(), objectBuilderFromTemplate);
                         context.path().add(lastFieldName);

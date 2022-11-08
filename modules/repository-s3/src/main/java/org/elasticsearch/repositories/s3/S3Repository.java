@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -75,12 +76,11 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
      * the available memory for smaller heaps.
      */
-    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = ByteSizeValue.ofBytes(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
             Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
-        ),
-        ByteSizeUnit.BYTES
+        )
     );
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
@@ -278,18 +278,33 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
+        final FinalizeSnapshotContext wrappedFinalizeContext;
         if (SnapshotsService.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
-            finalizeSnapshotContext = new FinalizeSnapshotContext(
+            final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
+            wrappedFinalizeContext = new FinalizeSnapshotContext(
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 finalizeSnapshotContext.clusterMetadata(),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                delayedListener(finalizeSnapshotContext)
+                delayedListener(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
+                info -> metadataDone.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        finalizeSnapshotContext.onDone(info);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e; // never fails
+                    }
+                })
             );
+        } else {
+            wrappedFinalizeContext = finalizeSnapshotContext;
         }
-        super.finalizeSnapshot(finalizeSnapshotContext);
+        super.finalizeSnapshot(wrappedFinalizeContext);
     }
 
     @Override

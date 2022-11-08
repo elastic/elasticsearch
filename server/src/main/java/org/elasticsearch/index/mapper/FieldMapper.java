@@ -99,9 +99,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         String onScriptError
     ) {
         super(simpleName);
-        if (mappedFieldType.name().isEmpty()) {
-            throw new IllegalArgumentException("name cannot be empty string");
-        }
+        // could be blank but not empty on indices created < 8.6.0
+        assert mappedFieldType.name().isEmpty() == false;
         this.mappedFieldType = mappedFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
@@ -132,6 +131,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public MultiFields multiFields() {
         return multiFields;
+    }
+
+    /**
+     * Will this field ignore malformed values for this field and accept the
+     * document ({@code true}) or will it reject documents with malformed
+     * values for this field ({@code false}). Some fields don't have a concept
+     * of "malformed" and will return {@code false} here.
+     */
+    public boolean ignoreMalformed() {
+        return false;
     }
 
     /**

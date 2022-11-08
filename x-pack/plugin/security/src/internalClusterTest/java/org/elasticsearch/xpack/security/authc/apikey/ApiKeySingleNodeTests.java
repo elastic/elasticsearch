@@ -308,7 +308,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             e1.getMessage(),
             containsString(
                 "action [cluster:admin/xpack/security/user/authenticate] is unauthorized "
-                    + "for user [user1] because user [user1] is unauthorized to run as [user3]"
+                    + "for user [user1] with effective roles [user1_role]"
+                    + ", because user [user1] is unauthorized to run as [user3]"
             )
         );
 
@@ -322,7 +323,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             e2.getMessage(),
             containsString(
                 "action [cluster:admin/xpack/security/user/authenticate] is unauthorized "
-                    + "for user [user1] because user [user1] is unauthorized to run as [user4]"
+                    + "for user [user1] with effective roles [user1_role]"
+                    + ", because user [user1] is unauthorized to run as [user4]"
             )
         );
 
@@ -368,7 +370,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             e4.getMessage(),
             containsString(
                 "action [cluster:admin/xpack/security/user/authenticate] is unauthorized "
-                    + "for user [user1] because user [user1] is unauthorized to run as [user4]"
+                    + "for user [user1] with effective roles [user1_role]"
+                    + ", because user [user1] is unauthorized to run as [user4]"
             )
         );
     }

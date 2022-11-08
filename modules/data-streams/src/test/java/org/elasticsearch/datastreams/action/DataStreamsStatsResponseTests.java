@@ -43,7 +43,12 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             totalStoreSize += storeSize;
             long maximumTimestamp = randomRecentTimestamp();
             dataStreamStats.add(
-                new DataStreamsStatsAction.DataStreamStats(dataStreamName, backingIndices, new ByteSizeValue(storeSize), maximumTimestamp)
+                new DataStreamsStatsAction.DataStreamStats(
+                    dataStreamName,
+                    backingIndices,
+                    ByteSizeValue.ofBytes(storeSize),
+                    maximumTimestamp
+                )
             );
         }
         int totalShards = randomIntBetween(backingIndicesTotal, backingIndicesTotal * 3);
@@ -66,7 +71,7 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             exceptions,
             dataStreamCount,
             backingIndicesTotal,
-            new ByteSizeValue(totalStoreSize),
+            ByteSizeValue.ofBytes(totalStoreSize),
             dataStreamStats.toArray(DataStreamsStatsAction.DataStreamStats[]::new)
         );
     }

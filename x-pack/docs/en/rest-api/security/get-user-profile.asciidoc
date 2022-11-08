@@ -5,7 +5,10 @@
 <titleabbrev>Get user profiles</titleabbrev>
 ++++
 
-beta::[]
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Retrieves user profiles using a list of unique profile ID.
 
@@ -17,8 +20,9 @@ Retrieves user profiles using a list of unique profile ID.
 [[security-api-get-user-profile-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have _at least_ the `manage_user_profile` cluster privilege.
-
+To use this API, you must have _at least_ the `read_security`
+<<privileges-list-cluster,cluster privilege>> (or a greater privilege
+such as `manage_user_profile` or `manage_security`).
 
 [[security-api-get-user-profile-desc]]
 ==== {api-description-title}

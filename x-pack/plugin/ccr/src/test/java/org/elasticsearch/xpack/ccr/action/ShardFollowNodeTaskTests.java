@@ -19,6 +19,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.net.ConnectException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1042,7 +1042,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 64;
         params.maxOutstandingReadRequests = 1;
-        params.maxWriteRequestSize = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+        params.maxWriteRequestSize = ByteSizeValue.ofBytes(1);
         params.maxOutstandingWriteRequests = 128;
 
         ShardFollowNodeTask task = createShardFollowTask(params);
@@ -1139,10 +1139,10 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ByteSizeValue(Long.MAX_VALUE),
-            new ByteSizeValue(Long.MAX_VALUE),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE),
             Integer.MAX_VALUE,
-            new ByteSizeValue(Long.MAX_VALUE),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE),
             TimeValue.ZERO,
             TimeValue.ZERO,
             Collections.emptyMap()
@@ -1261,13 +1261,13 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         private ShardId followShardId = new ShardId("follow_index", "", 0);
         private ShardId leaderShardId = new ShardId("leader_index", "", 0);
         private int maxReadRequestOperationCount = Integer.MAX_VALUE;
-        private ByteSizeValue maxReadRequestSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private ByteSizeValue maxReadRequestSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
         private int maxOutstandingReadRequests = Integer.MAX_VALUE;
         private int maxWriteRequestOperationCount = Integer.MAX_VALUE;
-        private ByteSizeValue maxWriteRequestSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private ByteSizeValue maxWriteRequestSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
         private int maxOutstandingWriteRequests = Integer.MAX_VALUE;
         private int maxWriteBufferCount = Integer.MAX_VALUE;
-        private ByteSizeValue maxWriteBufferSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private ByteSizeValue maxWriteBufferSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
         private TimeValue maxRetryDelay = TimeValue.ZERO;
         private TimeValue readPollTimeout = TimeValue.ZERO;
         private Map<String, String> headers = Collections.emptyMap();
@@ -1483,8 +1483,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         List<Translog.Operation> ops = new ArrayList<>();
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
             String id = UUIDs.randomBase64UUID();
-            byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-            ops.add(new Translog.Index(id, seqNo, 0, source));
+            ops.add(TranslogOperationsUtils.indexOp(id, seqNo, 0));
         }
         return new ShardChangesAction.Response(
             mappingVersion,

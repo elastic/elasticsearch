@@ -23,7 +23,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -67,9 +67,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -134,7 +135,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -303,6 +303,12 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges))) {
+            throw new IllegalArgumentException("remote indices not supported for API keys");
+        }
+
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
@@ -322,14 +328,16 @@ public class ApiKeyService {
                     request.getMetadata()
                 )
             ) {
-
-                final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setSource(builder)
-                    .setId(request.getId())
-                    .setOpType(DocWriteRequest.OpType.CREATE)
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .request();
-                final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+                final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+                bulkRequestBuilder.add(
+                    client.prepareIndex(SECURITY_MAIN_ALIAS)
+                        .setSource(builder)
+                        .setId(request.getId())
+                        .setOpType(DocWriteRequest.OpType.CREATE)
+                        .request()
+                );
+                bulkRequestBuilder.setRefreshPolicy(request.getRefreshPolicy());
+                final BulkRequest bulkRequest = bulkRequestBuilder.request();
 
                 securityIndex.prepareIndexIfNeededThenExecute(
                     listener::onFailure,
@@ -338,7 +346,7 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
@@ -372,6 +380,13 @@ public class ApiKeyService {
                 new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
             );
             return;
+        }
+
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || (request.getRoleDescriptors() != null
+                    && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)))) {
+            throw new IllegalArgumentException("remote indices not supported for API keys");
         }
 
         logger.debug("Updating [{}] API keys", request.getIds().size());
@@ -683,8 +698,7 @@ public class ApiKeyService {
                 final ApiKeyDoc apiKeyDoc;
                 try (
                     XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        LoggingDeprecationHandler.INSTANCE,
+                        XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
                         response.getSourceAsBytesRef(),
                         XContentType.JSON
                     )
@@ -729,8 +743,9 @@ public class ApiKeyService {
                 try (
                     XContentParser parser = XContentType.JSON.xContent()
                         .createParser(
-                            NamedXContentRegistry.EMPTY,
-                            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
+                            XContentParserConfiguration.EMPTY.withDeprecationHandler(
+                                new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
+                            ),
                             BytesReference.bytes(builder).streamInput()
                         )
                 ) {
@@ -765,8 +780,7 @@ public class ApiKeyService {
         List<RoleDescriptor> roleDescriptors = new ArrayList<>();
         try (
             XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY,
-                new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
+                XContentParserConfiguration.EMPTY.withDeprecationHandler(new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)),
                 bytesReference,
                 XContentType.JSON
             )
@@ -1225,15 +1239,11 @@ public class ApiKeyService {
                         );
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
-                        invalidateAllApiKeys(apiKeys.stream().map(ApiKey::getId).collect(Collectors.toSet()), invalidateListener);
+                        indexInvalidation(apiKeys.stream().map(ApiKey::getId).collect(Collectors.toSet()), invalidateListener);
                     }
                 }, invalidateListener::onFailure)
             );
         }
-    }
-
-    private void invalidateAllApiKeys(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
-        indexInvalidation(apiKeyIds, invalidateListener, null);
     }
 
     private <T> void findApiKeys(
@@ -1344,16 +1354,10 @@ public class ApiKeyService {
     /**
      * Performs the actual invalidation of a collection of api keys
      *
-     * @param apiKeyIds       the api keys to invalidate
-     * @param listener        the listener to notify upon completion
-     * @param previousResult  if this not the initial attempt for invalidation, it contains the result of invalidating
-     *                        api keys up to the point of the retry. This result is added to the result of the current attempt
+     * @param apiKeyIds the api keys to invalidate
+     * @param listener  the listener to notify upon completion
      */
-    private void indexInvalidation(
-        Collection<String> apiKeyIds,
-        ActionListener<InvalidateApiKeyResponse> listener,
-        @Nullable InvalidateApiKeyResponse previousResult
-    ) {
+    private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> listener) {
         maybeStartApiKeyRemover();
         if (apiKeyIds.isEmpty()) {
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
@@ -1376,11 +1380,6 @@ public class ApiKeyService {
                         ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
                         ArrayList<String> invalidated = new ArrayList<>();
-                        if (null != previousResult) {
-                            failedRequestResponses.addAll((previousResult.getErrors()));
-                            previouslyInvalidated.addAll(previousResult.getPreviouslyInvalidatedApiKeys());
-                            invalidated.addAll(previousResult.getInvalidatedApiKeys());
-                        }
                         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
                             if (bulkItemResponse.isFailed()) {
                                 Throwable cause = bulkItemResponse.getFailure().getCause();
@@ -1744,23 +1743,36 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmName(final Authentication authentication) {
         if (authentication.isApiKey()) {
-            return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+            return (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
+            // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
+            // `null`. Since this method is used in audit logging, this requires some care.
             return authentication.getSourceRealm().getName();
         }
     }
 
-    /** Returns the realm names that the username can access resources across.
+    /**
+     * Returns the realm names that the username can access resources across.
      */
-    public static String[] getOwnersRealmNames(Authentication authentication) {
+    public static String[] getOwnersRealmNames(final Authentication authentication) {
         if (authentication.isApiKey()) {
-            return new String[] { (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
+            return new String[] {
+                (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
         } else {
-            RealmDomain domain = authentication.getSourceRealm().getDomain();
+            final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
+            // The effective subject realm can only be `null` when run-as lookup fails. The owner is always the effective subject, so there
+            // is no owner information to return here
+            if (effectiveSubjectRealm == null) {
+                final var message =
+                    "Cannot determine owner realms without an effective subject realm for non-API key authentication object";
+                assert false : message;
+                throw new IllegalArgumentException(message);
+            }
+            final RealmDomain domain = effectiveSubjectRealm.getDomain();
             if (domain != null) {
-                return domain.realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new);
+                return domain.realms().stream().map(RealmConfig.RealmIdentifier::getName).toArray(String[]::new);
             } else {
-                return new String[] { authentication.getSourceRealm().getName() };
+                return new String[] { effectiveSubjectRealm.getName() };
             }
         }
     }
@@ -1774,8 +1786,10 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmType(final Authentication authentication) {
         if (authentication.isApiKey()) {
-            return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+            return (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
+            // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
+            // `null`. Since this method is used in audit logging, this requires some care.
             return authentication.getSourceRealm().getType();
         }
     }
@@ -1792,11 +1806,11 @@ public class ApiKeyService {
                 "authentication realm must be ["
                     + AuthenticationField.API_KEY_REALM_TYPE
                     + "], got ["
-                    + authentication.getAuthenticatedBy().getType()
+                    + authentication.getEffectiveSubject().getRealm().getType()
                     + "]"
             );
         }
-        final Object apiKeyMetadata = authentication.getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
+        final Object apiKeyMetadata = authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
         if (apiKeyMetadata != null) {
             final Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
                 (BytesReference) apiKeyMetadata,

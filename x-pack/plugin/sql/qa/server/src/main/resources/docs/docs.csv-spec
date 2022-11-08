@@ -249,6 +249,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_FORMAT      |SCALAR
 DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
@@ -2902,6 +2903,36 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 ------------------
 11 22 33.9
 // end::dateTimeFormatTime
+;
+
+dateFormatDate
+// tag::dateFormatDate
+SELECT DATE_FORMAT(CAST('2020-04-05' AS DATE), '%d/%m/%Y') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::dateFormatDate
+;
+
+dateFormatDateTime
+// tag::dateFormatDateTime
+SELECT DATE_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), '%d/%m/%Y %H:%i:%s.%f') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.987654
+// end::dateFormatDateTime
+;
+
+dateFormatTime
+// tag::dateFormatTime
+SELECT DATE_FORMAT(CAST('23:22:33.987' AS TIME), '%H %i %s.%f') AS "time";
+
+      time
+------------------
+23 22 33.987000
+// end::dateFormatTime
 ;
 
 toCharDate

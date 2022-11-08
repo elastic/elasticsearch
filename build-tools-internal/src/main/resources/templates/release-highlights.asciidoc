@@ -32,14 +32,18 @@ if (notableHighlights.isEmpty()) { %>
 <% for (highlight in notableHighlights) { %>
 [discrete]
 [[${ highlight.anchor }]]
-=== {es-pull}${highlight.pr}[${highlight.title}]
+=== ${highlight.title}
 ${highlight.body.trim()}
+
+{es-pull}${highlight.pr}[#${highlight.pr}]
 <% } %>
 // end::notable-highlights[]
 <% } %>
 <% for (highlight in nonNotableHighlights) { %>
 [discrete]
 [[${ highlight.anchor }]]
-=== {es-pull}${highlight.pr}[${highlight.title}]
+=== ${highlight.title}
 ${highlight.body.trim()}
+
+{es-pull}${highlight.pr}[#${highlight.pr}]
 <% } %>

@@ -101,6 +101,15 @@ void addSubProjects(String path, File dir) {
   if (findProject(dir) != null) return;
 
   final String projectName = "${path}:${dir.name}"
+
+  // This project has a problem with availability of Docker images after
+  // release. Disabling individual tasks is tricky because it uses test
+  // fixtures, so instead just skip the project entirely until we can
+  // work out a way forward.
+  if (projectName.equals(":qa:apm")) {
+    return
+  }
+
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
     project(projectName).projectDir = dir

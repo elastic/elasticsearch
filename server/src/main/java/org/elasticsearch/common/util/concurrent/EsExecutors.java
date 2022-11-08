@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
@@ -40,7 +41,7 @@ public class EsExecutors {
      * available to Elasticsearch (e.g., because of CPU limits). Note that this setting accepts floating point processors.
      * If a rounded number is needed, always use {@link EsExecutors#allocatedProcessors(Settings)}.
      */
-    public static final Setting<Double> NODE_PROCESSORS_SETTING = new Setting<>(
+    public static final Setting<Processors> NODE_PROCESSORS_SETTING = new Setting<>(
         "node.processors",
         Double.toString(Runtime.getRuntime().availableProcessors()),
         textValue -> {
@@ -60,7 +61,7 @@ public class EsExecutors {
                 String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be <= " + maxNumberOfProcessors;
                 throw new IllegalArgumentException(err);
             }
-            return numberOfProcessors;
+            return Processors.of(numberOfProcessors);
         },
         Property.NodeScope
     );
@@ -73,7 +74,11 @@ public class EsExecutors {
      * @return the number of allocated processors
      */
     public static int allocatedProcessors(final Settings settings) {
-        return (int) Math.ceil(NODE_PROCESSORS_SETTING.get(settings));
+        return NODE_PROCESSORS_SETTING.get(settings).roundUp();
+    }
+
+    public static Processors nodeProcessors(final Settings settings) {
+        return NODE_PROCESSORS_SETTING.get(settings);
     }
 
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(

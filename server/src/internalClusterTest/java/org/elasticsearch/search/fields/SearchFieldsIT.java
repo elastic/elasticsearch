@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -29,6 +28,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.FieldLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -142,7 +142,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         static Object sourceScript(Map<String, Object> vars, String path) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> source = (Map<String, Object>) vars.get("_source");
+            Map<String, Object> source = ((SourceLookup) vars.get("_source")).source();
             return XContentMapValues.extractValue(path, source);
         }
 
@@ -336,11 +336,13 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("date1").getValues().get(0), equalTo(120000L));
 
         logger.info("running doc['num1'].value * factor");
-        Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder().put("factor", 2.0).map();
         response = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value * factor", params))
+            .addScriptField(
+                "sNum1",
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value * factor", Map.of("factor", 2.0))
+            )
             .get();
 
         assertThat(response.getHits().getTotalHits().value, equalTo(3L));

@@ -17,14 +17,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -39,6 +35,8 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     static final String NAME = "wait-for-shard-history-leases";
     static final String CCR_LEASE_KEY = "ccr";
+    private static final String WAIT_MESSAGE = "this index is a leader index; waiting for all following indices to cease "
+        + "following before proceeding";
 
     WaitForNoFollowersStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
@@ -73,48 +71,10 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
                 .anyMatch(lease -> lease.isPresent() && lease.get().anyMatch(l -> CCR_LEASE_KEY.equals(l.source())));
 
             if (isCurrentlyLeaderIndex) {
-                listener.onResponse(false, new Info());
+                listener.onResponse(false, new SingleMessageFieldInfo(WAIT_MESSAGE));
             } else {
                 listener.onResponse(true, null);
             }
         }, listener::onFailure));
-    }
-
-    static final class Info implements ToXContentObject {
-
-        static final ParseField MESSAGE_FIELD = new ParseField("message");
-
-        private static final String message = "this index is a leader index; waiting for all following indices to cease "
-            + "following before proceeding";
-
-        Info() {}
-
-        static String getMessage() {
-            return message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE_FIELD.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(getMessage());
-        }
     }
 }

@@ -54,13 +54,13 @@ def queryingCluster = testClusters.register('querying-cluster') {
   }
 }
 
-tasks.register('fulfilling-cluster', StandaloneRestIntegTestTask) {
+tasks.register('fulfilling-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   useCluster fulfillingCluster
   systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 
-tasks.register('querying-cluster', StandaloneRestIntegTestTask) {
+tasks.register('querying-cluster', RestIntegTestTask) {
   dependsOn 'fulfilling-cluster'
   useCluster queryingCluster
   useCluster fulfillingCluster

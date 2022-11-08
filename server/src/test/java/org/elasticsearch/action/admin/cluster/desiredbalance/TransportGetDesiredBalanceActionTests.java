@@ -7,59 +7,69 @@
  */
 package org.elasticsearch.action.admin.cluster.desiredbalance;
 
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
-import java.util.Map;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-public class TransportGetDesiredBalanceActionTests extends ESIntegTestCase {
+public class TransportGetDesiredBalanceActionTests extends ESTestCase {
 
-    public void testDesiredBalance() throws Exception {
-        String index = "test";
-        createIndex(index, Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+    private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
+    private final ClusterState clusterState = mock(ClusterState.class);
+    private final Metadata metadata = mock(Metadata.class);
+    private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
+        mock(TransportService.class),
+        mock(ClusterService.class),
+        mock(ThreadPool.class),
+        mock(ActionFilters.class),
+        mock(IndexNameExpressionResolver.class),
+        desiredBalanceShardsAllocator
+    );
+    @SuppressWarnings("unchecked")
+    private final ActionListener<DesiredBalanceResponse> listener = mock(ActionListener.class);
 
-        BulkResponse bulkResponse = client().prepareBulk()
-            .add(new IndexRequest(index).id("1").source("field", "foo 1"))
-            .add(new IndexRequest(index).id("2").source("field", "foo 2"))
-            .add(new IndexRequest(index).id("3").source("field", "foo 3"))
-            .add(new IndexRequest(index).id("4").source("field", "foo 4"))
-            .add(new IndexRequest(index).id("5").source("field", "bar"))
-            .get();
-        assertFalse(bulkResponse.hasFailures());
+    @Before
+    public void setUpMocks() throws Exception {
+        when(clusterState.metadata()).thenReturn(metadata);
+    }
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
-            .get();
+    public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
+        when(metadata.settings()).thenReturn(Settings.builder().put("cluster.routing.allocation.type", "balanced").build());
 
-        assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
-        Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
-        assertEquals(2, shardsMap.size());
-        var entry = shardsMap.entrySet().iterator().next();
+        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
 
-        Integer shardId = entry.getKey();
-        DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-        ShardRouting shard = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .routingTable()
-            .shardRoutingTable(index, shardId)
-            .primaryShard();
+        ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
+        verify(listener).onFailure(exceptionArgumentCaptor.capture());
 
-        assertEquals(shard.state(), desiredShards.current().state());
-        assertEquals(shard.primary(), desiredShards.current().primary());
-        assertEquals(shardId.intValue(), desiredShards.current().shardId());
-        assertEquals(index, desiredShards.current().index());
-        assertEquals(shard.currentNodeId(), desiredShards.current().node());
-        assertEquals(shard.relocatingNodeId(), desiredShards.current().relocatingNode());
-        assertFalse(desiredShards.current().relocatingNodeIsDesired());
-        // Desired balance isn't stable, unable to reliably make mode ids assertions
-        // assertEquals(assignment != null && assignment.nodeIds().contains(shard.currentNodeId()),
-        // desiredShards.current().nodeIsDesired());
-        // assertEquals(assignment != null && assignment.nodeIds().contains(shard.relocatingNodeId()),
-        // desiredShards.current().relocatingNodeIsDesired());
+        assertEquals(
+            "Expected the shard balance allocator to be `desired_balance`, but got `balanced`",
+            exceptionArgumentCaptor.getValue().getMessage()
+        );
+    }
+
+    public void testReturnsErrorIfDesiredBalanceIsNotAvailable() throws Exception {
+        when(metadata.settings()).thenReturn(Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build());
+
+        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+
+        ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
+        verify(listener).onFailure(exceptionArgumentCaptor.capture());
+
+        assertEquals("Desired balance is not computed yet", exceptionArgumentCaptor.getValue().getMessage());
     }
 }

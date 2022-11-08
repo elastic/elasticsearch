@@ -85,7 +85,7 @@ public class RestPreviewTransformAction extends BaseRestHandler {
             } else {
                 GetTransformAction.Request getRequest = new GetTransformAction.Request(transformId);
                 getRequest.setAllowNoResources(false);
-                client.execute(GetTransformAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+                nodeClient.execute(GetTransformAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
                     List<TransformConfig> transforms = getResponse.getResources().results();
                     if (transforms.size() > 1) {
                         listener.onFailure(

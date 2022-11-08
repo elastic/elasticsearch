@@ -31,7 +31,7 @@ beta::[]
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
 
 [[infer-trained-model-query-params]]
 == {api-query-parms-title}
@@ -629,7 +629,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 
 The response depends on the kind of model.
 
-For example, for {lang-ident} the response is the predicted language and the 
+For example, for {lang-ident} the response is the predicted language and the
 score:
 
 [source,console]
@@ -658,7 +658,7 @@ Here are the results predicting english with a high probability.
 // NOTCONSOLE
 
 
-When it is a text classification model, the response is the score and predicted 
+When it is a text classification model, the response is the score and predicted
 classification.
 
 For example:
@@ -822,8 +822,8 @@ The API returns a response similar to the following:
 ----
 // NOTCONSOLE
 
-Text similarity models require at least two sequences of text to compare. It's 
-possible to provide multiple strings of text to compare to another text 
+Text similarity models require at least two sequences of text to compare. It's
+possible to provide multiple strings of text to compare to another text
 sequence:
 
 [source,console]
@@ -840,7 +840,7 @@ POST _ml/trained_models/cross-encoder__ms-marco-tinybert-l-2-v2/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The response contains the prediction for every string that is compared to the 
+The response contains the prediction for every string that is compared to the
 text provided in the `text_similarity`.`text` field:
 
 [source,console-result]

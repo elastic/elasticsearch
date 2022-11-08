@@ -16,13 +16,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -51,7 +52,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test")
                 .setId(Long.toString(i))
-                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map())
+                .setSource(Map.<String, Object>of("test", "value" + i))
                 .execute()
                 .actionGet();
         }
@@ -59,7 +60,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         for (int i = 1000; i < 2000; i++) {
             client().prepareIndex("test")
                 .setId(Long.toString(i))
-                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map())
+                .setSource(Map.<String, Object>of("test", "value" + i))
                 .execute()
                 .actionGet();
         }
@@ -190,7 +191,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test")
                 .setId(Long.toString(i))
-                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map())
+                .setSource(Map.<String, Object>of("test", "value" + i))
                 .execute()
                 .actionGet();
         }

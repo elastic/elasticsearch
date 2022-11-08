@@ -175,6 +175,7 @@ public class MetadataUpdateSettingsService {
                 Index index = request.indices()[i];
                 actualIndices[i] = index.getName();
                 final IndexMetadata metadata = currentState.metadata().getIndexSafe(index);
+
                 if (metadata.getState() == IndexMetadata.State.OPEN) {
                     openIndices.add(index);
                 } else {
@@ -310,6 +311,8 @@ public class MetadataUpdateSettingsService {
     ) {
         for (Index index : indices) {
             IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
+            // We validate the settings for removed deprecated settings, since we have the indexMetadata now.
+            indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
             Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
             if (settingUpdater.apply(index, indexSettings)) {
                 if (preserveExisting) {

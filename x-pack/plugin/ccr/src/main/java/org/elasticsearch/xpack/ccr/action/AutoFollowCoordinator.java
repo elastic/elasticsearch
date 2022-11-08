@@ -296,17 +296,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     final long metadataVersion,
                     final BiConsumer<ClusterStateResponse, Exception> handler
                 ) {
-                    final ClusterStateRequest request = new ClusterStateRequest();
-                    request.clear();
-                    request.metadata(true);
-                    request.routingTable(true);
-                    request.waitForMetadataVersion(metadataVersion);
-                    request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
-                        request,
+                        new ClusterStateRequest().clear()
+                            .metadata(true)
+                            .routingTable(true)
+                            .waitForMetadataVersion(metadataVersion)
+                            .waitForTimeout(waitForMetadataTimeOut),
                         e -> handler.accept(null, e),
                         remoteClusterStateResponse -> handler.accept(remoteClusterStateResponse, null)
                     );
@@ -613,7 +611,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
                     .filter(otherPattern -> otherPattern.v2().match(indexAbstraction))
                     .map(Tuple::v1)
-                    .collect(Collectors.toList());
+                    .toList();
                 if (otherMatchingPatterns.size() != 0) {
                     groupedListener.onResponse(
                         new Tuple<>(

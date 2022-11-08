@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -83,7 +84,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             discoBuilder = discoBuilder.add(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
-        ClusterState rerouteResult = allocationService.reroute(clusterState, "reroute");
+        ClusterState rerouteResult = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(rerouteResult, not(equalTo(this.clusterState)));
         applyRerouteResult(rerouteResult);
         primaryTermsPerIndex.keySet().forEach(this::incrementPrimaryTerm);
@@ -154,7 +155,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             nodesBuilder.add(newNode("extra_" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
-        applyRerouteResult(allocationService.reroute(this.clusterState, "nodes added"));
+        applyRerouteResult(allocationService.reroute(this.clusterState, "nodes added", ActionListener.noop()));
 
     }
 

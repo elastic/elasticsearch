@@ -449,7 +449,7 @@ public final class DataStreamTestHelper {
         Environment env = mock(Environment.class);
         when(env.sharedDataFile()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
         MappingLookup mappingLookup = null;
         if (dataStream != null) {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);

@@ -37,14 +37,14 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     private DesiredBalanceStats randomStats() {
         return new DesiredBalanceStats(
-            randomNonNegativeLong(),
+            randomInt(Integer.MAX_VALUE),
             randomBoolean(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE)
         );
     }
 

@@ -185,10 +185,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        if (indexExpressions == null) {
-            indexExpressions = new String[0];
-        }
-        final Collection<String> expressions = resolveExpressions(context, Arrays.asList(indexExpressions));
+        final Collection<String> expressions = resolveExpressions(context, indexExpressions);
         return expressions.stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
@@ -218,7 +215,7 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
 
-        final Collection<String> expressions = resolveExpressions(context, List.of(request.index()));
+        final Collection<String> expressions = resolveExpressions(context, request.index());
 
         if (expressions.size() == 1) {
             IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
@@ -246,8 +243,9 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static Collection<String> resolveExpressions(Context context, List<String> expressions) {
-        return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, expressions));
+    private static Collection<String> resolveExpressions(Context context, String... expressions) {
+        final List<String> indexExpressions = expressions == null ? List.of() : Arrays.asList(expressions);
+        return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, indexExpressions));
     }
 
     /**
@@ -319,15 +317,8 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-
         ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
-
-        if (indexExpressions == null) {
-            indexExpressions = new String[0];
-        }
-
-        final Collection<String> expressions = resolveExpressions(context, Arrays.asList(indexExpressions));
-
+        final Collection<String> expressions = resolveExpressions(context, indexExpressions);
         boolean excludedDataStreams = false;
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         for (String expression : expressions) {
@@ -655,7 +646,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        Collection<String> resolved = resolveExpressions(context, Arrays.asList(expressions));
+        Collection<String> resolved = resolveExpressions(context, expressions);
         if (resolved instanceof Set<String>) {
             // unmodifiable without creating a new collection as it might contain many items
             return Collections.unmodifiableSet((Set<String>) resolved);
@@ -782,9 +773,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        final Collection<String> resolvedExpressions = resolveExpressions(
-                context, expressions != null ? Arrays.asList(expressions) : Collections.emptyList()
-        );
+        final Collection<String> resolvedExpressions = resolveExpressions(context, expressions);
 
         // TODO: it appears that this can never be true?
         if (isAllIndices(resolvedExpressions)) {

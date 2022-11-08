@@ -188,7 +188,7 @@ public class IndexNameExpressionResolver {
         if (indexExpressions == null) {
             indexExpressions = new String[0];
         }
-        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        final Collection<String> expressions = resolveExpressions(context, Arrays.asList(indexExpressions));
         return expressions.stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
@@ -218,7 +218,7 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
 
-        final Collection<String> expressions = resolveExpressions(List.of(request.index()), context);
+        final Collection<String> expressions = resolveExpressions(context, List.of(request.index()));
 
         if (expressions.size() == 1) {
             IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
@@ -246,7 +246,7 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static Collection<String> resolveExpressions(List<String> expressions, Context context) {
+    private static Collection<String> resolveExpressions(Context context, List<String> expressions) {
         return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, expressions));
     }
 
@@ -326,7 +326,7 @@ public class IndexNameExpressionResolver {
             indexExpressions = new String[0];
         }
 
-        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        final Collection<String> expressions = resolveExpressions(context, Arrays.asList(indexExpressions));
 
         boolean excludedDataStreams = false;
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
@@ -655,7 +655,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        Collection<String> resolved = resolveExpressions(Arrays.asList(expressions), context);
+        Collection<String> resolved = resolveExpressions(context, Arrays.asList(expressions));
         if (resolved instanceof Set<String>) {
             // unmodifiable without creating a new collection as it might contain many items
             return Collections.unmodifiableSet((Set<String>) resolved);
@@ -783,8 +783,7 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
         final Collection<String> resolvedExpressions = resolveExpressions(
-            expressions != null ? Arrays.asList(expressions) : Collections.emptyList(),
-            context
+                context, expressions != null ? Arrays.asList(expressions) : Collections.emptyList()
         );
 
         // TODO: it appears that this can never be true?

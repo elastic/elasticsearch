@@ -197,7 +197,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final BytesArray jwtCacheKey = isCacheEnabled() ? new BytesArray(JwtUtil.sha256(serializedJwt)) : null;
             if (jwtCacheKey != null) {
                 final User cachedUser = tryAuthenticateWithCache(tokenPrincipal, jwtCacheKey);
-                // TODO: why not cache the final user after delegation?
                 if (cachedUser != null) {
                     if (delegatedAuthorizationSupport.hasDelegation()) {
                         delegatedAuthorizationSupport.resolve(cachedUser.principal(), listener);

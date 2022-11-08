@@ -115,10 +115,11 @@ public class JwkSetLoader implements Releasable {
         // PKC JWKSet get contents from local file or remote HTTPS URL
         if (httpClient == null) {
             logger.trace("Loading PKC JWKs from path [{}]", jwkSetPath);
-            final byte[] reloadedBytes =
-                JwtUtil.readFileContents(RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH),
-                    jwkSetPath,
-                    realmConfig.env());
+            final byte[] reloadedBytes = JwtUtil.readFileContents(
+                RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH),
+                jwkSetPath,
+                realmConfig.env()
+            );
             listener.onResponse(handleReloadedContentAndJwksAlgs(reloadedBytes));
         } else {
             logger.trace("Loading PKC JWKs from https URI [{}]", jwkSetPathUri);

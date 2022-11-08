@@ -320,7 +320,6 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        IndicesOptions options = context.getOptions();
 
         ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
 
@@ -335,22 +334,22 @@ public class IndexNameExpressionResolver {
         for (String expression : expressions) {
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
-                if (options.ignoreUnavailable() == false) {
-                    assert options.expandWildcardExpressions() == false;
+                if (context.getOptions().ignoreUnavailable() == false) {
+                    assert context.getOptions().expandWildcardExpressions() == false;
                     throw notFoundException(expression);
                 } else {
                     continue;
                 }
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-                if (options.ignoreUnavailable() == false) {
-                    assert options.expandWildcardExpressions() == false;
+                if (context.getOptions().ignoreUnavailable() == false) {
+                    assert context.getOptions().expandWildcardExpressions() == false;
                     throw aliasesNotSupportedException(expression);
                 } else {
                     continue;
                 }
             } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                if (options.ignoreUnavailable() == false) {
-                    assert options.expandWildcardExpressions() == false;
+                if (context.getOptions().ignoreUnavailable() == false) {
+                    assert context.getOptions().expandWildcardExpressions() == false;
                     throw notFoundException(expression);
                 } else {
                     excludedDataStreams = true;
@@ -378,7 +377,7 @@ public class IndexNameExpressionResolver {
                     concreteIndices.add(writeIndex);
                 }
             } else {
-                if (indexAbstraction.getIndices().size() > 1 && options.allowAliasesToMultipleIndices() == false) {
+                if (indexAbstraction.getIndices().size() > 1 && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (Index indexName : indexAbstraction.getIndices()) {
@@ -395,14 +394,14 @@ public class IndexNameExpressionResolver {
                 }
 
                 for (Index index : indexAbstraction.getIndices()) {
-                    if (shouldTrackConcreteIndex(context, options, index)) {
+                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                         concreteIndices.add(index);
                     }
                 }
             }
         }
 
-        if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
+        if (context.getOptions().allowNoIndices() == false && concreteIndices.isEmpty()) {
             IndexNotFoundException infe = notFoundException(indexExpressions);
             if (excludedDataStreams) {
                 // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.

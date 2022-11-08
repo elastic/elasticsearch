@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +79,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 
 /**
  * The local execution planner takes a plan (represented as PlanNode tree / digraph) as input and creates the corresponding
@@ -342,10 +345,24 @@ public class LocalExecutionPlanner {
                 }
             }).toList();
             Map<Object, Integer> layout = new HashMap<>();
-            for (int i = 0; i < row.output().size(); i++) {
-                layout.put(row.output().get(i).id(), i);
+            var output = row.output();
+            for (int i = 0; i < output.size(); i++) {
+                layout.put(output.get(i).id(), i);
             }
             return new PhysicalOperation(new RowOperatorFactory(obj), layout);
+        } else if (node instanceof ProjectExec project) {
+            Map<Object, Integer> layout = new HashMap<>();
+            var output = project.output();
+            for (int i = 0; i < output.size(); i++) {
+                layout.put(output.get(i).id(), i);
+            }
+            var outputSet = project.outputSet();
+            var input = project.child().output();
+            var mask = new BitSet(input.size());
+            for (int i = 0; i < input.size(); i++) {
+                mask.set(i, outputSet.contains(input.get(i)));
+            }
+            return new PhysicalOperation(new ProjectOperatorFactory(mask), layout);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }

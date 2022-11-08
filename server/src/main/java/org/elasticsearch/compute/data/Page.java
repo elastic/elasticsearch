@@ -120,6 +120,23 @@ public final class Page {
     }
 
     @Override
+    public int hashCode() {
+        int result = Objects.hash(positionCount);
+        for (int i = 0; i < blocks.length; i++) {
+            result = 31 * result + Objects.hashCode(blocks[i]);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Page page = (Page) o;
+        return positionCount == page.positionCount && Arrays.equals(blocks, 0, positionCount, page.blocks, 0, positionCount);
+    }
+
+    @Override
     public String toString() {
         return "Page{" + "blocks=" + Arrays.toString(blocks) + '}';
     }

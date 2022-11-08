@@ -68,6 +68,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
     private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
+    private static final String IMPACT_DATA_NODE_WITHOUT_DISK_SPACE = "data_node_without_disk_space";
 
     private final ClusterService clusterService;
 
@@ -150,7 +151,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         private final Set<DiscoveryNodeRole> affectedRoles = new HashSet<>();
         private final Set<String> indicesAtRisk;
         private final HealthStatus healthStatus;
-        private final HealthIndicatorDetails details;
+        private final Map<HealthStatus, Integer> healthStatusNodeCount;
 
         DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState) {
             this.clusterState = clusterState;
@@ -190,7 +191,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
             indicesAtRisk = getIndicesForNodes(dataNodes, clusterState);
             healthStatus = mostSevereStatusSoFar;
-            details = createDetails(diskHealthByNode, blockedIndices);
+            healthStatusNodeCount = countNodesByHealthStatus(diskHealthByNode, clusterState);
         }
 
         public HealthStatus getHealthStatus() {
@@ -292,6 +293,26 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         )
                     );
                 }
+                // data nodes don't have space, but no indices had the write block in the cluster
+                if (hasUnhealthyDataNodes()) {
+                    impacts.add(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            IMPACT_INGEST_AT_RISK_ID,
+                            2,
+                            String.format(
+                                Locale.ROOT,
+                                "%d %s %s out of disk or running low on disk space. %s %s cannot be used to store data anymore.",
+                                dataNodes.size(),
+                                regularNoun("node", dataNodes.size()),
+                                are(dataNodes.size()),
+                                these(dataNodes.size()),
+                                regularNoun("node", dataNodes.size())
+                            ),
+                            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                        )
+                    );
+                }
             }
             if (affectedRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
                 impacts.add(
@@ -344,28 +365,44 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     );
                     affectedResources.add(indexResources);
                 }
-                diagnosisList.add(
-                    new Diagnosis(
-                        new Diagnosis.Definition(
-                            NAME,
-                            "add_disk_capacity_data_nodes",
-                            String.format(
-                                Locale.ROOT,
-                                "%d %s %s on nodes that have run or are likely to run out of disk space, "
-                                    + "this can temporarily disable writing on %s %s.",
-                                affectedIndices.size(),
-                                indices(affectedIndices.size()),
-                                regularVerb("reside", affectedIndices.size()),
-                                these(affectedIndices.size()),
-                                indices(affectedIndices.size())
+                if (affectedIndices.size() > 0) {
+                    diagnosisList.add(
+                        new Diagnosis(
+                            new Diagnosis.Definition(
+                                NAME,
+                                "add_disk_capacity_data_nodes",
+                                String.format(
+                                    Locale.ROOT,
+                                    "%d %s %s on nodes that have run or are likely to run out of disk space, "
+                                        + "this can temporarily disable writing on %s %s.",
+                                    affectedIndices.size(),
+                                    indices(affectedIndices.size()),
+                                    regularVerb("reside", affectedIndices.size()),
+                                    these(affectedIndices.size()),
+                                    indices(affectedIndices.size())
+                                ),
+                                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                                    + "this. If you have already taken action please wait for the rebalancing to complete.",
+                                "https://ela.st/fix-data-disk"
                             ),
-                            "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
-                                + "this. If you have already taken action please wait for the rebalancing to complete.",
-                            "https://ela.st/fix-data-disk"
-                        ),
-                        affectedResources
-                    )
-                );
+                            affectedResources
+                        )
+                    );
+                } else {
+                    diagnosisList.add(
+                        new Diagnosis(
+                            new Diagnosis.Definition(
+                                NAME,
+                                "add_disk_capacity_data_nodes",
+                                "Disk is almost full.",
+                                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                                    + "this. If you have already taken action please wait for the rebalancing to complete.",
+                                "https://ela.st/fix-data-disk"
+                            ),
+                            affectedResources
+                        )
+                    );
+                }
             }
             if (masterNodes.containsKey(HealthStatus.RED)) {
                 diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, masterNodes.get(HealthStatus.RED), true));
@@ -386,25 +423,32 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (explain == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
-            return details;
-        }
-
-        private static HealthIndicatorDetails createDetails(Map<String, DiskHealthInfo> diskHealthInfoMap, Set<String> blockedIndices) {
-            Map<HealthStatus, Integer> healthNodesCount = new HashMap<>();
-            for (HealthStatus healthStatus : HealthStatus.values()) {
-                healthNodesCount.put(healthStatus, 0);
-            }
-            for (DiskHealthInfo diskHealthInfo : diskHealthInfoMap.values()) {
-                healthNodesCount.computeIfPresent(diskHealthInfo.healthStatus(), (key, oldCount) -> oldCount + 1);
-            }
             return ((builder, params) -> {
                 builder.startObject();
                 builder.field(INDICES_WITH_READONLY_BLOCK, blockedIndices.size());
                 for (HealthStatus healthStatus : HealthStatus.values()) {
-                    builder.field(getDetailsDisplayKey(healthStatus), healthNodesCount.get(healthStatus));
+                    builder.field(getDetailsDisplayKey(healthStatus), healthStatusNodeCount.get(healthStatus));
                 }
                 return builder.endObject();
             });
+        }
+
+        // Visible for testing
+        static Map<HealthStatus, Integer> countNodesByHealthStatus(
+            Map<String, DiskHealthInfo> diskHealthInfoMap,
+            ClusterState clusterState
+        ) {
+            Map<HealthStatus, Integer> counts = new HashMap<>();
+            for (HealthStatus healthStatus : HealthStatus.values()) {
+                counts.put(healthStatus, 0);
+            }
+            for (DiscoveryNode node : clusterState.getNodes()) {
+                HealthStatus healthStatus = diskHealthInfoMap.containsKey(node.getId())
+                    ? diskHealthInfoMap.get(node.getId()).healthStatus()
+                    : HealthStatus.UNKNOWN;
+                counts.computeIfPresent(healthStatus, (ignored, count) -> count + 1);
+            }
+            return counts;
         }
 
         private static String getDetailsDisplayKey(HealthStatus status) {

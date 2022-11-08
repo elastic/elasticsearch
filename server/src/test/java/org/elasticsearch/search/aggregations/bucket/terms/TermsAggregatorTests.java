@@ -34,6 +34,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -1495,7 +1496,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .get("max_number"))).value(),
                             closeTo(100.0, 0.00001)
                         );
-                    }, animalFieldType, nestedFieldType).withQuery(Queries.newNonNestedFilter()));
+                    }, animalFieldType, nestedFieldType).withQuery(Queries.newNonNestedFilter(Version.CURRENT)));
                 }
             }
         }

@@ -36,6 +36,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
     private String fieldValue;
+    private final Integer queryMaxAnalyzedOffset;
 
     CustomFieldHighlighter(
         String field,
@@ -46,11 +47,13 @@ class CustomFieldHighlighter extends FieldHighlighter {
         int maxPassages,
         int maxNoHighlightPassages,
         PassageFormatter passageFormatter,
-        int noMatchSize
+        int noMatchSize,
+        Integer queryMaxAnalyzedOffset
     ) {
         super(field, fieldOffsetStrategy, breakIterator, passageScorer, maxPassages, maxNoHighlightPassages, passageFormatter);
         this.breakIteratorLocale = breakIteratorLocale;
         this.noMatchSize = noMatchSize;
+        this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
     }
 
     FieldOffsetStrategy getFieldOffsetStrategy() {
@@ -105,6 +108,10 @@ class CustomFieldHighlighter extends FieldHighlighter {
     // This is the copy of highlightOffsetsEnums before LUCENE-9093.
     @Override
     protected Passage[] highlightOffsetsEnums(OffsetsEnum off) throws IOException {
+
+        if (queryMaxAnalyzedOffset != null) {
+            off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset);
+        }
 
         final int contentLength = this.breakIterator.getText().getEndIndex();
 

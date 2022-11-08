@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
@@ -137,7 +138,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
@@ -166,7 +167,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
@@ -208,7 +209,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
@@ -255,7 +256,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
@@ -290,7 +291,7 @@ public class TransportResizeActionTests extends ESTestCase {
             Settings.builder().put("index.blocks.write", true).build()
         ).metadata().index("source");
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(10));
+        resizeRequest.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(10));
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
         assertTrue(
             expectThrows(
@@ -319,7 +320,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
@@ -329,7 +330,7 @@ public class TransportResizeActionTests extends ESTestCase {
 
         // each shard's storage will not be greater than the `max_primary_shard_size`
         ResizeRequest target1 = new ResizeRequest("target", "source");
-        target1.setMaxPrimaryShardSize(new ByteSizeValue(2));
+        target1.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(2));
         StoreStats storeStats = new StoreStats(10, between(0, 100), between(1, 100));
         final int targetIndexShardsNum1 = 5;
         final ActiveShardCount activeShardCount1 = ActiveShardCount.from(targetIndexShardsNum1);
@@ -350,7 +351,7 @@ public class TransportResizeActionTests extends ESTestCase {
         // if `max_primary_shard_size` is less than the single shard size of the source index,
         // the shards number of the target index will be equal to the source index's shards number
         ResizeRequest target2 = new ResizeRequest("target2", "source");
-        target2.setMaxPrimaryShardSize(new ByteSizeValue(1));
+        target2.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(1));
         StoreStats storeStats2 = new StoreStats(100, between(0, 100), between(1, 100));
         final int targetIndexShardsNum2 = 10;
         final ActiveShardCount activeShardCount2 = ActiveShardCount.from(targetIndexShardsNum2);

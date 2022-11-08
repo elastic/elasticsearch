@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = "filter";
@@ -122,7 +122,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     public static FilterAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
-        QueryBuilder filter = parseInnerQueryBuilder(parser);
+        QueryBuilder filter = parseTopLevelQuery(parser);
         return new FilterAggregationBuilder(aggregationName, filter);
     }
 

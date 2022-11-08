@@ -386,7 +386,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
@@ -686,7 +686,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     assertEquals("b1", valueAgg.getBuckets().get(0).getKey());
                     assertEquals("b2", valueAgg.getBuckets().get(1).getKey());
                     assertEquals("b3", valueAgg.getBuckets().get(2).getKey());
-                }, fieldType1, fieldType2).withQuery(Queries.newNonNestedFilter()));
+                }, fieldType1, fieldType2).withQuery(Queries.newNonNestedFilter(Version.CURRENT)));
             }
         }
     }

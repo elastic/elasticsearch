@@ -32,6 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
@@ -510,7 +511,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
                 },
                 ft
-            ).withQuery(Queries.newNonNestedFilter())
+            ).withQuery(Queries.newNonNestedFilter(Version.CURRENT))
         );
         testCase(
             buildIndex,
@@ -518,7 +519,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 InternalFilters filters = (InternalFilters) result;
                 assertThat(filters.getBuckets(), hasSize(1));
                 assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-            }, ft).withQuery(Queries.newNonNestedFilter())
+            }, ft).withQuery(Queries.newNonNestedFilter(Version.CURRENT))
         );
     }
 

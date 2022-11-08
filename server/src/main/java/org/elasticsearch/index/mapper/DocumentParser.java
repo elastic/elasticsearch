@@ -310,6 +310,9 @@ public final class DocumentParser {
             switch (token) {
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
+                    if (currentFieldName.isEmpty()) {
+                        throw new IllegalArgumentException("Field name cannot be an empty string");
+                    }
                     if (currentFieldName.isBlank()) {
                         throwFieldNameBlank(context, currentFieldName);
                     }

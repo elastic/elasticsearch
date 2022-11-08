@@ -595,6 +595,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return this;
         }
 
+        public Builder incrementVersion() {
+            this.version++;
+            return this;
+        }
+
         /**
          * Builds the routing table. Note that once this is called the builder
          * must be thrown away. If you need to build a new RoutingTable as a

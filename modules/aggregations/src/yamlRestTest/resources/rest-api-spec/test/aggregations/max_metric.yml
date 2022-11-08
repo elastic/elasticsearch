@@ -206,6 +206,10 @@ setup:
 
 ---
 "Merging results with unmapped fields":
+  - skip:
+      version: " - 8.4.99"
+      reason: Fixed in 8.5.0
+
   - do:
      search:
        index: [date_test_1, date_test_2]

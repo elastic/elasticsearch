@@ -8,14 +8,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /** Mapper for the doc_count field. */
 public class DocCountFieldMapper extends MetadataFieldMapper {
@@ -114,5 +120,43 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
      */
     public static IndexableField field(int count) {
         return new CustomTermFreqField(NAME, NAME, count);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return new SyntheticFieldLoader();
+    }
+
+    private class SyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private PostingsEnum postings;
+        private boolean hasValue;
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            postings = leafReader.postings(new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME));
+            if (postings == null) {
+                hasValue = false;
+                return null;
+            }
+            return docId -> hasValue = docId == postings.advance(docId);
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (hasValue == false) {
+                return;
+            }
+            b.field("_doc_count", postings.freq());
+        }
     }
 }

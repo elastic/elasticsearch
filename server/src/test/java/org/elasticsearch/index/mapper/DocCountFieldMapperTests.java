@@ -7,9 +7,23 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DocCountFieldMapperTests extends MapperServiceTestCase {
 
@@ -56,5 +70,45 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
         assertThat(e.getCause().getMessage(), containsString("Arrays are not allowed for field [_doc_count]."));
+    }
+
+    public void testSyntheticSource() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {}));
+        assertThat(syntheticSource(mapper, b -> b.field(CONTENT_TYPE, 10)), equalTo("{\"_doc_count\":10}"));
+    }
+
+    public void testSyntheticSourceMany() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {}));
+        List<Integer> counts = randomList(2, 10000, () -> between(1, Integer.MAX_VALUE));
+        try (Directory directory = newDirectory()) {
+            try (
+                RandomIndexWriter iw = new RandomIndexWriter(
+                    random(),
+                    directory,
+                    LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
+                for (int c : counts) {
+                    iw.addDocument(mapper.parse(source(b -> b.field(CONTENT_TYPE, c))).rootDoc());
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                int i = 0;
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                assertTrue(loader.requiredStoredFields().isEmpty());
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                    SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                    LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                    for (int docId : docIds) {
+                        assertThat(
+                            "doc " + docId,
+                            sourceLoaderLeaf.source(storedFieldLoader, docId).utf8ToString(),
+                            equalTo("{\"_doc_count\":" + counts.get(i++) + "}")
+                        );
+                    }
+                }
+            }
+        }
     }
 }

@@ -115,10 +115,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             this.ccsMinimizeRoundtrips = in.readBoolean();
         }
-        this.waitForCompletionTimeout = in.readOptionalTimeValue();
-        this.keepAlive = in.readOptionalTimeValue();
-        this.keepOnCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
+            this.waitForCompletionTimeout = in.readOptionalTimeValue();
+            this.keepAlive = in.readOptionalTimeValue();
+            this.keepOnCompletion = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             resultPosition = in.readString();
         }
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
@@ -433,14 +435,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);
         }
-        out.writeOptionalTimeValue(waitForCompletionTimeout);
-        out.writeOptionalTimeValue(keepAlive);
-        out.writeBoolean(keepOnCompletion);
-
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeString(resultPosition);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
+            out.writeOptionalTimeValue(waitForCompletionTimeout);
+            out.writeOptionalTimeValue(keepAlive);
+            out.writeBoolean(keepOnCompletion);
         }
 
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeString(resultPosition);
+        }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {

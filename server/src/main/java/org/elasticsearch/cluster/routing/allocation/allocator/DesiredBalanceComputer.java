@@ -164,10 +164,10 @@ public class DesiredBalanceComputer {
             if (shardRouting.primary()) {
                 final var nodeIds = unassignedShardsToInitialize.get(shardRouting);
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
-                    final String nodeId = nodeIds.removeFirst();
-                    ShardRouting shardToInitialized = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
-                    clusterInfoSimulator.simulateShardStarted(shardToInitialized);
-                    routingNodes.startShard(logger, shardToInitialized, changes, 0L);
+                    final var nodeId = nodeIds.removeFirst();
+                    final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
+                    clusterInfoSimulator.simulateShardStarted(shardToInitialize);
+                    routingNodes.startShard(logger, shardToInitialize, changes, 0L);
                 }
             }
         }

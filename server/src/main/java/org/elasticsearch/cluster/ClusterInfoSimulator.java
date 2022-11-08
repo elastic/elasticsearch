@@ -39,7 +39,7 @@ public class ClusterInfoSimulator {
      * This assumes the worst case (all shards are placed on a single most used disk) and prevents node overflow.
      * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
      */
-    public void simulate(ShardRouting shard) {
+    public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
         var size = getEstimatedShardSize(shard);

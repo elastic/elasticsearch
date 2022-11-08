@@ -55,7 +55,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                 .withShard(newPrimary, 0)
                 .build()
         );
-        simulator.simulate(newPrimary);
+        simulator.simulateShardStarted(newPrimary);
 
         assertThat(
             simulator.getClusterInfo(),
@@ -82,7 +82,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                 .withShard(newReplica, 0)
                 .build()
         );
-        simulator.simulate(newReplica);
+        simulator.simulateShardStarted(newReplica);
 
         assertThat(
             simulator.getClusterInfo(),
@@ -111,7 +111,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                 .withShard(shard, 100)
                 .build()
         );
-        simulator.simulate(shard);
+        simulator.simulateShardStarted(shard);
 
         assertThat(
             simulator.getClusterInfo(),
@@ -139,7 +139,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                 .withShard(shard, 100)
                 .build()
         );
-        simulator.simulate(shard);
+        simulator.simulateShardStarted(shard);
 
         assertThat(
             simulator.getClusterInfo(),
@@ -188,7 +188,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                 .build()
         );
 
-        simulator.simulate(shard2);
+        simulator.simulateShardStarted(shard2);
 
         assertThat(
             simulator.getClusterInfo(),
@@ -268,7 +268,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                 .build()
         );
 
-        simulator.simulate(shard2);
+        simulator.simulateShardStarted(shard2);
 
         assertThat(
             simulator.getClusterInfo(),

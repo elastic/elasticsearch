@@ -98,10 +98,12 @@ public final class MappingParser {
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper = RootObjectMapper.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
+
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, parserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
+        boolean isSourceSynthetic = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -118,10 +120,14 @@ public final class MappingParser {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
                 MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext)
-                    .build(MapperBuilderContext.ROOT);
+                    .build(MapperBuilderContext.root(false));
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap);
+
+                if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
+                    isSourceSynthetic = sfm.isSynthetic();
+                }
             }
         }
 
@@ -149,6 +155,10 @@ public final class MappingParser {
             checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
         }
 
-        return new Mapping(rootObjectMapper, metadataMappers.values().toArray(new MetadataFieldMapper[0]), meta);
+        return new Mapping(
+            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic)),
+            metadataMappers.values().toArray(new MetadataFieldMapper[0]),
+            meta
+        );
     }
 }

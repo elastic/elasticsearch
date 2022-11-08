@@ -6,12 +6,7 @@
 ++++
 
 The `dense_vector` field type stores dense vectors of numeric values. Dense
-vector fields can be used in the following ways:
-
-* In <<query-dsl-script-score-query,`script_score`>> queries, to score
-documents matching a filter
-* In the <<knn-search-api, kNN search API>>, to find the _k_ most similar
-vectors to a query vector
+vector fields are primarily used for <<knn-search,k-nearest neighbor (kNN) search>>.
 
 The `dense_vector` type does not support aggregations or sorting.
 When <<dense-vector-params, `element_type`>> is `byte`

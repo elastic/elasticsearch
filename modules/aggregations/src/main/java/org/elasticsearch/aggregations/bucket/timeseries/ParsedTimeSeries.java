@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.timeseries;
+package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class ParsedTimeSeries extends ParsedMultiBucketAggregation<ParsedTimeSeries.ParsedBucket> implements TimeSeries {
+public class ParsedTimeSeries extends ParsedMultiBucketAggregation<ParsedTimeSeries.ParsedBucket> {
 
     private transient Map<String, ParsedTimeSeries.ParsedBucket> bucketMap;
 
@@ -28,12 +28,11 @@ public class ParsedTimeSeries extends ParsedMultiBucketAggregation<ParsedTimeSer
     }
 
     @Override
-    public List<? extends TimeSeries.Bucket> getBuckets() {
+    public List<? extends ParsedBucket> getBuckets() {
         return buckets;
     }
 
-    @Override
-    public TimeSeries.Bucket getBucketByKey(String key) {
+    public ParsedBucket getBucketByKey(String key) {
         if (bucketMap == null) {
             bucketMap = new HashMap<>(buckets.size());
             for (ParsedTimeSeries.ParsedBucket bucket : buckets) {
@@ -62,7 +61,7 @@ public class ParsedTimeSeries extends ParsedMultiBucketAggregation<ParsedTimeSer
         return aggregation;
     }
 
-    static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements TimeSeries.Bucket {
+    static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket {
 
         private Map<String, Object> key;
 

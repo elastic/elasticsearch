@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -65,9 +66,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
     private static final Logger logger = LogManager.getLogger(ClusterAllocationSimulationTests.class);
 
-    private static int nodeCount(long tierBytes, long nodeBytes, int minCount) {
+    private static int nodeCount(long tierBytes, long nodeBytes, double tierWriteLoad, double nodeIndexingThreads, int minCount) {
         var watermarkNodeBytes = (long) (nodeBytes * 0.85);
-        return Math.max(Math.toIntExact((tierBytes + watermarkNodeBytes - 1) / watermarkNodeBytes), minCount) + between(0, 2);
+        return Math.max(
+            Math.toIntExact((tierBytes + watermarkNodeBytes - 1) / watermarkNodeBytes),
+            Math.max((int) Math.ceil(tierWriteLoad / nodeIndexingThreads), minCount)
+        ) + between(0, 2);
     }
 
     public void testBalanceQuality() {
@@ -75,6 +79,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var shardSizesByIndex = new HashMap<String, Long>();
         final var tiers = new String[] { DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD };
         final var tierSizes = Arrays.stream(tiers).collect(Collectors.toMap(Function.identity(), s -> 0L));
+        final var tierWriteLoads = Arrays.stream(tiers).collect(Collectors.toMap(Function.identity(), s -> 0.0));
         final var maxSizeVariance = ByteSizeValue.ofMb(20).getBytes();
 
         final var metadataBuilder = Metadata.builder();
@@ -86,13 +91,24 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             final var shrunkShards = randomFrom(1, 2);
             final var approxIndexSize = randomFrom(ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(10), ByteSizeValue.ofGb(50));
 
-            for (var index = 0; index < hotIndices + warmIndices + coldIndices; index++) {
+            final var indexCount = hotIndices + warmIndices + coldIndices;
+            for (var index = 0; index < indexCount; index++) {
                 final var tier = index < coldIndices ? DataTier.DATA_COLD
                     : index < coldIndices + warmIndices ? DataTier.DATA_WARM
                     : DataTier.DATA_HOT;
                 final var indexName = Strings.format("index-%03d-%s-%03d", dataStreamIndex, tier.charAt(5), index);
                 final var shardCount = DataTier.DATA_HOT.equals(tier) ? hotShards : shrunkShards;
                 final var replicaCount = DataTier.DATA_COLD.equals(tier) ? 0 : 1;
+
+                final var indexWriteLoadBuilder = IndexWriteLoad.builder(shardCount);
+                var totalWriteLoad = 0.0;
+                for (int shardId = 0; shardId < shardCount; shardId++) {
+                    final var shardWriteLoad = index == indexCount - 1 ? randomDoubleBetween(1.0, 8.0, true) : 0.0;
+                    totalWriteLoad += shardWriteLoad;
+                    indexWriteLoadBuilder.withShardWriteLoad(shardId, shardWriteLoad, TimeValue.timeValueHours(1).millis());
+                }
+                final var finalWriteLoad = totalWriteLoad;
+
                 metadataBuilder.put(
                     IndexMetadata.builder(indexName)
                         .settings(
@@ -102,10 +118,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier", tier)
                         )
+                        .indexWriteLoad(indexWriteLoadBuilder.build())
                 );
                 final var shardSize = approxIndexSize.getBytes() / shardCount + randomLongBetween(-maxSizeVariance, maxSizeVariance);
                 shardSizesByIndex.put(indexName, shardSize);
                 tierSizes.computeIfPresent(tier, (ignored, size) -> size + shardSize * shardCount * (replicaCount + 1));
+                tierWriteLoads.computeIfPresent(tier, (ignored, writeLoad) -> writeLoad + finalWriteLoad * (replicaCount + 1));
             }
         }
         final var metadata = metadataBuilder.build();
@@ -124,13 +142,40 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             randomLongBetween(ByteSizeValue.ofTb(1).getBytes(), ByteSizeValue.ofTb(10).getBytes())
         );
 
+        final var indexingThreadsByTier = Map.of(
+            DataTier.DATA_HOT,
+            randomDoubleBetween(4.0, 16.0, true),
+            DataTier.DATA_WARM,
+            1.0,
+            DataTier.DATA_COLD,
+            1.0
+        );
+
         final var nodeCountByTier = Map.of(
             DataTier.DATA_HOT,
-            nodeCount(tierSizes.get(DataTier.DATA_HOT), nodeSizeBytesByTier.get(DataTier.DATA_HOT), 8),
+            nodeCount(
+                tierSizes.get(DataTier.DATA_HOT),
+                nodeSizeBytesByTier.get(DataTier.DATA_HOT),
+                tierWriteLoads.get(DataTier.DATA_HOT),
+                indexingThreadsByTier.get(DataTier.DATA_HOT),
+                8
+            ),
             DataTier.DATA_WARM,
-            nodeCount(tierSizes.get(DataTier.DATA_WARM), nodeSizeBytesByTier.get(DataTier.DATA_WARM), 2),
+            nodeCount(
+                tierSizes.get(DataTier.DATA_WARM),
+                nodeSizeBytesByTier.get(DataTier.DATA_WARM),
+                tierWriteLoads.get(DataTier.DATA_WARM),
+                indexingThreadsByTier.get(DataTier.DATA_WARM),
+                2
+            ),
             DataTier.DATA_COLD,
-            nodeCount(tierSizes.get(DataTier.DATA_COLD), nodeSizeBytesByTier.get(DataTier.DATA_COLD), 1)
+            nodeCount(
+                tierSizes.get(DataTier.DATA_COLD),
+                nodeSizeBytesByTier.get(DataTier.DATA_COLD),
+                tierWriteLoads.get(DataTier.DATA_COLD),
+                indexingThreadsByTier.get(DataTier.DATA_COLD),
+                1
+            )
         );
 
         final var discoveryNodesBuilder = new DiscoveryNodes.Builder();
@@ -293,15 +338,22 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
         class SizeMetric {
             int count;
+
             long totalSizeBytes;
             long maxSizeBytes;
+
             int totalShardCount;
 
-            void addNode(long sizeBytes, int shardCount) {
+            double totalWriteLoad;
+            double maxWriteLoad;
+
+            void addNode(long sizeBytes, int shardCount, double writeLoad) {
                 count += 1;
                 totalSizeBytes += sizeBytes;
                 maxSizeBytes = Math.max(maxSizeBytes, sizeBytes);
                 totalShardCount += shardCount;
+                totalWriteLoad += writeLoad;
+                maxWriteLoad = Math.max(maxWriteLoad, writeLoad);
             }
         }
 
@@ -314,23 +366,30 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
             int shards = 0;
             long totalBytes = 0L;
+            double totalWriteLoad = 0.0;
 
             for (ShardRouting shardRouting : routingNode) {
                 shards += 1;
                 totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
+                totalWriteLoad += clusterState.metadata()
+                    .index(shardRouting.index())
+                    .getWriteLoad()
+                    .getWriteLoadForShard(shardRouting.id())
+                    .orElseThrow(() -> new AssertionError("missing write load"));
             }
 
             logger.info(
                 Strings.format(
-                    "node %s: %5d shards %20d bytes = %8s ",
+                    "node %s: %5d shards %20d bytes = %8s    total write load %5.1f",
                     routingNode.nodeId(),
                     shards,
                     totalBytes,
-                    ByteSizeValue.ofBytes(totalBytes)
+                    ByteSizeValue.ofBytes(totalBytes),
+                    totalWriteLoad
                 )
             );
 
-            sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(totalBytes, routingNode.size());
+            sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(totalBytes, routingNode.size(), totalWriteLoad);
         }
 
         for (final var tier : tiers) {
@@ -341,26 +400,40 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             final var meanSizeBytes = sizeMetric.totalSizeBytes / sizeMetric.count;
             final var maxSizeBytes = sizeMetric.maxSizeBytes;
             final var overageBytes = maxSizeBytes - meanSizeBytes;
-            final var overageRatio = new RatioValue(Math.ceil((1000.0 * overageBytes) / meanSizeBytes) / 10.0);
+            final var overageBytesRatio = new RatioValue(Math.ceil((1000.0 * overageBytes) / meanSizeBytes) / 10.0);
+            final var meanWriteLoad = sizeMetric.totalWriteLoad / sizeMetric.count;
+            final var maxWriteLoad = sizeMetric.maxWriteLoad;
+            final var overageWriteLoad = maxWriteLoad - meanWriteLoad;
+            final var overageWriteLoadRatio = new RatioValue(Math.ceil((1000.0 * overageWriteLoad) / meanWriteLoad) / 10.0);
             assert overageBytes >= 0;
             logger.info(
                 Strings.format(
                     """
-                        tier %-10s  nodes %3d  node size %20d = %8s  shards %5d  mean size %20d = %8s  max size %20d = %8s  \
-                        overage %20d = %8s = %8s\
+                        tier %-10s  nodes %3d  \
+                        node size %20d = %8s  shards %5d  \
+                        mean size %20d = %8s  max size %20d = %8s  bytes overage %20d = %8s = %8s   \
+                        node indexing threads %4.1f  mean write load %5.1f   max write load %5.1f   write load overage %5.1f = %8s\
                         """,
                     tier,
                     nodeCountByTier.get(tier),
+                    //
                     nodeSizeBytes,
                     ByteSizeValue.ofBytes(nodeSizeBytes),
                     sizeMetric.totalShardCount,
+                    //
                     meanSizeBytes,
                     ByteSizeValue.ofBytes(meanSizeBytes),
                     maxSizeBytes,
                     ByteSizeValue.ofBytes(maxSizeBytes),
                     overageBytes,
                     ByteSizeValue.ofBytes(overageBytes),
-                    overageRatio.formatNoTrailingZerosPercent()
+                    overageBytesRatio.formatNoTrailingZerosPercent(),
+                    //
+                    indexingThreadsByTier.get(tier),
+                    meanWriteLoad,
+                    maxWriteLoad,
+                    overageWriteLoad,
+                    overageWriteLoadRatio.formatNoTrailingZerosPercent()
                 )
             );
         }

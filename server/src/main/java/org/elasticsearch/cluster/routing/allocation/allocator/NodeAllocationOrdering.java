@@ -17,6 +17,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Tracks the order in which nodes are used for allocation so that we can allocate shards to nodes in a round-robin fashion (all else being
+ * equal).
+ */
 public class NodeAllocationOrdering {
 
     private final AtomicLong order = new AtomicLong(0);

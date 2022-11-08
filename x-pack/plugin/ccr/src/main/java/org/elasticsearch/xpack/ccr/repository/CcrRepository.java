@@ -16,11 +16,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -78,6 +78,7 @@ import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -138,8 +139,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private final CounterMetric throttledTime = new CounterMetric();
 
-    private final ResultDeduplicator<Object, ClusterState> getRemoteStateDeduplicator;
-
     public CcrRepository(RepositoryMetadata metadata, Client client, Settings settings, CcrSettings ccrSettings, ThreadPool threadPool) {
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
@@ -148,7 +147,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.client = client;
         this.threadPool = threadPool;
-        getRemoteStateDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
     }
 
     @Override
@@ -250,31 +248,78 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     /**
-     * Dummy request key for deduplicating all remote cluster state requests via {@link #getRemoteStateDeduplicator}.
+     * Mutex to guard {@link #waitingCSListeners}.
      */
-    private static final Object RESULT_KEY = new Object();
+    private final Object csListenerLock = new Object();
 
     /**
-     * Fetches the remote cluster state from the leader cluster, deduplicating the result if there is already an ongoing call
-     * to this method.
+     * List of listeners waiting for a remote cluster state. If {@code null} then no request is in progress, otherwise a cluster state
+     * request is in progress and will trigger another request that will resolve any listeners queued up here once done.
+     */
+    private List<ActionListener<ClusterState>> waitingCSListeners;
+
+    /**
+     * Fetches the remote cluster state from the leader cluster, running only a single CS request at a time and deduplicating the result
+     * across all queued up listeners.
      */
     private void getRemoteState(ActionListener<ClusterState> listener) {
-        // We only allow a single remote cluster state requests at a time. The callbacks to the cluster state responses run on the
-        // transport thread and can safely assume they are fast enough so that this does not lead to seeing substantially outdated
-        // remote states as a result of a hot loop calling this method ever.
-        getRemoteStateDeduplicator.executeOnce(
-            RESULT_KEY,
-            listener,
-            (ignored, l) -> getRemoteClusterClient().admin()
+        synchronized (csListenerLock) {
+            if (waitingCSListeners == null) {
+                // no queued up listeners, just execute this one directly without deduplication and instantiate the list so that subsequent
+                // requests will wait
+                waitingCSListeners = new ArrayList<>();
+            } else {
+                // already running a request, queue this one up
+                waitingCSListeners.add(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
+                return;
+            }
+        }
+        doGetRemoteClusterState(listener);
+    }
+
+    private void doGetRemoteClusterState(ActionListener<ClusterState> listener) {
+        final ActionListener<ClusterStateResponse> wrappedListener = ActionListener.runBefore(
+            listener.map(ClusterStateResponse::getState),
+            () -> {
+                final List<ActionListener<ClusterState>> listeners;
+                synchronized (csListenerLock) {
+                    if (waitingCSListeners.isEmpty()) {
+                        // no listeners were queued up while this request executed, so we just reset the state to not having a request
+                        // in-progress
+                        waitingCSListeners = null;
+                        return;
+                    } else {
+                        // we have queued up listeners, so we create a fresh list for subsequent requests and run a single request for the
+                        // queued up ones here.
+                        listeners = waitingCSListeners;
+                        waitingCSListeners = new ArrayList<>();
+                    }
+                }
+                doGetRemoteClusterState(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState clusterStateResponse) {
+                        SnapshotsService.completeListenersIgnoringException(listeners, clusterStateResponse);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        SnapshotsService.failListenersIgnoringException(listeners, e);
+                    }
+                });
+            }
+        );
+        try {
+            getRemoteClusterClient().admin()
                 .cluster()
                 .prepareState()
                 .clear()
                 .setMetadata(true)
                 .setNodes(true)
                 .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-                // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
-                .execute(l.map(ClusterStateResponse::getState))
-        );
+                .execute(wrappedListener);
+        } catch (Exception e) {
+            wrappedListener.onFailure(e);
+        }
     }
 
     @Override

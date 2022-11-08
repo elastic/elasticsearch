@@ -1,5 +1,5 @@
 pr: 91347
-summary: "Use an explicit null check for null receivers, rather than an NPE"
+summary: "Use an explicit null check for null receivers in painless, rather than an NPE"
 area: Infra/Scripting
 type: enhancement
-issues: []
+issues: [91236]

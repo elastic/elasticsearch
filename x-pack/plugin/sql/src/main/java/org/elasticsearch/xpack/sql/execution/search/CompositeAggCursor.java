@@ -219,7 +219,8 @@ public class CompositeAggCursor implements Cursor {
 
     static boolean couldProducePartialPages(CompositeAggregationBuilder aggregation) {
         for (var agg : aggregation.getPipelineAggregations()) {
-            if (agg instanceof BucketSelectorPipelineAggregationBuilder) {
+            // Use type.equals because there are two copies of BucketSelectorPipelineAggregationBuilder on the classpath
+            if (agg.getType().equals(BucketSelectorPipelineAggregationBuilder.NAME)) {
                 return true;
             }
         }

@@ -22,7 +22,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -30,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
@@ -112,12 +112,14 @@ public class DesiredBalanceComputer {
             final var shardId = entry.getKey();
             final var routings = entry.getValue();
 
-            // treesets so that we are consistent about the order of future relocations
-            final var shardsToRelocate = new TreeSet<>(Comparator.comparing(ShardRouting::currentNodeId));
+            // treemap (keyed by node ID) so that we are consistent about the order of future relocations
+            final var shardsToRelocate = new TreeMap<String, ShardRouting>();
             final var assignment = previousDesiredBalance.getAssignment(shardId);
 
+            // treeset (ordered by node ID) so that we are consistent about the order of future relocations
             final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
             targetNodes.retainAll(knownNodeIds);
+
             // preserving last known shard location as a starting point to avoid unnecessary relocations
             for (ShardRouting shardRouting : routings.unassigned()) {
                 var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
@@ -129,7 +131,8 @@ public class DesiredBalanceComputer {
             for (final var shardRouting : routings.assigned()) {
                 assert shardRouting.started();
                 if (targetNodes.remove(shardRouting.currentNodeId()) == false) {
-                    shardsToRelocate.add(shardRouting);
+                    final var previousShard = shardsToRelocate.put(shardRouting.currentNodeId(), shardRouting);
+                    assert previousShard == null : "duplicate shards to relocate: " + shardRouting + " vs " + previousShard;
                 }
             }
 
@@ -138,7 +141,7 @@ public class DesiredBalanceComputer {
             // Here existing shards are moved to desired locations before initializing unassigned shards because we prefer not to leave
             // immovable shards allocated to undesirable locations (e.g. a node that is shutting down or an allocation filter which was
             // only recently applied). In contrast, reconciliation prefers to initialize the unassigned shards first.
-            for (final var shardRouting : shardsToRelocate) {
+            for (final var shardRouting : shardsToRelocate.values()) {
                 assert shardRouting.started();
                 if (targetNodesIterator.hasNext()) {
                     ShardRouting shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodesIterator.next(), 0L, changes).v2();

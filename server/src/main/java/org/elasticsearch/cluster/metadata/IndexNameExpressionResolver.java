@@ -323,8 +323,8 @@ public class IndexNameExpressionResolver {
 
         ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
 
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[] { Metadata.ALL };
+        if (indexExpressions == null) {
+            indexExpressions = new String[0];
         }
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);

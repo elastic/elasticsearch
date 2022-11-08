@@ -9,6 +9,7 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -19,6 +20,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -60,6 +66,53 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertTrue(Files.exists(tempFile));
         Node.deleteTemporaryApmConfig(jvmInfo, (e, p) -> fail("Shouldn't hit an exception"));
         assertFalse(Files.exists(tempFile));
+    }
+
+    public void testExtractSettings() throws UserException {
+        Settings settings = Settings.builder()
+            .put("tracing.apm.enabled", true)
+            .put("tracing.apm.agent.server_url", "https://myurl:443")
+            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
+            .put("tracing.apm.agent.global_labels.deployment_id", "123")
+            .put("tracing.apm.agent.global_labels.deployment_name", "APM Tracing")
+            .put("tracing.apm.agent.global_labels.organization_id", "456")
+            .build();
+
+        var extracted = APMJvmOptions.extractApmSettings(settings);
+
+        assertThat(
+            extracted,
+            allOf(
+                hasEntry("server_url", "https://myurl:443"),
+                hasEntry("service_node_name", "instance-0000000001"),
+                hasKey("global_labels"), // test that we have collapsed all global labels into one
+                not(hasKey("global_labels.organization_id")) // tests that we strip out the top level label keys
+            )
+        );
+        assertThat(
+            extracted.get("global_labels"),
+            allOf(containsString("deployment_name=APM Tracing"), containsString("organization_id=456"), containsString("deployment_id=123"))
+        );
+
+        settings = Settings.builder()
+            .put("tracing.apm.enabled", true)
+            .put("tracing.apm.agent.server_url", "https://myurl:443")
+            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
+            .put("tracing.apm.agent.global_labels.deployment_id", "")
+            .put("tracing.apm.agent.global_labels.deployment_name", "APM=Tracing")
+            .put("tracing.apm.agent.global_labels.organization_id", ",456")
+            .build();
+
+        extracted = APMJvmOptions.extractApmSettings(settings);
+
+        assertThat(
+            extracted.get("global_labels"),
+            allOf(
+                containsString("deployment_name=APM_Tracing"), // test that we sanitize '='
+                containsString("organization_id=_456"), // test that we sanitize ','
+                not(containsString("deployment_id")) // test that we remove empty labels
+            )
+        );
     }
 
     private Path makeFakeAgentJar() throws IOException {

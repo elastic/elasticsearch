@@ -8,6 +8,7 @@
 
 package org.elasticsearch.server.cli;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
@@ -208,11 +209,34 @@ class APMJvmOptions {
         return cliOptionsMap;
     }
 
-    private static Map<String, String> extractApmSettings(Settings settings) throws UserException {
+    // package private for testing
+    static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
         final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
         agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+
+        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
+        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
+        final StringBuilder globalLabels = new StringBuilder();
+
+        for (var globalLabel : globalLabelsSettings.keySet()) {
+            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
+            // something to the agent it doesn't understand.
+            propertiesMap.remove("global_labels." + globalLabel);
+            var globalLabelValue = globalLabelsSettings.get(globalLabel);
+            if (Strings.isNotBlank(globalLabelValue)) {
+                // sanitize for the agent labels separators in case the global labels passed in have , or =
+                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
+                // append to the global labels string
+                globalLabels.append(globalLabel).append('=').append(globalLabelValue).append(",");
+            }
+        }
+
+        if (globalLabels.length() > 0) {
+            globalLabels.setLength(globalLabels.length() - 1); // remove trailing comma
+            propertiesMap.put("global_labels", globalLabels.toString());
+        }
 
         // These settings must not be changed
         for (String key : STATIC_CONFIG.keySet()) {

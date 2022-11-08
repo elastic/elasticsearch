@@ -14,8 +14,10 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -31,10 +33,13 @@ import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
@@ -106,9 +111,15 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         int portNumber = PORT.get(settings);
         assert portNumber >= 0;
 
+        List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
+        var bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost).toArray(
+            Strings.EMPTY_ARRAY
+        );
+
         var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
             try {
-                return socketAddress(InetAddress.getByName("0"), portNumber);
+                var bindHost = (bindHosts.length == 0) ? InetAddress.getLoopbackAddress() : InetAddress.getByName(bindHosts[0]);
+                return socketAddress(bindHost, portNumber);
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to resolve readiness host address", e);
             }

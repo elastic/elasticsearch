@@ -2690,6 +2690,7 @@ GET /_nodes/stats/os,process
 # return just process for node with IP address 10.0.0.1
 GET /_nodes/10.0.0.1/stats/process
 --------------------------------------------------
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
 
 All stats can be explicitly requested via `/_nodes/stats/_all` or
 `/_nodes/stats?metric=_all`.
@@ -2711,6 +2712,7 @@ GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 # You can use wildcards for field names
 GET /_nodes/stats/indices/fielddata?fields=field*
 --------------------------------------------------
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
 
 You can get statistics about search groups for searches executed
 on this node.
@@ -2723,6 +2725,7 @@ GET /_nodes/stats?groups=_all
 # Some groups from just the indices stats
 GET /_nodes/stats/indices?groups=foo,bar
 --------------------------------------------------
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
 
 [[cluster-nodes-stats-ingest-ex]]
 ===== Retrieve ingest statistics only

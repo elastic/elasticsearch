@@ -135,7 +135,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
+        testCase(buildIndex, new AggTestConfig(aggregationBuilder, agg -> verify.accept((Max) agg), fieldType).withQuery(query));
     }
 
     @Override

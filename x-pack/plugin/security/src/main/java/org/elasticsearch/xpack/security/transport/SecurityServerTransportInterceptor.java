@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -238,12 +239,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             authentication.getEffectiveSubject(),
             ActionListener.wrap(roleDescriptorsIntersection -> {
                 final ThreadContext threadContext = securityContext.getThreadContext();
-                final ThreadContext.StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
+                final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
                     threadContext.putHeader("_remote_access_credential", remoteClusterAuthorization);
                     logger.info("New context {}", threadContext.getHeaders());
-                    sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(() -> original, handler));
+                    sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
         );

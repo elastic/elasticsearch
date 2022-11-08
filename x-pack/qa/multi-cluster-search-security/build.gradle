@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -16,37 +17,30 @@ restResources {
   }
 }
 
-tasks.register('fulfilling-cluster', RestIntegTestTask) {
-  mustRunAfter("precommit")
-  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
-}
-
 // randomise between sniff and proxy modes
 boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
-
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
   module ':modules:analysis-common'
   module ':modules:lang-painless'
   module ':modules:data-streams'
-
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
-
- // setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_user", password: "x-pack-test-password"
 }
 
-testClusters.register('querying-cluster') {
-
+def queryingCluster = testClusters.register('querying-cluster') {
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
   module ':modules:analysis-common'
   module ':modules:lang-painless'
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
- // setting 'xpack.license.self_generated.type', 'trial'
+  setting 'cluster.remote.connections_per_cluster', "1"
+  user username: "test_user", password: "x-pack-test-password"
 
   if (proxyMode) {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
@@ -58,13 +52,17 @@ testClusters.register('querying-cluster') {
       fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
     }
   }
-  setting 'cluster.remote.connections_per_cluster', "1"
+}
 
-  user username: "test_user", password: "x-pack-test-password"
+tasks.register('fulfilling-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 
 tasks.register('querying-cluster', RestIntegTestTask) {
   dependsOn 'fulfilling-cluster'
+  useCluster queryingCluster
   useCluster fulfillingCluster
   systemProperty 'tests.rest.suite', 'querying_cluster'
   if (proxyMode) {

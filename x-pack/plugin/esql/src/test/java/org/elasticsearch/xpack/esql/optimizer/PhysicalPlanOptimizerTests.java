@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -22,22 +21,23 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.junit.BeforeClass;
 
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
@@ -56,10 +56,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer();
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(EsqlTestUtils.TEST_CFG);
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(TEST_CFG);
         mapper = new Mapper();
 
-        analyzer = new Analyzer(getIndexResult, new EsqlFunctionRegistry(), new Verifier(), EsqlTestUtils.TEST_CFG);
+        analyzer = new Analyzer(getIndexResult, new EsqlFunctionRegistry(), new Verifier(), TEST_CFG);
     }
 
     public void testSingleFieldExtractor() throws Exception {
@@ -104,6 +104,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = as(extract.child(), EsQueryExec.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/352")
     public void testDoubleExtractorPerFieldEvenWithAlias() throws Exception {
         var plan = physicalPlan("""
             from test
@@ -119,7 +120,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         aggregate = as(exchange.child(), AggregateExec.class);
         var eval = as(aggregate.child(), EvalExec.class);
 
-        var extract = as(eval.child(), FieldExtractExec.class);
+        var project = as(eval.child(), ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no", "first_name"));
+
+        var extract = as(project.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
 
         var limit = as(extract.child(), LimitExec.class);
@@ -212,11 +216,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
     }
 
-    private static <T extends PhysicalPlan> T as(PhysicalPlan plan, Class<T> type) {
-        assertThat(plan, instanceOf(type));
-        return type.cast(plan);
-    }
-
     private static PhysicalPlan fieldExtractorRule(PhysicalPlan plan) {
         return physicalPlanOptimizer.optimize(plan);
     }
@@ -225,7 +224,4 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return mapper.map(logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query))));
     }
 
-    public static Map<String, EsField> loadMapping(String name) {
-        return TypesTests.loadMapping(DefaultDataTypeRegistry.INSTANCE, name, null);
-    }
 }

@@ -32,7 +32,7 @@ public class EsQueryExec extends LeafExec {
     static final EsField SHARD_ID_FIELD = new EsField("_shard_id", DataTypes.INTEGER, Map.of(), false);
     private static final Set<String> SOURCE_ATTR_NAMES = Set.of("_doc_id", "_segment_id", "_shard_id");
 
-    static boolean isSourceAttribute(Attribute attr) {
+    public static boolean isSourceAttribute(Attribute attr) {
         return SOURCE_ATTR_NAMES.contains(attr.name());
     }
 

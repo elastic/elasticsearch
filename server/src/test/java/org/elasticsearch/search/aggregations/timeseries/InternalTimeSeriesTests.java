@@ -8,9 +8,12 @@
 
 package org.elasticsearch.search.aggregations.timeseries;
 
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +31,16 @@ public class InternalTimeSeriesTests extends InternalMultiBucketAggregationTestC
         List<Map<String, Object>> keys = randomKeys(bucketKeys(randomIntBetween(1, 4)), numberOfBuckets);
         for (int j = 0; j < numberOfBuckets; j++) {
             long docCount = randomLongBetween(0, Long.MAX_VALUE / (20L * numberOfBuckets));
-            bucketList.add(new InternalTimeSeries.InternalBucket(keys.get(j), docCount, aggregations, keyed));
+            var builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+            for (var entry : keys.get(j).entrySet()) {
+                builder.addString(entry.getKey(), (String) entry.getValue());
+            }
+            try {
+                var key = builder.build().toBytesRef();
+                bucketList.add(new InternalTimeSeries.InternalBucket(key, docCount, aggregations, keyed));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
         return bucketList;
     }

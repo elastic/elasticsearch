@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.timeseries;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -51,14 +50,14 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalTimeSeries.InternalBucket[][] allBucketsPerOrd = new InternalTimeSeries.InternalBucket[owningBucketOrds.length][];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            BytesRef spareKey = new BytesRef();
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
             List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>();
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
+                BytesRef spareKey = new BytesRef();
                 ordsEnum.readValue(spareKey);
                 InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
-                    TimeSeriesIdFieldMapper.decodeTsid(spareKey),
+                    spareKey,
                     docCount,
                     null,
                     keyed

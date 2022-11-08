@@ -16,7 +16,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.TaskProvider;
-import org.gradle.internal.jvm.Jvm;
 
 import java.nio.file.Path;
 
@@ -61,7 +60,9 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
                 return dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
             }));
             t.dependsOn(resourcesTask);
-            t.setJavaHome(Jvm.current().getJavaHome().getPath());
+            if (BuildParams.getIsRuntimeJavaHomeSet()) {
+                t.setJavaHome(BuildParams.getRuntimeJavaHome().getPath());
+            }
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
             t.getJdkJarHellClasspath().from(jdkJarHellConfig);

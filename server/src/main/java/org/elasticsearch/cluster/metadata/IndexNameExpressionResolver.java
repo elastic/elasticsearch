@@ -366,8 +366,13 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
             } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                excludedDataStreams = true;
-                continue;
+                if (options.ignoreUnavailable() == false) {
+                    assert options.expandWildcardExpressions() == false;
+                    throw notFoundException(expression);
+                } else {
+                    excludedDataStreams = true;
+                    continue;
+                }
             }
 
             if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {

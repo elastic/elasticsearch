@@ -134,8 +134,8 @@ public class DesiredBalanceComputer {
             final var targetNodesIterator = targetNodes.iterator();
 
             // Here existing shards are moved to desired locations before initializing unassigned shards because we prefer not to leave
-            // immovable shards allocated to undesirable locations (e.g. a node that is shutting down). In contrast, reconciliation prefers
-            // to initialize the unassigned shards first.
+            // immovable shards allocated to undesirable locations (e.g. a node that is shutting down or an allocation filter which was
+            // only recently applied). In contrast, reconciliation prefers to initialize the unassigned shards first.
             for (final var shardRouting : shardsToRelocate) {
                 assert shardRouting.started();
                 if (targetNodesIterator.hasNext()) {

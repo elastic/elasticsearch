@@ -332,9 +332,8 @@ public class IndexNameExpressionResolver {
 
         boolean excludedDataStreams = false;
         final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
-        final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
         for (String expression : expressions) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(expression);
+            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
                 if (options.ignoreUnavailable() == false) {
                     assert options.expandWildcardExpressions() == false;

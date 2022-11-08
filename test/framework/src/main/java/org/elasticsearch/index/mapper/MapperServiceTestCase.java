@@ -151,16 +151,20 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService.documentMapper();
     }
 
-    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, mappings);
+    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+        return createMapperService(getVersion(), mappings);
     }
 
-    protected MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, settings, () -> true, mappings);
+    protected Version getVersion() {
+        return Version.CURRENT;
     }
 
-    protected MapperService createMapperService(BooleanSupplier idFieldEnabled, XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, getIndexSettings(), idFieldEnabled, mappings);
+    protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
+        return createMapperService(getVersion(), settings, () -> true, mappings);
+    }
+
+    protected final MapperService createMapperService(BooleanSupplier idFieldEnabled, XContentBuilder mappings) throws IOException {
+        return createMapperService(getVersion(), getIndexSettings(), idFieldEnabled, mappings);
     }
 
     protected final MapperService createMapperService(String mappings) throws IOException {
@@ -175,7 +179,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
@@ -312,6 +316,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         buildFields.accept(builder);
         return builder.endObject().endObject();
+    }
+
+    protected final XContentBuilder mappingNoSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        return topMapping(xContentBuilder -> {
+            xContentBuilder.field("subobjects", false);
+            xContentBuilder.startObject("properties");
+            buildFields.accept(xContentBuilder);
+            xContentBuilder.endObject();
+        });
     }
 
     protected final XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {

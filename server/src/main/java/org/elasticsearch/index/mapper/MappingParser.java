@@ -90,6 +90,9 @@ public final class MappingParser {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
+        if (type.isEmpty()) {
+            throw new MapperParsingException("type cannot be an empty string");
+        }
         return parse(type, mapping);
     }
 

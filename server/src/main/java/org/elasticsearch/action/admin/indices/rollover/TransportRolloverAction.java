@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -119,7 +121,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
-            .docs(true);
+            .docs(true)
+            .indexing(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a
         // "synchronized" block, in that we have a "before" world, where we calculate naming and condition matching, we then enter our
@@ -292,9 +295,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             );
 
             // Re-evaluate the conditions, now with our final source index name
+            IndexMetadata rolloverSourceIndex = currentState.metadata().index(rolloverNames.sourceName());
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditions().values(),
-                buildStats(currentState.metadata().index(rolloverNames.sourceName()), rolloverTask.statsResponse())
+                buildStats(rolloverSourceIndex, rolloverTask.statsResponse())
             );
 
             if (rolloverRequest.areConditionsMet(postConditionResults)) {
@@ -303,6 +307,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .stream()
                     .filter(condition -> postConditionResults.get(condition.toString()))
                     .toList();
+
+                final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
+                    .getIndicesLookup()
+                    .get(rolloverRequest.getRolloverTarget());
+
+                final IndexWriteLoad sourceIndexWriteLoad = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                    ? IndexWriteLoad.fromStats(rolloverSourceIndex, rolloverTask.statsResponse())
+                    : null;
 
                 // Perform the actual rollover
                 final var rolloverResult = rolloverService.rolloverClusterState(
@@ -313,7 +325,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     metConditions,
                     Instant.now(),
                     false,
-                    false
+                    false,
+                    sourceIndexWriteLoad
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

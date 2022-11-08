@@ -197,8 +197,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
-            // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not
-            // catch in tests and may be hit by a user
             assertNoAuthentication(action);
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
@@ -206,12 +204,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         if (User.isInternal(authentication.getEffectiveSubject().getUser())
             || authentication.isApiKey()
             || authentication.isServiceAccount()) {
-            // These authentication subject types are not yet supported, so use legacy remote cluster security mode
+            // The above authentication subject types are not yet supported, so use legacy remote cluster security mode
             return false;
         }
+
         // TODO we might also need to exclude users with reserved roles for now; if a user has a reserved role, fall back on legacy
         final String remoteClusterAlias = securityContext.getThreadContext()
             .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
+
         return remoteClusterAlias != null && remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias) != null;
     }
 
@@ -225,8 +225,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     ) {
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
-            // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not
-            // catch in tests and may be hit by a user
             assertNoAuthentication(action);
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
@@ -243,7 +241,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
                     threadContext.putHeader("_remote_access_credential", remoteClusterAuthorization);
-                    logger.info("New context {}", threadContext.getHeaders());
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))

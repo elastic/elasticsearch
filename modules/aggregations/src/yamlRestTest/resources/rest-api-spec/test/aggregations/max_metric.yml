@@ -206,10 +206,6 @@ setup:
 
 ---
 "Merging results with unmapped fields":
-  - skip:
-      version: "all"
-      reason: "https://github.com/elastic/elasticsearch/issues/89994"
-
   - do:
      search:
        index: [date_test_1, date_test_2]

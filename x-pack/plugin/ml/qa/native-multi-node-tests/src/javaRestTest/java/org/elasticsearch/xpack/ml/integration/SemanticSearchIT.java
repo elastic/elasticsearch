@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -218,56 +219,61 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
         String queryTemplate = """
             {"match": {"source_text": {"query": "%s"}}}
             """;
+
         {
-            var query = String.format(Locale.ROOT, queryTemplate, "octopus smell");
-            var semanticSearchResponse = semanticSearchWithQuery(indexName, inputs.get(0), query, modelId, "embedding");
-            assertOkWithErrorMessage(semanticSearchResponse);
-
-            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-
-            String source = (String) MapHelper.dig("_source.source_text", hits.get(0));
-            assertEquals("the octopus comforter smells", source);
-        }
-        {
-            var query = String.format(Locale.ROOT, queryTemplate, "washing machine");
-            var semanticSearchResponse = semanticSearchWithQuery(indexName, inputs.get(0), query, modelId, "embedding");
-            assertOkWithErrorMessage(semanticSearchResponse);
-
-            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-
-            String source = (String) MapHelper.dig("_source.source_text", hits.get(0));
-            assertEquals("washing machine smells", source);
-        }
-        {
-            // The semantic search query text is different to the match query
-            // by boosting the queries the knn hits should come out top.
-            String boostedQuery = """
-                {"match": {"source_text": {"query": "washing machine", "boost": 0.1}}}
-                """;
-
-            Request request = new Request("GET", indexName + "/_semantic_search?error_trace=true");
+            // combined query should return size documents where size > k
+            Request request = new Request("GET", indexName + "/_semantic_search");
             request.setJsonEntity(String.format(Locale.ROOT, """
                 {
                   "model_id": "%s",
-                  "query_string": "the octopus comforter smells",
+                  "query_string": "my words",
                   "knn": {
                       "field": "embedding",
-                      "k": 5,
+                      "k": 3,
                       "num_candidates": 10,
                       "boost": 10.0
                   },
-                  "query": %s
-                }""", modelId, boostedQuery));
+                  "query": {"match_all": {}},
+                  "size": 7
+                }""", modelId));
+            var semanticSearchResponse = client().performRequest(request);
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            int hitCount = (Integer) MapHelper.dig("hits.total.value", responseMap);
+            assertEquals(7, hitCount);
+        }
+        {
+            // boost the knn score, as the query is an exact match the unboosted
+            // score should be close to 1.0. Use an unrelated query so scores are
+            // not combined
+            Request request = new Request("GET", indexName + "/_semantic_search");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "model_id": "%s",
+                  "query_string": "my words",
+                  "knn": {
+                      "field": "embedding",
+                      "k": 3,
+                      "num_candidates": 10,
+                      "boost": 10.0
+                  },
+                  "query": {"match": {"source_text": {"query": "apricot unrelated"}}}
+                }""", modelId));
             var semanticSearchResponse = client().performRequest(request);
             assertOkWithErrorMessage(semanticSearchResponse);
 
             Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
             List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-
-            String source = (String) MapHelper.dig("_source.source_text", hits.get(0));
-            assertEquals("the octopus comforter smells", source);
+            boolean found = false;
+            for (var hit : hits) {
+                String source = (String) MapHelper.dig("_source.source_text", hit);
+                if (source.equals("my words")) {
+                    assertThat((Double) MapHelper.dig("_score", hit), closeTo(10.0, 0.01));
+                    found = true;
+                }
+            }
+            assertTrue("should have found hit for string 'my words'", found);
         }
     }
 

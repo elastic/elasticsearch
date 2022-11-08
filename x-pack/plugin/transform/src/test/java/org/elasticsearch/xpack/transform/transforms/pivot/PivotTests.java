@@ -354,7 +354,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Function pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validateQuery(client, source, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, source, null, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

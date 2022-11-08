@@ -138,6 +138,16 @@ if (BuildParams.isSnapshotBuild() == false) {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
+            // from lucene-core versions/19/org/apache/lucene/store/MemorySegmentIndexInput
+            'java.lang.foreign.MemorySegment',
+            'java.lang.foreign.MemorySession',
+            'java.lang.foreign.ValueLayout',
+            'java.lang.foreign.ValueLayout$OfByte',
+            'java.lang.foreign.ValueLayout$OfFloat',
+            'java.lang.foreign.ValueLayout$OfInt',
+            'java.lang.foreign.ValueLayout$OfLong',
+            'java.lang.foreign.ValueLayout$OfShort',
+
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
 

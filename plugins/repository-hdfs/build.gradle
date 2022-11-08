@@ -53,7 +53,7 @@ dependencies {
     api 'commons-cli:commons-cli:1.2'
     api "commons-codec:commons-codec:${versions.commonscodec}"
     api 'commons-io:commons-io:2.8.0'
-    api 'org.apache.commons:commons-lang3:3.11'
+    api 'org.apache.commons:commons-lang3:3.9'
     api 'javax.servlet:javax.servlet-api:3.1.0'
     api "org.slf4j:slf4j-api:${versions.slf4j}"
     api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"

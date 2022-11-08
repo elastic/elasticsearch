@@ -321,19 +321,11 @@ public class IndexNameExpressionResolver {
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
         IndicesOptions options = context.getOptions();
+
+        ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
+
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[] { Metadata.ALL };
-        } else {
-            if (options.ignoreUnavailable() == false) {
-                List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
-                if (crossClusterIndices.size() > 0) {
-                    throw new IllegalArgumentException(
-                        "Cross-cluster calls are not supported in this context but remote indices "
-                            + "were requested: "
-                            + crossClusterIndices
-                    );
-                }
-            }
         }
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
@@ -421,6 +413,17 @@ public class IndexNameExpressionResolver {
         }
         checkSystemIndexAccess(context, concreteIndices);
         return concreteIndices.toArray(Index.EMPTY_ARRAY);
+    }
+
+    private void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, String... indexExpressions) {
+        if (options.ignoreUnavailable() == false && indexExpressions != null) {
+            List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
+            if (crossClusterIndices.size() > 0) {
+                throw new IllegalArgumentException(
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+                );
+            }
+        }
     }
 
     private IndexNotFoundException notFoundException(String... indexExpressions) {

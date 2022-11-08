@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -239,18 +241,28 @@ public class DesiredBalanceComputer {
 
             i++;
             if (hasChanges == false) {
-                logger.debug("Desired balance computation converged after {} iterations", i);
+                logger.debug("Desired balance computation for [{}] converged after [{}] iterations", desiredBalanceInput.index(), i);
                 break;
             }
             if (isFresh.test(desiredBalanceInput) == false) {
                 // we run at least one iteration, but if another reroute happened meanwhile
                 // then publish the interim state and restart the calculation
-                logger.debug("Newer cluster state received, publishing incomplete desired balance and restarting computation");
+                logger.debug("""
+                    Newer cluster state received after [{}] iterations, publishing incomplete desired balance for [{}] and restarting \
+                    computation
+                    """, i, desiredBalanceInput.index());
                 break;
             }
             if (i % 100 == 0) {
                 // TODO this warning should be time based, iteration count should be proportional to the number of shards
-                logger.debug("Desired balance computation is still not converged after {} iterations", i);
+                logger.log(
+                    i % 1000000 == 0 ? Level.INFO : Level.DEBUG,
+                    Strings.format(
+                        "Desired balance computation for [%d] is still not converged after [%d] iterations",
+                        desiredBalanceInput.index(),
+                        i
+                    )
+                );
             }
         }
         iterations.inc(i);

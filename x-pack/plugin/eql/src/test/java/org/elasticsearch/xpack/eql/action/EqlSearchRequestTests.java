@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -76,12 +77,20 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
                 .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
+                .waitForCompletionTimeout(randomTV())
+                .keepAlive(randomTV())
+                .keepOnCompletion(randomBoolean())
                 .fetchFields(randomFetchFields)
-                .runtimeMappings(randomRuntimeMappings());
+                .runtimeMappings(randomRuntimeMappings())
+                .resultPosition(randomFrom("tail", "head"));
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
         return null;
+    }
+
+    private TimeValue randomTV() {
+        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }
 
     protected QueryBuilder parseFilter(String filter) throws IOException {
@@ -123,6 +132,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
         mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
+        mutatedInstance.resultPosition(version.onOrAfter(Version.V_8_0_0) ? instance.resultPosition() : "tail");
 
         return mutatedInstance;
     }

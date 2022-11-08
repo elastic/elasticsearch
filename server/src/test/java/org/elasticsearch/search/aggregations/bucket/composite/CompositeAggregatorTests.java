@@ -3287,6 +3287,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         executeTestCase(forceMerge, useIndexSort, query, dataset, sources, List.of(create), List.of(verify));
     }
 
+    @SuppressWarnings("unchecked")
     private <T extends AggregationBuilder, V extends InternalAggregation> void executeTestCase(
         boolean forceMerge,
         boolean useIndexSort,

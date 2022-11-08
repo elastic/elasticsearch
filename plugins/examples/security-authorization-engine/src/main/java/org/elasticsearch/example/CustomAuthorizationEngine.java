@@ -201,7 +201,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()) :
             Collections.emptySet();
         final Set<String> runAs = isSuperuser ? Collections.singleton("*") : Collections.emptySet();
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, Set.of());
     }
 
     public static class CustomAuthorizationInfo implements AuthorizationInfo {

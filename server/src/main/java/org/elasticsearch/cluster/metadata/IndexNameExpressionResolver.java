@@ -330,9 +330,9 @@ public class IndexNameExpressionResolver {
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
 
         boolean excludedDataStreams = false;
-        final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
+        final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         for (String expression : expressions) {
-            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
+            final IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
                 if (context.getOptions().ignoreUnavailable() == false) {
                     assert context.getOptions().expandWildcardExpressions() == false;
@@ -369,12 +369,12 @@ public class IndexNameExpressionResolver {
                     );
                 }
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else {
                 if (indexAbstraction.getIndices().size() > 1 && context.getOptions().allowAliasesToMultipleIndices() == false) {
@@ -395,13 +395,13 @@ public class IndexNameExpressionResolver {
 
                 for (Index index : indexAbstraction.getIndices()) {
                     if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
-                        concreteIndices.add(index);
+                        concreteIndicesResult.add(index);
                     }
                 }
             }
         }
 
-        if (context.getOptions().allowNoIndices() == false && concreteIndices.isEmpty()) {
+        if (context.getOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
             IndexNotFoundException infe = notFoundException(indexExpressions);
             if (excludedDataStreams) {
                 // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
@@ -409,8 +409,8 @@ public class IndexNameExpressionResolver {
             }
             throw infe;
         }
-        checkSystemIndexAccess(context, concreteIndices);
-        return concreteIndices.toArray(Index.EMPTY_ARRAY);
+        checkSystemIndexAccess(context, concreteIndicesResult);
+        return concreteIndicesResult.toArray(Index.EMPTY_ARRAY);
     }
 
     private void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, String... indexExpressions) {

@@ -61,7 +61,9 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
                 return dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
             }));
             t.dependsOn(resourcesTask);
-            t.setJavaHome(Jvm.current().getJavaHome().getPath());
+            if (BuildParams.getIsRuntimeJavaHomeSet()) {
+                t.setJavaHome(BuildParams.getRuntimeJavaHome().getPath());
+            }
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
             t.getJdkJarHellClasspath().from(jdkJarHellConfig);

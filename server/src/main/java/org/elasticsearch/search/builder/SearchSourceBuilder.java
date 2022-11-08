@@ -109,10 +109,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
 
-    public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
-        return fromXContent(parser, true);
-    }
-
     public static SearchSourceBuilder fromXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         builder.parseXContent(parser, checkTrailingTokens);

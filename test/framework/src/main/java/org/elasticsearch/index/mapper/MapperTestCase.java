@@ -241,7 +241,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("field");
             value.accept(b);
         });
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            "didn't throw while parsing " + source.source().utf8ToString(),
+            () -> mapperService.documentMapper().parse(source)
+        );
         assertThat(
             "incorrect exception while parsing " + source.source().utf8ToString(),
             e.getCause().getMessage(),
@@ -272,15 +276,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertThat(fields, equalTo(new IndexableField[0]));
-            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(ignoredFields()));
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(new String[] { "field" }));
         }
-    }
-
-    /**
-     * The field names that are saved in {@code _ignored} when ignoring a malformed value.
-     */
-    protected String[] ignoredFields() {
-        return new String[] { "field" };
     }
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
@@ -364,8 +361,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             minimalMapping(b);
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
-        assertParseMinimalWarnings();
+        assertThat(e.getMessage(), containsString("field name cannot be an empty string"));
+    }
+
+    public final void testBlankName() {
+        Version version = getVersion();
+        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(Version.V_8_6_0));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(version, mapping(b -> {
+            b.startObject("  ");
+            minimalMapping(b);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("field name cannot contain only whitespaces"));
     }
 
     public final void testMinimalSerializesToItself() throws IOException {
@@ -508,7 +515,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                result.set(valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                result.set(valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
         return result.get();
@@ -791,8 +798,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
-            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, new ArrayList<>());
-            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, new ArrayList<>());
+            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
+            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
             /*
              * The native fetcher uses byte, short, etc but doc values always
              * uses long or double. This difference is fine because on the outside

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
@@ -76,33 +73,4 @@ public class TransformProgressTests extends AbstractSerializingTransformTestCase
         ex = expectThrows(IllegalArgumentException.class, () -> new TransformProgress(1L, 1L, -1L));
         assertThat(ex.getMessage(), equalTo("[docs_indexed] must be >0."));
     }
-
-    public void testBackwardsSerialization() throws IOException {
-        long totalDocs = 10_000;
-        long processedDocs = randomLongBetween(0, totalDocs);
-        // documentsIndexed are not in past versions, so it would be zero coming in
-        TransformProgress progress = new TransformProgress(totalDocs, processedDocs, 0L);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_2_0);
-            progress.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                in.setVersion(Version.V_7_2_0);
-                TransformProgress streamedProgress = new TransformProgress(in);
-                assertEquals(progress, streamedProgress);
-            }
-        }
-
-        progress = new TransformProgress(null, processedDocs, 0L);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_2_0);
-            progress.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                in.setVersion(Version.V_7_2_0);
-                TransformProgress streamedProgress = new TransformProgress(in);
-                assertEquals(new TransformProgress(0L, 0L, 0L), streamedProgress);
-            }
-        }
-
-    }
-
 }

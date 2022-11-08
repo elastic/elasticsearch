@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetCalendarEventsActionRequestTests extends AbstractSerializingTestCase<GetCalendarEventsAction.Request> {
+public class GetCalendarEventsActionRequestTests extends AbstractXContentSerializingTestCase<GetCalendarEventsAction.Request> {
 
     @Override
     protected GetCalendarEventsAction.Request createTestInstance() {

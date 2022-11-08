@@ -39,6 +39,17 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     @Override
+    protected DisMaxQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        DisMaxQueryBuilder disMaxQueryBuilder = new DisMaxQueryBuilder();
+        disMaxQueryBuilder.add(queryBuilder);
+        int innerQueries = randomIntBetween(0, 2);
+        for (int i = 0; i < innerQueries; i++) {
+            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : new MatchAllQueryBuilder());
+        }
+        return disMaxQueryBuilder;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
         Query expected = new DisjunctionMaxQuery(queries, queryBuilder.tieBreaker());
@@ -51,12 +62,12 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
-        String contentString = """
+        String contentString = formatted("""
             {
               "dis_max": {
                 "queries": %s
               }
-            }""".formatted(innerQuery.toString());
+            }""", innerQuery.toString());
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -67,7 +78,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {
-        String queryAsString = """
+        String queryAsString = formatted("""
             {
               "dis_max": {
                 "queries": [
@@ -81,7 +92,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                   }
                 ]
               }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         Query query = parseQuery(queryAsString).toQuery(createSearchExecutionContext());
         Query expected = new DisjunctionMaxQuery(List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh")), 1.2f)), 0);
         assertEquals(expected, query);

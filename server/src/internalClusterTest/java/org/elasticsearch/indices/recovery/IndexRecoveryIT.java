@@ -795,6 +795,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91087")
     public void testTransientErrorsDuringRecoveryAreRetried() throws Exception {
         final String recoveryActionToBlock = randomFrom(
             PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
@@ -1842,7 +1843,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             final Query query = new BooleanQuery.Builder().add(
                 LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
                 BooleanClause.Occur.MUST
-            ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST).build();
+            ).add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.MUST).build();
             final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             for (LeafReaderContext leaf : directoryReader.leaves()) {
                 final Scorer scorer = weight.scorer(leaf);

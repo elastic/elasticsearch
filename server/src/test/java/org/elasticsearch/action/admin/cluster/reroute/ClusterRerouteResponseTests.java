@@ -60,7 +60,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
         var result = toXContent(clusterRerouteResponse, new ToXContent.MapParams(Map.of("explain", "true", "metric", "none")));
 
-        assertThat(result, equalTo(XContentHelper.stripWhitespace("""
+        assertThat(result, equalTo(XContentHelper.stripWhitespace(formatted("""
             {
               "acknowledged": true,
               "explanations": [
@@ -80,7 +80,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                   ]
                 }
               ]
-            }""".formatted(clusterState.stateUUID()))));
+            }""", clusterState.stateUUID()))));
 
     }
 
@@ -90,7 +90,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
         var result = toXContent(clusterRerouteResponse, ToXContent.EMPTY_PARAMS);
 
-        assertThat(result, equalTo(XContentHelper.stripWhitespace("""
+        assertThat(result, equalTo(XContentHelper.stripWhitespace(formatted("""
             {
               "acknowledged": true,
               "state": {
@@ -113,10 +113,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "data_frozen",
                       "data_hot",
                       "data_warm",
+                      "index",
                       "ingest",
                       "master",
                       "ml",
                       "remote_cluster_client",
+                      "search",
                       "transform",
                       "voting_only"
                     ]
@@ -183,7 +185,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT.id))));
+            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT.id))));
     }
 
     public void testToXContentWithDeprecatedClusterStateAndMetadata() throws IOException {

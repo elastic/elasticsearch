@@ -85,7 +85,7 @@ public class RestFielddataAction extends AbstractCatAction {
                     table.addCell(nodeStats.getNode().getHostAddress());
                     table.addCell(nodeStats.getNode().getName());
                     table.addCell(field.getKey());
-                    table.addCell(new ByteSizeValue(field.getValue()));
+                    table.addCell(ByteSizeValue.ofBytes(field.getValue()));
                     table.endRow();
                 }
             }

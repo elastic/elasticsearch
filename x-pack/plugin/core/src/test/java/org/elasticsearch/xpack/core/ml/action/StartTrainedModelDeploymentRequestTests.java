@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StartTrainedModelDeploymentRequestTests extends AbstractSerializingTestCase<Request> {
+public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
@@ -60,6 +61,12 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
         }
         if (randomBoolean()) {
             request.setQueueCapacity(randomIntBetween(1, 1000000));
+        }
+        if (randomBoolean()) {
+            request.setPriority(randomFrom(Priority.values()).toString());
+            if (request.getNumberOfAllocations() > 1 || request.getThreadsPerAllocation() > 1) {
+                request.setPriority(Priority.NORMAL.toString());
+            }
         }
         return request;
     }
@@ -102,6 +109,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
     public void testValidate_GivenThreadsPerAllocationIsValid() {
         for (int n : List.of(1, 2, 4, 8, 16, 32)) {
             Request request = createRandom();
+            request.setPriority(Priority.NORMAL.toString());
             request.setThreadsPerAllocation(n);
 
             ActionRequestValidationException e = request.validate();
@@ -187,6 +195,28 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
 
         assertThat(e, is(not(nullValue())));
         assertThat(e.getMessage(), containsString("[timeout] must be positive"));
+    }
+
+    public void testValidate_GivenLowPriorityAndMultipleThreadsPerAllocation() {
+        Request request = createRandom();
+        request.setPriority(Priority.LOW.toString());
+        request.setThreadsPerAllocation(randomFrom(2, 4, 8, 16, 32));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[threads_per_allocation] must be 1 when [priority] is low"));
+    }
+
+    public void testValidate_GivenLowPriorityAndMultipleAllocations() {
+        Request request = createRandom();
+        request.setPriority(Priority.LOW.toString());
+        request.setNumberOfAllocations(randomIntBetween(2, 32));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[number_of_allocations] must be 1 when [priority] is low"));
     }
 
     public void testDefaults() {

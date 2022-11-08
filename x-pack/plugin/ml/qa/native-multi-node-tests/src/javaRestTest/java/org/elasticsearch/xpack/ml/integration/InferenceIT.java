@@ -62,11 +62,11 @@ public class InferenceIT extends ESRestTestCase {
         }
 
         Request inferRequest = new Request("POST", "_ml/trained_models/" + regressionModelId + "/_infer");
-        inferRequest.setJsonEntity("""
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
-            """.formatted(String.join(",", docs)));
+            """, String.join(",", docs)));
         Response response = client().performRequest(inferRequest);
         Map<String, Object> responseMap = responseAsMap(response);
         List<Double> predictions = (List<Double>) XContentMapValues.extractValue("inference_results.predicted_value", responseMap);
@@ -75,11 +75,11 @@ public class InferenceIT extends ESRestTestCase {
         putModelAlias("foo_regression", regressionModelId);
 
         inferRequest = new Request("POST", "_ml/trained_models/foo_regression/_infer");
-        inferRequest.setJsonEntity("""
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
-            """.formatted(String.join(",", docs)));
+            """, String.join(",", docs)));
         response = client().performRequest(inferRequest);
         responseMap = responseAsMap(response);
         predictions = (List<Double>) XContentMapValues.extractValue("inference_results.predicted_value", responseMap);
@@ -98,11 +98,11 @@ public class InferenceIT extends ESRestTestCase {
         }
 
         Request inferRequest = new Request("POST", "_ml/trained_models/" + classificationModelId + "/_infer");
-        inferRequest.setJsonEntity("""
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
-            """.formatted(String.join(",", docs)));
+            """, String.join(",", docs)));
         Response response = client().performRequest(inferRequest);
         Map<String, Object> responseMap = responseAsMap(response);
         List<Double> predictions = (List<Double>) XContentMapValues.extractValue("inference_results.predicted_value", responseMap);
@@ -111,11 +111,11 @@ public class InferenceIT extends ESRestTestCase {
         putModelAlias("foo_classification", classificationModelId);
 
         inferRequest = new Request("POST", "_ml/trained_models/foo_classification/_infer");
-        inferRequest.setJsonEntity("""
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
-            """.formatted(String.join(",", docs)));
+            """, String.join(",", docs)));
         response = client().performRequest(inferRequest);
         responseMap = responseAsMap(response);
         predictions = (List<Double>) XContentMapValues.extractValue("inference_results.predicted_value", responseMap);
@@ -282,7 +282,7 @@ public class InferenceIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = """
+    private static final String REGRESSION_CONFIG = formatted("""
         {
             "input": {
                 "field_names": [
@@ -297,14 +297,14 @@ public class InferenceIT extends ESRestTestCase {
                 "regression": {}
             },
             "definition": %s
-        }""".formatted(REGRESSION_DEFINITION);
+        }""", REGRESSION_DEFINITION);
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = """
+    private static final String CLASSIFICATION_CONFIG = formatted("""
         {
           "input": {
             "field_names": [ "col1", "col2", "col3", "col4" ]
@@ -317,7 +317,7 @@ public class InferenceIT extends ESRestTestCase {
             "classification": {}
           },
           "definition": %s
-        }""".formatted(InferenceDefinitionTests.getClassificationDefinition(false));
+        }""", InferenceDefinitionTests.getClassificationDefinition(false));
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId);

@@ -183,4 +183,23 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(true, exec("HashMap a = new HashMap(); return null != a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null !== a;"));
     }
+
+    public void testStringEquals() {
+        assertEquals(false, exec("def x = null; return \"a\" == x"));
+        assertEquals(true, exec("def x = \"a\"; return \"a\" == x"));
+        assertEquals(true, exec("def x = null; return \"a\" != x"));
+        assertEquals(false, exec("def x = \"a\"; return \"a\" != x"));
+
+        assertEquals(false, exec("def x = null; return x == \"a\""));
+        assertEquals(true, exec("def x = \"a\"; return x == \"a\""));
+        assertEquals(true, exec("def x = null; return x != \"a\""));
+        assertEquals(false, exec("def x = \"a\"; return x != \"a\""));
+    }
+
+    public void testStringEqualsMethodCall() {
+        assertBytecodeExists("def x = \"a\"; return \"a\" == x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return \"a\" != x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return x == \"a\"", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return x != \"a\"", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+    }
 }

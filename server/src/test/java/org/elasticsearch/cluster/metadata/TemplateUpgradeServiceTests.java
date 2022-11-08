@@ -189,9 +189,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         }
         Map<String, BytesReference> additions = Maps.newMapWithExpectedSize(additionsCount);
         for (int i = 0; i < additionsCount; i++) {
-            additions.put("add_template_" + i, new BytesArray("""
+            additions.put("add_template_" + i, new BytesArray(formatted("""
                 {"index_patterns" : "*", "order" : %s}
-                """.formatted(i)));
+                """, i)));
         }
 
         final TemplateUpgradeService service = new TemplateUpgradeService(mockClient, clusterService, threadPool, Collections.emptyList());

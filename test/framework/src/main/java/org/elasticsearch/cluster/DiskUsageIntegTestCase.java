@@ -27,6 +27,7 @@ import org.junit.Before;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryIteratorException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -156,8 +157,8 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                 }
                 try {
                     return Files.size(path);
-                } catch (NoSuchFileException | FileNotFoundException e) {
-                    // probably removed
+                } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
+                    // probably removed (Windows sometimes throws AccessDeniedException after a file has been deleted)
                     return 0L;
                 }
             } else if (path.getFileName().toString().equals("_state") || path.getFileName().toString().equals("translog")) {

@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -827,28 +826,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final boolean includeGlobalState = in.readBoolean();
             final boolean partial = in.readBoolean();
             final State state = State.fromValue(in.readByte());
-            final int indexCount = in.readVInt();
-            final Map<String, IndexId> indices;
-            if (indexCount == 0) {
-                indices = Collections.emptyMap();
-            } else {
-                final Map<String, IndexId> idx = Maps.newMapWithExpectedSize(indexCount);
-                for (int i = 0; i < indexCount; i++) {
-                    final IndexId indexId = new IndexId(in);
-                    idx.put(indexId.getName(), indexId);
-                }
-                indices = Collections.unmodifiableMap(idx);
-            }
+            final Map<String, IndexId> indices = in.readMapValues(IndexId::new, IndexId::getName);
             final long startTime = in.readLong();
             final Map<ShardId, ShardSnapshotStatus> shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::readFrom);
             final long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
             final Version version = Version.readVersion(in);
-            final List<String> dataStreams = in.readStringList();
+            final List<String> dataStreams = in.readImmutableStringList();
             final SnapshotId source = in.readOptionalWriteable(SnapshotId::new);
             final Map<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableMap(
-                RepositoryShardId::new,
+                RepositoryShardId::readFrom,
                 ShardSnapshotStatus::readFrom
             );
             final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
@@ -1414,7 +1402,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
                 @Override
                 public RepositoryShardId readKey(StreamInput in) throws IOException {
-                    return new RepositoryShardId(in);
+                    return RepositoryShardId.readFrom(in);
                 }
             };
 
@@ -1610,7 +1598,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.mapDiff = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getStringKeySerializer(),
-                i -> new ByRepo(i.readList(Entry::readFrom)),
+                i -> new ByRepo(i.readImmutableList(Entry::readFrom)),
                 i -> new ByRepo.ByRepoDiff(
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)

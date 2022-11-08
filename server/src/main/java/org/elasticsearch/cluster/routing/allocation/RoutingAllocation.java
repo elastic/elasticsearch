@@ -50,7 +50,7 @@ public class RoutingAllocation {
 
     private final ClusterState clusterState;
 
-    private final ClusterInfo clusterInfo;
+    private ClusterInfo clusterInfo;
 
     private final SnapshotShardSizeInfo shardSizeInfo;
 
@@ -63,6 +63,7 @@ public class RoutingAllocation {
     private boolean hasPendingAsyncFetch = false;
 
     private final long currentNanoTime;
+    private final boolean isSimulating;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
@@ -110,12 +111,33 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+    }
+
+    /**
+     * Creates a new {@link RoutingAllocation}
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
+     * @param clusterState cluster state before rerouting
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     */
+    private RoutingAllocation(
+        AllocationDeciders deciders,
+        @Nullable RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime,
+        boolean isSimulating
+    ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
+        this.isSimulating = isSimulating;
         this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
@@ -200,6 +222,10 @@ public class RoutingAllocation {
      */
     public DiscoveryNodes nodes() {
         return clusterState.nodes();
+    }
+
+    public ClusterState getClusterState() {
+        return clusterState;
     }
 
     public ClusterInfo clusterInfo() {
@@ -365,6 +391,35 @@ public class RoutingAllocation {
      */
     public long unaccountedSearchableSnapshotSize(RoutingNode routingNode) {
         return unaccountedSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
+    }
+
+    /**
+     * @return {@code true} if this allocation computation is trying to simulate the final allocation and therefore "transient" allocation
+     *                      blockers should be ignored.
+     */
+    public boolean isSimulating() {
+        return isSimulating;
+    }
+
+    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
+        assert isSimulating : "Should be called only while simulating";
+        this.clusterInfo = clusterInfo;
+    }
+
+    public RoutingAllocation immutableClone() {
+        return new RoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+    }
+
+    public RoutingAllocation mutableCloneForSimulation() {
+        return new RoutingAllocation(
+            deciders,
+            clusterState.mutableRoutingNodes(),
+            clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime,
+            true
+        );
     }
 
     public enum DebugMode {

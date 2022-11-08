@@ -572,8 +572,9 @@ public class Node implements Closeable {
                 clusterPlugins,
                 clusterInfoService,
                 snapshotsInfoService,
-                threadPool.getThreadContext(),
-                systemIndices
+                threadPool,
+                systemIndices,
+                rerouteServiceReference::get
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -694,6 +695,7 @@ public class Node implements Closeable {
             );
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
+                threadPool,
                 clusterService,
                 metadataCreateIndexService
             );
@@ -704,7 +706,8 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 settingsModule.getIndexScopedSettings(),
                 indicesService,
-                shardLimitValidator
+                shardLimitValidator,
+                threadPool
             );
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
@@ -868,7 +871,8 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 systemIndices,
                 indicesService,
-                fileSettingsService
+                fileSettingsService,
+                threadPool
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,

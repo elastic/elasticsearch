@@ -284,7 +284,8 @@ public class ClusterStateChanges {
             allocationService,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             indicesService,
-            shardLimitValidator
+            shardLimitValidator,
+            threadPool
         );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             SETTINGS,
@@ -375,7 +376,7 @@ public class ClusterStateChanges {
             blockedIndices,
             blockedIndices.keySet().stream().collect(toMap(Function.identity(), CloseIndexResponse.IndexResult::new))
         );
-        return allocationService.reroute(newState, "indices closed");
+        return allocationService.reroute(newState, "indices closed", ActionListener.noop());
     }
 
     public ClusterState openIndices(ClusterState state, OpenIndexRequest request) {

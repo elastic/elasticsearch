@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -82,34 +83,42 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
-            for (ShardRouting shard : indexRoutingTable.randomAllActiveShardsIt()) {
-                ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shard.shardId());
-                indexDesiredShards.put(
-                    shard.id(),
-                    new DesiredBalanceResponse.DesiredShards(
-                        new DesiredBalanceResponse.ShardView(
-                            shard.state(),
-                            shard.primary(),
-                            shard.currentNodeId(),
-                            shardAssignment != null && shardAssignment.nodeIds().contains(shard.currentNodeId()),
-                            shard.relocatingNodeId(),
-                            shard.relocatingNodeId() != null
-                                && shardAssignment != null
-                                && shardAssignment.nodeIds().contains(shard.relocatingNodeId()),
-                            shard.shardId().id(),
-                            shard.getIndexName(),
-                            shard.allocationId()
-                        ),
-                        shardAssignment != null
-                            ? new DesiredBalanceResponse.ShardAssignmentView(
-                                shardAssignment.nodeIds(),
-                                shardAssignment.total(),
-                                shardAssignment.unassigned(),
-                                shardAssignment.ignored()
-                            )
-                            : null
-                    )
-                );
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+                // Do replicas overwrite primary shards here? Maybe we should we return
+                // Map<Integer,List<DesiredBalanceResponse.DesiredShards>> ?
+                for (int idx = 0; idx < shardRoutingTable.size(); idx++) {
+                    ShardRouting shard = shardRoutingTable.shard(idx);
+                    ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shard.shardId());
+                    indexDesiredShards.put(
+                        shard.id(),
+                        new DesiredBalanceResponse.DesiredShards(
+                            new DesiredBalanceResponse.ShardView(
+                                shard.state(),
+                                shard.primary(),
+                                shard.currentNodeId(),
+                                shard.currentNodeId() != null
+                                    && shardAssignment != null
+                                    && shardAssignment.nodeIds().contains(shard.currentNodeId()),
+                                shard.relocatingNodeId(),
+                                shard.relocatingNodeId() != null
+                                    && shardAssignment != null
+                                    && shardAssignment.nodeIds().contains(shard.relocatingNodeId()),
+                                shard.shardId().id(),
+                                shard.getIndexName(),
+                                shard.allocationId()
+                            ),
+                            shardAssignment != null
+                                ? new DesiredBalanceResponse.ShardAssignmentView(
+                                    shardAssignment.nodeIds(),
+                                    shardAssignment.total(),
+                                    shardAssignment.unassigned(),
+                                    shardAssignment.ignored()
+                                )
+                                : null
+                        )
+                    );
+                }
             }
             routingTable.put(indexRoutingTable.getIndex().getName(), indexDesiredShards);
         }

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -98,9 +100,47 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
             Index index = new Index(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
             for (int j = 0; j < randomIntBetween(1, 16); j++) {
-                indexRoutingTableBuilder.addShard(
-                    TestShardRouting.newShardRouting(new ShardId(index, j), randomFrom(nodeIds), true, ShardRoutingState.STARTED)
-                );
+                String nodeId = randomFrom(nodeIds);
+                switch (randomInt(3)) {
+                    case 0 -> indexRoutingTableBuilder.addShard(
+                        TestShardRouting.newShardRouting(new ShardId(index, j), nodeId, true, ShardRoutingState.STARTED)
+                    );
+                    case 1 -> {
+                        indexRoutingTableBuilder.addShard(
+                            TestShardRouting.newShardRouting(new ShardId(index, j), nodeId, true, ShardRoutingState.STARTED)
+                        );
+                        if (nodeIds.size() > 1) {
+                            indexRoutingTableBuilder.addShard(
+                                TestShardRouting.newShardRouting(
+                                    new ShardId(index, j),
+                                    randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
+                                    false,
+                                    ShardRoutingState.STARTED
+                                )
+                            );
+                        }
+                        break;
+                    }
+                    case 2 -> indexRoutingTableBuilder.addShard(
+                        TestShardRouting.newShardRouting(new ShardId(index, j), null, false, ShardRoutingState.UNASSIGNED)
+                    );
+                    case 3 -> {
+                        ShardRouting shard = TestShardRouting.newShardRouting(
+                            new ShardId(index, j),
+                            nodeId,
+                            true,
+                            ShardRoutingState.STARTED
+                        );
+                        if (nodeIds.size() > 1) {
+                            shard = TestShardRouting.relocate(
+                                shard,
+                                randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
+                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                            );
+                        }
+                        indexRoutingTableBuilder.addShard(shard);
+                    }
+                }
             }
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
@@ -150,7 +190,13 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
             for (Map.Entry<Integer, DesiredBalanceResponse.DesiredShards> shardDesiredBalance : shardsMap.entrySet()) {
                 DesiredBalanceResponse.DesiredShards desiredShards = shardDesiredBalance.getValue();
                 int shardId = shardDesiredBalance.getKey();
-                ShardRouting shard = routingTable.shardRoutingTable(index, shardId).primaryShard();
+                IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(index, shardId);
+
+                ShardRouting shard = IntStream.range(0, indexShardRoutingTable.size())
+                    .mapToObj(indexShardRoutingTable::shard)
+                    .filter(s -> s.primary() == desiredShards.current().primary()) // Replica or primary?
+                    .findFirst()
+                    .orElseThrow();
                 assertEquals(shard.state(), desiredShards.current().state());
                 assertEquals(shard.primary(), desiredShards.current().primary());
                 assertEquals(shard.currentNodeId(), desiredShards.current().node());
@@ -160,7 +206,10 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
                 assertEquals(shard.allocationId(), desiredShards.current().allocationId());
                 Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(shard.shardId()));
                 Set<String> desiredNodeIds = shardAssignment.map(ShardAssignment::nodeIds).orElse(Set.of());
-                assertEquals(desiredNodeIds.contains(shard.currentNodeId()), desiredShards.current().nodeIsDesired());
+                assertEquals(
+                    shard.currentNodeId() != null && desiredNodeIds.contains(shard.currentNodeId()),
+                    desiredShards.current().nodeIsDesired()
+                );
                 assertEquals(
                     shard.relocatingNodeId() != null && desiredNodeIds.contains(shard.relocatingNodeId()),
                     desiredShards.current().relocatingNodeIsDesired()

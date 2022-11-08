@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -52,6 +53,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
+    private static final String REMOTE_ACCESS_CREDENTIAL_HEADER = "_remote_access_credential";
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -61,7 +63,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
-
     private final CompositeRolesStore rolesStore;
 
     public SecurityServerTransportInterceptor(
@@ -124,6 +125,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
+                final String remoteClusterAlias = securityContext.getThreadContext()
+                    .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
+
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
@@ -159,6 +163,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(
                             original -> sendWithUserOrRemoteAccessHeaders(
+                                remoteClusterAlias,
                                 connection,
                                 action,
                                 request,
@@ -169,13 +174,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             minVersion
                         );
                     } else {
-                        sendWithUserOrRemoteAccessHeaders(connection, action, request, options, handler, sender);
+                        sendWithUserOrRemoteAccessHeaders(remoteClusterAlias, connection, action, request, options, handler, sender);
                     }
             }
         };
     }
 
     private <T extends TransportResponse> void sendWithUserOrRemoteAccessHeaders(
+        @Nullable String remoteClusterAlias,
         Transport.Connection connection,
         String action,
         TransportRequest request,
@@ -183,15 +189,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         TransportResponseHandler<T> handler,
         AsyncSender sender
     ) {
-        if (shouldSendWithRemoteAccessHeaders(action)) {
-            sendWithRemoteAccessHeaders(connection, action, request, options, handler, sender);
+        if (shouldSendWithRemoteAccessHeaders(remoteClusterAlias, action)) {
+            sendWithRemoteAccessHeaders(remoteClusterAlias, connection, action, request, options, handler, sender);
         } else {
             sendWithUser(connection, action, request, options, handler, sender);
         }
     }
 
-    private boolean shouldSendWithRemoteAccessHeaders(String action) {
-        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+    private boolean shouldSendWithRemoteAccessHeaders(@Nullable String remoteClusterAlias, String action) {
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled() || remoteClusterAlias == null) {
             return false;
         }
 
@@ -207,15 +213,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             // The above authentication subject types are not yet supported, so use legacy remote cluster security mode
             return false;
         }
-
         // TODO we might also need to exclude users with reserved roles for now; if a user has a reserved role, fall back on legacy
-        final String remoteClusterAlias = securityContext.getThreadContext()
-            .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
 
-        return remoteClusterAlias != null && remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias) != null;
+        return remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias) != null;
     }
 
     private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
+        String remoteClusterAlias,
         Transport.Connection connection,
         String action,
         TransportRequest request,
@@ -229,8 +233,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
-        final String remoteClusterAlias = securityContext.getThreadContext()
-            .getTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME);
         final String remoteClusterAuthorization = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
         rolesStore.getRoleDescriptorsIntersection(
             remoteClusterAlias,
@@ -240,7 +242,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
-                    threadContext.putHeader("_remote_access_credential", remoteClusterAuthorization);
+                    threadContext.putHeader(REMOTE_ACCESS_CREDENTIAL_HEADER, remoteClusterAuthorization);
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))

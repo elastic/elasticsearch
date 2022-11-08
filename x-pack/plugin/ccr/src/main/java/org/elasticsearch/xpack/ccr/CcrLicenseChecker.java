@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -118,16 +119,11 @@ public class CcrLicenseChecker {
         final Consumer<Exception> onFailure,
         final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer
     ) {
-
-        final ClusterStateRequest request = new ClusterStateRequest();
-        request.clear();
-        request.metadata(true);
-        request.indices(leaderIndex);
         checkRemoteClusterLicenseAndFetchClusterState(
             client,
             clusterAlias,
             client.getRemoteClusterClient(clusterAlias),
-            request,
+            CcrRequests.metadataRequest(leaderIndex),
             onFailure,
             remoteClusterStateResponse -> {
                 ClusterState remoteClusterState = remoteClusterStateResponse.getState();

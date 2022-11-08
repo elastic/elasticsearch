@@ -80,13 +80,10 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             return;
         }
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
-        for (IndexRoutingTable indexRoutingTable : state.getRoutingTable()) {
+        for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
             for (ShardRouting shard : indexRoutingTable.randomAllActiveShardsIt()) {
                 ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shard.shardId());
-                if (shardAssignment == null) {
-                    continue;
-                }
                 indexDesiredShards.put(
                     shard.id(),
                     new DesiredBalanceResponse.DesiredShards(
@@ -94,19 +91,23 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
                             shard.state(),
                             shard.primary(),
                             shard.currentNodeId(),
-                            shardAssignment.nodeIds().contains(shard.currentNodeId()),
+                            shardAssignment != null && shardAssignment.nodeIds().contains(shard.currentNodeId()),
                             shard.relocatingNodeId(),
-                            shardAssignment.nodeIds().contains(shard.relocatingNodeId()),
+                            shard.relocatingNodeId() != null
+                                && shardAssignment != null
+                                && shardAssignment.nodeIds().contains(shard.relocatingNodeId()),
                             shard.shardId().id(),
                             shard.getIndexName(),
                             shard.allocationId()
                         ),
-                        new DesiredBalanceResponse.ShardAssignmentView(
-                            shardAssignment.nodeIds(),
-                            shardAssignment.total(),
-                            shardAssignment.unassigned(),
-                            shardAssignment.ignored()
-                        )
+                        shardAssignment != null
+                            ? new DesiredBalanceResponse.ShardAssignmentView(
+                                shardAssignment.nodeIds(),
+                                shardAssignment.total(),
+                                shardAssignment.unassigned(),
+                                shardAssignment.ignored()
+                            )
+                            : null
                     )
                 );
             }

@@ -13,15 +13,33 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -71,5 +89,91 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
         verify(listener).onFailure(exceptionArgumentCaptor.capture());
 
         assertEquals("Desired balance is not computed yet", exceptionArgumentCaptor.getValue().getMessage());
+    }
+
+    public void testGetDesiredBalance() throws Exception {
+        Set<String> nodeIds = randomUnique(() -> randomAlphaOfLength(8), randomIntBetween(1, 32));
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        for (int i = 0; i < randomInt(8); i++) {
+            Index index = new Index(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+            for (int j = 0; j < randomIntBetween(1, 16); j++) {
+                indexRoutingTableBuilder.addShard(
+                    TestShardRouting.newShardRouting(new ShardId(index, j), randomFrom(nodeIds), true, ShardRoutingState.STARTED)
+                );
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
+        RoutingTable routingTable = routingTableBuilder.build();
+        when(clusterState.routingTable()).thenReturn(routingTable);
+
+        List<ShardId> shardIds = routingTable.allShards().stream().map(ShardRouting::shardId).toList();
+        Map<String, Set<ShardId>> indexShards = shardIds.stream()
+            .collect(Collectors.groupingBy(e -> e.getIndex().getName(), Collectors.toSet()));
+        Map<ShardId, ShardAssignment> shardAssignments = new HashMap<>();
+        if (shardIds.size() > 0) {
+            for (int i = 0; i < randomInt(8); i++) {
+                int total = randomIntBetween(1, 1024);
+                Set<String> shardNodeIds = randomUnique(() -> randomFrom(nodeIds), randomInt(8));
+                shardAssignments.put(
+                    randomFrom(shardIds),
+                    new ShardAssignment(shardNodeIds, total, total - shardNodeIds.size(), randomInt(1024))
+                );
+            }
+        }
+
+        when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(new DesiredBalance(randomInt(1024), shardAssignments));
+        DesiredBalanceStats desiredBalanceStats = new DesiredBalanceStats(
+            randomInt(Integer.MAX_VALUE),
+            randomBoolean(),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE)
+        );
+        when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
+        when(metadata.settings()).thenReturn(Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build());
+
+        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+
+        ArgumentCaptor<DesiredBalanceResponse> desiredBalanceResponseCaptor = ArgumentCaptor.forClass(DesiredBalanceResponse.class);
+        verify(listener).onResponse(desiredBalanceResponseCaptor.capture());
+        DesiredBalanceResponse desiredBalanceResponse = desiredBalanceResponseCaptor.getValue();
+        assertEquals(desiredBalanceStats, desiredBalanceResponse.getStats());
+        assertEquals(indexShards.keySet(), desiredBalanceResponse.getRoutingTable().keySet());
+        for (var e : desiredBalanceResponse.getRoutingTable().entrySet()) {
+            String index = e.getKey();
+            Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = e.getValue();
+            assertEquals(indexShards.get(index).stream().map(ShardId::id).collect(Collectors.toSet()), shardsMap.keySet());
+            for (Map.Entry<Integer, DesiredBalanceResponse.DesiredShards> shardDesiredBalance : shardsMap.entrySet()) {
+                DesiredBalanceResponse.DesiredShards desiredShards = shardDesiredBalance.getValue();
+                int shardId = shardDesiredBalance.getKey();
+                ShardRouting shard = routingTable.shardRoutingTable(index, shardId).primaryShard();
+                assertEquals(shard.state(), desiredShards.current().state());
+                assertEquals(shard.primary(), desiredShards.current().primary());
+                assertEquals(shard.currentNodeId(), desiredShards.current().node());
+                assertEquals(shard.relocatingNodeId(), desiredShards.current().relocatingNode());
+                assertEquals(shard.index().getName(), desiredShards.current().index());
+                assertEquals(shard.shardId().id(), desiredShards.current().shardId());
+                assertEquals(shard.allocationId(), desiredShards.current().allocationId());
+                Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(shard.shardId()));
+                Set<String> desiredNodeIds = shardAssignment.map(ShardAssignment::nodeIds).orElse(Set.of());
+                assertEquals(desiredNodeIds.contains(shard.currentNodeId()), desiredShards.current().nodeIsDesired());
+                assertEquals(
+                    shard.relocatingNodeId() != null && desiredNodeIds.contains(shard.relocatingNodeId()),
+                    desiredShards.current().relocatingNodeIsDesired()
+                );
+                if (shardAssignment.isPresent()) {
+                    assertEquals(shardAssignment.get().nodeIds(), desiredShards.desired().nodeIds());
+                    assertEquals(shardAssignment.get().total(), desiredShards.desired().total());
+                    assertEquals(shardAssignment.get().unassigned(), desiredShards.desired().unassigned());
+                    assertEquals(shardAssignment.get().ignored(), desiredShards.desired().ignored());
+                } else {
+                    assertNull(desiredShards.desired());
+                }
+            }
+        }
     }
 }

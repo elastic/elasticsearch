@@ -1138,10 +1138,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return rewrittenBuilder;
     }
 
-    public void parseXContent(XContentParser parser) throws IOException {
-        parseXContent(parser, true);
-    }
-
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
      * different defaults than a regular SearchSourceBuilder would have and use {@link #fromXContent(XContentParser, boolean)} if you have

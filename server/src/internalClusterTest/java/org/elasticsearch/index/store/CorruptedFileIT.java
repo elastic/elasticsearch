@@ -616,7 +616,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * nodes, so that replica won't be sneaky and allocated on a node that doesn't have a corrupted
      * replica.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testReplicaCorruption() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);

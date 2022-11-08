@@ -289,7 +289,7 @@ final class DynamicFieldsBuilder {
         }
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.createMapperBuilderContext());
+            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
             context.addDynamicMapper(mapper.name(), builder);
             parseField.accept(context, mapper);
         }

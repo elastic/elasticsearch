@@ -409,12 +409,15 @@ public abstract class DocumentParserContext {
 
     public abstract ContentPath path();
 
-    public final MapperBuilderContext createMapperBuilderContext() {
+    /**
+     * Creates a context to build dynamic mappers
+     */
+    public final MapperBuilderContext createDynamicMapperBuilderContext() {
         String p = path().pathAsText("");
         if (p.endsWith(".")) {
             p = p.substring(0, p.length() - 1);
         }
-        return new MapperBuilderContext(p);
+        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic());
     }
 
     public abstract XContentParser parser();
@@ -447,14 +450,6 @@ public abstract class DocumentParserContext {
             );
         }
         return null;
-    }
-
-    /**
-     * Is this index configured to use synthetic source?
-     */
-    public final boolean isSyntheticSource() {
-        SourceFieldMapper sft = mappingLookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
-        return sft == null ? false : sft.isSynthetic();
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

@@ -227,5 +227,10 @@ public class ModelAliasMetadata implements Metadata.Custom {
         public int hashCode() {
             return Objects.hash(modelId);
         }
+
+        @Override
+        public String toString() {
+            return "ModelAliasEntry{modelId='" + modelId + "'}";
+        }
     }
 }

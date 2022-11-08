@@ -107,8 +107,7 @@ public class BasicBlockTests extends ESTestCase {
             BytesRef bytesRef = new BytesRef(randomByteArrayOfLength(between(1, 20)));
             if (bytesRef.length > 0 && randomBoolean()) {
                 bytesRef.offset = randomIntBetween(0, bytesRef.length - 1);
-                // TODO: tests zero length BytesRefs after fixing BytesRefArray
-                bytesRef.length = randomIntBetween(1, bytesRef.length - bytesRef.offset);
+                bytesRef.length = randomIntBetween(0, bytesRef.length - bytesRef.offset);
             }
             values[i] = bytesRef;
             if (randomBoolean()) {

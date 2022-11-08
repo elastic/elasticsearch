@@ -85,7 +85,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final MapperBuilderContext context = MapperBuilderContext.ROOT;
+        final MapperBuilderContext context = MapperBuilderContext.root(false);
         if (type.equals("string")) {
             if (docValues) {
                 fieldType = new KeywordFieldMapper.Builder(fieldName, Version.CURRENT).build(context).fieldType();

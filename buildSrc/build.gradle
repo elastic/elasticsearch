@@ -113,13 +113,16 @@ repositories {
   maven {
     url "https://plugins.gradle.org/m2/"
   }
+  maven {
+    url 'https://repo.gradle.org/artifactory/libs/'
+  }
 }
 
 dependencies {
   compile localGroovy()
   compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-  
+
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
@@ -185,8 +188,8 @@ if (project != rootProject) {
   thirdPartyAudit.enabled = false
 
   unitTest {
-    // The test task is configured to runtimeJava version, but build-tools doesn't 
-    // have to support those. 
+    // The test task is configured to runtimeJava version, but build-tools doesn't
+    // have to support those.
     jvm = "${project.compilerJavaHome}/bin/java"
   }
 

@@ -10,6 +10,8 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
 import static java.util.Collections.singletonMap;
 
 public class EqualsTests extends ScriptTestCase {
@@ -182,5 +184,18 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(false, exec("HashMap a = new HashMap(); return null === a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null != a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null !== a;"));
+    }
+
+    public void testEqualsNullCheck() {
+        // get the same callsite working once, then with a null
+        // need to specify call site depth as 0 to force MIC to execute
+        assertEquals(false, exec("""
+            def list = ["foo", "foo", "quux", null];
+            def result = null;
+            for (int i=0; i<list.length; i+=2) {
+                result = list[i] == list[i+1];
+            }
+            return result;
+            """, Map.of(), Map.of(CompilerSettings.INITIAL_CALL_SITE_DEPTH, "0"), false));
     }
 }

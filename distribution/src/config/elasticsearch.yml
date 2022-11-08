@@ -77,8 +77,8 @@
 #
 # --------------------------------- Readiness ----------------------------------
 #
-# Enable an unauthenticated TCP readiness endpoint. The readiness service binds to the
-# same address as the HTTP publish address.
+# Enable an unauthenticated TCP readiness endpoint. The readiness service binds to all
+# host addresses.
 #
 #readiness.port: 9399
 #

@@ -1,14 +1,8 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
-
-dependencies {
-  testImplementation project(':x-pack:qa')
-}
 
 restResources {
   restApi {
@@ -55,7 +49,6 @@ def queryingCluster = testClusters.register('querying-cluster') {
 }
 
 tasks.register('fulfilling-cluster', RestIntegTestTask) {
-  mustRunAfter("precommit")
   useCluster fulfillingCluster
   systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
@@ -67,14 +60,15 @@ tasks.register('querying-cluster', RestIntegTestTask) {
   systemProperty 'tests.rest.suite', 'querying_cluster'
   if (proxyMode) {
     systemProperty 'tests.rest.blacklist', [
-      'local_cluster/10_basic/Add persistent remote cluster based on the preset cluster',
-      'local_cluster/20_info/Add persistent remote cluster based on the preset cluster and check remote info',
-      'local_cluster/20_info/Fetch remote cluster info for existing cluster',
-      'local_cluster/70_connection_mode_configuration/*',
+      'querying_cluster/10_basic/Add persistent remote cluster based on the preset cluster',
+      'querying_cluster/20_info/Add persistent remote cluster based on the preset cluster and check remote info',
+      'querying_cluster/20_info/Fetch remote cluster info for existing cluster',
+      'querying_cluster/70_connection_mode_configuration/*',
     ].join(",")
   }
 }
 
+// runs the fulfilling-cluster cluster tests then the querying-cluster tests
 tasks.register("integTest") {
   dependsOn 'querying-cluster'
 }

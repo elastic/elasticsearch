@@ -95,8 +95,8 @@ import java.util.function.Supplier;
  */
 public class ClusterModule extends AbstractModule {
 
-    public static final String BALANCED_ALLOCATOR = "balanced"; // default
-    public static final String DESIRED_BALANCE_ALLOCATOR = "desired_balance";
+    public static final String BALANCED_ALLOCATOR = "balanced";
+    public static final String DESIRED_BALANCE_ALLOCATOR = "desired_balance"; // default
     public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = new Setting<>(
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,

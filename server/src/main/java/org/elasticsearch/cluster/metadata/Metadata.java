@@ -1240,6 +1240,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return this.totalNumberOfShards;
     }
 
+    public double getTotalWriteLoad() {
+        // TODO compute once
+        double writeLoad = 0.0;
+        for (IndexMetadata indexMetadata : indices.values()) {
+            for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+                var indexWriteLoad = indexMetadata.getWriteLoad();
+                if (indexWriteLoad != null) {
+                    writeLoad += indexWriteLoad.getWriteLoadForShard(shardId).orElse(0.0);
+                }
+            }
+        }
+        return writeLoad;
+    }
+
     /**
      * Gets the total number of open shards from all indices. Includes
      * replicas, but does not include shards that are part of closed indices.

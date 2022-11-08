@@ -123,6 +123,9 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
                 .build()
         );
         ensureGreen(indexName);
+        // Prevent node1 from removing its local index shard copies upon removal, by blocking
+        // its ACTION_SHARD_EXISTS requests since after a relocation, the source first waits
+        // until the shard exists somewhere else, then it removes it locally.
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
         MockTransportService node1transport = (MockTransportService) internalCluster().getInstance(TransportService.class, node1);
         TransportService node2transport = internalCluster().getInstance(TransportService.class, node2);

@@ -54,14 +54,9 @@ public class TimeSeriesAggregator extends BucketsAggregator {
             List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>();
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
-                BytesRef spareKey = new BytesRef();
-                ordsEnum.readValue(spareKey);
-                InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
-                    spareKey,
-                    docCount,
-                    null,
-                    keyed
-                );
+                BytesRef key = new BytesRef();
+                ordsEnum.readValue(key);
+                InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(key, docCount, null, keyed);
                 bucket.bucketOrd = ordsEnum.ord();
                 buckets.add(bucket);
             }

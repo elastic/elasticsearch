@@ -84,6 +84,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     public void testKeywordsArray() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 
@@ -214,6 +215,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         }, keywordType).withQuery(query));
     }
 
+    @SuppressWarnings("unchecked")
     public void testMixedSingleValues() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 
@@ -397,6 +399,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
 
     }
 
+    @SuppressWarnings("unchecked")
     public void testSingleValueWithDate() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 

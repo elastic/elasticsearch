@@ -15,7 +15,7 @@ import org.elasticsearch.plugin.api.NamedComponent;
 
 import java.io.Reader;
 
-@NamedComponent(name = "example_char_filter")
+@NamedComponent( "example_char_filter")
 public class ExampleCharFilterFactory implements CharFilterFactory {
     @Override
     public Reader create(Reader reader) {

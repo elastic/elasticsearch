@@ -176,13 +176,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 .errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
             // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
             exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
-                .errorMatches("failed to parse field [field.value_count] of type [integer]")
+                .errorMatches("failed to parse [value_count] sub field: 77.33 cannot be converted to Integer without data loss")
         );
-    }
-
-    @Override
-    protected String[] ignoredFields() {
-        return new String[] { "field.value_count", "field.min", "field.max" };
     }
 
     /**
@@ -207,23 +202,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 77.0).endObject())
         );
         assertEquals(77, doc.rootDoc().getField("field.value_count").numericValue().longValue());
-    }
-
-    /**
-     * Test parsing a value_count metric written as double with some decimal digits
-     */
-    public void testInvalidDoubleValueCount() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(
-                source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
-            )
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("failed to parse field [field.value_count] of type [integer] in document with id '1'.")
-        );
     }
 
     /**

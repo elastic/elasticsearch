@@ -135,6 +135,39 @@ setup:
         model_id: test_model
   - match: { stopped: true }
 ---
+"Test start and stop deployment with low priority":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        priority: "low"
+        wait_for: started
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.priority: low }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+  - match: { assignment.task_parameters.threads_per_allocation: 1 }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
+---
+"Test start deployment with low priority and multiple allocations":
+  - do:
+      catch: /\[number_of_allocations\] must be 1 when \[priority\] is low/
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        priority: "low"
+        number_of_allocations: 3
+---
+"Test start deployment with low priority and multiple threads per allocation":
+  - do:
+      catch: /\[threads_per_allocation\] must be 1 when \[priority\] is low/
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        priority: "low"
+        threads_per_allocation: 4
+---
 "Test update deployment":
   - do:
       ml.start_trained_model_deployment:

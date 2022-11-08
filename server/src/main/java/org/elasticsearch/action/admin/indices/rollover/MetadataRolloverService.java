@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -98,7 +99,8 @@ public class MetadataRolloverService {
         List<Condition<?>> metConditions,
         Instant now,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        @Nullable IndexWriteLoad sourceIndexWriteLoad
     ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
@@ -121,7 +123,8 @@ public class MetadataRolloverService {
                 metConditions,
                 now,
                 silent,
-                onlyValidate
+                onlyValidate,
+                sourceIndexWriteLoad
             );
             default ->
                 // the validate method above prevents this case
@@ -228,7 +231,8 @@ public class MetadataRolloverService {
         List<Condition<?>> metConditions,
         Instant now,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        @Nullable IndexWriteLoad sourceIndexWriteLoad
     ) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
@@ -284,10 +288,15 @@ public class MetadataRolloverService {
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
+
         newState = ClusterState.builder(newState)
             .metadata(
                 Metadata.builder(newState.metadata())
-                    .put(IndexMetadata.builder(newState.metadata().index(originalWriteIndex)).putRolloverInfo(rolloverInfo))
+                    .put(
+                        IndexMetadata.builder(newState.metadata().index(originalWriteIndex))
+                            .indexWriteLoad(sourceIndexWriteLoad)
+                            .putRolloverInfo(rolloverInfo)
+                    )
             )
             .build();
 

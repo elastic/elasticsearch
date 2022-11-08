@@ -39,8 +39,12 @@ public class PendingListenersQueue {
         }
     }
 
-    public void complete(long index) {
-        advance(index);
+    public void complete(long convergedIndex) {
+        synchronized (pendingListeners) {
+            if (convergedIndex > completedIndex) {
+                completedIndex = convergedIndex;
+            }
+        }
         executeListeners(completedIndex, true);
     }
 
@@ -63,14 +67,6 @@ public class PendingListenersQueue {
                     ActionListener.onFailure(listeners, new NotMasterException("no longer master"));
                 }
             });
-        }
-    }
-
-    private void advance(long index) {
-        synchronized (pendingListeners) {
-            if (index > completedIndex) {
-                completedIndex = index;
-            }
         }
     }
 

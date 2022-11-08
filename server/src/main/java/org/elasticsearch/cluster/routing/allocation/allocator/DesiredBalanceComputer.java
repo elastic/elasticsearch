@@ -269,7 +269,7 @@ public class DesiredBalanceComputer {
 
         final var assignments = new HashMap<ShardId, ShardAssignment>();
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
-            assignments.put(shardAndAssignments.getKey(), ShardAssignment.of(shardAndAssignments.getValue()));
+            assignments.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
         }
 
         for (var ignored : routingNodes.unassigned().ignored()) {

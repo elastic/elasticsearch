@@ -42,6 +42,10 @@ line to the `[Service]` section in a <<systemd,service override file>>:
 Environment=ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
 
+[NOTE]
+For installs done through rpm or deb packages the environment variable needs
+to be set through the link:/guide/en/elasticsearch/reference/current/setting-system-settings.html#sysconfig[system configuration file].
+
 If you need finer control over the location of these temporary files, you can
 also configure the path that JNA uses with the <<set-jvm-options,JVM flag>>
 `-Djna.tmpdir=<path>` and you can configure the path that `libffi` uses for its

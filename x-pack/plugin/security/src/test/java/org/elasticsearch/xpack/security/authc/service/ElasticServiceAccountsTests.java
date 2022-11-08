@@ -208,9 +208,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         });
 
-        List.of(
-            "synthetics-" + randomAlphaOfLengthBetween(1, 20)
-        ).stream().map(this::mockIndexAbstraction).forEach(index -> {
+        List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
             assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));

@@ -20,6 +20,9 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 /**
  * The input to the desired balance computation.
  *
+ * @param index             Each {@link DesiredBalanceInput} comes from a call to {@code reroute()} by a cluster state update, so they
+ *                          arrive in sequence and newer inputs should supersede older ones. The {@link #index} of the input is its position
+ *                          in this sequence.
  * @param routingAllocation a copy of (the immutable parts of) the context for the allocation decision process
  * @param ignoredShards     a list of the shards for which earlier allocators have claimed responsibility
  */

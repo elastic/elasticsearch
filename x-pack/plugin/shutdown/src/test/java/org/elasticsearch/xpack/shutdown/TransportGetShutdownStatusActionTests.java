@@ -406,7 +406,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         assertShardMigration(
             getUnassignedShutdownStatus(index, imd, shard0, shard1, shard2, unassignedReplica, unassigned3),
             SingleNodeShutdownMetadata.Status.STALLED,
-            2,
+            1,
             allOf(containsString(index.getName()), containsString("[3] [primary]"))
         );
     }

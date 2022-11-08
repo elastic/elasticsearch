@@ -208,12 +208,14 @@ public class EqualsTests extends ScriptTestCase {
         // get the same callsite working once, then with a null
         // need to specify call site depth as 0 to force MIC to execute
         assertEquals(false, exec("""
-            def list = ["foo", "foo", "quux", null];
-            def result = null;
+            def list = [2, 2, 3, 3, 4, null];
+            boolean b;
             for (int i=0; i<list.length; i+=2) {
-                result = list[i] == list[i+1];
+                b = list[i] == list[i+1];
+                b = list[i+1] == 10;
+                b = 10 == list[i+1];
             }
-            return result;
+            return b;
             """, Map.of(), Map.of(CompilerSettings.INITIAL_CALL_SITE_DEPTH, "0"), false));
     }
 }

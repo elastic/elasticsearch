@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.aggregations.bucket;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -14,11 +14,17 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.aggregations.AggregationIntegTestCase;
+import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
+import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -28,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeries;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,7 +54,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.timeSeries;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -61,7 +65,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
-public class TimeSeriesAggregationsIT extends ESIntegTestCase {
+public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
     private static final Map<Map<String, String>, Map<Long, Map<String, Double>>> data = new HashMap<>();
     private static int numberOfDimensions;
@@ -175,12 +179,12 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
-        TimeSeries timeSeries = aggregations.get("by_ts");
+        InternalTimeSeries timeSeries = aggregations.get("by_ts");
         assertThat(
             timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
             equalTo(data.keySet())
         );
-        for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
             @SuppressWarnings("unchecked")
             Map<String, String> key = (Map<String, String>) bucket.getKey();
             assertThat((long) data.get(key).size(), equalTo(bucket.getDocCount()));
@@ -204,8 +208,8 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         Terms terms = aggregations.get("by_dim");
         Set<Map<String, String>> keys = new HashSet<>();
         for (Terms.Bucket term : terms.getBuckets()) {
-            TimeSeries timeSeries = term.getAggregations().get("by_ts");
-            for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+            InternalTimeSeries timeSeries = term.getAggregations().get("by_ts");
+            for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
                 @SuppressWarnings("unchecked")
                 Map<String, String> key = (Map<String, String>) bucket.getKey();
                 assertThat((long) data.get(key).size(), equalTo(bucket.getDocCount()));
@@ -234,8 +238,8 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         for (Histogram.Bucket interval : histogram.getBuckets()) {
             long intervalStart = ((ZonedDateTime) interval.getKey()).toEpochSecond() * 1000;
             long intervalEnd = intervalStart + fixedInterval.estimateMillis();
-            TimeSeries timeSeries = interval.getAggregations().get("by_ts");
-            for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+            InternalTimeSeries timeSeries = interval.getAggregations().get("by_ts");
+            for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
                 @SuppressWarnings("unchecked")
                 Map<String, String> key = (Map<String, String>) bucket.getKey();
                 keys.compute(key, (k, v) -> (v == null ? 0 : v) + bucket.getDocCount());
@@ -269,13 +273,13 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
-        TimeSeries timeSeries = aggregations.get("by_ts");
+        InternalTimeSeries timeSeries = aggregations.get("by_ts");
         Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
         assertThat(
             timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
             equalTo(filteredData.keySet())
         );
-        for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
             @SuppressWarnings("unchecked")
             Map<String, String> key = (Map<String, String>) bucket.getKey();
             assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
@@ -301,13 +305,13 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
-        TimeSeries timeSeries = aggregations.get("by_ts");
+        InternalTimeSeries timeSeries = aggregations.get("by_ts");
         Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
         assertThat(
             timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
             equalTo(filteredData.keySet())
         );
-        for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
             @SuppressWarnings("unchecked")
             Map<String, String> key = (Map<String, String>) bucket.getKey();
             assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
@@ -348,13 +352,13 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
-        TimeSeries timeSeries = aggregations.get("by_ts");
+        InternalTimeSeries timeSeries = aggregations.get("by_ts");
         Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByMetric(data, "metric_" + metric, val, above);
         assertThat(
             timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
             equalTo(filteredData.keySet())
         );
-        for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
             @SuppressWarnings("unchecked")
             Map<String, String> key = (Map<String, String>) bucket.getKey();
             assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
@@ -519,6 +523,10 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         response = client().prepareSearch("test").setQuery(queryBuilder).setSize(10).addAggregation(timeSeries("by_ts")).get();
         assertSearchResponse(response);
 
+    }
+
+    public static TimeSeriesAggregationBuilder timeSeries(String name) {
+        return new TimeSeriesAggregationBuilder(name);
     }
 
 }

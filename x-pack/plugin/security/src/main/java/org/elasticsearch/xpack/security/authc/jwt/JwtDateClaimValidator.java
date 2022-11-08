@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
@@ -40,10 +40,10 @@ public class JwtDateClaimValidator implements JwtClaimValidator {
     }
 
     @Override
-    public void validate(SignedJWT jwt) {
+    public void validate(JWTClaimsSet jwtClaimsSet) {
         final Date claimValue;
         try {
-            claimValue = jwt.getJWTClaimsSet().getDateClaim(claimName);
+            claimValue = jwtClaimsSet.getDateClaim(claimName);
         } catch (ParseException e) {
             throw new ElasticsearchSecurityException("cannot parse date claim [" + claimName + "]", RestStatus.BAD_REQUEST, e);
         }
@@ -62,12 +62,18 @@ public class JwtDateClaimValidator implements JwtClaimValidator {
         switch (relationship) {
             case BEFORE_NOW:
                 if (false == claimInstant.isBefore(now.plusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException("date claim [" + claimName + "] must be before now", RestStatus.BAD_REQUEST);
+                    throw new ElasticsearchSecurityException(
+                        "date claim [" + claimName + "] must be before now [" + now.toEpochMilli() + "]",
+                        RestStatus.BAD_REQUEST
+                    );
                 }
                 break;
             case AFTER_NOW:
                 if (false == claimInstant.isAfter(now.minusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException("date claim [" + claimName + "] must be after now", RestStatus.BAD_REQUEST);
+                    throw new ElasticsearchSecurityException(
+                        "date claim [" + claimName + "] must be after now [" + now.toEpochMilli() + "]",
+                        RestStatus.BAD_REQUEST
+                    );
                 }
                 break;
             default:

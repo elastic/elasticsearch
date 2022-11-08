@@ -7,8 +7,16 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.jwt.JWTClaimsSet;
 
+/**
+ * Validator for the JWT Claims
+ */
 public interface JwtClaimValidator {
-    void validate(SignedJWT jwt);
+
+    /**
+     * Validate the given claims. Throw exception if the validation fails.
+     * @param jwtClaimsSet The claims set
+     */
+    void validate(JWTClaimsSet jwtClaimsSet);
 }

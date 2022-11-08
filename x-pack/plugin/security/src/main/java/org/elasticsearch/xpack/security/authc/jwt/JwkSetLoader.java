@@ -32,26 +32,30 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * This class is responsible for loading the JWK set for PKC signature from either a file or URL.
+ * The JWK set is loaded once when the class is instantiated. Subsequent reloading is triggered
+ * by invoking the {@link #reload(ActionListener)} method. The updated JWK set can be retrieved with
+ * the {@link #getContentAndJwksAlgs()} method once loading or reloading is completed.
+ */
 public class JwkSetLoader implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(JwkSetLoader.class);
 
-    private final AtomicReference<ListenableFuture<ContentAndJwksAlgs>> reloadFutureRef = new AtomicReference<>();
+    private final AtomicReference<ListenableFuture<Boolean>> reloadFutureRef = new AtomicReference<>();
     private final RealmConfig realmConfig;
-    private final List<String> allowedJwksAlgs;
+    private final List<String> allowedJwksAlgsPkc;
     private final String jwkSetPath;
     @Nullable
     private final URI jwkSetPathUri;
     @Nullable
     private final CloseableHttpAsyncClient httpClient;
-    private volatile ContentAndJwksAlgs contentAndJwksAlgs;
+    private volatile ContentAndJwksAlgs contentAndJwksAlgs = null;
 
-    public JwkSetLoader(final RealmConfig realmConfig, final SSLService sslService) {
+    public JwkSetLoader(final RealmConfig realmConfig, List<String> allowedJwksAlgsPkc, final SSLService sslService) {
         this.realmConfig = realmConfig;
-        this.allowedJwksAlgs = realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
-            .stream()
-            .filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains)
-            .toList();
+        this.allowedJwksAlgsPkc = allowedJwksAlgsPkc;
+        // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
         this.jwkSetPath = realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
         assert Strings.hasText(this.jwkSetPath);
         this.jwkSetPathUri = JwtUtil.parseHttpsUri(jwkSetPath);
@@ -63,22 +67,15 @@ public class JwkSetLoader implements Releasable {
 
         // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
         try {
-            final PlainActionFuture<ContentAndJwksAlgs> future = new PlainActionFuture<>();
-            load(future);
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            reload(future);
             // ASSUME: Blocking read operations are OK during startup
-            contentAndJwksAlgs = future.actionGet();
+            final Boolean isUpdated = future.actionGet();
+            assert isUpdated : "initial reload should have updated the JWK set";
         } catch (Throwable t) {
             close();
             throw t;
         }
-    }
-
-    /**
-     * Load the JWK sets and pass its content to the specified listener.
-     */
-    void load(final ActionListener<ContentAndJwksAlgs> listener) {
-        final ListenableFuture<ContentAndJwksAlgs> future = this.getFuture();
-        future.addListener(listener);
     }
 
     /**
@@ -87,32 +84,25 @@ public class JwkSetLoader implements Releasable {
      * as the existing one or true if they are different.
      */
     void reload(final ActionListener<Boolean> listener) {
-        load(ActionListener.wrap(newContentAndJwksAlgs -> {
-            if (Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) {
-                // No change in JWKSet
-                listener.onResponse(false);
-            } else {
-                contentAndJwksAlgs = newContentAndJwksAlgs;
-                listener.onResponse(true);
-            }
-        }, listener::onFailure));
+        final ListenableFuture<Boolean> future = this.getFuture();
+        future.addListener(listener);
     }
 
     ContentAndJwksAlgs getContentAndJwksAlgs() {
         return contentAndJwksAlgs;
     }
 
-    private ListenableFuture<ContentAndJwksAlgs> getFuture() {
+    private ListenableFuture<Boolean> getFuture() {
         for (;;) {
-            final ListenableFuture<ContentAndJwksAlgs> existingFuture = this.reloadFutureRef.get();
+            final ListenableFuture<Boolean> existingFuture = this.reloadFutureRef.get();
             if (existingFuture != null) {
                 return existingFuture;
             }
 
-            final ListenableFuture<ContentAndJwksAlgs> newFuture = new ListenableFuture<>();
+            final ListenableFuture<Boolean> newFuture = new ListenableFuture<>();
             if (this.reloadFutureRef.compareAndSet(null, newFuture)) {
                 loadInternal(ActionListener.runAfter(newFuture, () -> {
-                    final ListenableFuture<ContentAndJwksAlgs> oldValue = this.reloadFutureRef.getAndSet(null);
+                    final ListenableFuture<Boolean> oldValue = this.reloadFutureRef.getAndSet(null);
                     assert oldValue == newFuture : "future reference changed unexpectedly";
                 }));
                 return newFuture;
@@ -121,30 +111,38 @@ public class JwkSetLoader implements Releasable {
         }
     }
 
-    private void loadInternal(final ActionListener<ContentAndJwksAlgs> listener) {
+    private void loadInternal(final ActionListener<Boolean> listener) {
         // PKC JWKSet get contents from local file or remote HTTPS URL
         if (httpClient == null) {
             logger.trace("Loading PKC JWKs from path [{}]", jwkSetPath);
-            listener.onResponse(
-                this.parseContent(
-                    JwtUtil.readFileContents(
-                        RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH),
-                        jwkSetPath,
-                        realmConfig.env()
-                    )
-                )
-            );
+            final byte[] reloadedBytes =
+                JwtUtil.readFileContents(RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH),
+                    jwkSetPath,
+                    realmConfig.env());
+            listener.onResponse(handleReloadedContentAndJwksAlgs(reloadedBytes));
         } else {
             logger.trace("Loading PKC JWKs from https URI [{}]", jwkSetPathUri);
             JwtUtil.readUriContents(
                 RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH),
                 jwkSetPathUri,
                 httpClient,
-                listener.map(bytes -> {
-                    logger.trace("Loaded bytes [{}] from [{}]", bytes.length, jwkSetPathUri);
-                    return this.parseContent(bytes);
+                listener.map(reloadedBytes -> {
+                    logger.trace("Loaded bytes [{}] from [{}]", reloadedBytes.length, jwkSetPathUri);
+                    return handleReloadedContentAndJwksAlgs(reloadedBytes);
                 })
             );
+        }
+    }
+
+    private Boolean handleReloadedContentAndJwksAlgs(byte[] bytes) {
+        final ContentAndJwksAlgs newContentAndJwksAlgs = parseContent(bytes);
+        if (contentAndJwksAlgs != null && Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) {
+            logger.debug("No change in reloaded JWK set");
+            return false;
+        } else {
+            logger.debug("Reloaded JWK set is different from the existing set");
+            contentAndJwksAlgs = newContentAndJwksAlgs;
+            return true;
         }
     }
 
@@ -158,7 +156,7 @@ public class JwkSetLoader implements Releasable {
             jwkSetContentsPkc
         );
         // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
-        final JwksAlgs jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, allowedJwksAlgs);
+        final JwksAlgs jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, allowedJwksAlgsPkc);
         logger.info(
             "Usable PKC: JWKs=[{}] algorithms=[{}] sha256=[{}]",
             jwksAlgsPkc.jwks().size(),

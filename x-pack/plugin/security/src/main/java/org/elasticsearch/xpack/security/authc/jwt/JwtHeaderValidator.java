@@ -14,7 +14,6 @@ import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
@@ -22,7 +21,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 
-public class JwtHeaderValidator implements JwtClaimValidator {
+public class JwtHeaderValidator {
 
     private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
         JOSEObjectType.JWT,
@@ -35,18 +34,16 @@ public class JwtHeaderValidator implements JwtClaimValidator {
         this.allowedAlgorithms = allowedAlgorithms;
     }
 
-    @Override
-    public void validate(SignedJWT jwt) {
+    public void validate(JWSHeader jwsHeader) {
 
-        final JWSHeader jwtHeader = jwt.getHeader();
-        final JOSEObjectType jwtHeaderType = jwtHeader.getType();
+        final JOSEObjectType jwtHeaderType = jwsHeader.getType();
         try {
             JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
         } catch (BadJOSEException e) {
             throw new ElasticsearchSecurityException("invalid jwt typ header", RestStatus.BAD_REQUEST, e);
         }
 
-        final JWSAlgorithm algorithm = jwt.getHeader().getAlgorithm();
+        final JWSAlgorithm algorithm = jwsHeader.getAlgorithm();
         if (algorithm == null) {
             throw new ElasticsearchSecurityException("missing JWT algorithm header", RestStatus.BAD_REQUEST);
         }

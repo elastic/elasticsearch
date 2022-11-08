@@ -38,30 +38,29 @@ public interface JwtSignatureValidator extends Releasable {
 
     void validate(String tokenPrincipal, SignedJWT jwt, ActionListener<Void> listener);
 
-    boolean hasUsableJwksAlgs();
-
     class DelegatingJwtSignatureValidator implements JwtSignatureValidator {
 
         private static final Logger logger = LogManager.getLogger(DelegatingJwtSignatureValidator.class);
 
+        private final RealmConfig realmConfig;
         final List<String> allowedJwksAlgsPkc;
         final List<String> allowedJwksAlgsHmac;
         @Nullable
-        private final JwtSignatureValidator hmacJwtSignatureValidator;
+        private final HmacJwtSignatureValidator hmacJwtSignatureValidator;
         @Nullable
-        private final JwtSignatureValidator pkcJwtSignatureValidator;
+        private final PkcJwtSignatureValidator pkcJwtSignatureValidator;
 
         public DelegatingJwtSignatureValidator(
             final RealmConfig realmConfig,
             final SSLService sslService,
             final PkcJwkSetReloadNotifier reloadNotifier
         ) {
+            this.realmConfig = realmConfig;
             // Split configured signature algorithms by PKC and HMAC. Useful during validation, error logging, and JWK vs Alg filtering.
             final List<String> algs = realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
             this.allowedJwksAlgsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
             this.allowedJwksAlgsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
 
-            // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
             final String jwkSetPath = realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
             final SecureString hmacJwkSetContents = realmConfig.getSetting(JwtRealmSettings.HMAC_JWKSET);
             final SecureString hmacKeyContents = realmConfig.getSetting(JwtRealmSettings.HMAC_KEY);
@@ -90,23 +89,21 @@ public interface JwtSignatureValidator extends Releasable {
             if (jwksHmac != null) {
                 final JwkSetLoader.JwksAlgs jwksAlgs = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, allowedJwksAlgsHmac);
                 logger.info("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgs.jwks().size(), String.join(",", jwksAlgs.algs()));
-                // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
+                // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algorithms with a matching JWK.
                 this.hmacJwtSignatureValidator = new HmacJwtSignatureValidator(jwksAlgs);
             } else {
                 this.hmacJwtSignatureValidator = null;
             }
 
             if (isConfiguredJwkSetPkc) {
-                this.pkcJwtSignatureValidator = new PkcJwtSignatureValidator(new JwkSetLoader(realmConfig, sslService), reloadNotifier);
+                this.pkcJwtSignatureValidator = new PkcJwtSignatureValidator(
+                    new JwkSetLoader(realmConfig, allowedJwksAlgsPkc, sslService),
+                    reloadNotifier
+                );
             } else {
                 this.pkcJwtSignatureValidator = null;
             }
-
-            if (false == hasUsableJwksAlgs()) {
-                logger.warn(
-                    "No available JWK and algorithm for HMAC or PKC. JWT realm authentication expected to fail until this is fixed."
-                );
-            }
+            logWarnIfAuthenticationWillAlwaysFail();
         }
 
         @Override
@@ -118,7 +115,11 @@ public interface JwtSignatureValidator extends Releasable {
                 } else {
                     listener.onFailure(
                         new ElasticsearchSecurityException(
-                            "algorithm [%s] is a HMAC signing algorithm, but HMAC JWK is not configured",
+                            "algorithm [%s] is a HMAC signing algorithm, but none of the HMAC JWK settings ["
+                                + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_KEY)
+                                + ", "
+                                + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_JWKSET)
+                                + "] is configured",
                             RestStatus.BAD_REQUEST,
                             algorithm
                         )
@@ -130,7 +131,9 @@ public interface JwtSignatureValidator extends Releasable {
                 } else {
                     listener.onFailure(
                         new ElasticsearchSecurityException(
-                            "algorithm [%s] is a PKC signing algorithm, but PKC JWK is not configured",
+                            "algorithm [%s] is a PKC signing algorithm, but PKC JWK setting ["
+                                + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH)
+                                + "] is not configured",
                             RestStatus.BAD_REQUEST,
                             algorithm
                         )
@@ -157,10 +160,14 @@ public interface JwtSignatureValidator extends Releasable {
             }
         }
 
-        @Override
-        public boolean hasUsableJwksAlgs() {
-            return (hmacJwtSignatureValidator != null && hmacJwtSignatureValidator.hasUsableJwksAlgs())
-                || (pkcJwtSignatureValidator != null && pkcJwtSignatureValidator.hasUsableJwksAlgs());
+        private void logWarnIfAuthenticationWillAlwaysFail() {
+            final boolean hasUsableJwksAndAlgorithms = (hmacJwtSignatureValidator != null && hmacJwtSignatureValidator.jwksAlgs.isEmpty())
+                || (pkcJwtSignatureValidator != null && pkcJwtSignatureValidator.jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().isEmpty());
+            if (false == hasUsableJwksAndAlgorithms) {
+                logger.warn(
+                    "No available JWK and algorithm for HMAC or PKC. JWT realm authentication expected to fail until this is fixed."
+                );
+            }
         }
 
         private static void validateJwkSettings(
@@ -199,14 +206,14 @@ public interface JwtSignatureValidator extends Releasable {
             if (hmacJwtSignatureValidator == null) {
                 jwksAlgsHmac = new JwkSetLoader.JwksAlgs(List.of(), List.of());
             } else {
-                jwksAlgsHmac = ((HmacJwtSignatureValidator) hmacJwtSignatureValidator).jwksAlgs;
+                jwksAlgsHmac = hmacJwtSignatureValidator.jwksAlgs;
             }
 
             final JwkSetLoader.JwksAlgs jwksAlgsPkc;
             if (pkcJwtSignatureValidator == null) {
                 jwksAlgsPkc = new JwkSetLoader.JwksAlgs(List.of(), List.of());
             } else {
-                jwksAlgsPkc = ((PkcJwtSignatureValidator) pkcJwtSignatureValidator).jwkSetLoader.getContentAndJwksAlgs().jwksAlgs();
+                jwksAlgsPkc = pkcJwtSignatureValidator.jwkSetLoader.getContentAndJwksAlgs().jwksAlgs();
             }
             return new Tuple<>(jwksAlgsHmac, jwksAlgsPkc);
         }
@@ -228,11 +235,6 @@ public interface JwtSignatureValidator extends Releasable {
             } catch (Exception e) {
                 listener.onFailure(e);
             }
-        }
-
-        @Override
-        public boolean hasUsableJwksAlgs() {
-            return false == jwksAlgs.isEmpty();
         }
     }
 
@@ -302,11 +304,6 @@ public interface JwtSignatureValidator extends Releasable {
         @Override
         public void close() {
             jwkSetLoader.close();
-        }
-
-        @Override
-        public boolean hasUsableJwksAlgs() {
-            return false == jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().isEmpty();
         }
     }
 

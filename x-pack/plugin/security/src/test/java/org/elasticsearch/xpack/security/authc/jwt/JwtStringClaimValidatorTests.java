@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.test.ESTestCase;
@@ -19,8 +18,6 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class JwtStringClaimValidatorTests extends ESTestCase {
 
@@ -28,8 +25,8 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
 
-        final SignedJWT jwt = prepareJwt(Map.of(claimName, List.of(42)));
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
+        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of(42)));
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
         assertThat(e.getMessage(), containsString("cannot parse string claim"));
         assertThat(e.getCause(), instanceOf(ParseException.class));
     }
@@ -38,8 +35,8 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final String claimName = randomAlphaOfLengthBetween(3, 8);
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), true);
 
-        final SignedJWT jwt = prepareJwt(Map.of(claimName, List.of("foo", "bar")));
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
+        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of("foo", "bar")));
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
         assertThat(e.getMessage(), containsString("cannot parse string claim"));
         assertThat(e.getCause(), instanceOf(ParseException.class));
     }
@@ -48,9 +45,9 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final String claimName = randomAlphaOfLengthBetween(3, 8);
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
 
-        final SignedJWT jwt = prepareJwt(Map.of());
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
-        assertThat(e.getMessage(), containsString("missing string claim"));
+        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
+        assertThat(e.getMessage(), containsString("missing required string claim"));
     }
 
     public void testMatchingClaimValues() throws ParseException {
@@ -63,20 +60,20 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
             singleValuedClaim
         );
 
-        final SignedJWT validJwt = prepareJwt(
+        final JWTClaimsSet validJwtClaimsSet = JWTClaimsSet.parse(
             Map.of(claimName, singleValuedClaim ? claimValue : randomFrom(claimValue, List.of(claimValue, "other-stuff")))
         );
-        validator.validate(validJwt);
+        try {
+            validator.validate(validJwtClaimsSet);
+        } catch (Exception e) {
+            throw new AssertionError("validation should have passed without exception", e);
+        }
 
-        final SignedJWT invalidJwt = prepareJwt(Map.of(claimName, "not-" + claimValue));
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(invalidJwt));
+        final JWTClaimsSet invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, "not-" + claimValue));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> validator.validate(invalidJwtClaimsSet)
+        );
         assertThat(e.getMessage(), containsString("does not match allowed claim values"));
-    }
-
-    private SignedJWT prepareJwt(Map<String, Object> m) throws ParseException {
-        final SignedJWT jwt = mock(SignedJWT.class);
-        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(m);
-        when(jwt.getJWTClaimsSet()).thenReturn(jwtClaimsSet);
-        return jwt;
     }
 }

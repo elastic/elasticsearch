@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
@@ -18,6 +17,15 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import java.text.ParseException;
 import java.util.List;
 
+/**
+ * Validates a string claim against a list of allowed values. The validation is successful
+ * if the claim's value matches any of the allowed values.
+ * The claim's value can be either a single string or an array of strings. When it is an array
+ * of string, the validation passes when any member of the string array matches any of the allowed
+ * values.
+ * Whether a claim's value can be an array of strings is customised with the {@link #singleValuedClaim}
+ * field, which enforces the claim's value to be a single string if it is configured to {@code true}.
+ */
 public class JwtStringClaimValidator implements JwtClaimValidator {
 
     private final String claimName;
@@ -30,22 +38,19 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
         this.claimName = claimName;
         this.allowedClaimValues = allowedClaimValues;
         this.singleValuedClaim = singleValuedClaim;
-        // if (allowedClaimValues.stream().anyMatch(v -> v.startsWith("/") || v.contains("*"))) {
-        // throw new ElasticsearchException("invalid allowed claim values, cannot use wildcard or regex");
-        // }
         this.claimValueMatcher = StringMatcher.of(allowedClaimValues);
     }
 
     @Override
-    public void validate(SignedJWT jwt) {
+    public void validate(JWTClaimsSet jwtClaimsSet) {
         final List<String> claimValues;
         try {
-            claimValues = getStringClaimValues(jwt.getJWTClaimsSet());
+            claimValues = getStringClaimValues(jwtClaimsSet);
         } catch (ParseException e) {
             throw new ElasticsearchSecurityException("cannot parse string claim [" + claimName + "]", RestStatus.BAD_REQUEST, e);
         }
         if (claimValues == null) {
-            throw new ElasticsearchSecurityException("missing string claim [" + claimName + "]", RestStatus.BAD_REQUEST);
+            throw new ElasticsearchSecurityException("missing required string claim [" + claimName + "]", RestStatus.BAD_REQUEST);
         }
 
         if (false == claimValues.stream().anyMatch(claimValueMatcher)) {

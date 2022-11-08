@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
@@ -43,30 +42,44 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
             randomBoolean()
         );
 
-        final SignedJWT jwt = prepareJwt(Map.of(claimName, randomAlphaOfLengthBetween(3, 8)));
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
+        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, randomAlphaOfLengthBetween(3, 8)));
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
         assertThat(e.getMessage(), containsString("cannot parse date claim"));
         assertThat(e.getCause(), instanceOf(ParseException.class));
     }
 
     public void testClaimDoesNotExist() throws ParseException {
         final String claimName = randomFrom(randomAlphaOfLengthBetween(3, 8), "iat", "nbf", "auth_time");
-        final boolean allowNull = randomBoolean();
 
         final JwtDateClaimValidator validator = new JwtDateClaimValidator(
             clock,
             claimName,
             TimeValue.ZERO,
             randomFrom(JwtDateClaimValidator.Relationship.values()),
-            allowNull
+            false
         );
 
-        final SignedJWT jwt = prepareJwt(Map.of());
-        if (allowNull) {
-            validator.validate(jwt);
-        } else {
-            final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwt));
-            assertThat(e.getMessage(), containsString("missing date claim"));
+        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
+        assertThat(e.getMessage(), containsString("missing required date claim"));
+    }
+
+    public void testClaimDoesNotExistIsOKWhenAllowNullIsTrue() throws ParseException {
+        final String claimName = randomFrom(randomAlphaOfLengthBetween(3, 8), "iat", "nbf", "auth_time");
+
+        final JwtDateClaimValidator validator = new JwtDateClaimValidator(
+            clock,
+            claimName,
+            TimeValue.ZERO,
+            randomFrom(JwtDateClaimValidator.Relationship.values()),
+            true
+        );
+
+        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
+        try {
+            validator.validate(jwtClaimsSet);
+        } catch (Exception e) {
+            throw new AssertionError("validation should have passed without exception", e);
         }
     }
 
@@ -85,12 +98,16 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         when(clock.instant()).thenReturn(now);
 
         final Instant before = now.minusSeconds(randomLongBetween(1 - allowedSkewInSeconds, 600));
-        validator.validate(prepareJwt(Map.of(claimName, before.getEpochSecond())));
+        try {
+            validator.validate(JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())));
+        } catch (Exception e) {
+            throw new AssertionError("validation should have passed without exception", e);
+        }
 
         final Instant after = now.plusSeconds(randomLongBetween(1 + allowedSkewInSeconds, 600));
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> validator.validate(prepareJwt(Map.of(claimName, after.getEpochSecond())))
+            () -> validator.validate(JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())))
         );
         assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be before now"));
     }
@@ -112,18 +129,15 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         final Instant before = now.minusSeconds(randomLongBetween(1 + allowedSkewInSeconds, 600));
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> validator.validate(prepareJwt(Map.of(claimName, before.getEpochSecond())))
+            () -> validator.validate(JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())))
         );
         assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be after now"));
 
         final Instant after = now.plusSeconds(randomLongBetween(1 - allowedSkewInSeconds, 600));
-        validator.validate(prepareJwt(Map.of(claimName, after.getEpochSecond())));
-    }
-
-    private SignedJWT prepareJwt(Map<String, Object> m) throws ParseException {
-        final SignedJWT jwt = mock(SignedJWT.class);
-        final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(m);
-        when(jwt.getJWTClaimsSet()).thenReturn(jwtClaimsSet);
-        return jwt;
+        try {
+            validator.validate(JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())));
+        } catch (Exception exception) {
+            throw new AssertionError("validation should have passed without exception", e);
+        }
     }
 }

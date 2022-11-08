@@ -117,7 +117,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetPoliciesSystemIndexDescriptor(),
             fleetPoliciesLeaderSystemIndexDescriptor(),
             fleetServersSystemIndexDescriptors(),
-            fleetArtifactsSystemIndexDescriptors()
+            fleetArtifactsSystemIndexDescriptors(),
+            fleetFilesSystemIndexDescriptor(),
+            fleetFileDataSystemIndexDescriptor(),
         );
     }
 
@@ -259,6 +261,40 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setIndexPattern(".fleet-artifacts*")
             .setAliasName(".fleet-artifacts")
             .setDescription("Fleet artifacts")
+            .build();
+    }
+
+    private SystemIndexDescriptor fleetFilesSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(loadTemplateSource("/fleet-files.json"), XContentType.JSON);
+
+        return SystemIndexDescriptor.builder()
+            .setType(Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setOrigin(FLEET_ORIGIN)
+            .setVersionMetaKey(VERSION_KEY)
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setIndexPattern(".fleet-*-files-*")
+            .setAliasName(".fleet-files")
+            .setDescription("Fleet files")
+            .build();
+    }
+
+    private SystemIndexDescriptor fleetFileDataSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(loadTemplateSource("/fleet-file-data.json"), XContentType.JSON);
+
+        return SystemIndexDescriptor.builder()
+            .setType(Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setOrigin(FLEET_ORIGIN)
+            .setVersionMetaKey(VERSION_KEY)
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setIndexPattern(".fleet-*-file-data-*")
+            .setAliasName(".fleet-file-data")
+            .setDescription("Fleet file data")
             .build();
     }
 

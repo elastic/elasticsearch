@@ -1,0 +1,30 @@
+{
+  "template": {
+    "settings": {
+      "index.lifecycle.name": ".fleet-files-ilm-policy",
+      "index.auto_expand_replicas": "0-1"
+    },
+    "mappings": {
+      "_meta": {
+        "version": "${fleet.version}"
+      },
+      "dynamic": false,
+      "properties": {
+        "agent_id": { "type": "keyword" },
+        "action_id": { "type": "keyword" },
+        "source": { "type": "keyword" },
+        "file": {
+          "properties": {
+            "Status": { "type": "keyword" },
+            "ChunkSize": { "type": "integer" },
+            "Compression": { "type": "keyword" },
+            "name": { "type": "keyword" }
+          }
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 200,
+  "version": 1
+}

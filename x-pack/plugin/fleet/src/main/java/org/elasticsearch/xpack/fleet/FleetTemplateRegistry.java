@@ -24,6 +24,12 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
         new LifecyclePolicyConfig(".fleet-actions-results-ilm-policy", "/fleet-actions-results-ilm-policy.json").load(
             LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
+        ),
+        new LifecyclePolicyConfig(".fleet-file-data-ilm-policy", "/fleet-file-data-ilm-policy.json").load(
+            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
+        ),
+        new LifecyclePolicyConfig(".fleet-files-ilm-policy", "/fleet-files-ilm-policy.json").load(
+            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
         )
     );
 

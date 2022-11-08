@@ -1,0 +1,14 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "data": { "type": "binary" },
+        "bid": { "type": "keyword", "index": false },
+        "last": { "type": "boolean", "index": false }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 200,
+  "version": 1
+}

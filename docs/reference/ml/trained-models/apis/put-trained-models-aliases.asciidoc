@@ -45,6 +45,7 @@ alias from one type of trained model to another.
 * You cannot update an alias from a `pytorch` model and a {dfanalytics} model.
 * You cannot update the alias from a deployed `pytorch` model to one
 not currently deployed.
+--
 
 If you use this API to update an alias and there are very few input fields in
 common between the old and new trained models for the model alias, the API

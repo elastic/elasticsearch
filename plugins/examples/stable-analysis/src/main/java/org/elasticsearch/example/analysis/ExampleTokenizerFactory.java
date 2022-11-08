@@ -13,7 +13,7 @@ import org.elasticsearch.example.analysis.lucene.UnderscoreTokenizer;
 import org.elasticsearch.plugin.analysis.api.TokenizerFactory;
 import org.elasticsearch.plugin.api.NamedComponent;
 
-@NamedComponent(name = "example_tokenizer_factory")
+@NamedComponent( "example_tokenizer_factory")
 public class ExampleTokenizerFactory implements TokenizerFactory {
     @Override
     public Tokenizer create() {

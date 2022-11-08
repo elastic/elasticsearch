@@ -210,6 +210,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -571,8 +572,9 @@ public class Node implements Closeable {
                 clusterPlugins,
                 clusterInfoService,
                 snapshotsInfoService,
-                threadPool.getThreadContext(),
-                systemIndices
+                threadPool,
+                systemIndices,
+                rerouteServiceReference::get
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -693,6 +695,7 @@ public class Node implements Closeable {
             );
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
+                threadPool,
                 clusterService,
                 metadataCreateIndexService
             );
@@ -703,7 +706,8 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 settingsModule.getIndexScopedSettings(),
                 indicesService,
-                shardLimitValidator
+                shardLimitValidator,
+                threadPool
             );
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
@@ -867,7 +871,8 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 systemIndices,
                 indicesService,
-                fileSettingsService
+                fileSettingsService,
+                threadPool
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
@@ -1147,7 +1152,13 @@ public class Node implements Closeable {
             if (inputArgument.startsWith("-javaagent:")) {
                 final String agentArg = inputArgument.substring(11);
                 final String[] parts = agentArg.split("=", 2);
-                if (parts[0].matches(".*modules/apm/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
+                String APM_AGENT_CONFIG_FILE_REGEX = String.join(
+                    "\\" + File.separator,
+                    ".*modules",
+                    "apm",
+                    "elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar"
+                );
+                if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
                         final Path apmConfig = PathUtils.get(parts[1].substring(2));
                         if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {

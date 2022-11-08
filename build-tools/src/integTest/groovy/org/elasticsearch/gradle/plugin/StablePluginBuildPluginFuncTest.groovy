@@ -90,7 +90,7 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             import org.elasticsearch.plugin.api.NamedComponent;
             import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass;
 
-            @NamedComponent(name = "componentA")
+            @NamedComponent( "componentA")
             public class A extends ExtensibleClass {
             }
         """

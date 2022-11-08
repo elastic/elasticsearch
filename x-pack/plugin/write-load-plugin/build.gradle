@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'x-pack-write-load'
+  description 'x'
+  classname 'org.elasticsearch.xpack.writeload.WriteLoadPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-write-load'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:data-streams')
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

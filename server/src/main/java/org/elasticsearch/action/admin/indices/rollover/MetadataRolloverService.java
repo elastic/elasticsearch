@@ -28,9 +28,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexWriteLoad;
+import org.elasticsearch.index.shard.IndexWriteLoadForecast;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -306,6 +308,13 @@ public class MetadataRolloverService {
                     )
             )
             .build();
+
+        newState = IndexWriteLoadForecast.maybeIncludeWriteLoadForecast(
+            dataStream,
+            newState,
+            TimeValue.timeValueDays(7),
+            TimeValue.timeValueHours(8)
+        );
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }

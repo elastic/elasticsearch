@@ -259,8 +259,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AsyncSender sender
     ) {
         if (securityContext.getAuthentication() == null) {
-            // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not
-            // catch in tests and may be hit by a user
+            // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
+            // in tests and may be hit by a user
             assertNoAuthentication(action);
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
@@ -417,7 +417,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else {
                     final Thread executingThread = Thread.currentThread();
                     filterListener = new AbstractFilterListener(receiveMessage) {
-
                         @Override
                         public void onResponse(Void unused) {
                             if (executingThread == Thread.currentThread()) {

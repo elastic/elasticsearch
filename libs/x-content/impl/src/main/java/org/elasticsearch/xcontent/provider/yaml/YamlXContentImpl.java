@@ -44,6 +44,7 @@ public final class YamlXContentImpl implements XContent {
     static {
         yamlFactory = new YAMLFactory();
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        yamlFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         yamlXContent = new YamlXContentImpl();
     }
 

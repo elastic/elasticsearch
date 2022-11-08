@@ -252,6 +252,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
+                validateFieldName(fieldName, parserContext.indexVersionCreated());
                 // Should accept empty arrays, as a work around for when the
                 // user can't provide an empty Map. (PHP for example)
                 boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
@@ -305,10 +306,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
+                        if (fieldNameParts.length == 0) {
+                            throw new IllegalArgumentException("field name cannot contain only dots");
+                        }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                        validateFieldName(realFieldName, parserContext.indexVersionCreated());
                         fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i], Defaults.SUBOBJECTS);
+                            String intermediateObjectName = fieldNameParts[i];
+                            validateFieldName(intermediateObjectName, parserContext.indexVersionCreated());
+                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(intermediateObjectName, Defaults.SUBOBJECTS);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
@@ -330,6 +337,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
+    private static void validateFieldName(String fieldName, Version indexCreatedVersion) {
+        if (fieldName.isEmpty()) {
+            throw new IllegalArgumentException("field name cannot be an empty string");
+        }
+        if (fieldName.isBlank() & indexCreatedVersion.onOrAfter(Version.V_8_6_0)) {
+            // blank field names were previously accepted in mappings, but not in documents.
+            throw new IllegalArgumentException("field name cannot contain only whitespaces");
+        }
+    }
+
     private final String fullPath;
 
     protected Explicit<Boolean> enabled;
@@ -347,9 +364,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         Map<String, Mapper> mappers
     ) {
         super(name);
-        if (name.isEmpty()) {
-            throw new IllegalArgumentException("name cannot be empty string");
-        }
+        // could be blank but not empty on indices created < 8.6.0
+        assert name.isEmpty() == false;
         this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
         this.subobjects = subobjects;

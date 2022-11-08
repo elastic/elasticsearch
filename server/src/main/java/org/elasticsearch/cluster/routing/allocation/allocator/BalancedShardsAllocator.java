@@ -89,7 +89,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
     public static final Setting<Float> WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.load",
-        0.25f,
+        0.0f,
         0.0f,
         Property.Dynamic,
         Property.NodeScope
@@ -285,9 +285,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
-            avgWriteLoadPerNode = metadata.getTotalWriteLoad() / routingNodes.size();
+            avgWriteLoadPerNode = getTotalWriteLoad(metadata) / routingNodes.size();
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
+        }
+
+        private static double getTotalWriteLoad(Metadata metadata) {
+            double writeLoad = 0.0;
+            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+                var indexWriteLoad = indexMetadata.getWriteLoad();
+                if (indexWriteLoad != null) {
+                    for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+                        writeLoad += indexWriteLoad.getWriteLoadForShard(shardId).orElse(0.0);
+                    }
+                }
+            }
+            return writeLoad;
         }
 
         /**
@@ -1121,6 +1134,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
+        private double projectedWriteLoad = 0;
         private final Metadata metadata;
         private final RoutingNode routingNode;
 
@@ -1151,13 +1165,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public double projectedWriteLoad() {
-            double projectedWriteLoad = 0; // TODO recompute only when shards are added or removed
-            for (ShardRouting shardRouting : routingNode) {
-                var indexWriteLoad = metadata.index(shardRouting.index()).getWriteLoad();
-                if (indexWriteLoad != null) {
-                    projectedWriteLoad += indexWriteLoad.getWriteLoadForShard(shardRouting.id()).orElse(0.0);
-                }
-            }
             return projectedWriteLoad;
         }
 
@@ -1171,6 +1178,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
+            projectedWriteLoad += metadata.index(shard.index()).getWriteLoad(shard.id()).orElse(0.0);
             numShards++;
         }
 
@@ -1182,6 +1190,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
+            projectedWriteLoad -= metadata.index(shard.index()).getWriteLoad(shard.id()).orElse(0.0);
             numShards--;
         }
 

@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -1160,6 +1161,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     public IndexWriteLoad getWriteLoad() {
         return writeLoad;
+    }
+
+    public OptionalDouble getWriteLoad(int shardId) {
+        return writeLoad != null ? writeLoad.getWriteLoadForShard(shardId) : OptionalDouble.empty();
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";

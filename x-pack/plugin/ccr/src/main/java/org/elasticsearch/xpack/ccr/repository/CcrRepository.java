@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -137,6 +138,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private final CounterMetric throttledTime = new CounterMetric();
 
+    private final ResultDeduplicator<Object, ClusterState> getRemoteStateDeduplicator;
+
     public CcrRepository(RepositoryMetadata metadata, Client client, Settings settings, CcrSettings ccrSettings, ThreadPool threadPool) {
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
@@ -145,6 +148,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.client = client;
         this.threadPool = threadPool;
+        getRemoteStateDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
     }
 
     @Override
@@ -177,25 +181,18 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         assert snapshotIds.size() == 1 && SNAPSHOT_ID.equals(snapshotIds.iterator().next())
             : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         try {
-            getRemoteClusterClient().admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
-                .execute(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
-                    Metadata responseMetadata = response.getState().metadata();
-                    Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
-                    return new SnapshotInfo(
-                        new Snapshot(this.metadata.name(), SNAPSHOT_ID),
-                        List.copyOf(indicesMap.keySet()),
-                        List.copyOf(responseMetadata.dataStreams().keySet()),
-                        List.of(),
-                        response.getState().getNodes().getMaxNodeVersion(),
-                        SnapshotState.SUCCESS
-                    );
-                }), false));
+            getRemoteState(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
+                Metadata responseMetadata = response.metadata();
+                Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
+                return new SnapshotInfo(
+                    new Snapshot(this.metadata.name(), SNAPSHOT_ID),
+                    List.copyOf(indicesMap.keySet()),
+                    List.copyOf(responseMetadata.dataStreams().keySet()),
+                    List.of(),
+                    response.getNodes().getMaxNodeVersion(),
+                    SnapshotState.SUCCESS
+                );
+            }), false));
         } catch (Exception e) {
             context.onFailure(e);
         }
@@ -252,11 +249,39 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         return imdBuilder.build();
     }
 
+    /**
+     * Dummy request key for deduplicating all remote cluster state requests via {@link #getRemoteStateDeduplicator}.
+     */
+    private static final Object RESULT_KEY = new Object();
+
+    /**
+     * Fetches the remote cluster state from the leader cluster, deduplicating the result if there is already an ongoing call
+     * to this method.
+     */
+    private void getRemoteState(ActionListener<ClusterState> listener) {
+        // We only allow a single remote cluster state requests at a time. The callbacks to the cluster state responses run on the
+        // transport thread and can safely assume they are fast enough so that this does not lead to seeing substantially outdated
+        // remote states as a result of a hot loop calling this method ever.
+        getRemoteStateDeduplicator.executeOnce(
+            RESULT_KEY,
+            listener,
+            (ignored, l) -> getRemoteClusterClient().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+                // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
+                .execute(l.map(ClusterStateResponse::getState))
+        );
+    }
+
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         try {
-            getRemoteClusterClient().admin().cluster().prepareState().clear().setMetadata(true).execute(listener.map(response -> {
-                final Metadata remoteMetadata = response.getState().getMetadata();
+            getRemoteState(listener.map(response -> {
+                final Metadata remoteMetadata = response.getMetadata();
                 final String[] concreteAllIndices = remoteMetadata.getConcreteAllIndices();
                 final Map<String, SnapshotId> copiedSnapshotIds = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(concreteAllIndices.length);

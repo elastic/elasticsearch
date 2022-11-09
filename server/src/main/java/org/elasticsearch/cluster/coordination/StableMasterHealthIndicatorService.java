@@ -104,10 +104,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult = coordinationDiagnosticsService
-            .diagnoseMasterStability(explain);
-        return getHealthIndicatorResult(coordinationDiagnosticsResult, explain);
+            .diagnoseMasterStability(verbose);
+        return getHealthIndicatorResult(coordinationDiagnosticsResult, verbose);
     }
 
     /**

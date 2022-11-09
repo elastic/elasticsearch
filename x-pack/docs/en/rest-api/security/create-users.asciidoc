@@ -132,6 +132,30 @@ created or updated.
 }
 --------------------------------------------------
 
+=== Create or update users using python 
+
+[source, console]
+--------------------------------------------------
+from elasticsearch import ElasticSearch
+from elasticsearch.client import SecurityClient
+@app.route('/create-new-user', methods=['GET','POST'])
+def createUser():
+    if request.method == 'POST':
+        body ={"username":username, "email":email, "fullname":fullname, "password":password, "roles":roles}
+        es = Elasticsearch(hosts=https://localhost:9200/, basic_auth=(ELASTIC_USERNAME, ELASTIC_PASSWORD), ca_certs=CERTIFICATE, verify_certs=False)
+        client = SecurityClient(es)
+        client.put_user(**body)
+        return {'message':'User created'}, 201
+    return render_template('add_user.html')
+--------------------------------------------------
+
+[source,console-result]
+--------------------------------------------------
+{
+  "message": "User Created" <1>
+}
+--------------------------------------------------
+
 <1> When an existing user is updated, `created` is set to false.
 
 After you add a user, requests from that user can be authenticated. For example:

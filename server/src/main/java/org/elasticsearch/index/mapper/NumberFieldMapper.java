@@ -241,7 +241,14 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
-            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new NumberFieldMapper(
+                name,
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                context.isSourceSynthetic(),
+                this
+            );
         }
     }
 
@@ -1648,8 +1655,16 @@ public class NumberFieldMapper extends FieldMapper {
     private final MetricType metricType;
     private boolean allowMultipleValues;
     private final Version indexCreatedVersion;
+    private final boolean storeMalformedFields;
 
-    private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    private NumberFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean storeMalformedFields,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
@@ -1667,6 +1682,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.metricType = builder.metric.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.storeMalformedFields = storeMalformedFields;
     }
 
     boolean coerce() {
@@ -1696,7 +1712,7 @@ public class NumberFieldMapper extends FieldMapper {
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
-                if (context.isSyntheticSource()) {
+                if (storeMalformedFields) {
                     // Save a copy of the field so synthetic source can load it
                     context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
                 }

@@ -29,7 +29,9 @@ import java.util.Map;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(MapperBuilderContext.ROOT),
+        new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
+            MapperBuilderContext.root(false)
+        ),
         new MetadataFieldMapper[0],
         null
     );
@@ -40,6 +42,7 @@ public final class Mapping implements ToXContentFragment {
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
+    // IntelliJ doesn't think that we need a rawtypes suppression here, but gradle fails to compile this file without it
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
@@ -116,6 +119,11 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(rootObjectMapper, metadataMappers, meta);
     }
 
+    private boolean isSourceSynthetic() {
+        SourceFieldMapper sfm = (SourceFieldMapper) metadataMappersByName.get(SourceFieldMapper.NAME);
+        return sfm != null && sfm.isSynthetic();
+    }
+
     /**
      * Merges a new mapping into the existing one.
      *
@@ -124,7 +132,7 @@ public final class Mapping implements ToXContentFragment {
      * @return the resulting merged mapping.
      */
     Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.ROOT);
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic()));
 
         // When merging metadata fields as part of applying an index template, new field definitions
         // completely overwrite existing ones instead of being merged. This behavior matches how we
@@ -136,7 +144,7 @@ public final class Mapping implements ToXContentFragment {
             if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
-                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.ROOT);
+                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic()));
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }

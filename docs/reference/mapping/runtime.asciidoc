@@ -816,6 +816,10 @@ experimental[]
 The <<search-fields,`fields`>> parameter on the `_search` API can also be used to retrieve fields from
 the related indices via runtime fields with a type of `lookup`.
 
+NOTE: Fields that are retrieved by runtime fields of type `lookup` can be used
+to enrich the hits in a search response. It's not possible to query or aggregate
+on these fields.
+
 [source,console]
 ----
 POST ip_location/_doc?refresh

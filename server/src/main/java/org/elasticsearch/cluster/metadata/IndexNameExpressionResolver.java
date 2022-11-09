@@ -427,22 +427,6 @@ public class IndexNameExpressionResolver {
         return concreteIndices.toArray(Index.EMPTY_ARRAY);
     }
 
-    private IndexNotFoundException notFoundException(String... indexExpressions) {
-        IndexNotFoundException infe;
-        if (indexExpressions.length == 1) {
-            if (indexExpressions[0].equals(Metadata.ALL)) {
-                infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
-            } else {
-                infe = new IndexNotFoundException(indexExpressions[0]);
-            }
-            infe.setResources("index_expression", indexExpressions[0]);
-        } else {
-            infe = new IndexNotFoundException((String) null);
-            infe.setResources("index_expression", indexExpressions);
-        }
-        return infe;
-    }
-
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
         final Metadata metadata = context.getState().metadata();
         final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate().negate();
@@ -487,6 +471,22 @@ public class IndexNameExpressionResolver {
         if (resolvedNetNewSystemIndices.isEmpty() == false) {
             throw SystemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
         }
+    }
+
+    private static IndexNotFoundException notFoundException(String... indexExpressions) {
+        IndexNotFoundException infe;
+        if (indexExpressions != null && indexExpressions.length == 1) {
+            if (Metadata.ALL.equals(indexExpressions[0])) {
+                infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
+            } else {
+                infe = new IndexNotFoundException(indexExpressions[0]);
+            }
+            infe.setResources("index_or_alias", indexExpressions[0]);
+        } else {
+            infe = new IndexNotFoundException((String) null);
+            infe.setResources("index_expression", indexExpressions);
+        }
+        return infe;
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, Index index) {
@@ -1216,7 +1216,7 @@ public class IndexNameExpressionResolver {
                         matchingOpenClosedNames.forEachOrdered(result::add);
                     }
                     if (emptyWildcardExpansion.get()) {
-                        throw indexNotFoundException(expression);
+                        throw notFoundException(expression);
                     }
                 } else {
                     if (isExclusion) {
@@ -1248,7 +1248,7 @@ public class IndexNameExpressionResolver {
 
         private static String validateAliasOrIndex(String expression) {
             if (Strings.isEmpty(expression)) {
-                throw indexNotFoundException(expression);
+                throw notFoundException(expression);
             }
             // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
             // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
@@ -1265,21 +1265,15 @@ public class IndexNameExpressionResolver {
             final IndicesOptions options = context.getOptions();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
-                throw indexNotFoundException(expression);
+                throw notFoundException(expression);
             }
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && options.ignoreAliases()) {
                 throw aliasesNotSupportedException(expression);
             }
             if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                throw indexNotFoundException(expression);
+                throw notFoundException(expression);
             }
-        }
-
-        private static IndexNotFoundException indexNotFoundException(String expression) {
-            IndexNotFoundException infe = new IndexNotFoundException(expression);
-            infe.setResources("index_or_alias", expression);
-            return infe;
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {

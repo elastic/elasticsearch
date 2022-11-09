@@ -145,6 +145,25 @@ setup:
     # See comment at the top of the file for the reason why
     # the test cannot match on the text field
 
+  - do:
+      semantic_search:
+        index: embedded_text
+        body:
+          model_id: text_embedding_model
+          query_string: "the octopus comforter smells"
+          text_embedding_config:
+            tokenization:
+              bert:
+                truncate: none
+          knn:
+            field: embedding
+            k: 3
+            num_candidates: 10
+  - gte: { inference_took: 0 }
+  - match: { hits.total.value: 3 }
+    # See comment at the top of the file for the reason why
+    # the test cannot match on the text field
+
 ---
 "Knn field is not a vector":
   - do:

@@ -675,6 +675,7 @@ public class RBACEngine implements AuthorizationEngine {
         final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         final RemoteIndicesPermission remoteIndicesPermission;
         try {
+            // TODO we will need to implement this to support API keys with assigned role descriptors
             remoteIndicesPermission = role.remoteIndices().forCluster(remoteClusterAlias);
         } catch (UnsupportedOperationException e) {
             listener.onFailure(
@@ -697,8 +698,9 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
 
-        // The role descriptor name can matter for caching on the fulfilling cluster. Instead of using the first name, we might want to hash
-        // together all roles names, or otherwise combine them (concatenation may fail because of the role name length limit)
+        // The role names matter for caching on the fulfilling cluster, when constructing the role cache key. A role descriptor can only
+        // store one name, whereas the role may have multiple names. To work around this, we will include the complete list of role names
+        // in the role descriptor metadata, and simply use the first name for the role descriptor as a place-holder.
         final String roleDescriptorName = Arrays.stream(role.names()).iterator().next();
         listener.onResponse(
             new RoleDescriptorsIntersection(
@@ -711,7 +713,8 @@ public class RBACEngine implements AuthorizationEngine {
                             null,
                             null,
                             null,
-                            null,
+                            // The fulfilling cluster should rely on metadata field to construct the role key for caching
+                            Map.of("_role_names", role.names()),
                             null
                         )
                     )
@@ -720,9 +723,9 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private RoleDescriptor.IndicesPrivileges toIndicesPrivileges(IndicesPermission.Group indicesGroup) {
+    private static RoleDescriptor.IndicesPrivileges toIndicesPrivileges(IndicesPermission.Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
-        // TODO we need to handle this somehow; a naive approach is to "fan-out", i.e., create a separate index privilege per query
+        // TODO in order to ensure this holds, we can update CompositeRoleStore to *not* merge remote index privileges by index name
         assert queries.size() <= 1 : "indices group for remote indices permission cannot contain more than one DLS query";
         final BytesReference queryBytes = queries.stream().findAny().orElse(null);
 
@@ -733,8 +736,7 @@ public class RBACEngine implements AuthorizationEngine {
             .query(queryBytes);
 
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = getFieldGrantExcludeGroups(indicesGroup);
-        // TODO we need to handle this somehow; a naive approach is to "fan-out", i.e., create a separate index privilege per group
-        // definition
+        // TODO in order to ensure this holds, we can update CompositeRoleStore to *not* merge remote index privileges by index name
         assert fieldSecurity.size() <= 1
             : "indices group for remote indices permission cannot contain more than one FLS permissions definition";
         if (false == fieldSecurity.isEmpty()) {

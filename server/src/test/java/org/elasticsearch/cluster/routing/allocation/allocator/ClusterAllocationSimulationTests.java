@@ -353,6 +353,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 long maxSizeBytes;
 
                 int totalShardCount;
+                int maxShardCount;
 
                 double totalWriteLoad;
                 double maxWriteLoad;
@@ -362,6 +363,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                     totalSizeBytes += sizeBytes;
                     maxSizeBytes = Math.max(maxSizeBytes, sizeBytes);
                     totalShardCount += shardCount;
+                    maxShardCount = Math.max(maxShardCount, shardCount);
                     totalWriteLoad += writeLoad;
                     maxWriteLoad = Math.max(maxWriteLoad, writeLoad);
                 }
@@ -407,6 +409,13 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var nodeSizeBytes = nodeSizeBytesByTier.get(tier);
                 final var sizeMetric = sizeMetricPerTier.get(tierAbbr);
                 assert sizeMetric.count > 0;
+
+                final var totalShardCount = sizeMetric.totalShardCount;
+                final var meanShardCount = totalShardCount * 1.0 / sizeMetric.count;
+                final var maxShardCount = sizeMetric.maxShardCount;
+                final var overageShardCount = maxShardCount - meanShardCount;
+                final var overageShardCountRatio = new RatioValue(Math.ceil((1000.0 * overageShardCount) / meanShardCount) / 10.0);
+
                 final var meanSizeBytes = sizeMetric.totalSizeBytes / sizeMetric.count;
                 final var maxSizeBytes = sizeMetric.maxSizeBytes;
                 final var overageBytes = maxSizeBytes - meanSizeBytes;
@@ -421,7 +430,14 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
                 results.field("tier", tier);
                 results.field("nodes", nodeCountByTier.get(tier));
-                results.field("total_shards", sizeMetric.totalShardCount);
+
+                results.startObject("shard_count");
+                results.field("total", totalShardCount);
+                results.field("mean", meanShardCount);
+                results.field("max", maxShardCount);
+                results.field("overage", overageShardCount);
+                results.field("overage_percent", overageShardCountRatio.formatNoTrailingZerosPercent());
+                results.endObject(); // shard_count
 
                 results.startObject("data_per_node");
                 bytesField(results, "capacity", nodeSizeBytes);

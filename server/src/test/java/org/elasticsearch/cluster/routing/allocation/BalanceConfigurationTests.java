@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -175,7 +176,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("restart all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -193,7 +194,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node" + numberOfNodes)))
             .build();
 
-        RoutingTable routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         // move initializing to started
@@ -222,7 +223,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("rebalancing");
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("complete rebalancing");
         return applyStartedShardsUntilNoChange(clusterState, strategy);
@@ -422,7 +423,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).nodes(nodes).metadata(metadata).routingTable(routingTable).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -455,7 +456,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         logger.info("rebalancing");
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

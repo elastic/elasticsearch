@@ -71,7 +71,6 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
             SemanticSearchActionKnnQueryOptionsTests.randomInstance(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
             randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
-            randomBoolean() ? null : List.of(new TermsQueryBuilder("foo", "bar", "cat")),
             randomBoolean() ? null : FetchSourceContext.of(randomBoolean()),
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
@@ -86,7 +85,6 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
 
         var action = new SemanticSearchAction.Request(
             new String[] { "foo" },
-            null,
             null,
             null,
             null,

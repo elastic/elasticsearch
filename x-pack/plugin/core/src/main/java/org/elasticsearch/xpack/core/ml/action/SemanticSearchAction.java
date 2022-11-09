@@ -75,12 +75,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 SearchSourceBuilder.QUERY_FIELD
             );
             PARSER.declareObject(Request.Builder::setKnnSearch, (p, c) -> KnnQueryOptions.fromXContent(p), SearchSourceBuilder.KNN_FIELD);
-            PARSER.declareFieldArray(
-                Request.Builder::setFilters,
-                (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
-                KnnSearchBuilder.FILTER_FIELD,
-                ObjectParser.ValueType.OBJECT_ARRAY
-            );
             PARSER.declareField(
                 (p, request, c) -> request.setFetchSource(FetchSourceContext.fromXContent(p)),
                 SearchSourceBuilder._SOURCE_FIELD,
@@ -130,7 +124,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         private final QueryBuilder query;
         private final KnnQueryOptions knnQueryOptions;
         private final TextEmbeddingConfigUpdate embeddingConfig;
-        private final List<QueryBuilder> filters;
         private final FetchSourceContext fetchSource;
         private final List<FieldAndFormat> fields;
         private final List<FieldAndFormat> docValueFields;
@@ -147,11 +140,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             query = in.readOptionalNamedWriteable(QueryBuilder.class);
             knnQueryOptions = new KnnQueryOptions(in);
             embeddingConfig = in.readOptionalWriteable(TextEmbeddingConfigUpdate::new);
-            if (in.readBoolean()) {
-                filters = in.readNamedWriteableList(QueryBuilder.class);
-            } else {
-                filters = null;
-            }
             fetchSource = in.readOptionalWriteable(FetchSourceContext::readFrom);
             fields = in.readOptionalList(FieldAndFormat::new);
             docValueFields = in.readOptionalList(FieldAndFormat::new);
@@ -168,7 +156,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             KnnQueryOptions knnQueryOptions,
             TextEmbeddingConfigUpdate embeddingConfig,
             TimeValue inferenceTimeout,
-            List<QueryBuilder> filters,
             FetchSourceContext fetchSource,
             List<FieldAndFormat> fields,
             List<FieldAndFormat> docValueFields,
@@ -183,7 +170,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             this.knnQueryOptions = knnQueryOptions;
             this.embeddingConfig = embeddingConfig;
             this.inferenceTimeout = inferenceTimeout;
-            this.filters = filters;
             this.fetchSource = fetchSource;
             this.fields = fields;
             this.docValueFields = docValueFields;
@@ -202,12 +188,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             out.writeOptionalNamedWriteable(query);
             knnQueryOptions.writeTo(out);
             out.writeOptionalWriteable(embeddingConfig);
-            if (filters != null) {
-                out.writeBoolean(true);
-                out.writeNamedWriteableList(filters);
-            } else {
-                out.writeBoolean(false);
-            }
             out.writeOptionalWriteable(fetchSource);
             out.writeOptionalCollection(fields);
             out.writeOptionalCollection(docValueFields);
@@ -263,10 +243,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             return embeddingConfig;
         }
 
-        public List<QueryBuilder> getFilters() {
-            return filters;
-        }
-
         public FetchSourceContext getFetchSource() {
             return fetchSource;
         }
@@ -300,7 +276,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 && Objects.equals(query, request.query)
                 && Objects.equals(knnQueryOptions, request.knnQueryOptions)
                 && Objects.equals(embeddingConfig, request.embeddingConfig)
-                && Objects.equals(filters, request.filters)
                 && Objects.equals(fetchSource, request.fetchSource)
                 && Objects.equals(fields, request.fields)
                 && Objects.equals(docValueFields, request.docValueFields)
@@ -318,7 +293,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 query,
                 knnQueryOptions,
                 embeddingConfig,
-                filters,
                 fetchSource,
                 fields,
                 docValueFields,
@@ -355,7 +329,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             private TextEmbeddingConfigUpdate update;
             private QueryBuilder queryBuilder;
             private KnnQueryOptions knnSearchBuilder;
-            private List<QueryBuilder> filters;
             private FetchSourceContext fetchSource;
             private List<FieldAndFormat> fields;
             private List<FieldAndFormat> docValueFields;
@@ -398,10 +371,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 this.queryBuilder = queryBuilder;
             }
 
-            private void setFilters(List<QueryBuilder> filters) {
-                this.filters = filters;
-            }
-
             private void setFetchSource(FetchSourceContext fetchSource) {
                 this.fetchSource = fetchSource;
             }
@@ -432,7 +401,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                     knnSearchBuilder,
                     update,
                     timeout,
-                    filters,
                     fetchSource,
                     fields,
                     docValueFields,

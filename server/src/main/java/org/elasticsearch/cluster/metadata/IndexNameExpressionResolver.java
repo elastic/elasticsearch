@@ -319,7 +319,6 @@ public class IndexNameExpressionResolver {
     Index[] concreteIndices(Context context, String... indexExpressions) {
         ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
-        boolean excludedDataStreams = false;
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         for (String expression : expressions) {
             final IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
@@ -340,9 +339,11 @@ public class IndexNameExpressionResolver {
             } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
                 if (context.getOptions().ignoreUnavailable() == false) {
                     assert context.getOptions().expandWildcardExpressions() == false;
-                    throw notFoundException(expression);
+                    IndexNotFoundException infe = notFoundException(expression);
+                    // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+                    infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
+                    throw infe;
                 } else {
-                    excludedDataStreams = true;
                     continue;
                 }
             }
@@ -392,12 +393,7 @@ public class IndexNameExpressionResolver {
         }
 
         if (context.getOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
-            IndexNotFoundException infe = notFoundException(indexExpressions);
-            if (excludedDataStreams) {
-                // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
-                infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
-            }
-            throw infe;
+            throw notFoundException(indexExpressions);
         }
         checkSystemIndexAccess(context, concreteIndicesResult);
         return concreteIndicesResult.toArray(Index.EMPTY_ARRAY);

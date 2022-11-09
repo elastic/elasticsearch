@@ -17,6 +17,10 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+dependencies {
+  restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
+}
+
 restResources {
   restTests {
     includeCore '*'

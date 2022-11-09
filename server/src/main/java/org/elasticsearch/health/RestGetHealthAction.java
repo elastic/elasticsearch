@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetHealthAction extends BaseRestHandler {
 
-    private static final String EXPLAIN_PARAM = "explain";
+    private static final String VERBOSE_PARAM = "verbose";
 
     @Override
     public String getName() {
@@ -36,8 +36,8 @@ public class RestGetHealthAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String indicatorName = request.param("indicator");
-        boolean explain = request.paramAsBoolean(EXPLAIN_PARAM, true);
-        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, explain);
+        boolean verbose = request.paramAsBoolean(VERBOSE_PARAM, true);
+        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, verbose);
         return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
     }
 }

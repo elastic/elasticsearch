@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -40,12 +41,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,17 +57,28 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
     private ClusterService clusterService;
-    private ThreadContext threadContext;
+    private static ThreadPool threadPool;
+
+    @BeforeClass
+    public static void createThreadPool() {
+        threadPool = new TestThreadPool("test");
+    }
+
+    @AfterClass
+    public static void terminateThreadPool() {
+        assertTrue(ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+        threadPool = null;
+    }
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadContext = new ThreadContext(Settings.EMPTY);
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -140,7 +155,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
                 }
-            }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE)
+            }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, ClusterModuleTests::getFakeRerouteService)
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -151,7 +166,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonList(new FakeAllocationDecider());
             }
-        }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE);
+        }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, ClusterModuleTests::getFakeRerouteService);
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -161,7 +176,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonMap(name, supplier);
             }
-        }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE);
+        }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, ClusterModuleTests::getFakeRerouteService);
     }
 
     public void testRegisterShardsAllocator() {
@@ -188,8 +203,9 @@ public class ClusterModuleTests extends ModuleTestCase {
                 Collections.emptyList(),
                 clusterInfoService,
                 null,
-                threadContext,
-                EmptySystemIndices.INSTANCE
+                threadPool,
+                EmptySystemIndices.INSTANCE,
+                ClusterModuleTests::getFakeRerouteService
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
@@ -245,8 +261,9 @@ public class ClusterModuleTests extends ModuleTestCase {
             List.of(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME)),
             clusterInfoService,
             null,
-            threadContext,
-            EmptySystemIndices.INSTANCE
+            threadPool,
+            EmptySystemIndices.INSTANCE,
+            ClusterModuleTests::getFakeRerouteService
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
@@ -258,8 +275,9 @@ public class ClusterModuleTests extends ModuleTestCase {
             List.of(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate")),
             clusterInfoService,
             null,
-            threadContext,
-            EmptySystemIndices.INSTANCE
+            threadPool,
+            EmptySystemIndices.INSTANCE,
+            ClusterModuleTests::getFakeRerouteService
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
@@ -273,4 +291,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         };
     }
 
+    private static RerouteService getFakeRerouteService() {
+        return (s, p, r) -> { throw new AssertionError("should not be called"); };
+    }
 }

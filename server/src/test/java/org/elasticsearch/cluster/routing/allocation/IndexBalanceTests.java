@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -80,7 +81,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
             .build();
 
-        ClusterState newState = strategy.reroute(clusterState, "reroute");
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -95,7 +96,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         newState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -113,7 +114,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         }
 
         logger.info("Reroute, nothing should change");
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the more shards");
@@ -197,7 +198,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
-        ClusterState newState = strategy.reroute(clusterState, "reroute");
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
@@ -211,7 +212,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Add another node and perform rerouting, nothing will happen since primary not started");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the primary shard");
@@ -230,7 +231,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         }
 
         logger.info("Reroute, nothing should change");
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the backup shard");
@@ -309,7 +310,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
             .build();
 
-        ClusterState newState = strategy.reroute(clusterState, "reroute");
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
@@ -323,7 +324,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         newState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -341,7 +342,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         }
 
         logger.info("Reroute, nothing should change");
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the more shards");
@@ -381,7 +382,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
 
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
@@ -395,7 +396,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         newState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -413,7 +414,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         }
 
         logger.info("Reroute, nothing should change");
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the more shards");

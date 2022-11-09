@@ -41,7 +41,9 @@ public class DraResolvePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        if (providerFactory.systemProperty(USE_DRA_ARTIFACTS_FLAG).isPresent()) {
+        boolean useDra = providerFactory.systemProperty(USE_DRA_ARTIFACTS_FLAG).map(Boolean::parseBoolean).getOrElse(false);
+        project.getExtensions().getExtraProperties().set("useDra", useDra);
+        if (useDra) {
             resolveBuildIdProperties().get().forEach((key, buildId) -> {
                 configureDraRepository(
                     project,

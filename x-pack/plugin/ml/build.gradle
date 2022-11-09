@@ -14,10 +14,8 @@ esplugin {
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
-boolean useDraWithBuildId = providers.systemProperty(DraResolvePlugin.USE_DRA_ARTIFACTS_FLAG).getOrNull()
-
 def localRepo = providers.systemProperty('build.ml_cpp.repo').orNull
-if (useDraWithBuildId == false) {
+if (useDra == false) {
   repositories {
     exclusiveContent {
       filter {

@@ -20,10 +20,8 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
 
-boolean useDraWithBuildId = providers.systemProperty(DraResolvePlugin.USE_DRA_ARTIFACTS_FLAG).getOrNull()
-
 String buildId = providers.systemProperty('build.id').getOrNull()
-boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDraWithBuildId == false
+boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
 
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
@@ -41,7 +39,7 @@ repositories {
   }
 }
 
-if(useDraWithBuildId == false) {
+if(useDra == false) {
   repositories {
     // Cloud builds bundle some beats
     ivy {

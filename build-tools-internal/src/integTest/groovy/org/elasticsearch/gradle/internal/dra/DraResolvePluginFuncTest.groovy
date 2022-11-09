@@ -36,6 +36,53 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         """
     }
 
+    def "provides flag indicating dra usage"() {
+        setup:
+        repository.generateJar("org.acme", "ml-cpp", "8.6.0-SNAPSHOT")
+        buildFile << """
+        if(useDra == false) {
+            repositories {
+              maven {
+                name = "local-test"
+                url = "${repository.getRepoDir().toURI()}"
+                metadataSources {
+                  artifact()
+                }
+              }
+            }  
+        }
+        """
+
+        buildFile << """
+        configurations {
+            someConfig
+        }
+        
+        dependencies {
+            someConfig "org.acme:ml-cpp:8.6.0-SNAPSHOT"
+        }
+        
+        tasks.register('resolveArtifacts') {
+            doLast {
+                configurations.someConfig.files.each { println it }
+            }
+        }
+        """
+
+        when:
+        def result = gradleRunner("resolveArtifacts").build()
+
+        then:
+        result.task(":resolveArtifacts").outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner("resolveArtifacts", "-Ddra.artifacts=true").buildAndFail()
+
+        then:
+        result.task(":resolveArtifacts").outcome == TaskOutcome.FAILED
+        result.output.contains("Cannot resolve external dependency org.acme:ml-cpp:8.6.0-SNAPSHOT because no repositories are defined.")
+    }
+
     def "configures repositories to resolve #draKey like dra #artifactType artifacts"() {
         setup:
         repository.generateJar("some.group", "bar", "1.0.0")

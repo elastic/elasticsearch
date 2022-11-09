@@ -11,9 +11,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -130,7 +136,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(new Limit(EMPTY, L(minimum), emptySource()), new LogicalPlanOptimizer().optimize(plan));
     }
 
+    public void testBasicNullFolding() {
+        FoldNull rule = new FoldNull();
+        assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
+        assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
+        assertNullLiteral(rule.rule(new Length(EMPTY, Literal.NULL)));
+    }
+
     private LogicalPlan plan(String query) {
         return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+    }
+
+    private void assertNullLiteral(Expression expression) {
+        assertEquals(Literal.class, expression.getClass());
+        assertNull(expression.fold());
     }
 }

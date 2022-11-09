@@ -8,6 +8,8 @@
 
 package org.elasticsearch.compute.data;
 
+import java.util.BitSet;
+
 /**
  * Block implementation that stores a constant double value.
  */
@@ -20,10 +22,16 @@ public final class ConstantDoubleBlock extends Block {
         this.value = value;
     }
 
+    public ConstantDoubleBlock(double value, int positionCount, BitSet nulls) {
+        super(positionCount, nulls);
+        this.value = value;
+    }
+
     @Override
     public double getDouble(int position) {
         assert assertPosition(position);
-        return value;
+        assert isNull(position) == false;
+        return isNull(position) ? 0.0d : value;
     }
 
     @Override

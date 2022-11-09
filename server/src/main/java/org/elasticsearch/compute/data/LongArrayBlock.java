@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
  * Block implementation that stores an array of long values.
@@ -22,10 +23,16 @@ public final class LongArrayBlock extends Block {
         this.values = values;
     }
 
+    public LongArrayBlock(long[] values, int positionCount, BitSet nulls) {
+        super(positionCount, nulls);
+        this.values = values;
+    }
+
     @Override
     public long getLong(int position) {
         assert assertPosition(position);
-        return values[position];
+        assert isNull(position) == false;
+        return isNull(position) ? 0L : values[position];
     }
 
     @Override

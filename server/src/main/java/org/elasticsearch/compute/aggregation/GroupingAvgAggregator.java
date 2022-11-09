@@ -48,8 +48,10 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         Block valuesBlock = page.getBlock(channel);
         GroupingAvgState state = this.state;
         for (int i = 0; i < valuesBlock.getPositionCount(); i++) {
-            int groupId = (int) groupIdBlock.getLong(i);
-            state.add(valuesBlock.getDouble(i), groupId);
+            if (groupIdBlock.isNull(i) == false) {
+                int groupId = (int) groupIdBlock.getLong(i);
+                state.add(valuesBlock.getDouble(i), groupId);
+            }
         }
     }
 
@@ -126,8 +128,10 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
             final long[] countsToAdd = state.counts;
             final int positions = groupIdBlock.getPositionCount();
             for (int i = 0; i < positions; i++) {
-                int groupId = (int) groupIdBlock.getLong(i);
-                add(valuesToAdd[i], deltasToAdd[i], groupId, countsToAdd[i]);
+                if (groupIdBlock.isNull(i) == false) {
+                    int groupId = (int) groupIdBlock.getLong(i);
+                    add(valuesToAdd[i], deltasToAdd[i], groupId, countsToAdd[i]);
+                }
             }
         }
 

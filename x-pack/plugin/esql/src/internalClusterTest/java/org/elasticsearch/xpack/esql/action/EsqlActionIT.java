@@ -445,6 +445,38 @@ public class EsqlActionIT extends ESIntegTestCase {
             assertThat(values.get(4), equalTo(docs.get(i).tag));
         }
     }
+    public void testEvalWithNull() {
+        EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | sort nullsum | limit 1");
+        logger.info(results);
+        Assert.assertEquals(9, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals("nullsum", results.columns().get(3).name());
+        assertEquals("double", results.columns().get(3).type());
+        assertEquals(9, results.values().get(0).size());
+        assertNull(results.values().get(0).get(3));
+    }
+
+    public void testEvalWithNullAndAvg() {
+        EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | stats avg(nullsum)");
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals("avg(nullsum)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals(1, results.values().get(0).size());
+        assertEquals(Double.NaN, results.values().get(0).get(0));
+    }
+
+    public void testEvalWithNullAndCount() {
+        EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | stats count(nullsum)");
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals("count(nullsum)", results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        assertEquals(1, results.values().get(0).size());
+        assertEquals(0L, results.values().get(0).get(0));
+    }
 
     private EsqlQueryResponse run(String esqlCommands) {
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(randomPragmas()).get();

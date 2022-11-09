@@ -79,13 +79,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 List<Object> row = new ArrayList<>(page.getBlockCount());
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     Block block = page.getBlock(b);
-                    Object val = block.getObject(i);
-                    // TODO: Should we do the conversion in Block#getObject instead?
-                    // Or should we add a new method that returns a human representation to Block.
-                    if (val instanceof BytesRef bytes) {
-                        row.add(bytes.utf8ToString());
+                    if (block.isNull(i)) {
+                        row.add(null);
                     } else {
-                        row.add(val);
+                        Object val = block.getObject(i);
+                        // TODO: Should we do the conversion in Block#getObject instead?
+                        // Or should we add a new method that returns a human representation to Block.
+                        if (val instanceof BytesRef bytes) {
+                            row.add(bytes.utf8ToString());
+                        } else {
+                            row.add(val);
+                        }
                     }
                 }
                 result.add(row);

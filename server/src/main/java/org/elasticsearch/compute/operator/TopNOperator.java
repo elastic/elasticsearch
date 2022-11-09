@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
@@ -24,11 +25,11 @@ public class TopNOperator implements Operator {
 
     protected final PriorityQueue<Page> pq;
 
-    public record TopNOperatorFactory(int sortByChannel, boolean asc, int topCount) implements OperatorFactory {
+    public record TopNOperatorFactory(int sortByChannel, boolean asc, int topCount, boolean nullsFirst) implements OperatorFactory {
 
         @Override
         public Operator get() {
-            return new TopNOperator(sortByChannel, asc, topCount);
+            return new TopNOperator(sortByChannel, asc, topCount, nullsFirst);
         }
 
         @Override
@@ -37,14 +38,21 @@ public class TopNOperator implements Operator {
         }
     }
 
-    public TopNOperator(int sortByChannel, boolean asc, int topCount) {
+    public TopNOperator(int sortByChannel, boolean asc, int topCount, boolean nullsFirst) {
         this.pq = new PriorityQueue<>(topCount) {
             @Override
             protected boolean lessThan(Page a, Page b) {
+                Block blockA = a.getBlock(sortByChannel);
+                Block blockB = b.getBlock(sortByChannel);
+                if (blockA.isNull(0)) {
+                    return asc;
+                } else if (blockB.isNull(0)) {
+                    return !asc;
+                }
                 if (asc) {
-                    return a.getBlock(sortByChannel).getLong(0) > b.getBlock(sortByChannel).getLong(0);
+                    return blockA.getLong(0) > blockB.getLong(0);
                 } else {
-                    return a.getBlock(sortByChannel).getLong(0) < b.getBlock(sortByChannel).getLong(0);
+                    return blockA.getLong(0) < blockB.getLong(0);
                 }
             }
         };

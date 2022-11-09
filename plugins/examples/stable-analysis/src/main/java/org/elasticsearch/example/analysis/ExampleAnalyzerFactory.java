@@ -14,7 +14,7 @@ import org.elasticsearch.example.analysis.lucene.Skip1TokenFilter;
 import org.elasticsearch.example.analysis.lucene.UnderscoreTokenizer;
 import org.elasticsearch.plugin.api.NamedComponent;
 
-@NamedComponent(name = "example_analyzer_factory")
+@NamedComponent( "example_analyzer_factory")
 public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
 
     @Override

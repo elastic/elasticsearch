@@ -70,8 +70,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -494,7 +494,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(
             role.application()
                 .grants(
-                    new ApplicationPrivilege(
+                    ApplicationPrivilegeTests.createPrivilege(
                         randomAlphaOfLengthBetween(2, 10),
                         randomAlphaOfLengthBetween(2, 10),
                         randomAlphaOfLengthBetween(2, 10)
@@ -1020,10 +1020,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedWrite.test(mockIndexAbstraction("xyz")), equalTo(false));
         assertThat(allowedWrite.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
 
-        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "write"), "user/joe");
-        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
-        role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
-        role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "write"), "user/joe");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "read"), "settings/hostname");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app2a", "app2a-all", "all"), "user/joe");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
 
         assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-*", "remote"), Set.of("*"), Set.of("remote-*"));
         assertHasIndexGroupsForClusters(

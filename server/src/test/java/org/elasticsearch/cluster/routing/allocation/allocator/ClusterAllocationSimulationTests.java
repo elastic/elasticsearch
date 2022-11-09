@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -45,7 +46,10 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -74,7 +78,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         ) + between(0, 2);
     }
 
-    public void testBalanceQuality() {
+    public void testBalanceQuality() throws IOException {
 
         final var shardSizesByIndex = new HashMap<String, Long>();
         final var tiers = new String[] { DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD };
@@ -336,107 +340,119 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
         final var clusterState = applyStartedShardsUntilNoChange(startedReplicas, allocationService);
 
-        class SizeMetric {
-            int count;
+        try (var bos = new BytesStreamOutput(); var results = XContentFactory.jsonBuilder(bos)) {
+            results.prettyPrint();
 
-            long totalSizeBytes;
-            long maxSizeBytes;
+            results.startObject();
+            results.startArray("nodes");
 
-            int totalShardCount;
+            class SizeMetric {
+                int count;
 
-            double totalWriteLoad;
-            double maxWriteLoad;
+                long totalSizeBytes;
+                long maxSizeBytes;
 
-            void addNode(long sizeBytes, int shardCount, double writeLoad) {
-                count += 1;
-                totalSizeBytes += sizeBytes;
-                maxSizeBytes = Math.max(maxSizeBytes, sizeBytes);
-                totalShardCount += shardCount;
-                totalWriteLoad += writeLoad;
-                maxWriteLoad = Math.max(maxWriteLoad, writeLoad);
-            }
-        }
+                int totalShardCount;
 
-        final var sizeMetricPerTier = Arrays.stream(tiers).collect(Collectors.toMap(s -> s.substring(5, 6), s -> new SizeMetric()));
+                double totalWriteLoad;
+                double maxWriteLoad;
 
-        for (final var routingNode : clusterState.getRoutingNodes()
-            .stream()
-            .sorted(Comparator.comparing(shardRoutings -> shardRoutings.nodeId().substring(7)))
-            .toList()) {
-
-            int shards = 0;
-            long totalBytes = 0L;
-            double totalWriteLoad = 0.0;
-
-            for (ShardRouting shardRouting : routingNode) {
-                shards += 1;
-                totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                totalWriteLoad += clusterState.metadata()
-                    .index(shardRouting.index())
-                    .getWriteLoad()
-                    .getWriteLoadForShard(shardRouting.id())
-                    .orElseThrow(() -> new AssertionError("missing write load"));
+                void addNode(long sizeBytes, int shardCount, double writeLoad) {
+                    count += 1;
+                    totalSizeBytes += sizeBytes;
+                    maxSizeBytes = Math.max(maxSizeBytes, sizeBytes);
+                    totalShardCount += shardCount;
+                    totalWriteLoad += writeLoad;
+                    maxWriteLoad = Math.max(maxWriteLoad, writeLoad);
+                }
             }
 
-            logger.info(
-                Strings.format(
-                    "node %s: %5d shards %20d bytes = %8s    total write load %5.1f",
-                    routingNode.nodeId(),
-                    shards,
-                    totalBytes,
-                    ByteSizeValue.ofBytes(totalBytes),
-                    totalWriteLoad
-                )
-            );
+            final var sizeMetricPerTier = Arrays.stream(tiers).collect(Collectors.toMap(s -> s.substring(5, 6), s -> new SizeMetric()));
 
-            sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(totalBytes, routingNode.size(), totalWriteLoad);
-        }
+            for (final var routingNode : clusterState.getRoutingNodes()
+                .stream()
+                .sorted(Comparator.comparing(shardRoutings -> shardRoutings.nodeId().substring(7)))
+                .toList()) {
 
-        for (final var tier : tiers) {
-            final var tierAbbr = tier.substring(5, 6);
-            final var nodeSizeBytes = nodeSizeBytesByTier.get(tier);
-            final var sizeMetric = sizeMetricPerTier.get(tierAbbr);
-            assert sizeMetric.count > 0;
-            final var meanSizeBytes = sizeMetric.totalSizeBytes / sizeMetric.count;
-            final var maxSizeBytes = sizeMetric.maxSizeBytes;
-            final var overageBytes = maxSizeBytes - meanSizeBytes;
-            final var overageBytesRatio = new RatioValue(Math.ceil((1000.0 * overageBytes) / meanSizeBytes) / 10.0);
-            final var meanWriteLoad = sizeMetric.totalWriteLoad / sizeMetric.count;
-            final var maxWriteLoad = sizeMetric.maxWriteLoad;
-            final var overageWriteLoad = maxWriteLoad - meanWriteLoad;
-            final var overageWriteLoadRatio = new RatioValue(Math.ceil((1000.0 * overageWriteLoad) / meanWriteLoad) / 10.0);
-            assert overageBytes >= 0;
-            logger.info(
-                Strings.format(
-                    """
-                        tier %-10s  nodes %3d  \
-                        node size %20d = %8s  shards %5d  \
-                        mean size %20d = %8s  max size %20d = %8s  bytes overage %20d = %8s = %8s   \
-                        node indexing threads %4.1f  mean write load %5.1f   max write load %5.1f   write load overage %5.1f = %8s\
-                        """,
-                    tier,
-                    nodeCountByTier.get(tier),
-                    //
-                    nodeSizeBytes,
-                    ByteSizeValue.ofBytes(nodeSizeBytes),
-                    sizeMetric.totalShardCount,
-                    //
-                    meanSizeBytes,
-                    ByteSizeValue.ofBytes(meanSizeBytes),
-                    maxSizeBytes,
-                    ByteSizeValue.ofBytes(maxSizeBytes),
-                    overageBytes,
-                    ByteSizeValue.ofBytes(overageBytes),
-                    overageBytesRatio.formatNoTrailingZerosPercent(),
-                    //
-                    indexingThreadsByTier.get(tier),
-                    meanWriteLoad,
-                    maxWriteLoad,
-                    overageWriteLoad,
-                    overageWriteLoadRatio.formatNoTrailingZerosPercent()
-                )
-            );
+                int shards = 0;
+                long totalBytes = 0L;
+                double totalWriteLoad = 0.0;
+
+                for (ShardRouting shardRouting : routingNode) {
+                    shards += 1;
+                    totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
+                    totalWriteLoad += clusterState.metadata()
+                        .index(shardRouting.index())
+                        .getWriteLoad()
+                        .getWriteLoadForShard(shardRouting.id())
+                        .orElseThrow(() -> new AssertionError("missing write load"));
+                }
+
+                results.startObject();
+                results.field("node", routingNode.nodeId());
+                results.field("shards", shards);
+                bytesField(results, "total_data", totalBytes);
+                results.field("total_write_load", totalWriteLoad);
+                results.endObject();
+
+                sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(totalBytes, routingNode.size(), totalWriteLoad);
+            }
+
+            results.endArray(); // nodes
+
+            results.startArray("tiers");
+
+            for (final var tier : tiers) {
+                final var tierAbbr = tier.substring(5, 6);
+                final var nodeSizeBytes = nodeSizeBytesByTier.get(tier);
+                final var sizeMetric = sizeMetricPerTier.get(tierAbbr);
+                assert sizeMetric.count > 0;
+                final var meanSizeBytes = sizeMetric.totalSizeBytes / sizeMetric.count;
+                final var maxSizeBytes = sizeMetric.maxSizeBytes;
+                final var overageBytes = maxSizeBytes - meanSizeBytes;
+                final var overageBytesRatio = new RatioValue(Math.ceil((1000.0 * overageBytes) / meanSizeBytes) / 10.0);
+                final var meanWriteLoad = sizeMetric.totalWriteLoad / sizeMetric.count;
+                final var maxWriteLoad = sizeMetric.maxWriteLoad;
+                final var overageWriteLoad = maxWriteLoad - meanWriteLoad;
+                final var overageWriteLoadRatio = new RatioValue(Math.ceil((1000.0 * overageWriteLoad) / meanWriteLoad) / 10.0);
+                assert overageBytes >= 0;
+
+                results.startObject();
+
+                results.field("tier", tier);
+                results.field("nodes", nodeCountByTier.get(tier));
+                results.field("total_shards", sizeMetric.totalShardCount);
+
+                results.startObject("data_per_node");
+                bytesField(results, "capacity", nodeSizeBytes);
+                bytesField(results, "mean", meanSizeBytes);
+                bytesField(results, "max", maxSizeBytes);
+                bytesField(results, "overage", overageBytes);
+                results.field("overage_percent", overageBytesRatio.formatNoTrailingZerosPercent());
+                results.endObject(); // data_per_node
+
+                results.startObject("write_load_per_node");
+                results.field("indexing_threads", indexingThreadsByTier.get(tier));
+                results.field("mean", meanWriteLoad);
+                results.field("max", maxWriteLoad);
+                results.field("overage", overageWriteLoad);
+                results.field("overage_percent", overageWriteLoadRatio.formatNoTrailingZerosPercent());
+                results.endObject(); // write_load_per_node
+
+                results.endObject();
+            }
+
+            results.endArray(); // tiers
+
+            results.endObject();
+            results.flush();
+            logger.info("\n\n{}\n\n", bos.bytes().utf8ToString());
         }
+    }
+
+    private void bytesField(XContentBuilder results, String fieldName, long bytes) throws IOException {
+        results.field(fieldName, ByteSizeValue.ofBytes(bytes));
+        results.field(fieldName + "_in_bytes", bytes);
     }
 
     private Map.Entry<MockAllocationService, ShardsAllocator> createNewAllocationService(

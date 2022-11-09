@@ -21,6 +21,9 @@ targetCompatibility = 11
 sourceCompatibility = 11
 
 gradlePlugin {
+    // We already configure publication and we don't need or want the one that comes
+    // with the java-gradle-plugin
+    automatedPublishing = false
     plugins {
         internalLicenseheaders {
             id = 'elasticsearch.internal-licenseheaders'

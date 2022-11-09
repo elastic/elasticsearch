@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
@@ -48,6 +50,8 @@ public final class IngestDocument {
     private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
     static final String TIMESTAMP = "timestamp";
+
+    private static final Logger logger = LogManager.getLogger(IngestDocument.class);
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -829,13 +833,20 @@ public final class IngestDocument {
         if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
-                executedPipelines.remove(pipeline.getId());
-                if (previousPipeline != null) {
-                    ingestMetadata.put("pipeline", previousPipeline);
-                } else {
-                    ingestMetadata.remove("pipeline");
+                try {
+                    executedPipelines.remove(pipeline.getId());
+                    if (previousPipeline != null) {
+                        ingestMetadata.put("pipeline", previousPipeline);
+                    } else {
+                        ingestMetadata.remove("pipeline");
+                    }
+                    handler.accept(result, e);
+                } catch (Exception e2) {
+                    if (e != null) {
+                        logger.error("Exception encountered while handling another exception", e);
+                    }
+                    handler.accept(result, e2);
                 }
-                handler.accept(result, e);
             });
         } else {
             handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));

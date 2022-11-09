@@ -11,14 +11,12 @@ package org.elasticsearch.aggregations.bucket.timeseries;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -197,44 +195,56 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         // TODO: optimize single result case either by having a if check here and return aggregations.get(0) or
         // by overwriting the mustReduceOnSingleInternalAgg() method
-
-        final BigArrays bigArrays = reduceContext.bigArrays();
         final int initialCapacity = aggregations.stream()
             .map(value -> (InternalTimeSeries) value)
             .mapToInt(value -> value.getBuckets().size())
             .max()
             .getAsInt();
-        try (LongObjectPagedHashMap<List<InternalBucket>> tsKeyToBuckets = new LongObjectPagedHashMap<>(initialCapacity, bigArrays)) {
-            final int numTsids;
-            // We still need to reduce in case we got the same time series in 2 different indices, but we should be able to optimize
-            // that in the future
-            try (BytesRefHash tsids = new BytesRefHash(initialCapacity, bigArrays)) {
-                for (int i = 0; i < aggregations.size(); i++) {
-                    InternalTimeSeries timeSeries = (InternalTimeSeries) aggregations.get(i);
-                    for (int j = 0; j < timeSeries.getBuckets().size(); j++) {
-                        InternalBucket bucket = timeSeries.getBuckets().get(j);
-                        long key = tsids.add(bucket.key);
-                        List<InternalBucket> buckets;
-                        if (key < 0) {
-                            key = -1 - key;
-                            buckets = tsKeyToBuckets.get(key);
-                        } else {
-                            buckets = new ArrayList<>();
-                        }
-                        buckets.add(bucket);
-                        tsKeyToBuckets.put(key, buckets);
-                    }
-                }
-                numTsids = (int) tsids.size();
-            }
 
-            reduceContext.consumeBucketsAndMaybeBreak(numTsids);
-            InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(numTsids), keyed, getMetadata());
-            for (LongObjectPagedHashMap.Cursor<List<InternalBucket>> tsKeyToBucket : tsKeyToBuckets) {
-                reduced.buckets.add(reduceBucket(tsKeyToBucket.value, reduceContext));
+        final List<IteratorAndCurrent<InternalBucket>> iterators = new ArrayList<>(aggregations.size());
+        for (InternalAggregation aggregation : aggregations) {
+            InternalTimeSeries timeSeries = (InternalTimeSeries) aggregation;
+            if (timeSeries.buckets.isEmpty() == false) {
+                IteratorAndCurrent<InternalBucket> iterator = new IteratorAndCurrent<>(timeSeries.buckets.iterator());
+                iterators.add(iterator);
             }
-            return reduced;
         }
+
+        InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(initialCapacity), keyed, getMetadata());
+        List<IteratorAndCurrent<InternalBucket>> competitiveIterators = new ArrayList<>(iterators.size());
+        while (iterators.isEmpty() == false) {
+            reduceContext.consumeBucketsAndMaybeBreak(1);
+            IteratorAndCurrent<InternalBucket> competitive = iterators.get(0);
+            competitiveIterators.clear();
+            competitiveIterators.add(competitive);
+            for (int i = 1; i < iterators.size(); i++) {
+                IteratorAndCurrent<InternalBucket> contender = iterators.get(i);
+                int cmp = contender.current().key.compareTo(competitive.current().key);
+                if (cmp < 0) {
+                    competitive = contender;
+                    competitiveIterators.clear();
+                    competitiveIterators.add(contender);
+                } else if (cmp == 0) {
+                    competitiveIterators.add(contender);
+                }
+            }
+            InternalBucket reducedBucket;
+            if (competitiveIterators.size() == 1) {
+                reducedBucket = competitive.current();
+            } else {
+                List<InternalBucket> buckets = competitiveIterators.stream().map(IteratorAndCurrent::current).toList();
+                reducedBucket = reduceBucket(buckets, reduceContext);
+            }
+            reduced.buckets.add(reducedBucket);
+            for (IteratorAndCurrent<InternalBucket> iterator : competitiveIterators) {
+                if (iterator.hasNext()) {
+                    iterator.next();
+                } else {
+                    iterators.remove(iterator);
+                }
+            }
+        }
+        return reduced;
     }
 
     @Override

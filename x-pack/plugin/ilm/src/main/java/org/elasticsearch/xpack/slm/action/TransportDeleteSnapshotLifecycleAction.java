@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.slm.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
 
 public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeAction<
     DeleteSnapshotLifecycleAction.Request,
-    DeleteSnapshotLifecycleAction.Response> {
+    AcknowledgedResponse> {
 
     @Inject
     public TransportDeleteSnapshotLifecycleAction(
@@ -54,7 +55,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
             actionFilters,
             DeleteSnapshotLifecycleAction.Request::new,
             indexNameExpressionResolver,
-            DeleteSnapshotLifecycleAction.Response::new,
+            AcknowledgedResponse::readFrom,
             ThreadPool.Names.SAME
         );
     }
@@ -64,12 +65,12 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
         Task task,
         DeleteSnapshotLifecycleAction.Request request,
         ClusterState state,
-        ActionListener<DeleteSnapshotLifecycleAction.Response> listener
+        ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
         submitUnbatchedTask("delete-snapshot-lifecycle-" + request.getLifecycleId(), new DeleteSnapshotPolicyTask(request, listener) {
             @Override
-            protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
-                return new DeleteSnapshotLifecycleAction.Response(acknowledged);
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return AcknowledgedResponse.of(acknowledged);
             }
         });
     }
@@ -81,10 +82,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
     public static class DeleteSnapshotPolicyTask extends AckedClusterStateUpdateTask {
         private final DeleteSnapshotLifecycleAction.Request request;
 
-        DeleteSnapshotPolicyTask(
-            DeleteSnapshotLifecycleAction.Request request,
-            ActionListener<DeleteSnapshotLifecycleAction.Response> listener
-        ) {
+        DeleteSnapshotPolicyTask(DeleteSnapshotLifecycleAction.Request request, ActionListener<AcknowledgedResponse> listener) {
             super(request, listener);
             this.request = request;
         }

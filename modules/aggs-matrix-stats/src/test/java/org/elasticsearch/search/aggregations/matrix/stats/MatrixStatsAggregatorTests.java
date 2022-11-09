@@ -40,7 +40,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("field")
                 );
-                InternalMatrixStats stats = searchAndReduce(new AggTestConfig(searcher, aggBuilder, ft));
+                InternalMatrixStats stats = searchAndReduce(searcher, new AggTestConfig(aggBuilder, ft));
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
             }
@@ -59,7 +59,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("bogus")
                 );
-                InternalMatrixStats stats = searchAndReduce(new AggTestConfig(searcher, aggBuilder, ft));
+                InternalMatrixStats stats = searchAndReduce(searcher, new AggTestConfig(aggBuilder, ft));
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
             }
@@ -94,7 +94,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Arrays.asList(fieldA, fieldB)
                 );
-                InternalMatrixStats stats = searchAndReduce(new AggTestConfig(searcher, aggBuilder, ftA, ftB));
+                InternalMatrixStats stats = searchAndReduce(searcher, new AggTestConfig(aggBuilder, ftA, ftB));
                 multiPassStats.assertNearlyEqual(stats);
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
             }

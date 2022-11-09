@@ -35,7 +35,7 @@ public class TemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace("""
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(formatted("""
             {
               "index_patterns": ".monitoring-data-%s",
               "mappings": {
@@ -45,7 +45,7 @@ public class TemplateUtilsTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(version, version))));
+            }""", version, version))));
     }
 
     public void testLoadTemplate_GivenTemplateWithVariables() throws IOException {
@@ -64,7 +64,7 @@ public class TemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace("""
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(formatted("""
             {
               "index_patterns": ".test-%s",
               "mappings": {
@@ -82,7 +82,7 @@ public class TemplateUtilsTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(version, version))));
+            }""", version, version))));
     }
 
     public void testLoad() throws IOException {
@@ -134,9 +134,9 @@ public class TemplateUtilsTests extends ESTestCase {
         final int version = randomIntBetween(0, 100);
         assertTemplate(TemplateUtils.replaceVariable("""
             {"foo-${monitoring.template.version}": "bar-${monitoring.template.version}"}
-            """, "monitoring.template.version", String.valueOf(version)), equalTo("""
+            """, "monitoring.template.version", String.valueOf(version)), equalTo(formatted("""
             {"foo-%s": "bar-%s"}
-            """.formatted(version, version)));
+            """, version, version)));
     }
 
     public static void assertTemplate(String actual, Matcher<? super String> matcher) {

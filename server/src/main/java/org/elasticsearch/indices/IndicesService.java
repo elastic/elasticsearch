@@ -169,7 +169,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
@@ -1638,7 +1638,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 InputStream inputStream = bytes.streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
             ) {
-                return parseInnerQueryBuilder(parser);
+                return parseTopLevelQuery(parser);
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
@@ -1657,21 +1657,21 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }).toList();
             if (filters.isEmpty()) {
-                return new AliasFilter(null, aliases);
+                return AliasFilter.of(null, aliases);
             } else {
                 if (filters.size() == 1) {
-                    return new AliasFilter(filters.get(0), aliases);
+                    return AliasFilter.of(filters.get(0), aliases);
                 } else {
                     BoolQueryBuilder bool = new BoolQueryBuilder();
                     for (QueryBuilder filter : filters) {
                         bool.should(filter);
                     }
-                    return new AliasFilter(bool, aliases);
+                    return AliasFilter.of(bool, aliases);
                 }
             }
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
-            return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
         }
     }
 

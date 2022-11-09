@@ -514,7 +514,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
 
         final int numDocs = 10;
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
@@ -534,7 +534,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
             assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
             assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -560,7 +560,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .missing("unknown")
             .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        // ("even", "odd")
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(
@@ -578,10 +579,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertNotNull(buckets);
             assertEquals(expectedTermBucketsCount, buckets.size());
 
-            for (int i = 0; i < expectedTermBucketsCount; i++) {
-                final Terms.Bucket bucket = buckets.get(i);
+            for (int i1 = 0; i1 < expectedTermBucketsCount; i1++) {
+                final Terms.Bucket bucket = buckets.get(i1);
                 assertNotNull(bucket);
-                assertEquals(((i + 1) % 2 == 0) ? "odd" : "even", bucket.getKey());
+                assertEquals(((i1 + 1) % 2 == 0) ? "odd" : "even", bucket.getKey());
                 assertEquals(5L, bucket.getDocCount());
 
                 final InternalCardinality cardinality = bucket.getAggregations().get("cardinality");
@@ -589,7 +590,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 assertEquals("cardinality", cardinality.getName());
                 assertEquals(5, cardinality.getValue());
             }
-        }, mappedFieldTypes);
+        }, new AggTestConfig(aggregationBuilder, mappedFieldTypes));
     }
 
     private void testAggregation(
@@ -609,10 +610,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         Consumer<InternalCardinality> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
         for (CardinalityAggregatorFactory.ExecutionMode mode : CardinalityAggregatorFactory.ExecutionMode.values()) {
             aggregationBuilder.executionHint(mode.toString().toLowerCase(Locale.ROOT));
-            testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+            testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
         }
     }
 }

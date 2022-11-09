@@ -41,10 +41,5 @@ public abstract class BaseNodesXContentResponse<TNodeResponse extends BaseNodeRe
         }), xContentChunks(), Iterators.single((ToXContent) (b, p) -> b.endObject()));
     }
 
-    @Override
-    public boolean isFragment() {
-        return false;
-    }
-
     protected abstract Iterator<? extends ToXContent> xContentChunks();
 }

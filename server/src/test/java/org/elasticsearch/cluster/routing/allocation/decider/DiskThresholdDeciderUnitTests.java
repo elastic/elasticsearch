@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -264,7 +265,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     private void doTestCanRemainUsesLeastAvailableSpace(boolean testMaxHeadroom) {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
-        Map<ShardRouting, String> shardRoutingMap = new HashMap<>();
+        Map<ClusterInfo.NodeAndShard, String> shardRoutingMap = new HashMap<>();
 
         DiscoveryNode node_0 = new DiscoveryNode(
             "node_0",
@@ -294,7 +295,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_0 = ShardRoutingHelper.initialize(test_0, node_0.getId());
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
-        shardRoutingMap.put(test_0, "/node0/least");
+        shardRoutingMap.put(ClusterInfo.NodeAndShard.from(test_0), "/node0/least");
 
         ShardRouting test_1 = ShardRouting.newUnassigned(
             new ShardId(indexMetadata.getIndex(), 1),
@@ -304,7 +305,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_1 = ShardRoutingHelper.initialize(test_1, node_1.getId());
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
-        shardRoutingMap.put(test_1, "/node1/least");
+        shardRoutingMap.put(ClusterInfo.NodeAndShard.from(test_1), "/node1/least");
 
         ShardRouting test_2 = ShardRouting.newUnassigned(
             new ShardId(indexMetadata.getIndex(), 2),
@@ -314,7 +315,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_2 = ShardRoutingHelper.initialize(test_2, node_1.getId());
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
-        shardRoutingMap.put(test_2, "/node1/most");
+        shardRoutingMap.put(ClusterInfo.NodeAndShard.from(test_2), "/node1/most");
 
         ShardRouting test_3 = ShardRouting.newUnassigned(
             new ShardId(indexMetadata.getIndex(), 3),
@@ -716,7 +717,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         AllocationService allocationService = createAllocationService();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = allocationService.reroute(clusterState, "foo");
+        clusterState = allocationService.reroute(clusterState, "foo", ActionListener.noop());
 
         clusterState = startShardsAndReroute(
             allocationService,
@@ -795,7 +796,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder(clusterState.routingTable()).remove("test").build())
             .build();
 
-        allocationService.reroute(clusterState, "foo");
+        allocationService.reroute(clusterState, "foo", ActionListener.noop());
         RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null, clusterStateWithMissingSourceIndex, info, null, 0);
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));

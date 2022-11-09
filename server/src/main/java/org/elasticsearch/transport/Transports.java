@@ -18,6 +18,7 @@ public enum Transports {
     ;
     private static final Set<String> REQUEST_HEADERS_ALLOWED_ON_DEFAULT_THREAD_CONTEXT = Set.of(
         Task.TRACE_ID,
+        Task.TRACE_PARENT,
         Task.X_OPAQUE_ID_HTTP_HEADER,
         Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
     );
@@ -36,7 +37,16 @@ public enum Transports {
      * networking threads.
      */
     public static boolean isTransportThread(Thread t) {
-        final String threadName = t.getName();
+        return isTransportThread(t.getName());
+    }
+
+    /**
+     * Utility method to detect whether a thread is a network thread. Typically
+     * used in assertions to make sure that we do not call blocking code from
+     * networking threads.
+     * @param threadName the name of the thread
+     */
+    public static boolean isTransportThread(String threadName) {
         for (String s : TRANSPORT_THREAD_NAMES) {
             if (threadName.contains(s)) {
                 return true;

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
+public class EnsembleTests extends AbstractXContentSerializingTestCase<Ensemble> {
 
     private boolean lenient;
 
@@ -62,16 +62,25 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     public static Ensemble createRandom(TargetType targetType) {
         int numberOfFeatures = randomIntBetween(1, 10);
-        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
-        return createRandom(targetType, featureNames);
+        int numberOfModels = randomIntBetween(1, 10);
+        return createRandom(targetType, numberOfFeatures, numberOfModels, 6);
     }
 
-    public static Ensemble createRandom(TargetType targetType, List<String> featureNames) {
+    public static Ensemble createRandom(TargetType targetType, int numberOfFeatures) {
         int numberOfModels = randomIntBetween(1, 10);
+        return createRandom(targetType, numberOfFeatures, numberOfModels, 6);
+    }
+
+    public static Ensemble createRandom(TargetType targetType, int numberOfFeatures, int numberOfModels, int treeDepth) {
+        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
+        return createRandom(targetType, featureNames, numberOfModels, treeDepth);
+    }
+
+    public static Ensemble createRandom(TargetType targetType, List<String> featureNames, int numberOfModels, int treeDepth) {
         List<String> treeFeatureNames = featureNames.isEmpty()
             ? Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList())
             : featureNames;
-        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(treeFeatureNames, 6))
+        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(treeFeatureNames, treeDepth))
             .limit(numberOfModels)
             .collect(Collectors.toList());
         double[] weights = randomBoolean()

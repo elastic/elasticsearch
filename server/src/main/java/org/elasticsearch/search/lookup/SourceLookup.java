@@ -234,7 +234,7 @@ public class SourceLookup implements Source, Map<String, Object> {
     /**
      * Provider for source using a given map and optional content type.
      */
-    public static class MapSourceProvider implements SourceProvider {
+    private static class MapSourceProvider implements SourceProvider {
         private Map<String, Object> source;
         private XContentType sourceContentType;
 

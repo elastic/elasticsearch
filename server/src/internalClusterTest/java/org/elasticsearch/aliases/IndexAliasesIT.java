@@ -1382,7 +1382,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().indices().prepareCreate(indexName).addAlias(new Alias(indexName)).execute().actionGet()
         );
-        assertEquals("alias name [" + indexName + "] and index name may not be the same", iae.getMessage());
+        assertEquals("alias name [" + indexName + "] self-conflicts with index name", iae.getMessage());
     }
 
     public void testGetAliasAndAliasExistsForHiddenAliases() {

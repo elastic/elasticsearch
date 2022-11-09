@@ -497,7 +497,7 @@ public class IndexMetadataTests extends ESTestCase {
                 .putAlias(AliasMetadata.builder("index").build())
                 .build()
         );
-        assertEquals("alias name [index] and index name may not be the same", iae.getMessage());
+        assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {

@@ -2077,11 +2077,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             var aliasesMap = aliases.build();
-            aliasesMap.forEach((key, value) -> {
-                if (value.alias().equals(index)) {
-                    throw new IllegalArgumentException("alias name [" + index + "] and index name may not be the same");
+            for (AliasMetadata alias : aliasesMap.values()) {
+                if (alias.alias().equals(index)) {
+                    throw new IllegalArgumentException("alias name [" + index + "] self-conflicts with index name");
                 }
-            });
+            }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());

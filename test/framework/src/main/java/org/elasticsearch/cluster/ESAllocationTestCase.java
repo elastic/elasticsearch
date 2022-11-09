@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -20,6 +21,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -27,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -42,6 +46,8 @@ import java.util.Random;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
@@ -75,10 +81,43 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings, random),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(settings),
+            createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
+    }
+
+    private static ShardsAllocator createShardsAllocator(Settings settings) {
+        return switch (randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR)) {
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
+            default -> throw new AssertionError("Unknown allocator");
+        };
+    }
+
+    private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
+        var queue = new DeterministicTaskQueue();
+        return new DesiredBalanceShardsAllocator(new BalancedShardsAllocator(settings), queue.getThreadPool(), null, null) {
+            private RoutingAllocation lastAllocation;
+
+            @Override
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                lastAllocation = allocation;
+                super.allocate(allocation, listener);
+                queue.runAllTasks();
+            }
+
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                // do nothing as balance is not computed yet (during allocate)
+            }
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
+                // reconcile synchronously rather than in cluster state update task
+                super.reconcile(desiredBalance, lastAllocation);
+            }
+        };
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
@@ -257,7 +296,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         List<ShardRouting> initializingShards
     ) {
-        return allocationService.reroute(allocationService.applyStartedShards(clusterState, initializingShards), "reroute after starting");
+        return allocationService.reroute(
+            allocationService.applyStartedShards(clusterState, initializingShards),
+            "reroute after starting",
+            ActionListener.noop()
+        );
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

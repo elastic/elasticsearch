@@ -60,12 +60,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testFromXContentInvalid() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}}")) {
-            XContentParseException exc = expectThrows(XContentParseException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            XContentParseException exc = expectThrows(XContentParseException.class, () -> SearchSourceBuilder.fromXContent(parser, true));
             assertThat(exc.getMessage(), containsString("Unexpected close marker"));
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}{}")) {
-            ParsingException exc = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            ParsingException exc = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser, true));
             assertThat(exc.getDetailedMessage(), containsString("found after the main object"));
         }
     }
@@ -75,7 +75,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to
                                 // test the embedded case
         }
-        SearchSourceBuilder newBuilder = SearchSourceBuilder.fromXContent(parser);
+        SearchSourceBuilder newBuilder = SearchSourceBuilder.fromXContent(parser, true);
         assertNull(parser.nextToken());
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
@@ -123,7 +123,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 { "_source": { "includes": "include", "excludes": "*.field2"}}
                 """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 assertArrayEquals(new String[] { "*.field2" }, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[] { "include" }, searchSourceBuilder.fetchSource().includes());
             }
@@ -131,7 +131,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             String restContent = " { \"_source\": false}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 assertArrayEquals(new String[] {}, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[] {}, searchSourceBuilder.fetchSource().includes());
                 assertFalse(searchSourceBuilder.fetchSource().fetchSource());
@@ -153,7 +153,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                }
              } }""".indent(1);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser, true));
             assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
         }
     }
@@ -199,7 +199,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
               }
             }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
             assertThat(searchSourceBuilder.query(), instanceOf(BoolQueryBuilder.class));
             assertThat(searchSourceBuilder.rescores().get(0), instanceOf(QueryRescorerBuilder.class));
             assertThat(
@@ -227,7 +227,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             String restContent = " { \"sort\": \"foo\"}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.sorts().size());
                 assertEquals(new FieldSortBuilder("foo"), searchSourceBuilder.sorts().get(0));
@@ -244,7 +244,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                         "_score"
                     ]}""";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(5, searchSourceBuilder.sorts().size());
                 assertEquals(new FieldSortBuilder("post_date"), searchSourceBuilder.sorts().get(0));
@@ -269,7 +269,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 }
                 """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.aggregations().count());
             }
@@ -286,7 +286,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 }
                 """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.aggregations().count());
             }
@@ -314,7 +314,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 }
                 """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.rescores().size());
                 assertEquals(
@@ -341,7 +341,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 }
                 """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.rescores().size());
                 assertEquals(
@@ -358,7 +358,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
-            final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(parser);
+            final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(parser, true);
             assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
         }
     }
@@ -369,7 +369,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser, true)
+            );
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
         }
     }
@@ -424,7 +427,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             String restContent = """
                 { "indices_boost": {"foo": 1.0, "bar": 2.0}}""";
             try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 assertEquals(2, searchSourceBuilder.indexBoosts().size());
                 assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
                 assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
@@ -438,7 +441,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                   "indices_boost": [ { "foo": 1 }, { "bar": 2 }, { "baz": 3 } ]
                 }""";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
                 assertEquals(3, searchSourceBuilder.indexBoosts().size());
                 assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
                 assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
@@ -504,13 +507,16 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         int boundedRandomSize = randomIntBetween(-100000, -2);
         String restContent = "{\"size\" : " + boundedRandomSize + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser, true)
+            );
             assertThat(ex.getMessage(), containsString(Integer.toString(boundedRandomSize)));
         }
 
         restContent = "{\"size\" : -1}";
         try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
-            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser, true);
             assertEquals(-1, searchSourceBuilder.size());
         }
         assertCriticalWarnings(
@@ -529,7 +535,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
         String restContent = "{\"terminate_after\" :" + randomNegativeValue + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser, true)
+            );
             assertThat(ex.getMessage(), containsString("terminateAfter must be > 0"));
         }
     }
@@ -544,14 +553,17 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
         String restContent = "{\"track_total_hits\" :" + randomNegativeValue + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser, true)
+            );
             assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
         }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser, true));
             assertEquals(expectedErrorMessage, e.getMessage());
         }
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -274,6 +275,29 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.getQuery(), notNullValue());
 
         assertThat(roles.get("role_query_invalid"), nullValue());
+    }
+
+    public void testParseFileWithRemoteIndices() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final Path path = getDataPath("roles_with_remote_indices.yml");
+        final Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(
+            path,
+            logger,
+            Settings.builder().put(XPackSettings.DLS_FLS_ENABLED.getKey(), true).build(),
+            TestUtils.newTestLicenseState(),
+            xContentRegistry()
+        );
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(1));
+
+        final RoleDescriptor roleDescriptor = roles.get("role1");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getRemoteIndicesPrivileges().length, equalTo(1));
+        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges()[0];
+        assertThat(remoteIndicesPrivileges.remoteClusters(), arrayContaining("remote-1", "*-remote"));
+        assertThat(remoteIndicesPrivileges.indicesPrivileges().getIndices(), arrayContaining("idx1", "idx2"));
+        assertThat(remoteIndicesPrivileges.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
+        assertThat(remoteIndicesPrivileges.indicesPrivileges().allowRestrictedIndices(), is(false));
     }
 
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {

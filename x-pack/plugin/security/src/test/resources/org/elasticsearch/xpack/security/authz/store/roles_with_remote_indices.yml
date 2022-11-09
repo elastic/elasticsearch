@@ -1,0 +1,12 @@
+role1:
+  cluster:
+    - ALL
+  remote_indices:
+    - clusters:
+        - remote-1
+        - "*-remote"
+      names:
+        - idx1
+        - idx2
+      privileges:
+        - READ

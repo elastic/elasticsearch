@@ -1,6 +1,6 @@
 [cols="^,^,^,^,^,^,^,^,^"]
 |====
-| 9+^h| Remote cluster version
+| 8+^h| Remote cluster version
 h| Local cluster version
             |  6.8        | 7.1–7.16   | 7.17       | 8.0        | 8.1        | 8.2        | 8.3       | 8.4       
 | 6.8       |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon} | {no-icon} 

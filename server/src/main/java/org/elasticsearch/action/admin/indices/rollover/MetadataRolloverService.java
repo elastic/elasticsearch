@@ -24,15 +24,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexWriteLoad;
-import org.elasticsearch.index.shard.IndexWriteLoadForecast;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -66,18 +65,21 @@ public class MetadataRolloverService {
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final SystemIndices systemIndices;
+    private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
     public MetadataRolloverService(
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         MetadataIndexAliasesService indexAliasesService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        WriteLoadForecaster writeLoadForecaster
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.systemIndices = systemIndices;
+        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
@@ -309,12 +311,7 @@ public class MetadataRolloverService {
             )
             .build();
 
-        newState = IndexWriteLoadForecast.maybeIncludeWriteLoadForecast(
-            dataStream,
-            newState,
-            TimeValue.timeValueDays(7),
-            TimeValue.timeValueHours(8)
-        );
+        newState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, newState);
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }

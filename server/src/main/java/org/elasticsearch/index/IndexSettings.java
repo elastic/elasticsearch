@@ -564,33 +564,6 @@ public final class IndexSettings {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
-    public static final Setting<Boolean> FORECAST_WRITE_LOAD_SETTING = Setting.boolSetting(
-        "index.forecast_write_load",
-        false,
-        Property.Dynamic,
-        Property.IndexScope,
-        Property.PrivateIndex
-    );
-
-    public static final Setting<Double> DEFAULT_WRITE_LOAD_SETTING = Setting.doubleSetting(
-        "index.default_write_load",
-        0.0,
-        0.0,
-        1.0,
-        Property.Dynamic,
-        Property.IndexScope
-    );
-
-    public static final Setting<Double> DEFAULT_INTERNAL_WRITE_LOAD_SETTING = Setting.doubleSetting(
-        "index.internal_default_write_load",
-        0.0,
-        0.0,
-        1.0,
-        Property.Dynamic,
-        Property.IndexScope,
-        Property.PrivateIndex
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;

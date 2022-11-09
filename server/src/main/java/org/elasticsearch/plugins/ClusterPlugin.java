@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -56,6 +57,10 @@ public interface ClusterPlugin {
      */
     default Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
         return Collections.emptyMap();
+    }
+
+    default Collection<WriteLoadForecaster> createWriteLoadHandler(Settings settings, ClusterSettings clusterSettings) {
+        return Collections.emptyList();
     }
 
     /**

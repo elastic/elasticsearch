@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexWriteLoad;
-import org.elasticsearch.index.shard.IndexWriteLoadForecast;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.rest.RestStatus;
@@ -613,7 +612,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     private final IndexWriteLoad writeLoad;
     @Nullable
-    private final IndexWriteLoadForecast writeLoadForecast;
+    private final Double writeLoadForecast;
 
     private IndexMetadata(
         final Index index,
@@ -658,7 +657,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final Instant timeSeriesEnd,
         final Version indexCompatibilityVersion,
         @Nullable final IndexWriteLoad writeLoad,
-        @Nullable final IndexWriteLoadForecast writeLoadForecast
+        @Nullable final Double writeLoadForecast
     ) {
         this.index = index;
         this.version = version;
@@ -1175,12 +1174,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return writeLoad;
     }
 
-    public OptionalDouble getForecastedWriteLoadForShard(int shardId) {
-        if (IndexSettings.DEFAULT_INTERNAL_WRITE_LOAD_SETTING.exists(settings)) {
-            return OptionalDouble.of(IndexSettings.DEFAULT_INTERNAL_WRITE_LOAD_SETTING.get(settings));
-        }
-
-        return writeLoadForecast == null ? OptionalDouble.empty() : writeLoadForecast.getForecastedWriteLoadForShard(shardId);
+    public OptionalDouble getForecastedWriteLoadForShard() {
+        return writeLoadForecast == null ? OptionalDouble.empty() : OptionalDouble.of(writeLoadForecast);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -1418,7 +1413,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final boolean isSystem;
         private final IndexLongFieldRange timestampRange;
         private final IndexWriteLoad indexWriteLoad;
-        private final IndexWriteLoadForecast indexWriteLoadForecast;
+        private final Double indexWriteLoadForecast;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1506,7 +1501,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             timestampRange = IndexLongFieldRange.readFrom(in);
             if (in.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
                 indexWriteLoad = in.readOptionalWriteable(IndexWriteLoad::new);
-                indexWriteLoadForecast = in.readOptionalWriteable(IndexWriteLoadForecast::new);
+                indexWriteLoadForecast = in.readOptionalDouble();
             } else {
                 indexWriteLoad = null;
                 indexWriteLoadForecast = null;
@@ -1543,7 +1538,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             timestampRange.writeTo(out);
             if (out.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
                 out.writeOptionalWriteable(indexWriteLoad);
-                out.writeOptionalWriteable(indexWriteLoadForecast);
+                out.writeOptionalDouble(indexWriteLoadForecast);
             }
         }
 
@@ -1637,7 +1632,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         if (in.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
             builder.indexWriteLoad(in.readOptionalWriteable(IndexWriteLoad::new));
-            builder.indexWriteLoadForecast(in.readOptionalWriteable(IndexWriteLoadForecast::new));
+            builder.indexWriteLoadForecast(in.readOptionalDouble());
         }
         return builder.build();
     }
@@ -1682,7 +1677,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         timestampRange.writeTo(out);
         if (out.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
             out.writeOptionalWriteable(writeLoad);
-            out.writeOptionalWriteable(writeLoadForecast);
+            out.writeOptionalDouble(writeLoadForecast);
         }
     }
 
@@ -1731,7 +1726,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
         private LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
         private IndexWriteLoad indexWriteLoad = null;
-        private IndexWriteLoadForecast indexWriteLoadForecast = null;
+        private Double indexWriteLoadForecast = null;
 
         public Builder(String index) {
             this.index = index;
@@ -1981,7 +1976,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public Builder indexWriteLoadForecast(IndexWriteLoadForecast indexWriteLoadForecast) {
+        public Builder indexWriteLoadForecast(Double indexWriteLoadForecast) {
             this.indexWriteLoadForecast = indexWriteLoadForecast;
             return this;
         }
@@ -2277,9 +2272,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             if (indexMetadata.writeLoadForecast != null) {
-                builder.startObject(KEY_WRITE_LOAD_FORECAST);
-                indexMetadata.writeLoadForecast.toXContent(builder, params);
-                builder.endObject();
+                builder.field(KEY_WRITE_LOAD_FORECAST, indexMetadata.writeLoadForecast);
             }
 
             builder.endObject();
@@ -2359,9 +2352,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         case KEY_WRITE_LOAD:
                             builder.indexWriteLoad(IndexWriteLoad.fromXContent(parser));
                             break;
-                        case KEY_WRITE_LOAD_FORECAST:
-                            builder.indexWriteLoadForecast(IndexWriteLoadForecast.fromXContent(parser));
-                            break;
                         default:
                             // assume it's custom index metadata
                             builder.putCustom(currentFieldName, parser.mapStrings());
@@ -2418,6 +2408,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             }
                             builder.putMapping(mappingsByHash.get(parser.text()));
                         }
+                        case KEY_WRITE_LOAD_FORECAST -> builder.indexWriteLoadForecast(parser.doubleValue());
                         default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {

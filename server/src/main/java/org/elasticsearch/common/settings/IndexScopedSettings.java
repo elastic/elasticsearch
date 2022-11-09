@@ -183,10 +183,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.TIME_SERIES_START_TIME,
         IndexSettings.TIME_SERIES_END_TIME,
 
-        IndexSettings.FORECAST_WRITE_LOAD_SETTING,
-        IndexSettings.DEFAULT_WRITE_LOAD_SETTING,
-        IndexSettings.DEFAULT_INTERNAL_WRITE_LOAD_SETTING,
-
         // Legacy index settings we must keep around for BWC from 7.x
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,

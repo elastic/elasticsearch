@@ -43,6 +43,7 @@ import org.elasticsearch.gateway.PriorityComparator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -256,7 +257,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         float weight(Balancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            final float ingestLoad = (float) (node.projectedWriteLoad() - balancer.avgProjectedWriteLoad());
+            final float ingestLoad = (float) (node.normalizedWriteLoad() - balancer.avgNormalizedWriteLoadPerNode());
             return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad;
         }
     }
@@ -274,7 +275,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float threshold;
         private final Metadata metadata;
         private final float avgShardsPerNode;
-        private final double avgWriteLoadPerNode;
+        private final double maxWriteLoad;
+        private final double avgNormalizedWriteLoadPerNode;
         private final NodeSorter sorter;
 
         public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
@@ -285,22 +287,31 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
-            avgWriteLoadPerNode = getTotalWriteLoad(metadata) / routingNodes.size();
+            var writeLoadSummary = getWriteLoadSummary(metadata, routingNodes);
+            maxWriteLoad = writeLoadSummary.getMax();
+            avgNormalizedWriteLoadPerNode = writeLoadSummary.getMax() > 0
+                ? writeLoadSummary.getSum() / writeLoadSummary.getMax() / routingNodes.size()
+                : 0.0;
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
         }
 
-        private static double getTotalWriteLoad(Metadata metadata) {
-            double writeLoad = 0.0;
+        private static DoubleSummaryStatistics getWriteLoadSummary(Metadata metadata, RoutingNodes routingNodes) {
+            double max = 0.0;
+            double sum = 0.0;
+
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
                 var indexWriteLoad = indexMetadata.getWriteLoad();
                 if (indexWriteLoad != null) {
                     for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
-                        writeLoad += indexWriteLoad.getWriteLoadForShard(shardId).orElse(0.0);
+                        var shardWriteLoad = indexWriteLoad.getWriteLoadForShard(shardId).orElse(0.0);
+                        max = Math.max(max, shardWriteLoad);
+                        sum += shardWriteLoad;
                     }
                 }
             }
-            return writeLoad;
+
+            return new DoubleSummaryStatistics(routingNodes.size(), 0.0, max, sum);
         }
 
         /**
@@ -324,8 +335,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return avgShardsPerNode;
         }
 
-        public double avgProjectedWriteLoad() {
-            return avgWriteLoadPerNode;
+        public double avgNormalizedWriteLoadPerNode() {
+            return avgNormalizedWriteLoadPerNode;
         }
 
         /**
@@ -655,7 +666,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * to the nodes we relocated them from.
          */
         private String[] buildWeightOrderedIndices() {
-            final String[] indices = allocation.routingTable().indicesRouting().keySet().toArray(new String[0]);
+            final String[] indices = allocation.routingTable().indicesRouting().keySet().toArray(String[]::new);
             final float[] deltas = new float[indices.length];
             for (int i = 0; i < deltas.length; i++) {
                 sorter.reset(indices[i]);
@@ -839,7 +850,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Map<String, ModelNode> buildModelFromAssigned() {
             Map<String, ModelNode> nodes = new HashMap<>();
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(metadata, rn);
+                ModelNode node = new ModelNode(maxWriteLoad, metadata, rn);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -1134,11 +1145,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
-        private double projectedWriteLoad = 0;
+        private double normalizedWriteLoad = 0.0;
+        private final double maxWriteLoad;
         private final Metadata metadata;
         private final RoutingNode routingNode;
 
-        ModelNode(Metadata metadata, RoutingNode routingNode) {
+        ModelNode(double maxWriteLoad, Metadata metadata, RoutingNode routingNode) {
+            this.maxWriteLoad = maxWriteLoad;
             this.metadata = metadata;
             this.routingNode = routingNode;
         }
@@ -1164,8 +1177,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return index == null ? 0 : index.numShards();
         }
 
-        public double projectedWriteLoad() {
-            return projectedWriteLoad;
+        public double normalizedWriteLoad() {
+            return normalizedWriteLoad;
         }
 
         public int highestPrimary(String index) {
@@ -1178,7 +1191,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
-            projectedWriteLoad += metadata.index(shard.index()).getWriteLoad(shard.id()).orElse(0.0);
+            var indexWriteLoad = metadata.index(shard.index()).getWriteLoad();
+            if (indexWriteLoad != null) {
+                normalizedWriteLoad += indexWriteLoad.getWriteLoadForShard(shard.id()).orElse(0.0) / maxWriteLoad;
+            }
             numShards++;
         }
 
@@ -1190,7 +1206,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
-            projectedWriteLoad -= metadata.index(shard.index()).getWriteLoad(shard.id()).orElse(0.0);
+            var indexWriteLoad = metadata.index(shard.index()).getWriteLoad();
+            if (indexWriteLoad != null) {
+                normalizedWriteLoad -= indexWriteLoad.getWriteLoadForShard(shard.id()).orElse(0.0) / maxWriteLoad;
+            }
             numShards--;
         }
 

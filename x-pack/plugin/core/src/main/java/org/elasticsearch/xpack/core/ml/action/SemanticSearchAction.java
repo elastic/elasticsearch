@@ -57,6 +57,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name and update docs when changed
+        public static final ParseField TEXT_EMBEDDING_CONFIG = new ParseField("text_embedding_config");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
@@ -67,7 +68,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             PARSER.declareObject(
                 Request.Builder::setUpdate,
                 (p, c) -> TextEmbeddingConfigUpdate.fromXContentStrict(p),
-                InferTrainedModelDeploymentAction.Request.INFERENCE_CONFIG
+                TEXT_EMBEDDING_CONFIG
             );
             PARSER.declareObject(
                 Request.Builder::setQueryBuilder,

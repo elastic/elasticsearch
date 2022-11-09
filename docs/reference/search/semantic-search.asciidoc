@@ -76,12 +76,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 (Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
 
-`filter`::
-(Optional, <<query-dsl,Query DSL object>>) Query to filter the documents that
-can match. The kNN search will return the top `k` documents that also match
-this filter. The value can be a single query or a list of queries. If `filter`
-is not provided, all documents are allowed to match.
-
 `query`::
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.

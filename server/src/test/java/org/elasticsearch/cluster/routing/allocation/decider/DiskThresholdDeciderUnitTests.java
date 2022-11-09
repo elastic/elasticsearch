@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -716,7 +717,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         AllocationService allocationService = createAllocationService();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = allocationService.reroute(clusterState, "foo");
+        clusterState = allocationService.reroute(clusterState, "foo", ActionListener.noop());
 
         clusterState = startShardsAndReroute(
             allocationService,
@@ -795,7 +796,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder(clusterState.routingTable()).remove("test").build())
             .build();
 
-        allocationService.reroute(clusterState, "foo");
+        allocationService.reroute(clusterState, "foo", ActionListener.noop());
         RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null, clusterStateWithMissingSourceIndex, info, null, 0);
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));

@@ -42,6 +42,8 @@ import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregatio
 import org.elasticsearch.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.histogram.ParsedAutoDateHistogram;
+import org.elasticsearch.aggregations.bucket.timeseries.ParsedTimeSeries;
+import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
@@ -163,8 +165,6 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.timeseries.ParsedTimeSeries;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;

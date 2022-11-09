@@ -373,10 +373,6 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return DataStream.getDefaultBackingIndexName(dataStreamName, generation, time.getOrCompute());
     }
 
-    protected String backingIndexName(String dataStreamName, int generation, long epochMillis) {
-        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis);
-    }
-
     protected RestClient buildLeaderClient() throws IOException {
         assert "leader".equals(targetCluster) == false;
         return buildClient(System.getProperty("tests.leader_host"));

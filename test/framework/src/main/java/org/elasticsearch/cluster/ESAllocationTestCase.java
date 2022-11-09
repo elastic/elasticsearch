@@ -224,7 +224,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
+        int iterations = 0;
         do {
+            iterations += 1;
+            if (iterations % 100 == 0) {
+                logger.info("applyStartedShardsUntilNoChange: iteration [{}]", iterations);
+            }
             final var previousClusterState = clusterState;
             logger.debug(() -> Strings.format("ClusterState: %s", previousClusterState.getRoutingNodes()));
             clusterState = startInitializingShardsAndReroute(service, clusterState);

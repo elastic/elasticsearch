@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Collections;
 import java.util.Map;
@@ -63,7 +62,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
-    private final CompositeRolesStore rolesStore;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -75,30 +73,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         DestructiveOperations destructiveOperations,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
-        this(
-            settings,
-            threadPool,
-            authcService,
-            authzService,
-            sslService,
-            securityContext,
-            destructiveOperations,
-            remoteClusterAuthorizationResolver,
-            null
-        );
-    }
-
-    public SecurityServerTransportInterceptor(
-        Settings settings,
-        ThreadPool threadPool,
-        AuthenticationService authcService,
-        AuthorizationService authzService,
-        SSLService sslService,
-        SecurityContext securityContext,
-        DestructiveOperations destructiveOperations,
-        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
-        CompositeRolesStore rolesStore
-    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -107,7 +81,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
-        this.rolesStore = rolesStore;
     }
 
     @Override
@@ -233,16 +206,19 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
-        final String remoteClusterAuthorization = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
-        rolesStore.getRoleDescriptorsIntersection(
+        authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
             remoteClusterAlias,
             authentication.getEffectiveSubject(),
             ActionListener.wrap(roleDescriptorsIntersection -> {
+                logger.info("Got role descriptors intersection [{}]", roleDescriptorsIntersection);
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
-                    threadContext.putHeader(REMOTE_ACCESS_CREDENTIAL_HEADER, remoteClusterAuthorization);
+                    threadContext.putHeader(
+                        REMOTE_ACCESS_CREDENTIAL_HEADER,
+                        remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias)
+                    );
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))

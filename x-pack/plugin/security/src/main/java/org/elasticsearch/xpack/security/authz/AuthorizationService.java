@@ -206,11 +206,10 @@ public class AuthorizationService {
     public void retrieveRemoteAccessRoleDescriptorsIntersection(
         final String remoteClusterAlias,
         final Subject subject,
+        final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        final AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
-        // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
         authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
             remoteClusterAlias,
             authorizationInfo,

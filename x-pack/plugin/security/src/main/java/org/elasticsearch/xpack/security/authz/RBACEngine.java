@@ -713,7 +713,7 @@ public class RBACEngine implements AuthorizationEngine {
                             null,
                             null,
                             null,
-                            // The fulfilling cluster should rely on metadata field to construct the role key for caching
+                            // The fulfilling cluster should rely on this metadata field to construct the role key for caching
                             Map.of("_role_names", role.names()),
                             null
                         )

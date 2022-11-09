@@ -36,6 +36,7 @@ import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandle
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -206,9 +207,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
+        final AuthorizationEngine.AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
         authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
             remoteClusterAlias,
             authentication.getEffectiveSubject(),
+            authorizationInfo,
             ActionListener.wrap(roleDescriptorsIntersection -> {
                 logger.info("Got role descriptors intersection [{}]", roleDescriptorsIntersection);
                 final ThreadContext threadContext = securityContext.getThreadContext();

@@ -94,7 +94,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainTrue() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseTrue() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
@@ -154,7 +154,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainFalse() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);

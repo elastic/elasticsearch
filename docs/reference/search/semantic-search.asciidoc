@@ -10,25 +10,6 @@ The resulting dense vector is then used in a <<knn-search,k-nearest neighbor (kn
 created with the same text embedding model. The search results are semantically similar as learned
 by the model.
 
-////
-[source,console]
-----
-PUT my-index
-{
-  "mappings": {
-    "properties": {
-      "text_embedding": {
-        "type": "dense_vector",
-        "dims": 512,
-        "index": true,
-        "similarity": "cosine"
-      }
-    }
-  }
-}
-----
-////
-
 [source,console]
 ----
 GET my-index/_semantic_search
@@ -110,15 +91,69 @@ value must be less than `num_candidates`.
 shard. Cannot exceed 10,000. {es} collects `num_candidates` results from each
 shard, then merges them to find the top `k` results. Increasing
 `num_candidates` tends to improve the accuracy of the final `k` results.
-====
 
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>) Query to filter the documents that
 can match. The kNN search will return the top `k` documents that also match
 this filter. The value can be a single query or a list of queries. If `filter`
 is not provided, all documents are allowed to match.
+====
 
+`query`::
+(Optional, <<query-dsl,query object>>) Defines the search definition using the
+<<query-dsl,Query DSL>>.
 
+`text_embedding_config`::
+(Object, optional) Override certain setting of the text embedding model's configuration
+.Properties of text_embedding inference
+[%collapsible%open]
+=====
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
+`tokenization`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+.Properties of tokenization
+[%collapsible%open]
+======
+`bert`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
++
+.Properties of roberta
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+`mpnet`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
++
+.Properties of mpnet
+[%collapsible%open]
+=======
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+======
+=====
 
 include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
@@ -129,5 +164,5 @@ include::{es-repo-dir}/search/search.asciidoc[tag=stored-fields-def]
 [[semantic-search-api-response-body]]
 ==== {api-response-body-title}
 
-A sementic search response has the same structure as a kNN search response.
+The semantic search response has the same structure as a kNN search response.
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -38,7 +39,7 @@ public class Row extends LeafPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return true;
+        return Resolvables.resolved(fields);
     }
 
     @Override

@@ -99,6 +99,22 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
+    public void testConstantDoubleBlock() {
+        for (int i = 0; i < 1000; i++) {
+            int positionCount = randomIntBetween(1, Integer.MAX_VALUE);
+            double value = randomDouble();
+            Block block = new ConstantDoubleBlock(value, positionCount);
+            assertThat(positionCount, is(block.getPositionCount()));
+            assertThat(value, is(block.getDouble(0)));
+            assertThat(value, is(block.getDouble(positionCount - 1)));
+            assertThat(value, is(block.getDouble(randomIntBetween(1, positionCount - 1))));
+            assertThat(
+                block.getObject(randomIntBetween(1, positionCount - 1)),
+                is(block.getDouble(randomIntBetween(1, positionCount - 1)))
+            );
+        }
+    }
+
     public void testBytesRefBlock() {
         int positionCount = randomIntBetween(0, 16 * 1024);
         BytesRefArrayBlock.Builder builder = BytesRefArrayBlock.builder(positionCount);

@@ -28,14 +28,16 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         "write_load_forecaster.max_index_age",
         TimeValue.timeValueDays(7),
         TimeValue.timeValueHours(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     public static final Setting<TimeValue> MIN_UPTIME_SETTING = Setting.timeSetting(
         "write_load_forecaster.min_uptime",
         TimeValue.timeValueHours(1),
         TimeValue.timeValueMinutes(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private final BooleanSupplier hasValidLicense;

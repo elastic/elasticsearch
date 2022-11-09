@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
  * Block implementation that stores an array of integers.
@@ -22,10 +23,16 @@ public final class IntArrayBlock extends Block {
         this.values = values;
     }
 
+    public IntArrayBlock(int[] values, int positionCount, BitSet nulls) {
+        super(positionCount, nulls);
+        this.values = values;
+    }
+
     @Override
     public int getInt(int position) {
         assert assertPosition(position);
-        return values[position];
+        assert isNull(position) == false;
+        return isNull(position) ? 0 : values[position];
     }
 
     @Override

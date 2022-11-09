@@ -10,12 +10,19 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 
+import java.util.BitSet;
+
 public class ConstantStringBlock extends Block {
 
     private final String value;
 
     public ConstantStringBlock(String value, int positionCount) {
         super(positionCount);
+        this.value = value;
+    }
+
+    public ConstantStringBlock(String value, int positionCount, BitSet nulls) {
+        super(positionCount, nulls);
         this.value = value;
     }
 
@@ -28,7 +35,8 @@ public class ConstantStringBlock extends Block {
     @Override
     public Object getObject(int position) {
         assert assertPosition(position);
-        return value;
+        assert isNull(position) == false;
+        return isNull(position) ? null : value;
     }
 
     @Override

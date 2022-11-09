@@ -96,7 +96,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertEquals("Unexpected number of columns in " + actualValues, expectedValues.size(), actualValues.size());
 
         for (int i = 0; i < expectedValues.size(); i++) {
-            assertEquals(expectedValues.get(i), actualValues.get(i).stream().map(Object::toString).toList());
+            assertEquals(
+                expectedValues.get(i),
+                actualValues.get(i).stream().map(o -> { return o == null ? "null" : o.toString(); }).toList()
+            );
         }
     }
 

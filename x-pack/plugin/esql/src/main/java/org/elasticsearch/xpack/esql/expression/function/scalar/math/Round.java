@@ -74,7 +74,7 @@ public class Round extends ScalarFunction implements OptionalArgument {
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new Round(source(), newChildren.get(0), newChildren.get(1) == null ? null : newChildren.get(1));
+        return new Round(source(), newChildren.get(0), decimals() == null ? null : newChildren.get(1));
     }
 
     @Override

@@ -43,6 +43,8 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(pos, is(block.getInt(pos)));
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
+
+            assertNullValueSetting(block, positionCount);
         }
     }
 
@@ -55,6 +57,8 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(value, is(block.getInt(0)));
             assertThat(value, is(block.getInt(positionCount - 1)));
             assertThat(value, is(block.getInt(randomIntBetween(1, positionCount - 1))));
+
+            assertNullValueSetting(block, positionCount);
         }
     }
 
@@ -69,6 +73,8 @@ public class BasicBlockTests extends ESTestCase {
             int pos = (int) block.getLong(randomIntBetween(0, positionCount - 1));
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
+
+            assertNullValueSetting(block, positionCount);
         }
     }
 
@@ -81,6 +87,8 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(value, is(block.getLong(0)));
             assertThat(value, is(block.getLong(positionCount - 1)));
             assertThat(value, is(block.getLong(randomIntBetween(1, positionCount - 1))));
+
+            assertNullValueSetting(block, positionCount);
         }
     }
 
@@ -96,6 +104,8 @@ public class BasicBlockTests extends ESTestCase {
             assertThat((double) pos, is(block.getDouble(pos)));
             expectThrows(UOE, () -> block.getInt(pos));
             expectThrows(UOE, () -> block.getLong(pos));
+
+            assertNullValueSetting(block, positionCount);
         }
     }
 
@@ -112,6 +122,8 @@ public class BasicBlockTests extends ESTestCase {
                 block.getObject(randomIntBetween(1, positionCount - 1)),
                 is(block.getDouble(randomIntBetween(1, positionCount - 1)))
             );
+
+            assertNullValueSetting(block, positionCount);
         }
     }
 
@@ -190,7 +202,20 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(bytes.utf8ToString(), is(value));
             bytes = block.getBytesRef(randomIntBetween(1, positionCount - 1), bytes);
             assertThat(bytes.utf8ToString(), is(value));
+
+            assertNullValueSetting(block, positionCount);
         }
+    }
+
+    private void assertNullValueSetting(Block block, int positionCount) {
+        int randomNullPosition = randomIntBetween(0, positionCount - 1);
+        int randomNonNullPosition = randomValueOtherThan(randomNullPosition, () -> randomIntBetween(0, positionCount - 1));
+        block.setNull(randomNullPosition);
+        assertTrue(block.isNull(randomNullPosition));
+        assertFalse(block.isNull(randomNonNullPosition));
+        block.setAllNull();
+        assertTrue(block.isNull(randomNullPosition));
+        assertTrue(block.isNull(randomNonNullPosition));
     }
 
     static final Class<UnsupportedOperationException> UOE = UnsupportedOperationException.class;

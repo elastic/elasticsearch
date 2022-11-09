@@ -76,6 +76,9 @@ public class RowOperator implements Operator {
                 blocks[i] = new ConstantDoubleBlock(doubleVal, 1);
             } else if (object instanceof String stringVal) {
                 blocks[i] = new ConstantStringBlock(stringVal, 1);
+            } else if (object == null) {
+                blocks[i] = new ConstantLongBlock(0L, 1);
+                blocks[i].setAllNull();
             } else {
                 throw new UnsupportedOperationException();
             }

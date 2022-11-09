@@ -19,8 +19,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -89,9 +91,12 @@ public class APMJvmOptionsTests extends ESTestCase {
                 not(hasKey("global_labels.organization_id")) // tests that we strip out the top level label keys
             )
         );
+
+        String[] labels = extracted.get("global_labels").split(",");
+
         assertThat(
-            extracted.get("global_labels"),
-            allOf(containsString("deployment_name=APM Tracing"), containsString("organization_id=456"), containsString("deployment_id=123"))
+            Arrays.stream(labels).toList(),
+            containsInAnyOrder("deployment_name=APM Tracing", "organization_id=456", "deployment_id=123")
         );
 
         settings = Settings.builder()

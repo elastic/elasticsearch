@@ -8,6 +8,7 @@ import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
 import org.elasticsearch.gradle.internal.docker.DockerSupportService
 import org.elasticsearch.gradle.internal.docker.ShellRetry
 import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
+import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -17,9 +18,10 @@ import java.time.temporal.ChronoUnit
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
+apply plugin: 'elasticsearch.dra-artifacts'
 
 String buildId = providers.systemProperty('build.id').getOrNull()
-boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
+boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
 
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
@@ -35,29 +37,33 @@ repositories {
     metadataSources { artifact() }
     content { includeGroup 'krallin' }
   }
+}
 
-  // Cloud builds bundle some beats
-  ivy {
-    name = 'beats'
-    if (useLocalArtifacts) {
-      url "file://${buildDir}/artifacts/"
-      patternLayout {
-        artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
-      }
-    } else {
-      url "https://artifacts-snapshot.elastic.co/"
-      patternLayout {
-        if (VersionProperties.isElasticsearchSnapshot()) {
-          artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
-        } else {
-          // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
-          // Release builds are always done with a local repo.
-          artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+if(useDra == false) {
+  repositories {
+    // Cloud builds bundle some beats
+    ivy {
+      name = 'beats'
+      if (useLocalArtifacts) {
+        url "file://${buildDir}/artifacts/"
+        patternLayout {
+          artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
+        }
+      } else {
+        url "https://artifacts-snapshot.elastic.co/"
+        patternLayout {
+          if (VersionProperties.isElasticsearchSnapshot()) {
+            artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+          } else {
+            // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+            // Release builds are always done with a local repo.
+            artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+          }
         }
       }
+      metadataSources { artifact() }
+      content { includeGroup 'beats' }
     }
-    metadataSources { artifact() }
-    content { includeGroup 'beats' }
   }
 }
 

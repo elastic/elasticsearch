@@ -193,26 +193,6 @@ public class MetadataTests extends ESTestCase {
         assertThat(aliases.get(1).alias(), equalTo("bb"));
     }
 
-    public void testIndexAndAliasWithSameName() {
-        IndexMetadata.Builder builder = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .putAlias(AliasMetadata.builder("index").build());
-        try {
-            Metadata.builder().put(builder).build();
-            fail("exception should have been thrown");
-        } catch (IllegalStateException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo(
-                    "index, alias, and data stream names need to be unique, but the following duplicates were found [index (alias "
-                        + "of [index]) conflicts with index]"
-                )
-            );
-        }
-    }
-
     public void testAliasCollidingWithAnExistingIndex() {
         int indexCount = randomIntBetween(10, 100);
         Set<String> indices = Sets.newHashSetWithExpectedSize(indexCount);
@@ -221,7 +201,12 @@ public class MetadataTests extends ESTestCase {
         }
         Map<String, Set<String>> aliasToIndices = new HashMap<>();
         for (String alias : randomSubsetOf(randomIntBetween(1, 10), indices)) {
-            aliasToIndices.put(alias, new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices)));
+            Set<String> indicesInAlias;
+            do {
+                indicesInAlias = new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices));
+                indicesInAlias.remove(alias);
+            } while (indicesInAlias.isEmpty());
+            aliasToIndices.put(alias, indicesInAlias);
         }
         int properAliases = randomIntBetween(0, 3);
         for (int i = 0; i < properAliases; i++) {

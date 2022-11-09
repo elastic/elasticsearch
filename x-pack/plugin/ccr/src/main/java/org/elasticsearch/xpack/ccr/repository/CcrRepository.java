@@ -16,7 +16,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -207,10 +206,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = getRemoteClusterClient();
         // We set a single dummy index name to avoid fetching all the index data
-        ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest("dummy_index_name");
         ClusterStateResponse clusterState = remoteClient.admin()
             .cluster()
-            .state(clusterStateRequest)
+            .state(CcrRequests.metadataRequest("dummy_index_name"))
             .actionGet(ccrSettings.getRecoveryActionTimeout());
         return clusterState.getState().metadata();
     }
@@ -221,10 +219,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String leaderIndex = index.getName();
         Client remoteClient = getRemoteClusterClient();
 
-        ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest(leaderIndex);
         ClusterStateResponse clusterState = remoteClient.admin()
             .cluster()
-            .state(clusterStateRequest)
+            .state(CcrRequests.metadataRequest(leaderIndex))
             .actionGet(ccrSettings.getRecoveryActionTimeout());
 
         // Validates whether the leader cluster has been configured properly:
@@ -751,21 +748,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 .actionGet(ccrSettings.getRecoveryActionTimeout());
         }
 
-        private static class FileChunk implements MultiChunkTransfer.ChunkRequest {
-            final StoreFileMetadata md;
-            final int bytesRequested;
-            final boolean lastChunk;
-
-            FileChunk(StoreFileMetadata md, int bytesRequested, boolean lastChunk) {
-                this.md = md;
-                this.bytesRequested = bytesRequested;
-                this.lastChunk = lastChunk;
-            }
-
-            @Override
-            public boolean lastChunk() {
-                return lastChunk;
-            }
-        }
+        private record FileChunk(StoreFileMetadata md, int bytesRequested, boolean lastChunk) implements MultiChunkTransfer.ChunkRequest {}
     }
 }

@@ -347,7 +347,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
             .build();
 
-        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
         MetadataRolloverService rolloverService = new MetadataRolloverService(
             mockThreadPool,

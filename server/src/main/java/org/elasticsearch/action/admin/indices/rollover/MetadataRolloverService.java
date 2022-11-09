@@ -49,6 +49,7 @@ import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STRE
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * Service responsible for handling rollover requests for write aliases and data streams
@@ -201,12 +202,15 @@ public class MetadataRolloverService {
             return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
         }
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareCreateIndexRequest(
-            unresolvedName,
-            rolloverIndexName,
-            createIndexRequest
+        var createIndexClusterStateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName, createIndexRequest);
+        assert createIndexClusterStateRequest.performReroute() == false
+            : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
+        ClusterState newState = createIndexService.applyCreateIndexRequest(
+            currentState,
+            createIndexClusterStateRequest,
+            silent,
+            rerouteCompletionIsNotRequired()
         );
-        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(
             newState,
             rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName)
@@ -270,7 +274,7 @@ public class MetadataRolloverService {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
+        var createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
             dataStreamName,
             newWriteIndexName,
             createIndexRequest,
@@ -278,13 +282,16 @@ public class MetadataRolloverService {
             now
         );
         createIndexClusterStateRequest.setMatchingTemplate(templateV2);
+        assert createIndexClusterStateRequest.performReroute() == false
+            : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,
             silent,
             (builder, indexMetadata) -> builder.put(
                 ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
-            )
+            ),
+            rerouteCompletionIsNotRequired()
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());

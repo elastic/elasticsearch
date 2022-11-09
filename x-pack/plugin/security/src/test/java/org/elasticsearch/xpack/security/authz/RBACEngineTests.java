@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
@@ -1390,6 +1391,16 @@ public class RBACEngineTests extends ESTestCase {
             )
             .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
+            .addRemoteGroup(Set.of("remote-1"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-1")
+            .addRemoteGroup(
+                Set.of("remote-2", "remote-3"),
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
+                Collections.singleton(query),
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "remote-index-2",
+                "remote-index-3"
+            )
             .build();
 
         final GetUserPrivilegesResponse response = RBACEngine.buildUserPrivilegesResponseObject(role);
@@ -1423,6 +1434,29 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         assertThat(response.getRunAs(), containsInAnyOrder("user01", "user02"));
+
+        assertThat(response.getRemoteIndexPrivileges(), iterableWithSize(2));
+        final GetUserPrivilegesResponse.RemoteIndices remoteIndex1 = findRemoteIndexPrivilege(
+            response.getRemoteIndexPrivileges(),
+            "remote-1"
+        );
+        assertThat(remoteIndex1.remoteClusters(), containsInAnyOrder("remote-1"));
+        assertThat(remoteIndex1.indices().getIndices(), containsInAnyOrder("remote-index-1"));
+        assertThat(remoteIndex1.indices().getPrivileges(), containsInAnyOrder("read"));
+        assertThat(remoteIndex1.indices().getFieldSecurity(), emptyIterable());
+        assertThat(remoteIndex1.indices().getQueries(), emptyIterable());
+        final GetUserPrivilegesResponse.RemoteIndices remoteIndex2 = findRemoteIndexPrivilege(
+            response.getRemoteIndexPrivileges(),
+            "remote-2"
+        );
+        assertThat(remoteIndex2.remoteClusters(), containsInAnyOrder("remote-2", "remote-3"));
+        assertThat(remoteIndex2.indices().getIndices(), containsInAnyOrder("remote-index-2", "remote-index-3"));
+        assertThat(remoteIndex2.indices().getPrivileges(), containsInAnyOrder("read"));
+        assertThat(
+            remoteIndex2.indices().getFieldSecurity(),
+            containsInAnyOrder(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "public.*" }, new String[0]))
+        );
+        assertThat(remoteIndex2.indices().getQueries(), containsInAnyOrder(query));
     }
 
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
@@ -1566,13 +1600,15 @@ public class RBACEngineTests extends ESTestCase {
         when(role.indices()).thenReturn(IndicesPermission.NONE);
         when(role.application()).thenReturn(ApplicationPermission.NONE);
         when(role.runAs()).thenReturn(RunAsPermission.NONE);
+        when(role.remoteIndices()).thenReturn(RemoteIndicesPermission.NONE);
 
         final UnsupportedOperationException unsupportedOperationException = new UnsupportedOperationException();
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> when(role.cluster()).thenThrow(unsupportedOperationException);
             case 1 -> when(role.indices()).thenThrow(unsupportedOperationException);
             case 2 -> when(role.application()).thenThrow(unsupportedOperationException);
             case 3 -> when(role.runAs()).thenThrow(unsupportedOperationException);
+            case 4 -> when(role.remoteIndices()).thenThrow(unsupportedOperationException);
             default -> throw new IllegalStateException("unknown case number");
         }
 
@@ -1593,6 +1629,13 @@ public class RBACEngineTests extends ESTestCase {
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {
         return indices.stream().filter(i -> i.getIndices().contains(name)).findFirst().get();
+    }
+
+    private GetUserPrivilegesResponse.RemoteIndices findRemoteIndexPrivilege(
+        Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndices,
+        String remoteClusterAlias
+    ) {
+        return remoteIndices.stream().filter(i -> i.remoteClusters().contains(remoteClusterAlias)).findFirst().get();
     }
 
     private IndicesPrivileges indexPrivileges(String priv, String... indices) {

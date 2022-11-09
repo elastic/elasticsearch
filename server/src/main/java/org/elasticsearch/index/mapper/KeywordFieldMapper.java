@@ -314,6 +314,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
+                context.isSourceSynthetic(),
                 this
             );
         }
@@ -908,6 +909,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final Script script;
     private final ScriptCompiler scriptCompiler;
     private final Version indexCreatedVersion;
+    private final boolean storeIgnored;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -917,6 +919,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         KeywordFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean storeIgnored,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
@@ -932,6 +935,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.storeIgnored = storeIgnored;
     }
 
     @Override
@@ -962,7 +966,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(name());
-            if (context.isSyntheticSource()) {
+            if (storeIgnored) {
                 // Save a copy of the field so synthetic source can load it
                 context.doc().add(new StoredField(originalName(), new BytesRef(value)));
             }

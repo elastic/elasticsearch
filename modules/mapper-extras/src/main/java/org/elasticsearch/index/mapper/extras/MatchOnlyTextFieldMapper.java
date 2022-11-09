@@ -130,7 +130,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, multiFields, copyTo.build(), this);
+            return new MatchOnlyTextFieldMapper(
+                name,
+                Defaults.FIELD_TYPE,
+                tft,
+                multiFields,
+                copyTo.build(),
+                context.isSourceSynthetic(),
+                this
+            );
         }
     }
 
@@ -331,6 +339,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
     private final int positionIncrementGap;
+    private final boolean storeSource;
     private final FieldType fieldType;
 
     private MatchOnlyTextFieldMapper(
@@ -339,6 +348,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         MatchOnlyTextFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean storeSource,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
@@ -349,6 +359,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
+        this.storeSource = storeSource;
     }
 
     @Override
@@ -373,7 +384,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
 
-        if (context.isSyntheticSource()) {
+        if (storeSource) {
             context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value));
         }
     }

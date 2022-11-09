@@ -1918,16 +1918,17 @@ public class DocumentParserTests extends MapperServiceTestCase {
         });
     }
 
-    public void testBlankFieldNamesSubobjectsFalse() throws Exception {
+    public void testEmptyFieldNameSubobjectsFalse() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
-        {
-            MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
-            assertThat(err.getMessage(), containsString("Field name cannot contain only whitespace: []"));
-        }
-        {
-            MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("  ", "foo"))));
-            assertThat(err.getMessage(), containsString("Field name cannot contain only whitespace: [  ]"));
-        }
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
+        assertThat(err.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(err.getCause().getMessage(), containsString("Field name cannot be an empty string"));
+    }
+
+    public void testBlankFieldNameSubobjectsFalse() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("  ", "foo"))));
+        assertThat(err.getMessage(), containsString("Field name cannot contain only whitespace: [  ]"));
     }
 
     public void testDotsOnlyFieldNames() throws Exception {
@@ -1944,25 +1945,21 @@ public class DocumentParserTests extends MapperServiceTestCase {
         });
     }
 
-    public void testDotsOnlyFieldNamesSubobjectsFalse() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
-        String[] fieldNames = { ".", "..", "..." };
-        for (String fieldName : fieldNames) {
-            MapperParsingException err = expectThrows(
-                MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.field(fieldName, "bar")))
-            );
-            assertThat(err.getCause(), notNullValue());
-            // TODO this is actually accepted in the mappings, shall we revert https://github.com/elastic/elasticsearch/pull/90950 ?
-            assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
-        }
-    }
+    // these combinations are not accepted by default, but they are when subobjects are disabled
+    public static final String[] VALID_FIELD_NAMES_NO_SUBOBJECTS = new String[] {
+        ".foo",
+        "foo.",
+        "top..foo",
+        "top.foo.",
+        "top..foo.",
+        "top. .foo",
+        ".",
+        "..",
+        "..." };
 
     public void testDynamicFieldEdgeCaseNamesSubobjectsFalse() throws Exception {
-        // these combinations are not accepted by default, but they are when subobjects are disabled
         MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {}));
-        String[] fieldNames = new String[] { ".foo", "foo.", "top..foo", "top.foo.", "top..foo.", "top. .foo" };
-        for (String fieldName : fieldNames) {
+        for (String fieldName : VALID_FIELD_NAMES_NO_SUBOBJECTS) {
             ParsedDocument doc = mapperService.documentMapper().parse(source("{\"" + fieldName + "\":1}"));
             merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
             assertNotNull(mapperService.fieldType(fieldName));

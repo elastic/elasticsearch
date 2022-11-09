@@ -50,6 +50,7 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getModelAliases;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
 /**
@@ -138,15 +139,32 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
             Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
 
-            if (request.isForce() == false && referencedModels.contains(modelId)) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Cannot stop deployment for model [{}] as it is referenced by ingest processors; use force to stop the deployment",
-                        RestStatus.CONFLICT,
-                        modelId
-                    )
-                );
-                return;
+            if (request.isForce() == false) {
+                if (referencedModels.contains(modelId)) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cannot stop deployment for model [{}] as it is referenced by ingest processors; "
+                                + "use force to stop the deployment",
+                            RestStatus.CONFLICT,
+                            modelId
+                        )
+                    );
+                    return;
+                }
+                List<String> modelAliases = getModelAliases(state, modelId);
+                Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
+                if (referencedModelAlias.isPresent()) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cannot stop deployment for model [{}] as it has a model_alias [{}] that is still referenced"
+                                + " by ingest processors; use force to stop the deployment",
+                            RestStatus.CONFLICT,
+                            modelId,
+                            referencedModelAlias.get()
+                        )
+                    );
+                    return;
+                }
             }
 
             // NOTE, should only run on Master node

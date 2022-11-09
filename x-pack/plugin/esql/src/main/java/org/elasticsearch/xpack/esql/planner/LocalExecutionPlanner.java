@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -406,11 +407,7 @@ public class LocalExecutionPlanner {
             }
         } else if (exp instanceof Attribute attr) {
             int channel = layout.get(attr.id());
-            if (attr.dataType().isRational()) {
-                return (page, pos) -> page.getBlock(channel).getDouble(pos);
-            } else {
-                return (page, pos) -> page.getBlock(channel).getLong(pos);
-            }
+            return (page, pos) -> page.getBlock(channel).getObject(pos);
         } else if (exp instanceof Literal lit) {
             if (exp.dataType().isRational()) {
                 double d = Double.parseDouble(lit.value().toString());
@@ -433,6 +430,9 @@ public class LocalExecutionPlanner {
             } else {
                 return (page, pos) -> fieldEvaluator.computeRow(page, pos);
             }
+        } else if (exp instanceof Length length) {
+            ExpressionEvaluator e1 = toEvaluator(length.field(), layout);
+            return (page, pos) -> Length.process((String) e1.computeRow(page, pos));
         } else {
             throw new UnsupportedOperationException(exp.nodeName());
         }

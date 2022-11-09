@@ -349,31 +349,16 @@ public class IndexNameExpressionResolver {
         final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
         for (String expression : expressions) {
+            if (options.ignoreUnavailable() == false) {
+                ensureAliasOrIndexExists(context, expression);
+            }
             IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null) {
-                if (options.ignoreUnavailable() == false) {
-                    assert options.expandWildcardExpressions() == false;
-                    throw notFoundException(expression);
-                } else {
-                    continue;
-                }
+                continue;
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-                if (options.ignoreUnavailable() == false) {
-                    assert options.expandWildcardExpressions() == false;
-                    throw aliasesNotSupportedException(expression);
-                } else {
-                    continue;
-                }
+                continue;
             } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                if (options.ignoreUnavailable() == false) {
-                    assert options.expandWildcardExpressions() == false;
-                    IndexNotFoundException infe = notFoundException(indexExpressions);
-                    // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
-                    infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
-                    throw infe;
-                } else {
-                    continue;
-                }
+                continue;
             }
 
             if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {
@@ -487,6 +472,24 @@ public class IndexNameExpressionResolver {
             infe.setResources("index_expression", indexExpressions);
         }
         return infe;
+    }
+
+    @Nullable
+    private static void ensureAliasOrIndexExists(Context context, String expression) {
+        IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
+        if (indexAbstraction == null) {
+            throw notFoundException(expression);
+        }
+        // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
+        if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
+            throw aliasesNotSupportedException(expression);
+        }
+        if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
+            IndexNotFoundException infe = notFoundException(expression);
+            // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+            infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
+            throw infe;
+        }
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, Index index) {
@@ -1258,22 +1261,6 @@ public class IndexNameExpressionResolver {
                 throw new InvalidIndexNameException(expression, "must not start with '_'.");
             }
             return expression;
-        }
-
-        @Nullable
-        private static void ensureAliasOrIndexExists(Context context, String expression) {
-            final IndicesOptions options = context.getOptions();
-            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
-            if (indexAbstraction == null) {
-                throw notFoundException(expression);
-            }
-            // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            if (indexAbstraction.getType() == Type.ALIAS && options.ignoreAliases()) {
-                throw aliasesNotSupportedException(expression);
-            }
-            if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                throw notFoundException(expression);
-            }
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {

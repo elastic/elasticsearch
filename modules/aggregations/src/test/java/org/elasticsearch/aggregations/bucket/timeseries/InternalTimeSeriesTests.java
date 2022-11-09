@@ -6,10 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.timeseries;
+package org.elasticsearch.aggregations.bucket.timeseries;
 
+import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.xcontent.ContextParser;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,7 +22,12 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 
-public class InternalTimeSeriesTests extends InternalMultiBucketAggregationTestCase<InternalTimeSeries> {
+public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTestCase<InternalTimeSeries> {
+
+    @Override
+    protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
+        return Map.entry(TimeSeriesAggregationBuilder.NAME, (p, c) -> ParsedTimeSeries.fromXContent(p, (String) c));
+    }
 
     private List<InternalTimeSeries.InternalBucket> randomBuckets(boolean keyed, InternalAggregations aggregations) {
         int numberOfBuckets = randomNumberOfBuckets();

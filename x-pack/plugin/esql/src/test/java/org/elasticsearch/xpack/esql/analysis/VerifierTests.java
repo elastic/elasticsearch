@@ -53,6 +53,17 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testLengthFunctionInvalidInputs() {
+        assertEquals(
+            "1:22: first argument of [length(a)] must be [keyword], found value [a] type [integer]",
+            error("row a = 1 | eval x = length(a)")
+        );
+        assertEquals(
+            "1:22: first argument of [length(123)] must be [keyword], found value [123] type [integer]",
+            error("row a = 1 | eval x = length(123)")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

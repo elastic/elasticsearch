@@ -11,6 +11,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.ConstantLongBlock;
+import org.elasticsearch.compute.data.ConstantStringBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -70,6 +71,8 @@ public class RowOperator implements Operator {
                 blocks[i] = new ConstantIntBlock(intVal, 1);
             } else if (object instanceof Long longVal) {
                 blocks[i] = new ConstantLongBlock(longVal, 1);
+            } else if (object instanceof String stringVal) {
+                blocks[i] = new ConstantStringBlock(stringVal, 1);
             } else {
                 throw new UnsupportedOperationException();
             }

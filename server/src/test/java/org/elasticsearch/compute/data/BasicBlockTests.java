@@ -154,6 +154,29 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(block.getPositionCount(), equalTo(positionCount));
     }
 
+    public void testConstantStringBlock() {
+        for (int i = 0; i < 1000; i++) {
+            int positionCount = randomIntBetween(1, Integer.MAX_VALUE);
+            int length = randomInt(5);
+            String value = randomUnicodeOfLength(length);
+            Block block = new ConstantStringBlock(value, positionCount);
+
+            assertThat(block.getPositionCount(), is(positionCount));
+
+            assertThat(block.getObject(0), is(value));
+            assertThat(block.getObject(positionCount - 1), is(value));
+            assertThat(block.getObject(randomIntBetween(1, positionCount - 1)), is(value));
+
+            BytesRef bytes = new BytesRef();
+            bytes = block.getBytesRef(0, bytes);
+            assertThat(bytes.utf8ToString(), is(value));
+            bytes = block.getBytesRef(positionCount - 1, bytes);
+            assertThat(bytes.utf8ToString(), is(value));
+            bytes = block.getBytesRef(randomIntBetween(1, positionCount - 1), bytes);
+            assertThat(bytes.utf8ToString(), is(value));
+        }
+    }
+
     static final Class<UnsupportedOperationException> UOE = UnsupportedOperationException.class;
 
 }

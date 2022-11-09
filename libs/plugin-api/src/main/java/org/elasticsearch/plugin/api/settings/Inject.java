@@ -6,7 +6,14 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.plugin.api {
-    exports org.elasticsearch.plugin.api;
-    exports org.elasticsearch.plugin.api.settings;
+package org.elasticsearch.plugin.api.settings;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.CONSTRUCTOR)
+public @interface Inject {
 }

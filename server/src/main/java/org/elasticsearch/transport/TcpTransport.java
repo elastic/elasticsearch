@@ -106,7 +106,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     );
 
     // When feature flag is removed, change this to the actual release version
-    public static final Version UNTRUSTED_REMOTE_CLUSTER_VERSION = Version.CURRENT;
+    public static final Version UNTRUSTED_REMOTE_CLUSTER_VERSION = Version.V_8_6_0;
 
     private static final Boolean UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED;
 

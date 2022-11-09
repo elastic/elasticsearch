@@ -119,7 +119,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetServersSystemIndexDescriptors(),
             fleetArtifactsSystemIndexDescriptors(),
             fleetFilesSystemIndexDescriptor(),
-            fleetFileDataSystemIndexDescriptor(),
+            fleetFileDataSystemIndexDescriptor()
         );
     }
 

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.timeseries;
+package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.aggregations.bucket.AggregationTestCase;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -38,7 +38,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TimeSeriesAggregatorTests extends AggregatorTestCase {
+public class TimeSeriesAggregatorTests extends AggregationTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {

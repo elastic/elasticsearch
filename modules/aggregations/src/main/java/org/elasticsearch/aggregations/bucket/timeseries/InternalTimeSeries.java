@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.timeseries;
+package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,9 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation.declareMultiBucketAggregationFields;
 
-public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalTimeSeries, InternalTimeSeries.InternalBucket>
-    implements
-        TimeSeries {
+public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalTimeSeries, InternalTimeSeries.InternalBucket> {
 
     private static final ObjectParser<ParsedTimeSeries, Void> PARSER = new ObjectParser<>(
         ParsedTimeSeries.class.getSimpleName(),
@@ -43,7 +41,10 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         );
     }
 
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements TimeSeries.Bucket {
+    /**
+     * A bucket associated with a specific time series (identified by its key)
+     */
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket {
         protected long bucketOrd;
         protected final boolean keyed;
         protected final Map<String, Object> key;
@@ -251,7 +252,6 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         return buckets;
     }
 
-    @Override
     public InternalBucket getBucketByKey(String key) {
         if (bucketMap == null) {
             bucketMap = new HashMap<>(buckets.size());

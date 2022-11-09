@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.timeseries;
+package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;

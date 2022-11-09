@@ -2076,6 +2076,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 );
             }
 
+            var aliasesMap = aliases.build();
+            aliasesMap.forEach((key, value) -> {
+                if (value.alias().equals(index)) {
+                    throw new IllegalArgumentException("alias name [" + index + "] and index name may not be the same");
+                }
+            });
+
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
             final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
@@ -2091,7 +2098,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 numberOfReplicas,
                 settings,
                 mapping,
-                aliases.build(),
+                aliasesMap,
                 newCustomMetadata,
                 Map.ofEntries(denseInSyncAllocationIds),
                 requireFilters,

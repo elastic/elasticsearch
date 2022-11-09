@@ -206,15 +206,17 @@ public class AuthorizationService {
     public void retrieveRemoteAccessRoleDescriptorsIntersection(
         final String remoteClusterAlias,
         final Subject subject,
-        final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
-            remoteClusterAlias,
-            authorizationInfo,
-            wrapPreservingContext(listener, threadContext)
-        );
+        // TODO as an optimization we can try to fetch authz info from securityContext first
+        authorizationEngine.resolveAuthorizationInfo(subject, ActionListener.wrap(authzInfo -> {
+            authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                remoteClusterAlias,
+                authzInfo,
+                wrapPreservingContext(listener, threadContext)
+            );
+        }, listener::onFailure));
     }
 
     /**

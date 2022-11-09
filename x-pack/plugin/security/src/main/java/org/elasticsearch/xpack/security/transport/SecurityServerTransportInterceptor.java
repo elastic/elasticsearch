@@ -207,11 +207,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
-        final AuthorizationEngine.AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
         authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
             remoteClusterAlias,
             authentication.getEffectiveSubject(),
-            authorizationInfo,
             ActionListener.wrap(roleDescriptorsIntersection -> {
                 logger.info("Got role descriptors intersection [{}]", roleDescriptorsIntersection);
                 final ThreadContext threadContext = securityContext.getThreadContext();

@@ -235,16 +235,12 @@ public class SourceLookup implements Source, Map<String, Object> {
      * Provider for source using a given map and optional content type.
      */
     private static class MapSourceProvider implements SourceProvider {
-        private Map<String, Object> source;
-        private XContentType sourceContentType;
+        private final Map<String, Object> source;
+        private final XContentType sourceContentType;
 
-        public MapSourceProvider(Map<String, Object> source) {
+        private MapSourceProvider(Map<String, Object> source) {
             this.source = source;
-        }
-
-        public MapSourceProvider(Map<String, Object> source, @Nullable XContentType sourceContentType) {
-            this.source = source;
-            this.sourceContentType = sourceContentType;
+            this.sourceContentType = XContentType.JSON;
         }
 
         @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -25,6 +26,8 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_FC_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_QC_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
@@ -39,6 +42,7 @@ public class Subject {
         USER,
         API_KEY,
         SERVICE_ACCOUNT,
+        CROSS_CLUSTER
     }
 
     private final Version version;
@@ -65,6 +69,9 @@ public class Subject {
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
+        } else if (AuthenticationField.CROSS_CLUSTER_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.CROSS_CLUSTER_REALM_NAME.equals(realm.getName()) : "api key realm name mismatch";
+            this.type = Type.CROSS_CLUSTER;
         } else {
             this.type = Type.USER;
         }
@@ -99,6 +106,8 @@ public class Subject {
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+            case CROSS_CLUSTER:
+                return buildRoleReferencesForCrossCluster();
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -218,6 +227,33 @@ public class Subject {
             new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
             limitedByRoleReference
         );
+    }
+
+    private RoleReferenceIntersection buildRoleReferencesForCrossCluster() {
+        if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            return null;
+        }
+        final String fcPrincipal = user.principal();
+        final BytesReference qcRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_QC_ROLE_DESCRIPTORS_KEY);
+        final BytesReference fcRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_FC_ROLE_DESCRIPTORS_KEY);
+        if (isEmptyRoleDescriptorsBytes(qcRoleDescriptorsBytes)) {
+            throw new ElasticsearchSecurityException("no QC role descriptors found for Cross Cluster");
+        } else if (isEmptyRoleDescriptorsBytes(fcRoleDescriptorsBytes)) {
+            throw new ElasticsearchSecurityException("no FC role descriptors found for Cross Cluster");
+        }
+        // Reuse RoleReferenceIntersection = QC ApiKeyRoleReference + FC ApiKeyRoleReference
+        // TODO Other options? Create dedicated CrossClusterRoleReference or make ApiKeyRoleReference more generic?
+        final RoleReference.ApiKeyRoleReference qcRoleDescriptorsReference = new RoleReference.ApiKeyRoleReference(
+            fcPrincipal,
+            qcRoleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.ASSIGNED // TODO New type (DERIVED, INTERSECTED)?
+        );
+        final RoleReference.ApiKeyRoleReference fcRoleDescriptorsReference = new RoleReference.ApiKeyRoleReference(
+            fcPrincipal,
+            fcRoleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.LIMITED_BY
+        );
+        return new RoleReferenceIntersection(qcRoleDescriptorsReference, fcRoleDescriptorsReference);
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

@@ -50,6 +50,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCrossClusterRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
@@ -59,6 +60,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
@@ -364,6 +367,10 @@ public final class Authentication implements ToXContentObject {
         return AuthenticationType.INTERNAL.equals(getAuthenticationType());
     }
 
+    private boolean isAuthenticatedCrossCluster() {
+        return AuthenticationType.CROSS_CLUSTER.equals(getAuthenticationType());
+    }
+
     /**
      * Authenticate with a service account and no run-as
      */
@@ -491,7 +498,8 @@ public final class Authentication implements ToXContentObject {
             Authentication.AuthenticationType.API_KEY,
             Authentication.AuthenticationType.TOKEN,
             Authentication.AuthenticationType.ANONYMOUS,
-            Authentication.AuthenticationType.INTERNAL
+            Authentication.AuthenticationType.INTERNAL,
+            Authentication.AuthenticationType.CROSS_CLUSTER
         ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
             : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
                 + EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
@@ -769,6 +777,11 @@ public final class Authentication implements ToXContentObject {
             // no domain for API Key tokens
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
+
+        static RealmRef newCrossClusterRealmRef(String nodeName) {
+            // no domain for Cross Cluster
+            return new RealmRef(CROSS_CLUSTER_REALM_NAME, CROSS_CLUSTER_REALM_TYPE, nodeName, null);
+        }
     }
 
     public static boolean isFileOrNativeRealm(String realmType) {
@@ -859,6 +872,19 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
+    public static Authentication newCrossClusterAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        assert authResult.isAuthenticated() : "Cross Cluster authn result must be successful";
+        final User user = authResult.getValue();
+        assert user.roles().length == 0 : "The user associated to a Cross Cluster authentication must have no roles";
+        final Authentication.RealmRef authenticatedBy = newCrossClusterRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            new Subject(user, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
+            AuthenticationType.CROSS_CLUSTER
+        );
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
     private static RealmRef maybeRewriteRealmRef(Version streamVersion, RealmRef realmRef) {
         if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
             // security domain erasure
@@ -942,7 +968,8 @@ public final class Authentication implements ToXContentObject {
         API_KEY,
         TOKEN,
         ANONYMOUS,
-        INTERNAL
+        INTERNAL,
+        CROSS_CLUSTER
     }
 
     public static class AuthenticationSerializationHelper {

@@ -51,6 +51,10 @@ gradlePlugin {
       id = 'elasticsearch.docs-test'
       implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
     }
+    draArtifacts {
+      id = 'elasticsearch.dra-artifacts'
+      implementationClass = 'org.elasticsearch.gradle.internal.dra.DraResolvePlugin'
+    }
     globalBuildInfo {
       id = 'elasticsearch.global-build-info'
       implementationClass = 'org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin'

@@ -51,6 +51,10 @@ public class VerifierTests extends ESTestCase {
             "1:31: second argument of [round(a, 3.5)] must be [integer], found value [3.5] type [double]",
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
+        assertEquals(
+            "1:9: second argument of [round(123.45, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
+            error("row a = round(123.45, \"1\")")
+        );
     }
 
     public void testLengthFunctionInvalidInputs() {

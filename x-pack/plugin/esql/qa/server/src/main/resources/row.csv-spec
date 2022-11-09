@@ -19,6 +19,13 @@ row 100, 10, c = 1;
 100 | 10 | 1
 ;
 
+fieldFromFunctionEvaluation
+row a = round(1.23, 0);
+
+a:double
+1.0
+;
+
 evalRow
 row a = 1, b = 2 | eval c = a + b;
 

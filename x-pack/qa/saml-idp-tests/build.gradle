@@ -29,10 +29,8 @@ tasks.register("copyIdpFiles", Sync) {
   }
 }
 
-project.sourceSets.javaRestTest.runtimeClasspath += files(outputDir)
-
 tasks.named("javaRestTest").configure {
-  dependsOn tasks.named("copyIdpFiles")
+  classpath += files(tasks.named("copyIdpFiles"))
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
 }
 

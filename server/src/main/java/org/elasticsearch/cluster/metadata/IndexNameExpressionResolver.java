@@ -412,12 +412,13 @@ public class IndexNameExpressionResolver {
 
     private IndexNotFoundException notFoundException(String... indexExpressions) {
         IndexNotFoundException infe;
-        if (indexExpressions.length == 1) {
-            if (indexExpressions[0].equals(Metadata.ALL)) {
-                infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
-            } else {
-                infe = new IndexNotFoundException(indexExpressions[0]);
-            }
+        if (indexExpressions == null
+            || indexExpressions.length == 0
+            || indexExpressions.length == 1 && indexExpressions[0].equals(Metadata.ALL)) {
+            infe = new IndexNotFoundException("no indices exist", Metadata.ALL);
+            infe.setResources("index_expression", Metadata.ALL);
+        } else if (indexExpressions.length == 1) {
+            infe = new IndexNotFoundException(indexExpressions[0]);
             infe.setResources("index_expression", indexExpressions[0]);
         } else {
             infe = new IndexNotFoundException((String) null);

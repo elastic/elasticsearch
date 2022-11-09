@@ -346,7 +346,6 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        boolean excludedDataStreams = false;
         final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
         for (String expression : expressions) {
@@ -368,9 +367,11 @@ public class IndexNameExpressionResolver {
             } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
                 if (options.ignoreUnavailable() == false) {
                     assert options.expandWildcardExpressions() == false;
-                    throw notFoundException(expression);
+                    IndexNotFoundException infe = notFoundException(indexExpressions);
+                    // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+                    infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
+                    throw infe;
                 } else {
-                    excludedDataStreams = true;
                     continue;
                 }
             }
@@ -420,12 +421,7 @@ public class IndexNameExpressionResolver {
         }
 
         if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
-            IndexNotFoundException infe = notFoundException(indexExpressions);
-            if (excludedDataStreams) {
-                // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
-                infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
-            }
-            throw infe;
+            throw notFoundException(indexExpressions);
         }
         checkSystemIndexAccess(context, concreteIndices);
         return concreteIndices.toArray(Index.EMPTY_ARRAY);

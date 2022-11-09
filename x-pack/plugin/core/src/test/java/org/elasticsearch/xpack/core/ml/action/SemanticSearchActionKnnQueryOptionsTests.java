@@ -19,6 +19,8 @@ import org.junit.Before;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SemanticSearchActionKnnQueryOptionsTests extends AbstractWireSerializingTestCase<SemanticSearchAction.KnnQueryOptions> {
 
@@ -64,5 +66,20 @@ public class SemanticSearchActionKnnQueryOptionsTests extends AbstractWireSerial
     @Override
     protected SemanticSearchAction.KnnQueryOptions createTestInstance() {
         return randomInstance();
+    }
+
+    public void testToKnnSearchBuilder() {
+        var knnOptions = new SemanticSearchAction.KnnQueryOptions("foo", 5, 100);
+        knnOptions.boost(20.0f);
+        var termsQuery = QueryBuilders.termQuery("foo", "bar");
+        knnOptions.addFilterQueries(List.of(termsQuery));
+
+        var knnSearch = knnOptions.toKnnSearchBuilder(new float[] { 0.1f, 0.2f });
+        assertEquals(5, knnSearch.k());
+        var knnQuery = knnSearch.toQueryBuilder();
+        assertEquals(100, knnQuery.numCands());
+        assertEquals("foo", knnQuery.getFieldName());
+        assertThat(knnQuery.filterQueries(), contains(sameInstance(termsQuery)));
+        assertEquals(20.0f, knnQuery.boost(), 0.001);
     }
 }

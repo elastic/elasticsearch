@@ -2687,10 +2687,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indicesFieldDataCache,
             new NoneCircuitBreakerService()
         );
-        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
-            foo,
-            FieldDataContext.noRuntimeFields("test", shard.mapperService().mappingLookup().isSourceSynthetic())
-        );
+        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, FieldDataContext.noRuntimeFields("test"));
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;

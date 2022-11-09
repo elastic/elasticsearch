@@ -649,8 +649,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         delegate.getFullyQualifiedIndex().getName(),
                         delegate::lookup,
                         this::sourcePath,
-                        fielddataOperation,
-                        delegate.isSourceSynthetic()
+                        fielddataOperation
                     )
                 );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();

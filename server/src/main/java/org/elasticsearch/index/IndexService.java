@@ -207,10 +207,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(
-                            fieldType,
-                            FieldDataContext.noRuntimeFields("index sort", mapperService.mappingLookup().isSourceSynthetic())
-                        )
+                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, FieldDataContext.noRuntimeFields("index sort"))
                     );
             } else {
                 this.indexSortSupplier = () -> null;

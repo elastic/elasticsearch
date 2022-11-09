@@ -53,18 +53,17 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         boolean[] enabled = new boolean[1];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
-        boolean isSyntheticSource = mapperService.mappingLookup().isSourceSynthetic();
         ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)).build(null, null)
+            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         assertFalse(ft.isAggregatable());
 
         enabled[0] = true;
-        ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)).build(null, null);
+        ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());
     }

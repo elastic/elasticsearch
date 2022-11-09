@@ -194,8 +194,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             "test",
             searchExecutionContext::lookup,
             mockContext()::sourcePath,
-            MappedFieldType.FielddataOperation.SCRIPT,
-            searchExecutionContext.isSourceSynthetic()
+            MappedFieldType.FielddataOperation.SCRIPT
         );
     }
 
@@ -227,16 +226,15 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo, context.isSourceSynthetic())
-            ).build(null, null),
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
+                .build(null, null),
             sourceProvider
         );
         when(context.lookup()).thenReturn(lookup);
         when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
             MappedFieldType.FielddataOperation fdo = args.getArgument(1);
-            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo, context.isSourceSynthetic()))
+            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         return context;

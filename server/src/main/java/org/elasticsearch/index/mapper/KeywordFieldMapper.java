@@ -295,7 +295,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(context.buildFullName(name), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
+            return new KeywordFieldType(
+                context.buildFullName(name),
+                fieldType,
+                normalizer,
+                searchAnalyzer,
+                quoteAnalyzer,
+                this,
+                context.isSourceSynthetic()
+            );
         }
 
         @Override
@@ -335,6 +343,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
+        private final boolean isSyntheticSource;
 
         public KeywordFieldType(
             String name,
@@ -342,7 +351,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             NamedAnalyzer normalizer,
             NamedAnalyzer searchAnalyzer,
             NamedAnalyzer quoteAnalyzer,
-            Builder builder
+            Builder builder,
+            boolean isSyntheticSource
         ) {
             super(
                 name,
@@ -358,6 +368,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
@@ -368,6 +379,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         public KeywordFieldType(String name) {
@@ -389,6 +401,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -399,6 +412,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         @Override
@@ -696,7 +710,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return fieldDataFromDocValues();
             }
-            if (fieldDataContext.isSyntheticSource() && isStored()) {
+            if (isSyntheticSource && isStored()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     name(),
                     CoreValuesSourceType.KEYWORD,

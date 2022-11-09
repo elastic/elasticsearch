@@ -286,8 +286,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 fullyQualifiedIndex.getName(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
-                fielddataOperation,
-                isSourceSynthetic()
+                fielddataOperation
             )
         );
     }
@@ -499,13 +498,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 this::getFieldType,
                 (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                     fieldType,
-                    new FieldDataContext(
-                        fullyQualifiedIndex.getName(),
-                        searchLookup,
-                        this::sourcePath,
-                        fielddataOperation,
-                        isSourceSynthetic()
-                    )
+                    new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
                 ),
                 sourceProvider
             );

@@ -236,11 +236,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             FieldFetcher fieldFetcher = FieldFetcher.create(
                 newSearchExecutionContext(
                     mapperService,
-                    (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup(), mapperService.mappingLookup().isSourceSynthetic()).apply(
-                        ft,
-                        fdc.lookupSupplier(),
-                        fdc.fielddataOperation()
-                    )
+                    (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
                 ),
                 fieldList
             );
@@ -1128,11 +1124,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup(), mapperService.mappingLookup().isSourceSynthetic()).apply(
-                ft,
-                fdc.lookupSupplier(),
-                fdc.fielddataOperation()
-            )
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
         );
         withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
             FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
@@ -1161,11 +1153,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup(), mapperService.mappingLookup().isSourceSynthetic()).apply(
-                ft,
-                fdc.lookupSupplier(),
-                fdc.fielddataOperation()
-            )
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
         );
         withLuceneIndex(mapperService, iw -> {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));

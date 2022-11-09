@@ -466,7 +466,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", mapperService.mappingLookup().isSourceSynthetic()))
+                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
@@ -662,16 +662,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
         MapperService mapperService
     ) {
-        return fieldDataLookup(mapperService.mappingLookup()::sourcePaths, mapperService.mappingLookup().isSourceSynthetic());
+        return fieldDataLookup(mapperService.mappingLookup()::sourcePaths);
     }
 
     protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
-        Function<String, Set<String>> sourcePathsLookup,
-        boolean isSyntheticSource
+        Function<String, Set<String>> sourcePathsLookup
     ) {
-        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(
-            new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo, isSyntheticSource)
-        ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {

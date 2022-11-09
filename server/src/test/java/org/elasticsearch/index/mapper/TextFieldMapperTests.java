@@ -528,12 +528,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
-        boolean isSyntheticSource = disabledMapper.mappingLookup().isSourceSynthetic();
         assertFalse(disabledMapper.fieldType("field").isAggregatable());
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
-                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH, isSyntheticSource))
+                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
         assertThat(
             e.getMessage(),
@@ -544,7 +543,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)); // no exception
+        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception
         assertTrue(enabledMapper.fieldType("field").isAggregatable());
         e = expectThrows(
             MapperParsingException.class,
@@ -1216,7 +1215,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
-                .fielddataBuilder(FieldDataContext.noRuntimeFields("test", finalMapperService.mappingLookup().isSourceSynthetic()))
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
         );
     }
 

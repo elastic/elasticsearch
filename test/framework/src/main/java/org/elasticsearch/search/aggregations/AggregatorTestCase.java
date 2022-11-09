@@ -314,8 +314,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     indexSettings.getIndex().getName(),
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
-                    context.fielddataOperation(),
-                    context.isSyntheticSource()
+                    context.fielddataOperation()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
@@ -1103,7 +1102,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test", false)).build(null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null).getValuesSourceType();
     }
 
     /**

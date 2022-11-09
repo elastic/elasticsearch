@@ -122,7 +122,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
-            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(context.buildFullName(name), tsi, indexAnalyzer, meta.getValue());
+            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
+                context.buildFullName(name),
+                tsi,
+                indexAnalyzer,
+                context.isSourceSynthetic(),
+                meta.getValue()
+            );
             return ft;
         }
 
@@ -149,10 +155,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
 
-        public MatchOnlyTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
+        public MatchOnlyTextFieldType(
+            String name,
+            TextSearchInfo tsi,
+            Analyzer indexAnalyzer,
+            boolean isSyntheticSource,
+            Map<String, String> meta
+        ) {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
-            this.textFieldType = new TextFieldType(name);
+            this.textFieldType = new TextFieldType(name, isSyntheticSource);
         }
 
         public MatchOnlyTextFieldType(String name) {
@@ -160,6 +172,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 name,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 Lucene.STANDARD_ANALYZER,
+                false,
                 Collections.emptyMap()
             );
         }
@@ -309,7 +322,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
-            if (fieldDataContext.isSyntheticSource()) {
+            if (textFieldType.isSyntheticSource()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     storedFieldNameForSyntheticSource(),
                     CoreValuesSourceType.KEYWORD,

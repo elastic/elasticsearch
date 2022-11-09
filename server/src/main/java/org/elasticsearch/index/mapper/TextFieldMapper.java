@@ -352,7 +352,14 @@ public class TextFieldMapper extends FieldMapper {
                 ft = new LegacyTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
                 // ignore fieldData and eagerGlobalOrdinals
             } else {
-                ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                ft = new TextFieldType(
+                    context.buildFullName(name),
+                    index.getValue(),
+                    store.getValue(),
+                    tsi,
+                    context.isSourceSynthetic(),
+                    meta.getValue()
+                );
                 ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -648,10 +655,19 @@ public class TextFieldMapper extends FieldMapper {
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
         private boolean eagerGlobalOrdinals = false;
+        private final boolean isSyntheticSource;
 
-        public TextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+        public TextFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            TextSearchInfo tsi,
+            boolean isSyntheticSource,
+            Map<String, String> meta
+        ) {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
@@ -664,14 +680,16 @@ public class TextFieldMapper extends FieldMapper {
                 meta
             );
             fielddata = false;
+            isSyntheticSource = false;
         }
 
-        public TextFieldType(String name) {
+        public TextFieldType(String name, boolean isSyntheticSource) {
             this(
                 name,
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                isSyntheticSource,
                 Collections.emptyMap()
             );
         }
@@ -934,7 +952,7 @@ public class TextFieldMapper extends FieldMapper {
             if (operation != FielddataOperation.SCRIPT) {
                 throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
             }
-            if (fieldDataContext.isSyntheticSource() && isStored()) {
+            if (isSyntheticSource && isStored()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     name(),
                     CoreValuesSourceType.KEYWORD,
@@ -954,12 +972,23 @@ public class TextFieldMapper extends FieldMapper {
                 TextDocValuesField::new
             );
         }
+
+        public boolean isSyntheticSource() {
+            return isSyntheticSource;
+        }
     }
 
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
-        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, meta);
+        public ConstantScoreTextFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            TextSearchInfo tsi,
+            boolean isSyntheticSource,
+            Map<String, String> meta
+        ) {
+            super(name, indexed, stored, tsi, isSyntheticSource, meta);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -968,6 +997,7 @@ public class TextFieldMapper extends FieldMapper {
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                false,
                 Collections.emptyMap()
             );
         }
@@ -978,6 +1008,7 @@ public class TextFieldMapper extends FieldMapper {
                 indexed,
                 stored,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                false,
                 meta
             );
         }
@@ -1033,7 +1064,7 @@ public class TextFieldMapper extends FieldMapper {
         private final MappedFieldType existQueryFieldType;
 
         LegacyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, meta);
+            super(name, indexed, stored, tsi, false, meta);
             // norms are not available, neither are doc-values, so fall back to _source to run exists query
             existQueryFieldType = KeywordScriptFieldType.sourceOnly(name()).asMappedFieldTypes().findFirst().get();
         }

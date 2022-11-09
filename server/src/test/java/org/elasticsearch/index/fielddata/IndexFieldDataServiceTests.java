@@ -72,7 +72,6 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testGetForFieldDefaults() {
         final IndexService indexService = createIndex("test");
-        final boolean isSyntheticSource = indexService.mapperService().mappingLookup().isSourceSynthetic();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexFieldDataService ifdService = new IndexFieldDataService(
             indexService.getIndexSettings(),
@@ -82,7 +81,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         MapperBuilderContext context = MapperBuilderContext.root(false);
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).fieldType();
         ifdService.clear();
-        IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test", isSyntheticSource));
+        IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
@@ -92,7 +91,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType()
         )) {
             ifdService.clear();
-            fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test", isSyntheticSource));
+            fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
@@ -105,7 +104,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             Version.CURRENT
         ).build(context).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test", isSyntheticSource));
+        fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
         final MappedFieldType doubleMapper = new NumberFieldMapper.Builder(
@@ -117,7 +116,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             Version.CURRENT
         ).build(context).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test", isSyntheticSource));
+        fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
     }
 
@@ -138,16 +137,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
         SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
-        ifdService.getForField(
-            ft,
-            new FieldDataContext(
-                "qualified",
-                () -> searchLookup,
-                null,
-                MappedFieldType.FielddataOperation.SEARCH,
-                indexService.mapperService().mappingLookup().isSourceSynthetic()
-            )
-        );
+        ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
 
@@ -187,9 +177,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        boolean isSyntheticSource = indexService.mapperService().mappingLookup().isSourceSynthetic();
-        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test", isSyntheticSource));
-        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, FieldDataContext.noRuntimeFields("test", isSyntheticSource));
+        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, FieldDataContext.noRuntimeFields("test"));
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
         LeafFieldData loadField2 = ifd2.load(leafReaderContext);
@@ -263,10 +252,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd = ifdService.getForField(
-            mapper1,
-            FieldDataContext.noRuntimeFields("test", indexService.mapperService().mappingLookup().isSourceSynthetic())
-        );
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test"));
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
@@ -327,13 +313,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 cache,
                 null
             );
-            boolean isSyntheticSource = randomBoolean();
             if (ft.hasDocValues()) {
-                ifds.getForField(ft, FieldDataContext.noRuntimeFields("test", isSyntheticSource)); // no exception
+                ifds.getForField(ft, FieldDataContext.noRuntimeFields("test")); // no exception
             } else {
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test", isSyntheticSource))
+                    () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test"))
                 );
                 assertThat(e.getMessage(), containsString("doc values"));
             }

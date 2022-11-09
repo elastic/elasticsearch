@@ -158,7 +158,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     private String getPlatformBinPath() {
-        boolean isWindows = "windows".equals(getPlatform()) ;
+        boolean isWindows = "windows".equals(getPlatform());
         return "/bin/java" + (isWindows ? ".exe" : "");
     }
 

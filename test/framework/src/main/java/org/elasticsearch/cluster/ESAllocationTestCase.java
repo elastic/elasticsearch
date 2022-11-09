@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -160,9 +161,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new AllocationDeciders(deciders);
     }
 
-    protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Collections.unmodifiableSet(
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-    );
+    protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     protected static DiscoveryNode newNode(String nodeId) {
         return newNode(nodeId, Version.CURRENT);
@@ -225,13 +224,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
-        ClusterState lastClusterState;
+        int iterations = 0;
         do {
-            lastClusterState = clusterState;
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
+            iterations += 1;
+            if (iterations % 100 == 0) {
+                logger.info("applyStartedShardsUntilNoChange: iteration [{}]", iterations);
+            }
+            final var previousClusterState = clusterState;
+            logger.debug(() -> Strings.format("ClusterState: %s", previousClusterState.getRoutingNodes()));
             clusterState = startInitializingShardsAndReroute(service, clusterState);
-        } while (lastClusterState.equals(clusterState) == false);
-        return clusterState;
+            if (previousClusterState.equals(clusterState)) {
+                return clusterState;
+            }
+        } while (true);
     }
 
     /**

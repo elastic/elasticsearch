@@ -171,6 +171,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91441")
     public void testNoRebalanceOnRollingRestart() throws Exception {
         // see https://github.com/elastic/elasticsearch/issues/14387
         internalCluster().startMasterOnlyNode(Settings.EMPTY);

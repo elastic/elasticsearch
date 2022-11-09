@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -26,7 +27,10 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of(42)));
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> validator.validate(getJwsHeader(), jwtClaimsSet)
+        );
         assertThat(e.getMessage(), containsString("cannot parse string claim"));
         assertThat(e.getCause(), instanceOf(ParseException.class));
     }
@@ -36,7 +40,10 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), true);
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of("foo", "bar")));
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> validator.validate(getJwsHeader(), jwtClaimsSet)
+        );
         assertThat(e.getMessage(), containsString("cannot parse string claim"));
         assertThat(e.getCause(), instanceOf(ParseException.class));
     }
@@ -46,7 +53,10 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> validator.validate(getJwsHeader(), jwtClaimsSet)
+        );
         assertThat(e.getMessage(), containsString("missing required string claim"));
     }
 
@@ -64,7 +74,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
             Map.of(claimName, singleValuedClaim ? claimValue : randomFrom(claimValue, List.of(claimValue, "other-stuff")))
         );
         try {
-            validator.validate(validJwtClaimsSet);
+            validator.validate(getJwsHeader(), validJwtClaimsSet);
         } catch (Exception e) {
             throw new AssertionError("validation should have passed without exception", e);
         }
@@ -72,8 +82,12 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JWTClaimsSet invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, "not-" + claimValue));
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> validator.validate(invalidJwtClaimsSet)
+            () -> validator.validate(getJwsHeader(), invalidJwtClaimsSet)
         );
         assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+    }
+
+    private JWSHeader getJwsHeader() throws ParseException {
+        return JWSHeader.parse(Map.of("alg", randomAlphaOfLengthBetween(3, 8)));
     }
 }

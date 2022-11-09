@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -26,7 +27,7 @@ import java.util.List;
  * Whether a claim's value can be an array of strings is customised with the {@link #singleValuedClaim}
  * field, which enforces the claim's value to be a single string if it is configured to {@code true}.
  */
-public class JwtStringClaimValidator implements JwtClaimValidator {
+public class JwtStringClaimValidator implements JwtFieldValidator {
 
     private final String claimName;
     private final List<String> allowedClaimValues;
@@ -42,7 +43,7 @@ public class JwtStringClaimValidator implements JwtClaimValidator {
     }
 
     @Override
-    public void validate(JWTClaimsSet jwtClaimsSet) {
+    public void validate(JWSHeader jwsHeader, JWTClaimsSet jwtClaimsSet) {
         final List<String> claimValues;
         try {
             claimValues = getStringClaimValues(jwtClaimsSet);

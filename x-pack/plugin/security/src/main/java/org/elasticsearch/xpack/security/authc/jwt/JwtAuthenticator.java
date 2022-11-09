@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -33,9 +34,8 @@ public class JwtAuthenticator implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(JwtAuthenticator.class);
     private final RealmConfig realmConfig;
-    private final List<JwtClaimValidator> jwtClaimValidators;
+    private final List<JwtFieldValidator> jwtFieldValidators;
     private final JwtSignatureValidator jwtSignatureValidator;
-    private final JwtHeaderValidator jwtHeaderValidator;
 
     public JwtAuthenticator(
         final RealmConfig realmConfig,
@@ -45,16 +45,17 @@ public class JwtAuthenticator implements Releasable {
         this.realmConfig = realmConfig;
         final TimeValue allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
         final Clock clock = Clock.systemUTC();
-        this.jwtClaimValidators = List.of(
+        this.jwtFieldValidators = List.of(
+            JwtTypeValidator.INSTANCE,
             new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
             new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
+            new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
             new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false),
             new JwtDateClaimValidator(clock, "nbf", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true),
             new JwtDateClaimValidator(clock, "auth_time", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true)
         );
 
-        this.jwtHeaderValidator = new JwtHeaderValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS));
         this.jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(realmConfig, sslService, reloadNotifier);
     }
 
@@ -81,19 +82,20 @@ public class JwtAuthenticator implements Releasable {
             return;
         }
 
+        final JWSHeader jwsHeader = signedJWT.getHeader();
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "Realm [{}] successfully parsed JWT token [{}] with header [{}] and claimSet [{}]",
                 realmConfig.name(),
                 tokenPrincipal,
-                signedJWT.getHeader(),
+                jwsHeader,
                 jwtClaimsSet
             );
         }
 
-        for (JwtClaimValidator jwtClaimValidator : jwtClaimValidators) {
+        for (JwtFieldValidator jwtFieldValidator : jwtFieldValidators) {
             try {
-                jwtClaimValidator.validate(jwtClaimsSet);
+                jwtFieldValidator.validate(jwsHeader, jwtClaimsSet);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -101,7 +103,6 @@ public class JwtAuthenticator implements Releasable {
         }
 
         try {
-            jwtHeaderValidator.validate(signedJWT.getHeader());
             jwtSignatureValidator.validate(tokenPrincipal, signedJWT, listener.map(ignored -> jwtClaimsSet));
         } catch (Exception e) {
             listener.onFailure(e);

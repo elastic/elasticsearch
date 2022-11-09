@@ -8,53 +8,33 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEObjectType;
-import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.List;
-
-public class JwtHeaderValidator {
+public class JwtTypeValidator implements JwtFieldValidator {
 
     private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
         JOSEObjectType.JWT,
         null
     );
 
-    private final List<String> allowedAlgorithms;
+    public static final JwtTypeValidator INSTANCE = new JwtTypeValidator();
 
-    public JwtHeaderValidator(List<String> allowedAlgorithms) {
-        this.allowedAlgorithms = allowedAlgorithms;
-    }
+    private JwtTypeValidator() {}
 
-    public void validate(JWSHeader jwsHeader) {
-
+    public void validate(JWSHeader jwsHeader, JWTClaimsSet jwtClaimsSet) {
         final JOSEObjectType jwtHeaderType = jwsHeader.getType();
         try {
             JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
         } catch (BadJOSEException e) {
             throw new ElasticsearchSecurityException("invalid jwt typ header", RestStatus.BAD_REQUEST, e);
-        }
-
-        final JWSAlgorithm algorithm = jwsHeader.getAlgorithm();
-        if (algorithm == null) {
-            throw new ElasticsearchSecurityException("missing JWT algorithm header", RestStatus.BAD_REQUEST);
-        }
-
-        if (false == allowedAlgorithms.contains(algorithm.getName())) {
-            throw new ElasticsearchSecurityException(
-                "invalid JWT algorithm [%s], allowed algorithms are [%s]",
-                RestStatus.BAD_REQUEST,
-                algorithm,
-                Strings.collectionToCommaDelimitedString(allowedAlgorithms)
-            );
         }
     }
 }

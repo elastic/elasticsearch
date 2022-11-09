@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -18,7 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 
-public class JwtDateClaimValidator implements JwtClaimValidator {
+public class JwtDateClaimValidator implements JwtFieldValidator {
 
     public enum Relationship {
         BEFORE_NOW,
@@ -40,7 +41,7 @@ public class JwtDateClaimValidator implements JwtClaimValidator {
     }
 
     @Override
-    public void validate(JWTClaimsSet jwtClaimsSet) {
+    public void validate(JWSHeader jwsHeader, JWTClaimsSet jwtClaimsSet) {
         final Date claimValue;
         try {
             claimValue = jwtClaimsSet.getDateClaim(claimName);

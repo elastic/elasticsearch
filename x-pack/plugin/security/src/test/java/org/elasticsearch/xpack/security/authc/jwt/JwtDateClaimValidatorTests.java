@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -43,7 +44,10 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         );
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, randomAlphaOfLengthBetween(3, 8)));
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> validator.validate(getJwsHeader(), jwtClaimsSet)
+        );
         assertThat(e.getMessage(), containsString("cannot parse date claim"));
         assertThat(e.getCause(), instanceOf(ParseException.class));
     }
@@ -60,7 +64,10 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         );
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> validator.validate(jwtClaimsSet));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> validator.validate(getJwsHeader(), jwtClaimsSet)
+        );
         assertThat(e.getMessage(), containsString("missing required date claim"));
     }
 
@@ -77,7 +84,7 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
         try {
-            validator.validate(jwtClaimsSet);
+            validator.validate(getJwsHeader(), jwtClaimsSet);
         } catch (Exception e) {
             throw new AssertionError("validation should have passed without exception", e);
         }
@@ -99,7 +106,7 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
 
         final Instant before = now.minusSeconds(randomLongBetween(1 - allowedSkewInSeconds, 600));
         try {
-            validator.validate(JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())));
+            validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())));
         } catch (Exception e) {
             throw new AssertionError("validation should have passed without exception", e);
         }
@@ -107,7 +114,7 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         final Instant after = now.plusSeconds(randomLongBetween(1 + allowedSkewInSeconds, 600));
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> validator.validate(JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())))
+            () -> validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())))
         );
         assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be before now"));
     }
@@ -129,15 +136,19 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         final Instant before = now.minusSeconds(randomLongBetween(1 + allowedSkewInSeconds, 600));
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> validator.validate(JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())))
+            () -> validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())))
         );
         assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be after now"));
 
         final Instant after = now.plusSeconds(randomLongBetween(1 - allowedSkewInSeconds, 600));
         try {
-            validator.validate(JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())));
+            validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())));
         } catch (Exception exception) {
             throw new AssertionError("validation should have passed without exception", e);
         }
+    }
+
+    private JWSHeader getJwsHeader() throws ParseException {
+        return JWSHeader.parse(Map.of("alg", randomAlphaOfLengthBetween(3, 8)));
     }
 }

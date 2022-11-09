@@ -13,8 +13,14 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * An annotation used to mark a setting of type list of strings
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface ListOfStringsSetting {
+    /**
+     * A name of a setting
+     */
     String path();
 }

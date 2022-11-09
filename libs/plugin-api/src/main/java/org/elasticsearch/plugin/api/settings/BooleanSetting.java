@@ -13,10 +13,19 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * An annotation used to mark a setting of type Boolean
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface BooleanSetting {
+    /**
+     * A name of a setting
+     */
     String path();
 
+    /**
+     * A default value of a boolean setting
+     */
     boolean defaultValue();
 }

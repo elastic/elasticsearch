@@ -13,6 +13,10 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * An annotation used to mark constructor to inject settings instance.
+ * A constructor parameter has to be an interface marked with appropriate annotation (i.e AnalysisSetting)
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.CONSTRUCTOR)
 public @interface Inject {

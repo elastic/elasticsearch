@@ -13,10 +13,19 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * An annotation used to mark a setting of type String
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface StringSetting {
+    /**
+     * A name of a setting
+     */
     String path();
 
+    /**
+     * A default value of a String setting
+     */
     String defaultValue();
 }

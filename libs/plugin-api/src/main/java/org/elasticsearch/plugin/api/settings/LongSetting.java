@@ -13,12 +13,24 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * An annotation used to mark a setting of type Long
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface LongSetting {
+    /**
+     * A name of a setting
+     */
     String path();
 
+    /**
+     * A default value of a long setting
+     */
     long defaultValue();
 
+    /**
+     * A maximum value of a long setting
+     */
     long max() default Long.MAX_VALUE;
 }

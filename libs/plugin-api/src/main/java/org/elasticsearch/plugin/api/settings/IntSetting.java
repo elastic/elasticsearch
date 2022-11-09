@@ -13,12 +13,24 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * An annotation used to mark a setting of type integer
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface IntSetting {
+    /**
+     * A name of a setting
+     */
     String path();
 
+    /**
+     * A default value of an int setting
+     */
     int defaultValue();
 
+    /**
+     * A maximum value of an int setting
+     */
     int max() default Integer.MAX_VALUE;
 }

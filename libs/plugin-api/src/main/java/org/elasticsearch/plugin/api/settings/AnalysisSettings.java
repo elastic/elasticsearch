@@ -14,6 +14,9 @@ import java.lang.annotation.Target;
 
 import static java.lang.annotation.ElementType.TYPE;
 
+/**
+ * An annotation used to mark analysis setting interface
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(value = { TYPE })
 public @interface AnalysisSettings {

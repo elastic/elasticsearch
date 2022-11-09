@@ -1,0 +1,6 @@
+pr: 91475
+summary: Catching exceptions to prevent ingest listeners from being called multiple
+  times
+area: Ingest Node
+type: bug
+issues: []

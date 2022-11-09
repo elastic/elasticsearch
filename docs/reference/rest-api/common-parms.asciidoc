@@ -549,7 +549,7 @@ Comma-separated list of index template names used to limit the request. Wildcard
 end::index-template[]
 
 tag::knn[]
-Defines the kNN query to run.
+Defines the <<approximate-knn,kNN>> query to run.
 +
 .Properties of `knn` object
 [%collapsible%open]

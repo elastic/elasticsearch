@@ -1,14 +1,22 @@
 {
-  "template": {
-    "mappings": {
+  "mappings": {
+    "_doc": {
+      "_meta": {
+        "version": "${fleet.version}"
+      },
       "properties": {
-        "data": { "type": "binary" },
-        "bid": { "type": "keyword", "index": false },
-        "last": { "type": "boolean", "index": false }
+        "data": {
+          "type": "binary"
+        },
+        "bid": {
+          "type": "keyword",
+          "index": false
+        },
+        "last": {
+          "type": "boolean",
+          "index": false
+        }
       }
     }
-  },
-  "composed_of": [],
-  "priority": 200,
-  "version": 1
+  }
 }

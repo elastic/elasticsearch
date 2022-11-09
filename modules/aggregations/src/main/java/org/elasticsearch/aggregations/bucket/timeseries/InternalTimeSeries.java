@@ -212,6 +212,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
 
         InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(initialCapacity), keyed, getMetadata());
         List<IteratorAndCurrent<InternalBucket>> competitiveIterators = new ArrayList<>(iterators.size());
+        BytesRef prevTsid = null;
         while (iterators.isEmpty() == false) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
             IteratorAndCurrent<InternalBucket> competitive = iterators.get(0);
@@ -235,6 +236,8 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
                 List<InternalBucket> buckets = competitiveIterators.stream().map(IteratorAndCurrent::current).toList();
                 reducedBucket = reduceBucket(buckets, reduceContext);
             }
+            BytesRef tsid = reducedBucket.key;
+            assert prevTsid == null || tsid.compareTo(prevTsid) > 0;
             reduced.buckets.add(reducedBucket);
             for (IteratorAndCurrent<InternalBucket> iterator : competitiveIterators) {
                 if (iterator.hasNext()) {
@@ -243,6 +246,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
                     iterators.remove(iterator);
                 }
             }
+            prevTsid = tsid;
         }
         return reduced;
     }

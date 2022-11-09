@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ContextParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,8 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
                 throw new UncheckedIOException(e);
             }
         }
+        // The interal time series' reduce method expects for each shard level response that the buckets are sorted by tsid:
+        bucketList.sort(Comparator.comparing(o -> o.key));
         return bucketList;
     }
 
@@ -121,9 +124,9 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
             "ts",
             List.of(
                 new InternalBucket(new BytesRef("1"), 3, InternalAggregations.EMPTY, false),
+                new InternalBucket(new BytesRef("10"), 6, InternalAggregations.EMPTY, false),
                 new InternalBucket(new BytesRef("2"), 2, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("9"), 5, InternalAggregations.EMPTY, false),
-                new InternalBucket(new BytesRef("10"), 6, InternalAggregations.EMPTY, false)
+                new InternalBucket(new BytesRef("9"), 5, InternalAggregations.EMPTY, false)
             ),
             false,
             Map.of()
@@ -159,13 +162,13 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
         InternalTimeSeries result = (InternalTimeSeries) first.reduce(List.of(first, second, third), context);
         assertThat(result.getBuckets().get(0).key.utf8ToString(), equalTo("1"));
         assertThat(result.getBuckets().get(0).getDocCount(), equalTo(5L));
-        assertThat(result.getBuckets().get(1).key.utf8ToString(), equalTo("2"));
-        assertThat(result.getBuckets().get(1).getDocCount(), equalTo(3L));
-        assertThat(result.getBuckets().get(2).key.utf8ToString(), equalTo("3"));
-        assertThat(result.getBuckets().get(2).getDocCount(), equalTo(7L));
-        assertThat(result.getBuckets().get(3).key.utf8ToString(), equalTo("9"));
-        assertThat(result.getBuckets().get(3).getDocCount(), equalTo(9L));
-        assertThat(result.getBuckets().get(4).key.utf8ToString(), equalTo("10"));
-        assertThat(result.getBuckets().get(4).getDocCount(), equalTo(6L));
+        assertThat(result.getBuckets().get(1).key.utf8ToString(), equalTo("10"));
+        assertThat(result.getBuckets().get(1).getDocCount(), equalTo(6L));
+        assertThat(result.getBuckets().get(2).key.utf8ToString(), equalTo("2"));
+        assertThat(result.getBuckets().get(2).getDocCount(), equalTo(3L));
+        assertThat(result.getBuckets().get(3).key.utf8ToString(), equalTo("3"));
+        assertThat(result.getBuckets().get(3).getDocCount(), equalTo(7L));
+        assertThat(result.getBuckets().get(4).key.utf8ToString(), equalTo("9"));
+        assertThat(result.getBuckets().get(4).getDocCount(), equalTo(9L));
     }
 }

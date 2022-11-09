@@ -31,7 +31,6 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected final BytesKeyedBucketOrds bucketOrds;
     private final boolean keyed;
 
-    @SuppressWarnings("unchecked")
     public TimeSeriesAggregator(
         String name,
         AggregatorFactories factories,
@@ -52,13 +51,17 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
             List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>();
+            BytesRef prev = null;
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
                 BytesRef key = new BytesRef();
                 ordsEnum.readValue(key);
+                assert prev == null || key.compareTo(prev) > 0
+                    : "key [" + key.utf8ToString() + "] is smaller than previous key [" + prev.utf8ToString() + "]";
                 InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(key, docCount, null, keyed);
                 bucket.bucketOrd = ordsEnum.ord();
                 buckets.add(bucket);
+                prev = key;
             }
             allBucketsPerOrd[ordIdx] = buckets.toArray(new InternalTimeSeries.InternalBucket[0]);
         }

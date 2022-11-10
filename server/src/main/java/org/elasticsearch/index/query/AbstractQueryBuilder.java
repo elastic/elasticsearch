@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
@@ -271,8 +272,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        queryRewriteContext.addQueryUsage(this.getName());
-
         QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;
@@ -305,6 +304,18 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser) throws IOException {
+        return parseTopLevelQuery(parser, queryName -> {});
+    }
+
+    /**
+     * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
+     * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
+     * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
+     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     * The method accepts a string consumer that will be provided with each query type used in the parsed content, to be used
+     * for instance to collect statistics about queries usage.
+     */
+    public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer) throws IOException {
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
 
@@ -321,6 +332,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                     }
                 }
                 T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+                queryNameConsumer.accept(name);
                 if (categoryClass.equals(QueryBuilder.class)) {
                     nestedDepth--;
                 }

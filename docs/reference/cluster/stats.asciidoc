@@ -264,25 +264,34 @@ grow due to ongoing peer recoveries, restoring snapshots, and similar
 activities.
 =====
 
-`queries`::
+`search`::
 (array of objects)
-Contains statistics about queries submitted to selected nodes,
-when the selected nodes served as coordinating nodes during
-search requests.
-Queries are counted only by a coordinating node, and deduplicated per
-a search request.
+Contains usage statistics about search requests submitted to selected nodes
+that acted as coordinator during the search execution.
+Usage includes information about the total number of incoming search requests,
+which sections were specified in their request body, as well as which queries
+were used as part of the query and post_filter sections. Queries are counted
+once per search request, meaning that if the same search requests includes
+multiple term queries, the counter for term is going to be incremented by 1 only.
 
 +
-.Properties of `queries` objects
+.Properties of `search` objects
 [%collapsible%open]
 ======
-`name`::
-(string)
-Query type used in selected nodes.
-
-`count`::
+`total`::
 (integer)
-Number of times this query type was used in selected nodes.
+Total number of received search requests
+
+`queries`::
+(object)
+Query types used in selected nodes. For each query, name and number of times
+it's been used is reported.
+
+`sections`::
+(object)
+Search sections used in selected nodes. For each section, name and number of times
+it's been used is reported.
+
 =====
 
 `fielddata`::
@@ -1355,7 +1364,9 @@ The API returns the following response:
          "reserved": "0b",
          "reserved_in_bytes": 0
       },
-      "queries": [],
+      "search": {
+          ...
+      },
       "fielddata": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,
@@ -1585,7 +1596,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
 // TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
-// TESTRESPONSE[s/"queries": \[[^\]]*\]/"queries": $body.$_path/]
+// TESTRESPONSE[s/"search": \{[^\}]*\}/"search": $body.$_path/]
 // TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]

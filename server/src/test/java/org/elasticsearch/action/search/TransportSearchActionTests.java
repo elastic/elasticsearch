@@ -52,7 +52,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.TrackingQueryRewriteContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -73,7 +72,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.search.usage.QueriesUsageService;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -1211,7 +1209,6 @@ public class TransportSearchActionTests extends ESTestCase {
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
-            ;
             if (--numReadOnly >= 0) {
                 if (randomBoolean()) {
                     blocksBuilder.addIndexBlock(indices[i], IndexMetadata.INDEX_WRITE_BLOCK);
@@ -1440,7 +1437,6 @@ public class TransportSearchActionTests extends ESTestCase {
 
             SearchService searchService = mock(SearchService.class);
             when(searchService.getRewriteContext(any())).thenReturn(new QueryRewriteContext(null, null, null, null));
-            when(searchService.getTrackingRewriteContext(any())).thenReturn(new TrackingQueryRewriteContext(null, null, null, null));
 
             ClusterService clusterService = new ClusterService(
                 settings,
@@ -1459,8 +1455,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 actionFilters,
                 null,
                 null,
-                null,
-                new QueriesUsageService()
+                null
             );
 
             CountDownLatch latch = new CountDownLatch(1);

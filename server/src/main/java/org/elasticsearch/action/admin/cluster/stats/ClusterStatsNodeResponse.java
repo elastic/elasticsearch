@@ -27,7 +27,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
-    private final QueryStats queryStats;
+    private final SearchUsageStats searchUsageStats;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -39,9 +39,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeStats = new NodeStats(in);
         shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
         if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-            queryStats = new QueryStats(in);
+            searchUsageStats = new SearchUsageStats(in);
         } else {
-            queryStats = null;
+            searchUsageStats = new SearchUsageStats();
         }
     }
 
@@ -51,14 +51,14 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         NodeInfo nodeInfo,
         NodeStats nodeStats,
         ShardStats[] shardsStats,
-        QueryStats queryStats
+        SearchUsageStats searchUsageStats
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
-        this.queryStats = queryStats;
+        this.searchUsageStats = searchUsageStats;
     }
 
     public NodeInfo nodeInfo() {
@@ -81,8 +81,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return this.shardsStats;
     }
 
-    public QueryStats queryStats() {
-        return queryStats;
+    public SearchUsageStats searchUsageStats() {
+        return searchUsageStats;
     }
 
     public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
@@ -102,7 +102,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
         if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-            queryStats.writeTo(out);
+            searchUsageStats.writeTo(out);
         }
     }
 }

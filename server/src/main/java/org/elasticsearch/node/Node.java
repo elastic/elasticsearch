@@ -183,10 +183,10 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchUsageService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.usage.QueriesUsageService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
@@ -237,7 +237,6 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -1011,7 +1010,7 @@ public class Node implements Closeable {
                 b.bind(IngestService.class).toInstance(ingestService);
                 b.bind(IndexingPressure.class).toInstance(indexingLimits);
                 b.bind(UsageService.class).toInstance(usageService);
-                b.bind(QueriesUsageService.class).toInstance(searchModule.getQueriesUsageService());
+                b.bind(SearchUsageService.class).toInstance(searchModule.getSearchUsageService());
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                 b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);

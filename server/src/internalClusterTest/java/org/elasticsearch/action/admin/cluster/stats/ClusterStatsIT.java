@@ -12,6 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -24,6 +27,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -292,7 +296,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         }
     }
 
-    public void testQueriesUsage() {
+    public void testSearchUsage() throws IOException {
         int numNodes = randomIntBetween(1, 3);
         for (int i = 1; i <= numNodes; i++) {
             internalCluster().startNode();
@@ -302,7 +306,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
-        assertTrue(clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts().isEmpty());
+        assertTrue(clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage().isEmpty());
 
         client().admin().indices().prepareCreate("test1").setMapping("""
             {
@@ -322,10 +326,16 @@ public class ClusterStatsIT extends ESIntegTestCase {
               }
             }""").get();
 
+        RestClient restClient = getRestClient();
+
         {
-            client().prepareSearch("test1").setQuery(new MatchQueryBuilder("field1", "value1")).get();
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field1", "value1"));
+            Request request = new Request("GET", "/test1/_search");
+            request.setJsonEntity(searchSourceBuilder.toString());
+            Response response = restClient.performRequest(request);
+            assertEquals(200, response.getStatusLine().getStatusCode());
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
             Map<String, Long> expectedQueriesCounts = Map.of("match", 1L);
             assertEquals(expectedQueriesCounts, queriesCounts);
         }
@@ -335,7 +345,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 .setQuery(boolQuery().must(new MatchQueryBuilder("field1", "value1")).must(new RangeQueryBuilder("field2").gte(0)))
                 .get();
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
             Map<String, Long> expectedQueriesCounts = Map.of("match", 2L, "bool", 1L, "range", 1L);
             assertEquals(expectedQueriesCounts, queriesCounts);
         }
@@ -347,7 +357,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 .setQuery(boolQuery().must(new MatchQueryBuilder("field1", "value1")).must(new MatchQueryBuilder("field2", 10)))
                 .get();
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
             Map<String, Long> expectedQueriesCounts = Map.of("match", 3L, "bool", 2L, "range", 1L);
             assertEquals(expectedQueriesCounts, queriesCounts);
         }
@@ -369,7 +379,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 }""").get();
             client().prepareSearch("test*").setQuery(new MatchQueryBuilder("field1", "value1")).get();
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
             Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L);
             assertEquals(expectedQueriesCounts, queriesCounts);
         }
@@ -379,9 +389,11 @@ public class ClusterStatsIT extends ESIntegTestCase {
             KnnSearchBuilder knnSearch = new KnnSearchBuilder("field3", new float[] { 0.6f, 0.8f }, 2, 5);
             client().prepareSearch("test1").setKnnSearch(knnSearch).get();
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
-            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "knn", 1L);
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L);
             assertEquals(expectedQueriesCounts, queriesCounts);
+            Map<String, Long> sectionsCount = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
+            assertEquals(Map.of("knn", 1L), sectionsCount);
         }
 
         {
@@ -391,9 +403,11 @@ public class ClusterStatsIT extends ESIntegTestCase {
             );
             client().prepareSearch("test1").setKnnSearch(knnSearch).get();
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
-            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "knn", 2L, "term", 1L);
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "term", 1L);
             assertEquals(expectedQueriesCounts, queriesCounts);
+            Map<String, Long> sectionsCount = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
+            assertEquals(Map.of("knn", 2L), sectionsCount);
         }
 
         {
@@ -404,9 +418,11 @@ public class ClusterStatsIT extends ESIntegTestCase {
             );
             client().prepareSearch("test1").setKnnSearch(knnSearch).setQuery(new TermQueryBuilder("field1", "value2")).get();
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
-            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "knn", 3L, "term", 2L);
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "term", 2L);
             assertEquals(expectedQueriesCounts, queriesCounts);
+            Map<String, Long> sectionsCount = clusterStatsResponse.getIndicesStats().getSearchUsageStats().getQueryUsage();
+            assertEquals(Map.of("knn", 3L), sectionsCount);
         }
     }
 }

@@ -57,7 +57,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.TrackingQueryRewriteContext;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -1601,13 +1600,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return indicesService.getRewriteContext(nowInMillis);
-    }
-
-    /**
-     * Returns a new {@link TrackingQueryRewriteContext} with the given {@code now} provider
-     */
-    public TrackingQueryRewriteContext getTrackingRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getTrackingRewriteContext(nowInMillis);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

@@ -24,16 +24,15 @@ import java.util.List;
 import java.util.Map;
 
 public class ClusterStatsIndices implements ToXContentFragment {
-
-    private int indexCount;
-    private ShardStats shards;
-    private DocsStats docs;
-    private StoreStats store;
-    private QueryStats queries;
-    private FieldDataStats fieldData;
-    private QueryCacheStats queryCache;
-    private CompletionStats completion;
-    private SegmentsStats segments;
+    private final int indexCount;
+    private final ShardStats shards;
+    private final DocsStats docs;
+    private final StoreStats store;
+    private final SearchUsageStats searchUsageStats;
+    private final FieldDataStats fieldData;
+    private final QueryCacheStats queryCache;
+    private final CompletionStats completion;
+    private final SegmentsStats segments;
     private final AnalysisStats analysis;
     private final MappingStats mappings;
     private final VersionStats versions;
@@ -48,7 +47,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         this.docs = new DocsStats();
         this.store = new StoreStats();
-        this.queries = new QueryStats();
+        this.searchUsageStats = new SearchUsageStats();
         this.fieldData = new FieldDataStats();
         this.queryCache = new QueryCacheStats();
         this.completion = new CompletionStats();
@@ -76,7 +75,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
             }
-            queries.add(r.queryStats());
+
+            searchUsageStats.add(r.searchUsageStats());
         }
 
         shards = new ShardStats();
@@ -106,8 +106,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return store;
     }
 
-    public QueryStats getQueries() {
-        return queries;
+    public SearchUsageStats getSearchUsageStats() {
+        return searchUsageStats;
     }
 
     public FieldDataStats getFieldData() {
@@ -148,7 +148,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         shards.toXContent(builder, params);
         docs.toXContent(builder, params);
         store.toXContent(builder, params);
-        queries.toXContent(builder, params);
+        searchUsageStats.toXContent(builder, params);
         fieldData.toXContent(builder, params);
         queryCache.toXContent(builder, params);
         completion.toXContent(builder, params);

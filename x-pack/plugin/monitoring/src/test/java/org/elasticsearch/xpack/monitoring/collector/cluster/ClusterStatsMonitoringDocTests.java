@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -408,6 +409,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeInfo()).thenReturn(mockNodeInfo);
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
+        when(mockNodeResponse.searchUsageStats()).thenReturn(new SearchUsageStats());
 
         final Metadata metadata = testClusterState.metadata();
         final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
@@ -508,7 +510,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total_data_set_size_in_bytes": 0,
                     "reserved_in_bytes": 0
                   },
-                  "queries": [],
+                  "search": {
+                    "total": 0,
+                    "queries": {
+                    },
+                    "sections": {
+                    }
+                  },
                   "fielddata": {
                     "memory_size_in_bytes": 0,
                     "evictions": 0

@@ -184,3 +184,85 @@
   - gt: { indices.mappings.total_field_count: 0 }
   - gt: { indices.mappings.total_deduplicated_field_count: 0 }
   - gt: { indices.mappings.total_deduplicated_mapping_size_in_bytes: 0 }
+
+---
+"search usage stats":
+  - skip:
+      version: " - 8.5.99"
+      reason:  "search usage stats reported from 8.6 onwards"
+
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 2
+                index: true
+                similarity: dot_product
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              keyword: value
+          sort:
+            keyword: desc
+          terminate_after: 1000
+
+  - do: {cluster.stats: {}}
+  - match: { indices.search.total: 1 }
+  - length: { indices.search.queries: 1 }
+  - match: { indices.search.queries.match: 1 }
+  - length: { indices.search.sections: 2 }
+  - match: { indices.search.sections.terminate_after: 1 }
+  - match: { indices.search.sections.query: 1 }
+
+  - do:
+      search:
+        index: sensor
+        body:
+          aggs:
+            values:
+              terms:
+                field: keyword
+
+  - do: {cluster.stats: {}}
+  - match: { indices.search.total: 2 }
+  - length: { indices.search.queries: 1 }
+  - match: { indices.search.queries.match: 1 }
+  - length: { indices.search.sections: 3 }
+  - match: { indices.search.sections.terminate_after: 1 }
+  - match: { indices.search.sections.query: 1 }
+  - match: { indices.search.sections.aggs: 1 }
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              keyword: value
+          knn:
+            field: vector
+            query_vector: [0.6, 0.8]
+            k: 2
+            num_candidates: 5
+          fields: ["keyword"]
+
+  - do: {cluster.stats: {}}
+  - match: { indices.search.total: 3 }
+  - length: { indices.search.queries: 1 }
+  - match: { indices.search.queries.match: 2 }
+  - length: { indices.search.sections: 5 }
+  - match: { indices.search.sections.terminate_after: 1 }
+  - match: { indices.search.sections.query: 2 }
+  - match: { indices.search.sections.aggs: 1 }
+  - match: { indices.search.sections.fields: 1 }
+  - match: { indices.search.sections.knn: 1 }

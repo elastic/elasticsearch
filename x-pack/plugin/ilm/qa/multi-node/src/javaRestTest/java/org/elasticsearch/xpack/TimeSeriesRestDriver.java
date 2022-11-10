@@ -362,7 +362,7 @@ public final class TimeSeriesRestDriver {
     }
 
     @SuppressWarnings("unchecked")
-    public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
+    public static Integer getNumberOfPrimarySegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         final Map<String, Object> originalResponseEntity = XContentHelper.convertToMap(

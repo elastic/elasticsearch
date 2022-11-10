@@ -8,22 +8,22 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 
 import java.util.OptionalDouble;
 
 public interface WriteLoadForecaster {
     WriteLoadForecaster DEFAULT = new DefaultWriteLoadForecaster();
 
-    ClusterState withWriteLoadForecastForWriteIndex(String dataStreamName, ClusterState clusterState);
+    Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata);
 
     OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata);
 
     class DefaultWriteLoadForecaster implements WriteLoadForecaster {
         @Override
-        public ClusterState withWriteLoadForecastForWriteIndex(String dataStreamName, ClusterState clusterState) {
-            return clusterState;
+        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+            return metadata;
         }
 
         @Override

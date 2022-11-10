@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.writeloadforecaster;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexWriteLoad;
@@ -51,21 +51,20 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     }
 
     @Override
-    public ClusterState withWriteLoadForecastForWriteIndex(String dataStreamName, ClusterState clusterState) {
+    public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
         if (hasValidLicense.getAsBoolean() == false) {
-            return clusterState;
+            return metadata;
         }
 
-        final Metadata metadata = clusterState.metadata();
-        final DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        final DataStream dataStream = metadata.dataStream(dataStreamName);
 
         if (dataStream == null) {
-            return clusterState;
+            return metadata;
         }
 
         final List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange = getIndicesWithinMaxAgeRange(dataStream, metadata).stream()
             .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
-            .map(metadata::getIndexSafe)
+            .map(metadata::getSafe)
             .map(IndexMetadata::getWriteLoad)
             .filter(Objects::nonNull)
             .toList();
@@ -73,17 +72,13 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         OptionalDouble forecastIndexWriteLoad = forecastIndexWriteLoad(indicesWriteLoadWithinMaxAgeRange);
 
         if (forecastIndexWriteLoad.isEmpty()) {
-            return clusterState;
+            return metadata;
         }
 
-        final IndexMetadata writeIndex = metadata.getIndexSafe(dataStream.getWriteIndex());
+        final IndexMetadata writeIndex = metadata.getSafe(dataStream.getWriteIndex());
+        metadata.put(IndexMetadata.builder(writeIndex).indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble()).build(), false);
 
-        return ClusterState.builder(clusterState)
-            .metadata(
-                Metadata.builder(metadata)
-                    .put(IndexMetadata.builder(writeIndex).indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble()).build(), false)
-            )
-            .build();
+        return metadata;
     }
 
     // Visible for testing
@@ -108,13 +103,13 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     }
 
     // Visible for testing
-    List<Index> getIndicesWithinMaxAgeRange(DataStream dataStream, Metadata metadata) {
+    List<Index> getIndicesWithinMaxAgeRange(DataStream dataStream, Metadata.Builder metadata) {
         final List<Index> dataStreamIndices = dataStream.getIndices();
         // Consider at least 1 index (including the write index) for cases where rollovers happen less often than maxIndexAge
         int firstIndexWithinAgeRange = Math.max(dataStreamIndices.size() - 2, 0);
         for (int i = 0; i < dataStreamIndices.size(); i++) {
             Index index = dataStreamIndices.get(i);
-            final IndexMetadata indexMetadata = metadata.getIndexSafe(index);
+            final IndexMetadata indexMetadata = metadata.getSafe(index);
             final long indexAge = System.currentTimeMillis() - indexMetadata.getCreationDate();
             if (indexAge < maxIndexAge.getMillis()) {
                 // We need to consider the previous index too in order to cover the entire max-index-age range.
@@ -128,6 +123,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     }
 
     @Override
+    @SuppressForbidden(reason = "This is the only place where IndexMetadata#getForecastedWriteLoad is allowed to be used")
     public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
         if (hasValidLicense.getAsBoolean() == false) {
             return OptionalDouble.empty();

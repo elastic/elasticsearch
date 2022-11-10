@@ -300,18 +300,16 @@ public class MetadataRolloverService {
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
 
-        newState = ClusterState.builder(newState)
-            .metadata(
-                Metadata.builder(newState.metadata())
-                    .put(
-                        IndexMetadata.builder(newState.metadata().index(originalWriteIndex))
-                            .indexWriteLoad(sourceIndexWriteLoad)
-                            .putRolloverInfo(rolloverInfo)
-                    )
-            )
-            .build();
+        Metadata.Builder metadataBuilder = Metadata.builder(newState.metadata())
+            .put(
+                IndexMetadata.builder(newState.metadata().index(originalWriteIndex))
+                    .indexWriteLoad(sourceIndexWriteLoad)
+                    .putRolloverInfo(rolloverInfo)
+            );
 
-        newState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, newState);
+        metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
+
+        newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }

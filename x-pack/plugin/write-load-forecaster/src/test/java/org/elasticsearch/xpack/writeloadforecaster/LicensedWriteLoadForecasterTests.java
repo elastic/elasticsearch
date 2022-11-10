@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.writeloadforecaster;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -66,11 +64,13 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
 
-        final ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
+        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+            dataStream.getName(),
+            metadataBuilder
+        );
 
-        final IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+        final IndexMetadata writeIndex = updatedMetadataBuilder.getSafe(dataStream.getWriteIndex());
 
         final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
 
@@ -116,13 +116,15 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
 
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, maxIndexAge);
 
-        final ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
+        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+            dataStream.getName(),
+            metadataBuilder
+        );
 
-        final IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+        final IndexMetadata writeIndex = updatedMetadataBuilder.getSafe(dataStream.getWriteIndex());
 
         final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
 
@@ -163,11 +165,13 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
 
-        final ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
+        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+            dataStream.getName(),
+            metadataBuilder
+        );
 
-        final IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+        final IndexMetadata writeIndex = updatedMetadataBuilder.getSafe(dataStream.getWriteIndex());
 
         final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
 
@@ -311,9 +315,8 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
 
         metadataBuilder.put(dataStream);
-        Metadata metadata = metadataBuilder.build();
 
-        final List<Index> indicesWithinMaxAgeRange = writeLoadForecaster.getIndicesWithinMaxAgeRange(dataStream, metadata);
+        final List<Index> indicesWithinMaxAgeRange = writeLoadForecaster.getIndicesWithinMaxAgeRange(dataStream, metadataBuilder);
 
         final List<Index> expectedIndicesWithinMaxAgeRange = new ArrayList<>();
         if (numberOfBackingIndicesOlderThanMinAge > 0) {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.ShardId;
@@ -66,6 +67,7 @@ public class IndexMetadataTests extends ESTestCase {
         return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
+    @SuppressForbidden(reason = "Use IndexMetadata#getForecastedWriteLoad to ensure that the serialized value is correct")
     public void testIndexMetadataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
@@ -74,6 +76,7 @@ public class IndexMetadataTests extends ESTestCase {
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
         IndexWriteLoad indexWriteLoad = randomBoolean() ? randomWriteLoad(numShard) : null;
+        Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
@@ -101,6 +104,7 @@ public class IndexMetadataTests extends ESTestCase {
                 )
             )
             .indexWriteLoad(indexWriteLoad)
+            .indexWriteLoadForecast(indexWriteLoadForecast)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -130,6 +134,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
         assertEquals(metadata.getWriteLoad(), fromXContentMeta.getWriteLoad());
+        assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -151,6 +156,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
             assertEquals(metadata.getWriteLoad(), deserialized.getWriteLoad());
+            assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
         }
     }
 

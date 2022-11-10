@@ -9,11 +9,8 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
-import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 
 import java.io.IOException;
 import java.util.List;
@@ -144,7 +141,7 @@ public class VectorScoreScriptUtils {
         public L1Norm(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE ->  new ByteL1Norm(scoreScript, field, queryVector);
+                case BYTE -> new ByteL1Norm(scoreScript, field, queryVector);
                 case FLOAT -> new FloatL1Norm(scoreScript, field, queryVector);
             };
         }
@@ -190,7 +187,7 @@ public class VectorScoreScriptUtils {
         public L2Norm(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE ->  new ByteL2Norm(scoreScript, field, queryVector);
+                case BYTE -> new ByteL2Norm(scoreScript, field, queryVector);
                 case FLOAT -> new FloatL2Norm(scoreScript, field, queryVector);
             };
         }
@@ -236,7 +233,7 @@ public class VectorScoreScriptUtils {
         public DotProduct(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE ->  new ByteDotProduct(scoreScript, field, queryVector);
+                case BYTE -> new ByteDotProduct(scoreScript, field, queryVector);
                 case FLOAT -> new FloatDotProduct(scoreScript, field, queryVector);
             };
         }
@@ -282,7 +279,7 @@ public class VectorScoreScriptUtils {
         public CosineSimilarity(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE ->  new ByteCosineSimilarity(scoreScript, field, queryVector);
+                case BYTE -> new ByteCosineSimilarity(scoreScript, field, queryVector);
                 case FLOAT -> new FloatCosineSimilarity(scoreScript, field, queryVector);
             };
         }

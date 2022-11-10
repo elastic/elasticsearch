@@ -1,5 +1,7 @@
 setup:
   - skip:
+      version: " - 8.5.99"
+      reason: "support for byte vectors added in 8.6"
       features: headers
 
   - do:

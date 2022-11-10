@@ -1,9 +1,10 @@
+setup:
+  - skip:
+      version: " - 8.5.99"
+      reason: "support for byte vectors added in 8.6"
+
 ---
 "size and isEmpty code works for any vector, including empty":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -88,10 +89,6 @@
 
 ---
 "null can be used for default value":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -174,10 +171,6 @@
 
 ---
 "empty dense vector throws for vector accesses":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -250,8 +243,7 @@
               query: { "bool": { "must_not": { "exists": { "field": "bdv" } } } }
               script:
                 source: |
-                  float[] q = new float[1];
-                  q[0] = 3;
+                  byte[] q = new byte[] {(byte)3};
                   DenseVector dv = field(params.field).get();
                   float score = 0;
                   try { score += dv.magnitude } catch (IllegalArgumentException e) { score += 10; }
@@ -275,7 +267,7 @@
               query: { "bool": { "must_not": { "exists": { "field": "bdv" } } } }
               script:
                 source: |
-                  float[] q = new float[1];
+                  byte[] q = new byte[1];
                   q[0] = 3;
                   DenseVector dv = field(params.field).get();
                   float score = 0;
@@ -295,10 +287,6 @@
 
 ---
 "dot product works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -359,8 +347,7 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  byte[] query = new byte[] {4, 5, 6};
                   field(params.field).get().dotProduct(query)
                 params:
                   field: bdv
@@ -400,8 +387,7 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
                   field(params.field).get().dotProduct(query)
                 params:
                   field: knn
@@ -415,10 +401,6 @@
 
 ---
 "iterator over dense vector values":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -493,10 +475,6 @@
 
 ---
 "l1Norm works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -553,8 +531,7 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
                   field(params.field).get().l1Norm(query)
                 params:
                   field: bdv
@@ -586,8 +563,7 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
                   field(params.field).get().l1Norm(query)
                 params:
                   field: knn
@@ -597,10 +573,6 @@
 
 ---
 "l2Norm works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -661,8 +633,7 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
                   (int) field(params.field).get().l2Norm(query)
                 params:
                   field: bdv
@@ -702,8 +673,7 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
                   (int) field(params.field).get().l2Norm(query)
                 params:
                   field: knn
@@ -717,10 +687,6 @@
 
 ---
 "cosineSimilarity works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index
@@ -762,8 +728,7 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  byte[] query = new byte[] {(byte)4, (byte)5, (byte)6};
                   (int) (field(params.field).get().cosineSimilarity(query) * 100.0f)
                 params:
                   field: bdv
@@ -817,10 +782,6 @@
 
 ---
 "query vector of wrong type errors":
-  - skip:
-      version: " - 8.0.99"
-      reason: "Fields API for dense vector added in 8.2"
-
   - do:
       indices.create:
         index: test-index

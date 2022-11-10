@@ -204,44 +204,6 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         );
     }
 
-    public void testFloatSimilarityFunctions() throws IOException {
-        int dims = 5;
-        float[] docVector = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
-        float[] queryVector = new float[] { 0.5f, 111.3f, -13.0f, 14.8f, -156.0f };
-
-        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(
-            wrap(new float[][] { docVector }, ElementType.FLOAT),
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
-        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
-        field.setNextDocId(0);
-
-        assertEquals("dotProduct result is not equal to the expected value!", 65425.624, scriptDocValues.dotProduct(queryVector), 0.001);
-        assertEquals("l1norm result is not equal to the expected value!", 485.184, scriptDocValues.l1Norm(queryVector), 0.001);
-        assertEquals("l2norm result is not equal to the expected value!", 301.361, scriptDocValues.l2Norm(queryVector), 0.001);
-    }
-
-    public void testByteSimilarityFunctions() throws IOException {
-        int dims = 5;
-        float[] docVector = new float[] { 1, 127, -128, 5, -10 };
-        float[] queryVector = new float[] { 1, 125, -12, 2, 4 };
-
-        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(
-            wrap(new float[][] { docVector }, ElementType.BYTE),
-            "test",
-            ElementType.BYTE,
-            dims
-        );
-        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
-        field.setNextDocId(0);
-
-        assertEquals("dotProduct result is not equal to the expected value!", 17382.0, scriptDocValues.dotProduct(queryVector), 0.001);
-        assertEquals("l1norm result is not equal to the expected value!", 135.0, scriptDocValues.l1Norm(queryVector), 0.001);
-        assertEquals("l2norm result is not equal to the expected value!", 116.897, scriptDocValues.l2Norm(queryVector), 0.001);
-    }
-
     public void testFloatMissingVectorValues() throws IOException {
         int dims = 7;
         DenseVectorDocValuesField emptyKnn = new KnnDenseVectorDocValuesField(null, "test", ElementType.FLOAT, dims);

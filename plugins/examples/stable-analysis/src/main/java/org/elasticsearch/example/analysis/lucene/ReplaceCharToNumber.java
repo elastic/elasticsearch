@@ -13,15 +13,15 @@ import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 
 import java.io.Reader;
 
-public class ReplaceHash extends MappingCharFilter {
+public class ReplaceCharToNumber extends MappingCharFilter {
 
-    public ReplaceHash(Reader in) {
-        super(charMap(), in);
+    public ReplaceCharToNumber(Reader in, String oldChar, int newNumber) {
+        super(charMap(oldChar, newNumber), in);
     }
 
-    private static NormalizeCharMap charMap() {
+    private static NormalizeCharMap charMap(String oldChar, int newNumber) {
         NormalizeCharMap.Builder builder = new NormalizeCharMap.Builder();
-        builder.add("#", "3");
+        builder.add(oldChar, String.valueOf(newNumber));
         return builder.build();
     }
 }

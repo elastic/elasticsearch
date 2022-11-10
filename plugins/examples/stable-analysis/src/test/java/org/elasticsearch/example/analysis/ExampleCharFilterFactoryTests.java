@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExampleCharFilterFactoryTests {
     @Test
     public void exampleCharFilterIsAnnotatedWithName() {
-        CharFilterFactory charFilterFactory = new ExampleCharFilterFactory();
+        CharFilterFactory charFilterFactory = new ExampleCharFilterFactory(null);
         assertThat(charFilterFactory.name(), equalTo("example_char_filter"));
     }
 }

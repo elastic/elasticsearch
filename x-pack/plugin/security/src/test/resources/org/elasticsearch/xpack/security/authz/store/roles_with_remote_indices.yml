@@ -9,7 +9,7 @@ role:
       privileges:
         - READ
 
-role_with_dls_fls:
+role_with_fls_dls:
   remote_indices:
     - clusters:
         - "*"
@@ -31,3 +31,20 @@ invalid_role_missing_clusters:
         - idx1
       privileges:
         - READ
+
+invalid_role_empty_names:
+  remote_indices:
+    - clusters:
+        - remote1
+      names:
+      privileges:
+        - READ
+
+invalid_role_empty_privileges:
+  remote_indices:
+    - clusters:
+        - remote1
+      names:
+        - idx1
+      privileges:
+

@@ -9,25 +9,38 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,7 +51,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -615,6 +630,78 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             );
             assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
         }
+    }
+
+    public void testSearchUsageCollection() throws IOException {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(
+            new BoolQueryBuilder().must(new MatchQueryBuilder("field", "value")).must(new QueryStringQueryBuilder("test"))
+        );
+        searchSourceBuilder.from(5);
+        searchSourceBuilder.size(10);
+        searchSourceBuilder.terminateAfter(1000);
+        searchSourceBuilder.indexBoost("index", 10);
+        searchSourceBuilder.sort("test");
+        searchSourceBuilder.aggregation(new TermsAggregationBuilder("name").field("field"));
+        searchSourceBuilder.highlighter(new HighlightBuilder().field("field"));
+        searchSourceBuilder.trackTotalHits(true);
+        searchSourceBuilder.fetchSource(false);
+        searchSourceBuilder.fetchField("field");
+        searchSourceBuilder.runtimeMappings(Collections.emptyMap());
+        searchSourceBuilder.knnSearch(new KnnSearchBuilder("field", new float[] {}, 2, 5));
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("pitid"));
+        searchSourceBuilder.docValueField("field");
+        searchSourceBuilder.storedField("field");
+        searchSourceBuilder.explain(true);
+        searchSourceBuilder.profile(true);
+        searchSourceBuilder.trackScores(true);
+        searchSourceBuilder.slice(new SliceBuilder(1, 10));
+        searchSourceBuilder.collapse(new CollapseBuilder("field"));
+        searchSourceBuilder.addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
+        searchSourceBuilder.version(true);
+        searchSourceBuilder.suggest(new SuggestBuilder());
+        searchSourceBuilder.minScore(10);
+        searchSourceBuilder.timeout(new TimeValue(1000, TimeUnit.MILLISECONDS));
+        searchSourceBuilder.stats(Collections.singletonList("test"));
+        searchSourceBuilder.scriptField("name", new Script("id"));
+        searchSourceBuilder.ext(Collections.emptyList());
+        searchSourceBuilder.searchAfter(new Object[] { "test" });
+
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        assertEquals(0, searchUsageHolder.getSearchUsageStats().getTotalSearchCount());
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(searchSourceBuilder))) {
+            SearchSourceBuilder.fromXContent(parser, true, searchUsageHolder);
+        }
+
+        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        assertEquals(1, searchUsageStats.getTotalSearchCount());
+        Map<String, Long> queryUsage = searchUsageStats.getQueryUsage();
+        assertEquals(3, queryUsage.size());
+        assertEquals(1L, queryUsage.get("bool").longValue());
+        assertEquals(1L, queryUsage.get("match").longValue());
+        assertEquals(1L, queryUsage.get("query_string").longValue());
+        Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
+        assertEquals(19, sectionsUsage.size());
+        assertEquals(1L, sectionsUsage.get("query").longValue());
+        assertEquals(1L, sectionsUsage.get("knn").longValue());
+        assertEquals(1L, sectionsUsage.get("terminate_after").longValue());
+        assertEquals(1L, sectionsUsage.get("suggest").longValue());
+        assertEquals(1L, sectionsUsage.get("min_score").longValue());
+        assertEquals(1L, sectionsUsage.get("search_after").longValue());
+        assertEquals(1L, sectionsUsage.get("highlight").longValue());
+        assertEquals(1L, sectionsUsage.get("slice").longValue());
+        assertEquals(1L, sectionsUsage.get("stats").longValue());
+        assertEquals(1L, sectionsUsage.get("stored_fields").longValue());
+        assertEquals(1L, sectionsUsage.get("script_fields").longValue());
+        assertEquals(1L, sectionsUsage.get("_source").longValue());
+        assertEquals(1L, sectionsUsage.get("pit").longValue());
+        assertEquals(1L, sectionsUsage.get("docvalue_fields").longValue());
+        assertEquals(1L, sectionsUsage.get("fields").longValue());
+        assertEquals(1L, sectionsUsage.get("indices_boost").longValue());
+        assertEquals(1L, sectionsUsage.get("rescore").longValue());
+        assertEquals(1L, sectionsUsage.get("collapse").longValue());
+        assertEquals(1L, sectionsUsage.get("aggs").longValue());
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

@@ -226,7 +226,7 @@ public class SourceLookup implements Source, Map<String, Object> {
 
         @Override
         public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-            //
+            // nothing to do
         }
     }
 

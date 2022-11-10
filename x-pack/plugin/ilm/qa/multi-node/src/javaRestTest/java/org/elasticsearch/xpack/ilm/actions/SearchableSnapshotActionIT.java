@@ -121,6 +121,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91460")
     public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));

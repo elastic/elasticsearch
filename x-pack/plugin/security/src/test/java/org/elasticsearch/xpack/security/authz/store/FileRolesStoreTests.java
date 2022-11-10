@@ -288,16 +288,39 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(2));
+        assertThat(roles.size(), is(3));
 
         final RoleDescriptor roleDescriptor = roles.get("role");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getRemoteIndicesPrivileges().length, equalTo(1));
         final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges()[0];
-        assertThat(remoteIndicesPrivileges.remoteClusters(), arrayContaining("remote-1", "*-remote"));
+        assertThat(remoteIndicesPrivileges.remoteClusters(), arrayContaining("remote1", "*-remote"));
         assertThat(remoteIndicesPrivileges.indicesPrivileges().getIndices(), arrayContaining("idx1", "idx2"));
         assertThat(remoteIndicesPrivileges.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
         assertThat(remoteIndicesPrivileges.indicesPrivileges().allowRestrictedIndices(), is(false));
+
+        final RoleDescriptor roleDescriptor2 = roles.get("role_with_multiple_remote_indices");
+        assertNotNull(roleDescriptor2);
+        assertThat(roleDescriptor2.getRemoteIndicesPrivileges().length, equalTo(2));
+        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges2 = roleDescriptor2.getRemoteIndicesPrivileges()[0];
+        assertThat(remoteIndicesPrivileges2.remoteClusters(), arrayContaining("remote1"));
+        assertThat(remoteIndicesPrivileges2.indicesPrivileges().getIndices(), arrayContaining("idx1"));
+        assertThat(remoteIndicesPrivileges2.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
+        assertThat(remoteIndicesPrivileges2.indicesPrivileges().allowRestrictedIndices(), is(false));
+        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges3 = roleDescriptor2.getRemoteIndicesPrivileges()[1];
+        assertThat(remoteIndicesPrivileges3.remoteClusters(), arrayContaining("remote2"));
+        assertThat(remoteIndicesPrivileges3.indicesPrivileges().getIndices(), arrayContaining("idx2"));
+        assertThat(remoteIndicesPrivileges3.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
+        assertThat(remoteIndicesPrivileges3.indicesPrivileges().allowRestrictedIndices(), is(false));
+
+        final RoleDescriptor roleDescriptor3 = roles.get("role_with_dls_fls");
+        assertNotNull(roleDescriptor3);
+        assertThat(roleDescriptor3.getRemoteIndicesPrivileges().length, equalTo(1));
+        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges4 = roleDescriptor3.getRemoteIndicesPrivileges()[0];
+        assertThat(remoteIndicesPrivileges4.remoteClusters(), arrayContaining("*"));
+        assertThat(remoteIndicesPrivileges4.indicesPrivileges().getIndices(), arrayContaining("idx1"));
+        assertThat(remoteIndicesPrivileges4.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
+        assertThat(remoteIndicesPrivileges4.indicesPrivileges().allowRestrictedIndices(), is(false));
     }
 
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {

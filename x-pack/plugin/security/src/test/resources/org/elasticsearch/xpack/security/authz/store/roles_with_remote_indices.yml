@@ -1,10 +1,25 @@
 role:
   remote_indices:
     - clusters:
-        - remote-1
+        - remote1
         - "*-remote"
       names:
         - idx1
+        - idx2
+      privileges:
+        - READ
+
+role_with_multiple_remote_indices:
+  remote_indices:
+    - clusters:
+        - remote1
+      names:
+        - idx1
+      privileges:
+        - READ
+    - clusters:
+        - remote2
+      names:
         - idx2
       privileges:
         - READ

@@ -199,7 +199,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue(
+            assertNotEquals(
                 "relocated "
                     + recoveryState.getShardId()
                     + " from: "
@@ -208,16 +208,17 @@ public class FullRollingRestartIT extends ESIntegTestCase {
                     + recoveryState.getTargetNode()
                     + "\n"
                     + state,
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false
+                recoveryState.getRecoverySource().getType(),
+                RecoverySource.Type.PEER
             );
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
-        client().admin().cluster().prepareState().get().getState();
+        client().admin().cluster().prepareState().get();
 
         recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue(
+            assertNotEquals(
                 "relocated "
                     + recoveryState.getShardId()
                     + " from: "
@@ -226,7 +227,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
                     + recoveryState.getTargetNode()
                     + "-- \nbefore: \n"
                     + state,
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false
+                recoveryState.getRecoverySource().getType(),
+                RecoverySource.Type.PEER
             );
         }
     }

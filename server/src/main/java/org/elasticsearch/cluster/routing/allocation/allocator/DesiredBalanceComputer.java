@@ -32,7 +32,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -321,9 +320,7 @@ public class DesiredBalanceComputer {
     }
 
     private static Set<ShardRouting> getIgnoredShardsWithDiscardedAllocationStatus(List<ShardRouting> ignoredShards) {
-        return ignoredShards.stream()
-            .flatMap(shardRouting -> Stream.of(shardRouting, discardAllocationStatus(shardRouting)))
-            .collect(toUnmodifiableSet());
+        return ignoredShards.stream().map(DesiredBalanceComputer::discardAllocationStatus).collect(toUnmodifiableSet());
     }
 
     /**

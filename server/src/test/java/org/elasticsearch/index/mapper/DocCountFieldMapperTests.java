@@ -7,14 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
-import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 
@@ -78,37 +72,28 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceMany() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {}));
+        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {}));
         List<Integer> counts = randomList(2, 10000, () -> between(1, Integer.MAX_VALUE));
-        try (Directory directory = newDirectory()) {
-            try (
-                RandomIndexWriter iw = new RandomIndexWriter(
-                    random(),
-                    directory,
-                    LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
-                )
-            ) {
-                for (int c : counts) {
-                    iw.addDocument(mapper.parse(source(b -> b.field(CONTENT_TYPE, c))).rootDoc());
+        withLuceneIndex(mapper, iw -> {
+            for (int c : counts) {
+                iw.addDocument(mapper.documentMapper().parse(source(b -> b.field(CONTENT_TYPE, c))).rootDoc());
+            }
+        }, reader -> {
+            int i = 0;
+            SourceLoader loader = mapper.mappingLookup().newSourceLoader();
+            assertTrue(loader.requiredStoredFields().isEmpty());
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                for (int docId : docIds) {
+                    assertThat(
+                        "doc " + docId,
+                        sourceLoaderLeaf.source(storedFieldLoader, docId).utf8ToString(),
+                        equalTo("{\"_doc_count\":" + counts.get(i++) + "}")
+                    );
                 }
             }
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                int i = 0;
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-                assertTrue(loader.requiredStoredFields().isEmpty());
-                for (LeafReaderContext leaf : reader.leaves()) {
-                    int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                    SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
-                    LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
-                    for (int docId : docIds) {
-                        assertThat(
-                            "doc " + docId,
-                            sourceLoaderLeaf.source(storedFieldLoader, docId).utf8ToString(),
-                            equalTo("{\"_doc_count\":" + counts.get(i++) + "}")
-                        );
-                    }
-                }
-            }
-        }
+        });
     }
 }

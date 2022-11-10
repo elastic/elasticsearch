@@ -41,7 +41,7 @@ public class DocCountProvider {
     }
 
     public void setLeafReaderContext(LeafReaderContext ctx) throws IOException {
-        docCountPostings = ctx.reader().postings(new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME));
+        docCountPostings = DocCountFieldMapper.leafLookup(ctx.reader());
     }
 
     public boolean alwaysOne() {

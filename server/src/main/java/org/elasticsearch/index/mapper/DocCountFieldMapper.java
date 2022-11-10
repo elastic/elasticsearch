@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.IntUnaryOperator;
 import java.util.stream.Stream;
 
 /** Mapper for the doc_count field. */
@@ -30,6 +31,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_doc_count";
 
     private static final DocCountFieldMapper INSTANCE = new DocCountFieldMapper();
+
+    /**
+     * The term that is the key to the postings list that stores the doc counts.
+     */
+    private static final Term TERM = new Term(NAME, NAME);
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
@@ -127,6 +133,13 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         return new SyntheticFieldLoader();
     }
 
+    /**
+     * The lookup for loading values.
+     */
+    public static PostingsEnum leafLookup(LeafReader reader) throws IOException {
+        return reader.postings(TERM);
+    }
+
     private class SyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private PostingsEnum postings;
         private boolean hasValue;
@@ -138,7 +151,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            postings = leafReader.postings(new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME));
+            postings = leafLookup(leafReader);
             if (postings == null) {
                 hasValue = false;
                 return null;
@@ -156,7 +169,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
             if (hasValue == false) {
                 return;
             }
-            b.field("_doc_count", postings.freq());
+            b.field(NAME, postings.freq());
         }
     }
 }

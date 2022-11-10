@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
 
@@ -58,17 +59,21 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 desiredShards.put(
                     shardId,
                     new DesiredBalanceResponse.DesiredShards(
-                        new DesiredBalanceResponse.ShardView(
-                            randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING),
-                            randomBoolean(),
-                            randomAlphaOfLength(8),
-                            randomBoolean(),
-                            randomAlphaOfLength(8),
-                            randomBoolean(),
-                            shardId,
-                            indexName,
-                            AllocationId.newInitializing()
-                        ),
+                        IntStream.range(0, randomIntBetween(1, 4))
+                            .mapToObj(
+                                k -> new DesiredBalanceResponse.ShardView(
+                                    randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING),
+                                    randomBoolean(),
+                                    randomAlphaOfLength(8),
+                                    randomBoolean(),
+                                    randomAlphaOfLength(8),
+                                    randomBoolean(),
+                                    shardId,
+                                    indexName,
+                                    AllocationId.newInitializing()
+                                )
+                            )
+                            .toList(),
                         new DesiredBalanceResponse.ShardAssignmentView(
                             randomUnique(() -> randomAlphaOfLength(8), randomIntBetween(1, 8)),
                             randomInt(8),
@@ -124,15 +129,19 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 DesiredBalanceResponse.DesiredShards desiredShards = shardEntry.getValue();
                 Map<String, Object> jsonDesiredShard = (Map<String, Object>) jsonIndexShards.get(String.valueOf(shardEntry.getKey()));
                 assertEquals(Set.of("current", "desired"), jsonDesiredShard.keySet());
-                Map<String, Object> jsonCurrent = (Map<String, Object>) jsonDesiredShard.get("current");
-                assertEquals(jsonCurrent.get("state"), desiredShards.current().state().toString());
-                assertEquals(jsonCurrent.get("primary"), desiredShards.current().primary());
-                assertEquals(jsonCurrent.get("node"), desiredShards.current().node());
-                assertEquals(jsonCurrent.get("node_is_desired"), desiredShards.current().nodeIsDesired());
-                assertEquals(jsonCurrent.get("relocating_node"), desiredShards.current().relocatingNode());
-                assertEquals(jsonCurrent.get("relocating_node_is_desired"), desiredShards.current().relocatingNodeIsDesired());
-                assertEquals(jsonCurrent.get("shard_id"), desiredShards.current().shardId());
-                assertEquals(jsonCurrent.get("index"), desiredShards.current().index());
+                List<Map<String, Object>> jsonCurrent = (List<Map<String, Object>>) jsonDesiredShard.get("current");
+                for (int i = 0; i < jsonCurrent.size(); i++) {
+                    Map<String, Object> jsonShard = jsonCurrent.get(i);
+                    DesiredBalanceResponse.ShardView shardView = desiredShards.current().get(i);
+                    assertEquals(jsonShard.get("state"), shardView.state().toString());
+                    assertEquals(jsonShard.get("primary"), shardView.primary());
+                    assertEquals(jsonShard.get("node"), shardView.node());
+                    assertEquals(jsonShard.get("node_is_desired"), shardView.nodeIsDesired());
+                    assertEquals(jsonShard.get("relocating_node"), shardView.relocatingNode());
+                    assertEquals(jsonShard.get("relocating_node_is_desired"), shardView.relocatingNodeIsDesired());
+                    assertEquals(jsonShard.get("shard_id"), shardView.shardId());
+                    assertEquals(jsonShard.get("index"), shardView.index());
+                }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");
                 List<String> nodeIds = (List<String>) jsonDesired.get("node_ids");

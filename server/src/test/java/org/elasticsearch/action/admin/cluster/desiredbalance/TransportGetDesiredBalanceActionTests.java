@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -187,40 +186,40 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
             String index = e.getKey();
             Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = e.getValue();
             assertEquals(indexShards.get(index).stream().map(ShardId::id).collect(Collectors.toSet()), shardsMap.keySet());
-            for (Map.Entry<Integer, DesiredBalanceResponse.DesiredShards> shardDesiredBalance : shardsMap.entrySet()) {
-                DesiredBalanceResponse.DesiredShards desiredShards = shardDesiredBalance.getValue();
+            for (var shardDesiredBalance : shardsMap.entrySet()) {
+                DesiredBalanceResponse.DesiredShards desiredShard = shardDesiredBalance.getValue();
                 int shardId = shardDesiredBalance.getKey();
                 IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(index, shardId);
-
-                ShardRouting shard = IntStream.range(0, indexShardRoutingTable.size())
-                    .mapToObj(indexShardRoutingTable::shard)
-                    .filter(s -> s.primary() == desiredShards.current().primary()) // Replica or primary?
-                    .findFirst()
-                    .orElseThrow();
-                assertEquals(shard.state(), desiredShards.current().state());
-                assertEquals(shard.primary(), desiredShards.current().primary());
-                assertEquals(shard.currentNodeId(), desiredShards.current().node());
-                assertEquals(shard.relocatingNodeId(), desiredShards.current().relocatingNode());
-                assertEquals(shard.index().getName(), desiredShards.current().index());
-                assertEquals(shard.shardId().id(), desiredShards.current().shardId());
-                assertEquals(shard.allocationId(), desiredShards.current().allocationId());
-                Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(shard.shardId()));
-                Set<String> desiredNodeIds = shardAssignment.map(ShardAssignment::nodeIds).orElse(Set.of());
-                assertEquals(
-                    shard.currentNodeId() != null && desiredNodeIds.contains(shard.currentNodeId()),
-                    desiredShards.current().nodeIsDesired()
-                );
-                assertEquals(
-                    shard.relocatingNodeId() != null && desiredNodeIds.contains(shard.relocatingNodeId()),
-                    desiredShards.current().relocatingNodeIsDesired()
-                );
+                for (int idx = 0; idx < indexShardRoutingTable.size(); idx++) {
+                    ShardRouting shard = indexShardRoutingTable.shard(idx);
+                    DesiredBalanceResponse.ShardView shardView = desiredShard.current().get(idx);
+                    assertEquals(shard.state(), shardView.state());
+                    assertEquals(shard.primary(), shardView.primary());
+                    assertEquals(shard.currentNodeId(), shardView.node());
+                    assertEquals(shard.relocatingNodeId(), shardView.relocatingNode());
+                    assertEquals(shard.index().getName(), shardView.index());
+                    assertEquals(shard.shardId().id(), shardView.shardId());
+                    assertEquals(shard.allocationId(), shardView.allocationId());
+                    Set<String> desiredNodeIds = Optional.ofNullable(shardAssignments.get(shard.shardId()))
+                        .map(ShardAssignment::nodeIds)
+                        .orElse(Set.of());
+                    assertEquals(
+                        shard.currentNodeId() != null && desiredNodeIds.contains(shard.currentNodeId()),
+                        shardView.nodeIsDesired()
+                    );
+                    assertEquals(
+                        shard.relocatingNodeId() != null && desiredNodeIds.contains(shard.relocatingNodeId()),
+                        shardView.relocatingNodeIsDesired()
+                    );
+                }
+                Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(indexShardRoutingTable.shardId()));
                 if (shardAssignment.isPresent()) {
-                    assertEquals(shardAssignment.get().nodeIds(), desiredShards.desired().nodeIds());
-                    assertEquals(shardAssignment.get().total(), desiredShards.desired().total());
-                    assertEquals(shardAssignment.get().unassigned(), desiredShards.desired().unassigned());
-                    assertEquals(shardAssignment.get().ignored(), desiredShards.desired().ignored());
+                    assertEquals(shardAssignment.get().nodeIds(), desiredShard.desired().nodeIds());
+                    assertEquals(shardAssignment.get().total(), desiredShard.desired().total());
+                    assertEquals(shardAssignment.get().unassigned(), desiredShard.desired().unassigned());
+                    assertEquals(shardAssignment.get().ignored(), desiredShard.desired().ignored());
                 } else {
-                    assertNull(desiredShards.desired());
+                    assertNull(desiredShard.desired());
                 }
             }
         }

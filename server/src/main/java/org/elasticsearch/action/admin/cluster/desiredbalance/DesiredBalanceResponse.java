@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -103,22 +104,26 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
         return "DesiredBalanceResponse{stats=" + stats + ", routingTable=" + routingTable + "}";
     }
 
-    public record DesiredShards(ShardView current, ShardAssignmentView desired) implements Writeable, ToXContentObject {
+    public record DesiredShards(List<ShardView> current, ShardAssignmentView desired) implements Writeable, ToXContentObject {
 
         public static DesiredShards from(StreamInput in) throws IOException {
-            return new DesiredShards(ShardView.from(in), ShardAssignmentView.from(in));
+            return new DesiredShards(in.readList(ShardView::from), ShardAssignmentView.from(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            current.writeTo(out);
+            out.writeList(current);
             desired.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            current.toXContent(builder.field("current"), params);
+            builder.startArray("current");
+            for (ShardView shardView : current) {
+                shardView.toXContent(builder, params);
+            }
+            builder.endArray();
             desired.toXContent(builder.field("desired"), params);
             return builder.endObject();
         }

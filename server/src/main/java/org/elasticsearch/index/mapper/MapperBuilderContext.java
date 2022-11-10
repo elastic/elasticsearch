@@ -20,16 +20,21 @@ public final class MapperBuilderContext {
     /**
      * The root context, to be used when building a tree of mappers
      */
-    public static final MapperBuilderContext ROOT = new MapperBuilderContext();
-
-    private final String path;
-
-    private MapperBuilderContext() {
-        this.path = null;
+    public static MapperBuilderContext root(boolean isSourceSynthetic) {
+        return new MapperBuilderContext(isSourceSynthetic);
     }
 
-    MapperBuilderContext(String path) {
+    private final String path;
+    private final boolean isSourceSynthetic;
+
+    private MapperBuilderContext(boolean isSourceSynthetic) {
+        this.path = null;
+        this.isSourceSynthetic = isSourceSynthetic;
+    }
+
+    MapperBuilderContext(String path, boolean isSourceSynthetic) {
         this.path = Objects.requireNonNull(path);
+        this.isSourceSynthetic = isSourceSynthetic;
     }
 
     /**
@@ -38,7 +43,7 @@ public final class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name));
+        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic);
     }
 
     /**
@@ -49,5 +54,9 @@ public final class MapperBuilderContext {
             return name;
         }
         return path + "." + name;
+    }
+
+    public boolean isSourceSynthetic() {
+        return isSourceSynthetic;
     }
 }

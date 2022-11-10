@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -281,6 +282,10 @@ public class ClusterStateTests extends ESTestCase {
                     "system": false,
                     "timestamp_range": {
                       "shards": []
+                    },
+                    "write_load": {
+                      "loads": [-1.0],
+                      "uptimes": [-1]
                     }
                   }
                 },
@@ -493,6 +498,14 @@ public class ClusterStateTests extends ESTestCase {
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
+                    },
+                    "write_load" : {
+                      "loads" : [
+                        -1.0
+                      ],
+                      "uptimes" : [
+                        -1
+                      ]
                     }
                   }
                 },
@@ -712,6 +725,14 @@ public class ClusterStateTests extends ESTestCase {
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
+                    },
+                    "write_load" : {
+                      "loads" : [
+                        -1.0
+                      ],
+                      "uptimes" : [
+                        -1
+                      ]
                     }
                   }
                 },
@@ -901,6 +922,7 @@ public class ClusterStateTests extends ESTestCase {
             })
             .numberOfReplicas(2)
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
+            .indexWriteLoad(IndexWriteLoad.builder(1).build())
             .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)

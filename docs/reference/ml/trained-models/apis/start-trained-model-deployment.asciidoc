@@ -66,6 +66,26 @@ The total number of allocations this model is assigned across {ml} nodes.
 Increasing this value generally increases the throughput.
 Defaults to 1.
 
+`priority`::
+(Optional, string)
+The priority of the deployment. The default value is `normal`.
+
+There are two priority settings:
++
+--
+* `normal`: Use this for deployments in production.
+The deployment allocations are distributed so that node processors are not oversubscribed.
+* `low`: Use this for testing model functionality.
+The intention is that these deployments are not sent a high volume of input.
+The deployment is required to have a single allocation with just one thread.
+Low priority deployments may be assigned on nodes that already utilize all their processors
+but will be given a lower CPU priority than normal deployments. Low priority deployments may be unassigned in order
+to satisfy more allocations of normal priority deployments.
+--
+
+WARNING: Heavy usage of low priority deployments may impact performance of normal
+priority deployments.
+
 `queue_capacity`::
 (Optional, integer)
 Controls how many inference requests are allowed in the queue at a time.
@@ -116,7 +136,8 @@ The API returns the following results:
             "model_bytes": 265632637,
             "threads_per_allocation" : 1,
             "number_of_allocations" : 1,
-            "queue_capacity" : 1024
+            "queue_capacity" : 1024,
+            "priority": "normal"
         },
         "routing_table": {
             "uckeG3R8TLe2MMNBQ6AGrw": {

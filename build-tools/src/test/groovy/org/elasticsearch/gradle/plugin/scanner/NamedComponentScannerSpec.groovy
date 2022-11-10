@@ -76,7 +76,7 @@ class NamedComponentScannerSpec extends Specification {
             package p;
             import org.elasticsearch.plugin.api.*;
             import org.elasticsearch.plugin.scanner.test_classes.*;
-            @NamedComponent(name = "a_component")
+            @NamedComponent("a_component")
             public class A extends ExtensibleClass {}
             """
         ), "p/B.class", InMemoryJavaCompiler.compile(
@@ -84,7 +84,7 @@ class NamedComponentScannerSpec extends Specification {
             package p;
             import org.elasticsearch.plugin.api.*;
             import org.elasticsearch.plugin.scanner.test_classes.*;
-            @NamedComponent(name = "b_component")
+            @NamedComponent("b_component")
             public class B implements ExtensibleInterface{}
             """
         )
@@ -136,7 +136,7 @@ class NamedComponentScannerSpec extends Specification {
                 package p;
                 import org.elasticsearch.plugin.api.*;
                 import org.elasticsearch.plugin.scanner.test_classes.*;
-                @NamedComponent(name = "a_component")
+                @NamedComponent("a_component")
                 public class A extends CustomExtensibleClass {}
                 """,
             "p.B",
@@ -144,7 +144,7 @@ class NamedComponentScannerSpec extends Specification {
                 package p;
                 import org.elasticsearch.plugin.api.*;
                 import org.elasticsearch.plugin.scanner.test_classes.*;
-                @NamedComponent(name = "b_component")
+                @NamedComponent("b_component")
                 public class B implements CustomExtensibleInterface{}
                 """
         );

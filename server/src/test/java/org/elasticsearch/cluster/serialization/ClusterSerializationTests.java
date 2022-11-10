@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -71,7 +72,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .build();
 
         AllocationService strategy = createAllocationService();
-        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
+            .build();
 
         ClusterState serializedClusterState = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
@@ -100,7 +103,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .build();
 
         AllocationService strategy = createAllocationService();
-        RoutingTable source = strategy.reroute(clusterState, "reroute").routingTable();
+        RoutingTable source = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);

@@ -99,9 +99,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         String onScriptError
     ) {
         super(simpleName);
-        if (mappedFieldType.name().isEmpty()) {
-            throw new IllegalArgumentException("name cannot be empty string");
-        }
+        // could be blank but not empty on indices created < 8.6.0
+        assert mappedFieldType.name().isEmpty() == false;
         this.mappedFieldType = mappedFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);

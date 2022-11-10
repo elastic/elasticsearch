@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -66,7 +67,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test1").size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).size(), equalTo(2));
@@ -114,7 +115,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3")).add(newNode("node4")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         final var newNodesIterator = Iterators.concat(routingNodes.node("node3").iterator(), routingNodes.node("node4").iterator());
@@ -160,7 +161,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         for (int i = 0; i < clusterState.routingTable().index("test1").size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).size(), equalTo(2));
             assertThat(clusterState.routingTable().index("test1").shard(i).primaryShard().state(), equalTo(INITIALIZING));
@@ -220,7 +221,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("now, start 1 more node, check that rebalancing happen (for test1) because we set it to primaries_active");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertThat(routingNodes.node("node3").size(), equalTo(1));
@@ -256,7 +257,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test1").size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).size(), equalTo(2));
@@ -302,7 +303,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("now, start 1 more node, check that rebalancing will not happen (for test1) because we set it to primaries_active");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
     }
@@ -335,7 +336,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test1").size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).size(), equalTo(2));
@@ -411,7 +412,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("now, start 1 more node, check that rebalancing happen (for test1) because we set it to all_active");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
@@ -446,7 +447,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test1").size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).size(), equalTo(2));
@@ -492,7 +493,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("now, start 1 more node, check that rebalancing will not happen (for test1) because we set it to all_active");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
@@ -526,7 +527,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test1").size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).size(), equalTo(2));
@@ -587,7 +588,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("now, start 1 more node, check that rebalancing will not happen (for test1) because we set it to all_active");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
@@ -627,7 +628,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(1));
@@ -644,7 +645,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         logger.debug("now, start 1 more node, check that rebalancing will not happen since we unassigned shards");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         logger.debug("reroute and check that nothing has changed");
-        ClusterState resultingState = strategy.reroute(clusterState, "reroute");
+        ClusterState resultingState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(resultingState, equalTo(clusterState));
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -657,7 +658,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
         logger.debug("now set allocateTest1 to true and reroute we should see the [test1] index initializing");
         allocateTest1.set(true);
-        resultingState = strategy.reroute(clusterState, "reroute");
+        resultingState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(resultingState, not(equalTo(clusterState)));
         clusterState = resultingState;
         for (int i = 0; i < clusterState.routingTable().index("test1").size(); i++) {
@@ -734,7 +735,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(1));
@@ -751,7 +752,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         logger.debug("now, start 1 more node, check that rebalancing will not happen since we have shard sync going on");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         logger.debug("reroute and check that nothing has changed");
-        ClusterState resultState = strategy.reroute(clusterState, "reroute");
+        ClusterState resultState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(resultState, equalTo(clusterState));
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -764,7 +765,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
         logger.debug("now set hasFetches to true and reroute we should now see exactly one relocating shard");
         hasFetches.set(false);
-        resultState = strategy.reroute(clusterState, "reroute");
+        resultState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(resultState, not(equalTo(clusterState)));
         clusterState = resultState;
         int numStarted = 0;

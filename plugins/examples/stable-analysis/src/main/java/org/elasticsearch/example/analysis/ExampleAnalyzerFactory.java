@@ -11,8 +11,10 @@ package org.elasticsearch.example.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.example.analysis.lucene.ReplaceCharToNumber;
 import org.elasticsearch.example.analysis.lucene.SkipTokenFilter;
-import org.elasticsearch.example.analysis.lucene.UnderscoreTokenizer;
+import org.elasticsearch.example.analysis.lucene.CharTokenizer;
 import org.elasticsearch.plugin.api.NamedComponent;
+
+import java.util.List;
 
 @NamedComponent( "example_analyzer_factory")
 public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
@@ -27,7 +29,7 @@ public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            var tokenizer = new UnderscoreTokenizer();
+            var tokenizer = new CharTokenizer(List.of("_"));
             var tokenFilter = new SkipTokenFilter(tokenizer, 1L);
             return new TokenStreamComponents(r -> tokenizer.setReader(new ReplaceCharToNumber(r, "#", 3)), tokenFilter);
         }

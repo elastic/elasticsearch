@@ -12,9 +12,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.LocalExecutable;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -25,13 +28,16 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderB
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Arrays.asList;
@@ -44,9 +50,9 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-
         Batch operators = new Batch(
             "Operator Optimization",
+            new CombineProjections(),
             new ConstantFolding(),
             // boolean
             new BooleanSimplification(),
@@ -66,6 +72,73 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
         return asList(operators, local, label);
+    }
+
+    static class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
+
+        CombineProjections() {
+            super(OptimizerRules.TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            LogicalPlan child = plan.child();
+
+            if (plan instanceof Project project) {
+                if (child instanceof Project p) {
+                    // eliminate lower project but first replace the aliases in the upper one
+                    return new Project(p.source(), p.child(), combineProjections(project.projections(), p.projections()));
+                }
+
+                if (child instanceof Aggregate a) {
+                    return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
+                }
+            }
+
+            // Agg with underlying Project (group by on sub-queries)
+            if (plan instanceof Aggregate a) {
+                if (child instanceof Project p) {
+                    return new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
+                }
+            }
+            return plan;
+        }
+
+        // normally only the upper projections should survive but since the lower list might have aliases definitions
+        // that might be reused by the upper one, these need to be replaced.
+        // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
+        private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
+
+            // collect aliases in the lower list
+            AttributeMap.Builder<NamedExpression> aliasesBuilder = AttributeMap.builder();
+            for (NamedExpression ne : lower) {
+                if ((ne instanceof Attribute) == false) {
+                    aliasesBuilder.put(ne.toAttribute(), ne);
+                }
+            }
+
+            AttributeMap<NamedExpression> aliases = aliasesBuilder.build();
+            List<NamedExpression> replaced = new ArrayList<>();
+
+            // replace any matching attribute with a lower alias (if there's a match)
+            // but clean-up non-top aliases at the end
+            for (NamedExpression ne : upper) {
+                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
+                replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
+            }
+            return replaced;
+        }
+
+        public static Expression trimNonTopLevelAliases(Expression e) {
+            if (e instanceof Alias a) {
+                return new Alias(a.source(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
+            }
+            return trimAliases(e);
+        }
+
+        private static Expression trimAliases(Expression e) {
+            return e.transformDown(Alias.class, Alias::child);
+        }
     }
 
     static class CombineLimits extends OptimizerRules.OptimizerRule<Limit> {

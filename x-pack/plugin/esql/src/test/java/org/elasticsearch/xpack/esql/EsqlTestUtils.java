@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.esql.session.EmptyExecutable;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.plan.QueryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
@@ -41,9 +41,9 @@ public final class EsqlTestUtils {
         return new LocalRelation(Source.EMPTY, new EmptyExecutable(emptyList()));
     }
 
-    public static <P extends QueryPlan<P>, T extends P> T as(P plan, Class<T> type) {
-        Assert.assertThat(plan, instanceOf(type));
-        return type.cast(plan);
+    public static <P extends Node<P>, T extends P> T as(P node, Class<T> type) {
+        Assert.assertThat(node, instanceOf(type));
+        return type.cast(node);
     }
 
     public static Map<String, EsField> loadMapping(String name) {

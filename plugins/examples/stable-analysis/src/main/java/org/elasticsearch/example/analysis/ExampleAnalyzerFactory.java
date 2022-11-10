@@ -10,7 +10,7 @@ package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.example.analysis.lucene.ReplaceCharToNumber;
-import org.elasticsearch.example.analysis.lucene.Skip1TokenFilter;
+import org.elasticsearch.example.analysis.lucene.SkipTokenFilter;
 import org.elasticsearch.example.analysis.lucene.UnderscoreTokenizer;
 import org.elasticsearch.plugin.api.NamedComponent;
 
@@ -28,7 +28,7 @@ public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
             var tokenizer = new UnderscoreTokenizer();
-            var tokenFilter = new Skip1TokenFilter(tokenizer);
+            var tokenFilter = new SkipTokenFilter(tokenizer, 1L);
             return new TokenStreamComponents(r -> tokenizer.setReader(new ReplaceCharToNumber(r, "#", 3)), tokenFilter);
         }
     }

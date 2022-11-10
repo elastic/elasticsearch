@@ -32,7 +32,7 @@
   - match:  { detail.tokenizer.tokens.0.position: 0 }
 
 ---
-"Index and search with stable plugin":
+"Index and search with stable plugin char filter":
   - do:
       indices.create:
         index: test

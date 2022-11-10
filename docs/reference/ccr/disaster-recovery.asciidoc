@@ -87,14 +87,11 @@ POST /kibana_sample_data_ecommerce/_open
 ----
 
 . On the Client (logstash, beats, agent) side, manually re-enable ingestion of
-`kibana_sample_data_ecommerce` and redirect traffic to the `clusterB`. 
-
-TIP: You should also redirect all search traffic to the `clusterB` cluster during
-this time.
-
-We can simulate this by ingesting document into this index. You should notice
-this index is now writable.
-
+`kibana_sample_data_ecommerce` and redirect traffic to the `clusterB`. You should
+also redirect all search traffic to the `clusterB` cluster during
+this time. We can simulate this by ingesting document into this index. You should
+notice this index is now writable.
++
 [source,console]
 ----
 ### On clusterB ###

@@ -92,10 +92,11 @@ public class APMJvmOptionsTests extends ESTestCase {
             )
         );
 
-        String[] labels = extracted.get("global_labels").split(",");
+        List<String> labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
 
+        assertThat(labels, hasSize(3));
         assertThat(
-            Arrays.stream(labels).toList(),
+            labels,
             containsInAnyOrder("deployment_name=APM Tracing", "organization_id=456", "deployment_id=123")
         );
 

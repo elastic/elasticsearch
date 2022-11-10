@@ -102,11 +102,11 @@ public class Counters implements Writeable {
                             curr = (Map<String, Object>) curr.get(part);
                         }
                     } else {
-                        curr.put(part, counter.getValue());
+                        curr.put(part, counter.getValue().count());
                     }
                 }
             } else {
-                map.put(counter.getKey(), counter.getValue());
+                map.put(counter.getKey(), counter.getValue().count());
             }
         }
         return map;

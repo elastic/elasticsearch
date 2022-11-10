@@ -107,6 +107,7 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
+import org.elasticsearch.health.HealthApiStats;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
@@ -994,6 +995,7 @@ public class Node implements Closeable {
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
+            HealthApiStats healthApiStats = new HealthApiStats();
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1082,6 +1084,7 @@ public class Node implements Closeable {
                 b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                 b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
                 b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
+                b.bind(HealthApiStats.class).toInstance(healthApiStats);
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             });

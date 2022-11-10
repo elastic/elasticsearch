@@ -77,6 +77,10 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 .orElseThrow(() -> new NoSuchElementException("Indicator [" + name + "] is not found"));
         }
 
+        public List<HealthIndicatorResult> getIndicators() {
+            return indicators;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
@@ -146,6 +150,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final ClusterService clusterService;
         private final HealthService healthService;
         private final NodeClient client;
+        private final HealthApiStats healthApiStats;
 
         @Inject
         public TransportAction(
@@ -153,12 +158,14 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             TransportService transportService,
             ClusterService clusterService,
             HealthService healthService,
-            NodeClient client
+            NodeClient client,
+            HealthApiStats healthApiStats
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.healthService = healthService;
             this.client = client;
+            this.healthApiStats = healthApiStats;
         }
 
         @Override
@@ -168,11 +175,15 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 request.indicatorName,
                 request.verbose,
                 responseListener.map(
-                    healthIndicatorResults -> new Response(
-                        clusterService.getClusterName(),
-                        healthIndicatorResults,
-                        request.indicatorName == null
-                    )
+                    healthIndicatorResults -> {
+                        Response response = new Response(
+                            clusterService.getClusterName(),
+                            healthIndicatorResults,
+                            request.indicatorName == null
+                        );
+                        healthApiStats.track(request.verbose, response);
+                        return response;
+                    }
                 )
             );
         }

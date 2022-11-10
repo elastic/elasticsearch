@@ -27,7 +27,7 @@
             $WORKSPACE/.ci/scripts/run-gradle.sh assemble -Ddra.artifacts=true -Ddra.artifacts.dependency.beats=${BEATS_BUILD_ID} -Ddra.artifacts.dependency.ml-cpp=${ML_CPP_BUILD_ID}
             unset VAULT_TOKEN
             set -x
-            $WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh
+            $WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier=-SNAPSHOT
             # Artifacts should be generated
             docker run --rm \
                    --name release-manager \

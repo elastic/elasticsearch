@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
@@ -408,6 +409,41 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
 
         ensureGreen("myindex");
+    }
+
+    public void testNodeShutdownWithUnassignedShards() throws Exception {
+        final String nodeA = internalCluster().startNode();
+        final String nodeAId = getNodeId(nodeA);
+
+        createIndex(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+
+        ensureYellow("index");
+
+        // Start a second node, so the replica will be on nodeB
+        final String nodeB = internalCluster().startNode();
+        final String nodeBId = getNodeId(nodeB);
+        ensureGreen("index");
+
+        client().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
+            );
+
+        assertThat(client().admin().indices().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
+        assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
+
+        internalCluster().restartNode(nodeA);
+        internalCluster().restartNode(nodeB);
+
+        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
+
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
     }
 
     private void indexRandomData(String index) throws Exception {

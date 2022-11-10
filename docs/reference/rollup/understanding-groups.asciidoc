@@ -4,6 +4,9 @@
 
 experimental[]
 
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
+
 To preserve flexibility, Rollup Jobs are defined based on how future queries may need to use the data. Traditionally, systems force
 the admin to make decisions about what metrics to rollup and on what interval. E.g. The average of `cpu_time` on an hourly basis. This
 is limiting; if, in the future, the admin wishes to see the average of `cpu_time` on an hourly basis _and_ partitioned by `host_name`,

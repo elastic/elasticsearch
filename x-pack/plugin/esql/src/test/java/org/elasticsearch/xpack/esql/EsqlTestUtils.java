@@ -47,6 +47,6 @@ public final class EsqlTestUtils {
     }
 
     public static Map<String, EsField> loadMapping(String name) {
-        return TypesTests.loadMapping(DefaultDataTypeRegistry.INSTANCE, name, null);
+        return TypesTests.loadMapping(DefaultDataTypeRegistry.INSTANCE, name, true);
     }
 }

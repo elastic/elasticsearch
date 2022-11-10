@@ -46,16 +46,9 @@ import java.util.function.Consumer;
 public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyingVisitor {
 
     private static RuntimeException unaryError(String type, String operation, String constant) {
-        return new IllegalStateException(
-            "constant folding error: "
-                + "unexpected type ["
-                + type
-                + "] for unary operation ["
-                + operation
-                + "] on constant ["
-                + constant
-                + "]"
-        );
+        return new IllegalStateException(String.format(
+            "constant folding error: unexpected type [%s] for unary operation [%s] on constant [%s]",
+            type, operation, constant));
     }
 
     private static RuntimeException binaryError(String type, String operation, String constant1, String constant2) {
@@ -71,20 +64,9 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
     }
 
     private static RuntimeException error(String type, String opType, String operation, String constant1, String constant2) {
-        return new IllegalStateException(
-            "constant folding error: "
-                + "unexpected type ["
-                + type
-                + "] for "
-                + opType
-                + " operation ["
-                + operation
-                + "] on constants ["
-                + constant1
-                + "] and ["
-                + constant2
-                + "]"
-        );
+        return new IllegalStateException(String.format(
+            "constant folding error: unexpected type [%s] for %s operation [%s] on constants [%s] and [%s]",
+            type, opType, operation, constant1, constant2));
     }
 
     @Override

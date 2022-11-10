@@ -153,9 +153,9 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         Metadata metadata = clusterState.metadata();
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
-                Result result = new Result(IsSafe.YES, "cluster status is not RED");
+                Result result = new Result(IsSafe.YES, "cluster status is not RED", "");
                 List<NodeResult> nodesResults = nodes.stream()
-                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
+                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "", "")))
                     .toList();
                 listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodesResults)));
             }
@@ -175,19 +175,19 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 Result result;
                 List<NodeResult> nodeResults;
                 if (redNonSSIndices.isEmpty()) {
-                    result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");
+                    result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices", "");
                     nodeResults = nodes.stream()
-                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
+                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "", "")))
                         .toList();
                 } else {
-                    result = new Result(IsSafe.NO, "cluster health is RED");
+                    result = new Result(IsSafe.NO, "cluster health is RED", "");
                     nodeResults = nodes.stream()
                         .map(
                             dn -> new NodeResult(
                                 dn.getName(),
                                 dn.getId(),
                                 dn.getExternalId(),
-                                new Result(IsSafe.NO, "node may contain a copy of a red index shard")
+                                new Result(IsSafe.NO, "node may contain a copy of a red index shard", "")
                             )
                         )
                         .toList();

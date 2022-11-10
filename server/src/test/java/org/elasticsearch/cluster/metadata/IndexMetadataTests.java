@@ -487,6 +487,19 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(idxMeta2.getLifecyclePolicyName(), equalTo("some_policy"));
     }
 
+    public void testIndexAndAliasWithSameName() {
+        final IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("index").build())
+                .build()
+        );
+        assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+    }
+
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

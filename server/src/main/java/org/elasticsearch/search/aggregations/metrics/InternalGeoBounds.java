@@ -12,12 +12,19 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBounds {
+    public final double posLeft;
+    public final double posRight;
+    public final double negLeft;
+    public final double negRight;
     public final boolean wrapLongitude;
 
     public InternalGeoBounds(
@@ -31,7 +38,11 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
         boolean wrapLongitude,
         Map<String, Object> metadata
     ) {
-        super(name, top, bottom, posLeft, posRight, negLeft, negRight, metadata);
+        super(name, top, bottom, metadata);
+        this.posLeft = posLeft;
+        this.posRight = posRight;
+        this.negLeft = negLeft;
+        this.negRight = negRight;
         this.wrapLongitude = wrapLongitude;
     }
 
@@ -40,12 +51,20 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
      */
     public InternalGeoBounds(StreamInput in) throws IOException {
         super(in);
+        posLeft = in.readDouble();
+        posRight = in.readDouble();
+        negLeft = in.readDouble();
+        negRight = in.readDouble();
         wrapLongitude = in.readBoolean();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
+        out.writeDouble(posLeft);
+        out.writeDouble(posRight);
+        out.writeDouble(negLeft);
+        out.writeDouble(negRight);
         out.writeBoolean(wrapLongitude);
     }
 
@@ -55,16 +74,36 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
     }
 
     @Override
-    protected InternalGeoBounds makeInternalBounds(
-        String name,
-        double top,
-        double bottom,
-        double posLeft,
-        double posRight,
-        double negLeft,
-        double negRight,
-        Map<String, Object> metadata
-    ) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
+        double negLeft = Double.POSITIVE_INFINITY;
+        double negRight = Double.NEGATIVE_INFINITY;
+
+        for (InternalAggregation aggregation : aggregations) {
+            InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
+
+            if (bounds.top > top) {
+                top = bounds.top;
+            }
+            if (bounds.bottom < bottom) {
+                bottom = bounds.bottom;
+            }
+            if (bounds.posLeft < posLeft) {
+                posLeft = bounds.posLeft;
+            }
+            if (bounds.posRight > posRight) {
+                posRight = bounds.posRight;
+            }
+            if (bounds.negLeft < negLeft) {
+                negLeft = bounds.negLeft;
+            }
+            if (bounds.negRight > negRight) {
+                negRight = bounds.negRight;
+            }
+        }
         return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetadata());
     }
 
@@ -100,11 +139,22 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && wrapLongitude == ((InternalGeoBounds) obj).wrapLongitude;
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
+        InternalGeoBounds other = (InternalGeoBounds) obj;
+        return top == other.top
+            && bottom == other.bottom
+            && posLeft == other.posLeft
+            && posRight == other.posRight
+            && negLeft == other.negLeft
+            && negRight == other.negRight
+            && wrapLongitude == other.wrapLongitude;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), wrapLongitude);
+        return Objects.hash(super.hashCode(), bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
     }
 }

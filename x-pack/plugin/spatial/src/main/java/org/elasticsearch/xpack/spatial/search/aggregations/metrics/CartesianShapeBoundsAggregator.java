@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
@@ -18,7 +23,8 @@ import java.util.Map;
 /**
  * A metric aggregator that computes a cartesian-bounds from a {@code shape} type field
  */
-public final class CartesianShapeBoundsAggregator extends ShapeBoundsAggregator<CartesianPoint> {
+public final class CartesianShapeBoundsAggregator extends CartesianBoundsAggregatorBase {
+    private final CartesianShapeValuesSource valuesSource;
 
     public CartesianShapeBoundsAggregator(
         String name,
@@ -27,20 +33,26 @@ public final class CartesianShapeBoundsAggregator extends ShapeBoundsAggregator<
         ValuesSourceConfig valuesSourceConfig,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, context, parent, valuesSourceConfig, metadata);
+        super(name, context, parent, valuesSourceConfig.hasValues() == false, metadata);
+        this.valuesSource = isNoOp() ? null : (CartesianShapeValuesSource) valuesSourceConfig.getValuesSource();
     }
 
     @Override
-    protected InternalCartesianBounds makeInternalBounds(
-        String name,
-        double top,
-        double bottom,
-        double posLeft,
-        double posRight,
-        double negLeft,
-        double negRight,
-        Map<String, Object> metadata
-    ) {
-        return new InternalCartesianBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, metadata);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
+        if (isNoOp()) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        CartesianShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    maybeResize(bucket);
+                    ShapeValues.ShapeValue value = values.value();
+                    ShapeValues.BoundingBox bounds = value.boundingBox();
+                    addBounds(bucket, bounds.top, bounds.bottom, bounds.minX(), bounds.maxX());
+                }
+            }
+        };
     }
 }

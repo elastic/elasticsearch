@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.metrics.BoundsAggregator;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -22,7 +22,8 @@ import java.util.Map;
 /**
  * A metric aggregator that computes a cartesian-bounds from a {@code point} type field
  */
-public final class CartesianBoundsAggregator extends BoundsAggregator<CartesianPoint> {
+public final class CartesianBoundsAggregator extends CartesianBoundsAggregatorBase {
+    private final CartesianPointValuesSource valuesSource;
 
     public CartesianBoundsAggregator(
         String name,
@@ -31,31 +32,28 @@ public final class CartesianBoundsAggregator extends BoundsAggregator<CartesianP
         ValuesSourceConfig valuesSourceConfig,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, context, parent, valuesSourceConfig, metadata);
+        super(name, context, parent, valuesSourceConfig.hasValues() == false, metadata);
+        this.valuesSource = isNoOp() ? null : (CartesianPointValuesSource) valuesSourceConfig.getValuesSource();
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
-        if (valuesSource == null) {
+        if (isNoOp()) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final CartesianPointValuesSource.MultiCartesianPointValues values = ((CartesianPointValuesSource) valuesSource).pointValues(
-            aggCtx.getLeafReaderContext()
-        );
-        return getLeafBucketCollector(values, sub);
-    }
-
-    @Override
-    protected InternalCartesianBounds makeInternalBounds(
-        String name,
-        double top,
-        double bottom,
-        double posLeft,
-        double posRight,
-        double negLeft,
-        double negRight,
-        Map<String, Object> metadata
-    ) {
-        return new InternalCartesianBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, metadata);
+        final CartesianPointValuesSource.MultiCartesianPointValues values = valuesSource.pointValues(aggCtx.getLeafReaderContext());
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    maybeResize(bucket);
+                    final int valuesCount = values.docValueCount();
+                    for (int i = 0; i < valuesCount; ++i) {
+                        CartesianPoint value = values.nextValue();
+                        addBounds(bucket, value.getY(), value.getY(), value.getX(), value.getX());
+                    }
+                }
+            }
+        };
     }
 }

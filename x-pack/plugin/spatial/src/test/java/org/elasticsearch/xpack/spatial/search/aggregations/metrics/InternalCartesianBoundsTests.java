@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static org.hamcrest.Matchers.closeTo;
 
 public class InternalCartesianBoundsTests extends InternalAggregationTestCase<InternalCartesianBounds> {
@@ -48,52 +50,25 @@ public class InternalCartesianBoundsTests extends InternalAggregationTestCase<In
     protected InternalCartesianBounds createTestInstance(String name, Map<String, Object> metadata) {
         // we occasionally want to test top = Double.NEGATIVE_INFINITY since this triggers empty xContent object
         double top = frequently() ? randomDouble() : Double.NEGATIVE_INFINITY;
-        return new InternalCartesianBounds(
-            name,
-            top,
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            metadata
-        );
+        return new InternalCartesianBounds(name, top, randomDouble(), randomDouble(), randomDouble(), metadata);
     }
 
     @Override
     protected void assertReduced(InternalCartesianBounds reduced, List<InternalCartesianBounds> inputs) {
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
-        double posLeft = Double.POSITIVE_INFINITY;
-        double posRight = Double.NEGATIVE_INFINITY;
-        double negLeft = Double.POSITIVE_INFINITY;
-        double negRight = Double.NEGATIVE_INFINITY;
+        double left = Double.POSITIVE_INFINITY;
+        double right = Double.NEGATIVE_INFINITY;
         for (InternalCartesianBounds bounds : inputs) {
-            if (bounds.top > top) {
-                top = bounds.top;
-            }
-            if (bounds.bottom < bottom) {
-                bottom = bounds.bottom;
-            }
-            if (bounds.posLeft < posLeft) {
-                posLeft = bounds.posLeft;
-            }
-            if (bounds.posRight > posRight) {
-                posRight = bounds.posRight;
-            }
-            if (bounds.negLeft < negLeft) {
-                negLeft = bounds.negLeft;
-            }
-            if (bounds.negRight > negRight) {
-                negRight = bounds.negRight;
-            }
+            top = max(top, bounds.top);
+            bottom = min(bottom, bounds.bottom);
+            left = min(left, bounds.left);
+            right = max(right, bounds.right);
         }
         assertValueClose(reduced.top, top);
         assertValueClose(reduced.bottom, bottom);
-        assertValueClose(reduced.posLeft, posLeft);
-        assertValueClose(reduced.posRight, posRight);
-        assertValueClose(reduced.negLeft, negLeft);
-        assertValueClose(reduced.negRight, negRight);
+        assertValueClose(reduced.left, left);
+        assertValueClose(reduced.right, right);
     }
 
     private static void assertValueClose(double expected, double actual) {
@@ -113,10 +88,8 @@ public class InternalCartesianBoundsTests extends InternalAggregationTestCase<In
     protected void assertSampled(InternalCartesianBounds sampled, InternalCartesianBounds reduced, SamplingContext samplingContext) {
         assertValueClose(sampled.top, reduced.top);
         assertValueClose(sampled.bottom, reduced.bottom);
-        assertValueClose(sampled.posLeft, reduced.posLeft);
-        assertValueClose(sampled.posRight, reduced.posRight);
-        assertValueClose(sampled.negLeft, reduced.negLeft);
-        assertValueClose(sampled.negRight, reduced.negRight);
+        assertValueClose(sampled.left, reduced.left);
+        assertValueClose(sampled.right, reduced.right);
     }
 
     @Override
@@ -133,12 +106,10 @@ public class InternalCartesianBoundsTests extends InternalAggregationTestCase<In
         String name = instance.getName();
         double top = instance.top;
         double bottom = instance.bottom;
-        double posLeft = instance.posLeft;
-        double posRight = instance.posRight;
-        double negLeft = instance.negLeft;
-        double negRight = instance.negRight;
+        double left = instance.left;
+        double right = instance.right;
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 7)) {
+        switch (between(0, 5)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;
@@ -153,18 +124,12 @@ public class InternalCartesianBoundsTests extends InternalAggregationTestCase<In
                 bottom += between(1, 20);
                 break;
             case 3:
-                posLeft += between(1, 20);
+                left += between(1, 20);
                 break;
             case 4:
-                posRight += between(1, 20);
+                right += between(1, 20);
                 break;
             case 5:
-                negLeft += between(1, 20);
-                break;
-            case 6:
-                negRight += between(1, 20);
-                break;
-            case 7:
                 if (metadata == null) {
                     metadata = Maps.newMapWithExpectedSize(1);
                 } else {
@@ -175,6 +140,6 @@ public class InternalCartesianBoundsTests extends InternalAggregationTestCase<In
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalCartesianBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, metadata);
+        return new InternalCartesianBounds(name, top, bottom, left, right, metadata);
     }
 }

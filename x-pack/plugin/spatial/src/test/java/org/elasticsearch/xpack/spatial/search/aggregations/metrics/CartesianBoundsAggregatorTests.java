@@ -29,11 +29,13 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
+import java.io.IOException;
 import java.util.List;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianBoundsTests.GEOHASH_TOLERANCE;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
@@ -53,10 +55,8 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
-                assertTrue(Double.isInfinite(bounds.posLeft));
-                assertTrue(Double.isInfinite(bounds.posRight));
-                assertTrue(Double.isInfinite(bounds.negLeft));
-                assertTrue(Double.isInfinite(bounds.negRight));
+                assertTrue(Double.isInfinite(bounds.left));
+                assertTrue(Double.isInfinite(bounds.right));
                 assertFalse(AggregationInspectionHelper.hasValue(bounds));
             }
         }
@@ -78,10 +78,8 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
-                assertTrue(Double.isInfinite(bounds.posLeft));
-                assertTrue(Double.isInfinite(bounds.posRight));
-                assertTrue(Double.isInfinite(bounds.negLeft));
-                assertTrue(Double.isInfinite(bounds.negRight));
+                assertTrue(Double.isInfinite(bounds.left));
+                assertTrue(Double.isInfinite(bounds.right));
                 assertFalse(AggregationInspectionHelper.hasValue(bounds));
             }
         }
@@ -93,35 +91,29 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
-
             Point point = ShapeTestUtils.randomPointNotExtreme(false);
             double x = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getX()));
             double y = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getY()));
 
             // valid missing values
-            for (Object missingVal : List.of("POINT(" + x + " " + y + ")", y + ", " + x, new CartesianPoint(x, y))) {
-                CartesianBoundsAggregationBuilder aggBuilder = new CartesianBoundsAggregationBuilder("my_agg").field("field")
-                    .missing(missingVal);
-
-                try (IndexReader reader = w.getReader()) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
-                    InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                    assertThat(bounds.top, closeTo(y, GEOHASH_TOLERANCE));
-                    assertThat(bounds.bottom, closeTo(y, GEOHASH_TOLERANCE));
-                    if (x >= 0) {
-                        assertThat(bounds.posLeft, closeTo(x, GEOHASH_TOLERANCE));
-                        assertThat(bounds.posRight, closeTo(x, GEOHASH_TOLERANCE));
-                        assertThat(bounds.negLeft, equalTo(Double.POSITIVE_INFINITY));
-                        assertThat(bounds.negRight, equalTo(Double.NEGATIVE_INFINITY));
-                    } else {
-                        assertThat(bounds.posLeft, equalTo(Double.POSITIVE_INFINITY));
-                        assertThat(bounds.posRight, equalTo(Double.NEGATIVE_INFINITY));
-                        assertThat(bounds.negLeft, closeTo(x, GEOHASH_TOLERANCE));
-                        assertThat(bounds.negRight, closeTo(x, GEOHASH_TOLERANCE));
-                    }
-                }
+            for (Object missingVal : List.of("POINT(" + x + " " + y + ")", x + ", " + y, new CartesianPoint(x, y))) {
+                readAndAssertMissing(w, missingVal, (float) x, (float) y);
             }
+        }
+    }
+
+    private void readAndAssertMissing(RandomIndexWriter w, Object missingVal, float x, float y) throws IOException {
+        CartesianBoundsAggregationBuilder aggBuilder = new CartesianBoundsAggregationBuilder("my_agg").field("field").missing(missingVal);
+        MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
+
+        String description = "Bounds aggregation with missing=" + missingVal;
+        try (IndexReader reader = w.getReader()) {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+            assertThat(description + ": top", bounds.top, closeTo(y, GEOHASH_TOLERANCE));
+            assertThat(description + ": bottom", bounds.bottom, closeTo(y, GEOHASH_TOLERANCE));
+            assertThat(description + ": left", bounds.left, closeTo(x, GEOHASH_TOLERANCE));
+            assertThat(description + ": right", bounds.right, closeTo(x, GEOHASH_TOLERANCE));
         }
     }
 
@@ -149,36 +141,24 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
     public void testRandom() throws Exception {
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
-        double posLeft = Double.POSITIVE_INFINITY;
-        double posRight = Double.NEGATIVE_INFINITY;
-        double negLeft = Double.POSITIVE_INFINITY;
-        double negRight = Double.NEGATIVE_INFINITY;
+        double left = Double.POSITIVE_INFINITY;
+        double right = Double.NEGATIVE_INFINITY;
         int numDocs = randomIntBetween(50, 100);
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
                 int numValues = randomIntBetween(1, 5);
                 for (int j = 0; j < numValues; j++) {
-                    Point point = ShapeTestUtils.randomPointNotExtreme();
-                    if (point.getLat() > top) {
-                        top = point.getLat();
-                    }
-                    if (point.getLat() < bottom) {
-                        bottom = point.getLat();
-                    }
-                    if (point.getLon() >= 0 && point.getLon() < posLeft) {
-                        posLeft = point.getLon();
-                    }
-                    if (point.getLon() >= 0 && point.getLon() > posRight) {
-                        posRight = point.getLon();
-                    }
-                    if (point.getLon() < 0 && point.getLon() < negLeft) {
-                        negLeft = point.getLon();
-                    }
-                    if (point.getLon() < 0 && point.getLon() > negRight) {
-                        negRight = point.getLon();
-                    }
-                    doc.add(new XYDocValuesField("field", (float) point.getX(), (float) point.getX()));
+                    Point point = ShapeTestUtils.randomPointNotExtreme(false);
+                    doc.add(new XYDocValuesField("field", (float) point.getX(), (float) point.getY()));
+
+                    // To determine expected values we should imitate the internal encoding behaviour
+                    double x = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getX()));
+                    double y = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getY()));
+                    top = max(top, y);
+                    bottom = min(bottom, y);
+                    left = min(left, x);
+                    right = max(right, x);
                 }
                 w.addDocument(doc);
             }
@@ -188,15 +168,23 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
-                assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
-                assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));
-                assertThat(bounds.posRight, closeTo(posRight, GEOHASH_TOLERANCE));
-                assertThat(bounds.negRight, closeTo(negRight, GEOHASH_TOLERANCE));
-                assertThat(bounds.negLeft, closeTo(negLeft, GEOHASH_TOLERANCE));
+                assertCloseTo("top", numDocs, bounds.top, top);
+                assertCloseTo("bottom", numDocs, bounds.bottom, bottom);
+                assertCloseTo("left", numDocs, bounds.left, left);
+                assertCloseTo("right", numDocs, bounds.right, right);
                 assertTrue(AggregationInspectionHelper.hasValue(bounds));
             }
         }
+    }
+
+    private void assertCloseTo(String name, long count, double value, double expected) {
+        assertEquals("Bounds over " + count + " points had incorrect " + name, expected, value, tolerance(value, expected, count));
+    }
+
+    private double tolerance(double value, double expected, long count) {
+        double tolerance = max(Math.abs(expected / 1e5), Math.abs(value / 1e5));
+        // Very large numbers have more floating point error, also increasing with count
+        return tolerance > 1e25 ? tolerance * count : tolerance;
     }
 
     @Override

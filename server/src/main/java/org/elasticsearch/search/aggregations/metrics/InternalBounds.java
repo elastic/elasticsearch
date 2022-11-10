@@ -13,7 +13,6 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,33 +20,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public abstract class InternalBounds<T extends SpatialPoint> extends InternalAggregation implements SpatialBounds<T> {
     public final double top;
     public final double bottom;
-    public final double posLeft;
-    public final double posRight;
-    public final double negLeft;
-    public final double negRight;
 
-    public InternalBounds(
-        String name,
-        double top,
-        double bottom,
-        double posLeft,
-        double posRight,
-        double negLeft,
-        double negRight,
-        Map<String, Object> metadata
-    ) {
+    public InternalBounds(String name, double top, double bottom, Map<String, Object> metadata) {
         super(name, metadata);
         this.top = top;
         this.bottom = bottom;
-        this.posLeft = posLeft;
-        this.posRight = posRight;
-        this.negLeft = negLeft;
-        this.negRight = negRight;
     }
 
     /**
@@ -57,66 +38,13 @@ public abstract class InternalBounds<T extends SpatialPoint> extends InternalAgg
         super(in);
         top = in.readDouble();
         bottom = in.readDouble();
-        posLeft = in.readDouble();
-        posRight = in.readDouble();
-        negLeft = in.readDouble();
-        negRight = in.readDouble();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(top);
         out.writeDouble(bottom);
-        out.writeDouble(posLeft);
-        out.writeDouble(posRight);
-        out.writeDouble(negLeft);
-        out.writeDouble(negRight);
     }
-
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double top = Double.NEGATIVE_INFINITY;
-        double bottom = Double.POSITIVE_INFINITY;
-        double posLeft = Double.POSITIVE_INFINITY;
-        double posRight = Double.NEGATIVE_INFINITY;
-        double negLeft = Double.POSITIVE_INFINITY;
-        double negRight = Double.NEGATIVE_INFINITY;
-
-        for (InternalAggregation aggregation : aggregations) {
-            InternalBounds<?> bounds = (InternalBounds<?>) aggregation;
-
-            if (bounds.top > top) {
-                top = bounds.top;
-            }
-            if (bounds.bottom < bottom) {
-                bottom = bounds.bottom;
-            }
-            if (bounds.posLeft < posLeft) {
-                posLeft = bounds.posLeft;
-            }
-            if (bounds.posRight > posRight) {
-                posRight = bounds.posRight;
-            }
-            if (bounds.negLeft < negLeft) {
-                negLeft = bounds.negLeft;
-            }
-            if (bounds.negRight > negRight) {
-                negRight = bounds.negRight;
-            }
-        }
-        return makeInternalBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, getMetadata());
-    }
-
-    protected abstract InternalBounds<T> makeInternalBounds(
-        String name,
-        double top,
-        double bottom,
-        double posLeft,
-        double posRight,
-        double negLeft,
-        double negRight,
-        Map<String, Object> metadata
-    );
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
@@ -190,25 +118,5 @@ public abstract class InternalBounds<T extends SpatialPoint> extends InternalAgg
         } else {
             return bbox.bottomRight();
         }
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalBounds<?> other = (InternalBounds<?>) obj;
-        return top == other.top
-            && bottom == other.bottom
-            && posLeft == other.posLeft
-            && posRight == other.posRight
-            && negLeft == other.negLeft
-            && negRight == other.negRight;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), bottom, posLeft, posRight, negLeft, negRight);
     }
 }

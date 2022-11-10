@@ -9,26 +9,29 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalBounds;
 import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 public class InternalCartesianBounds extends InternalBounds<CartesianPoint> implements CartesianBounds {
+    public final double left;
+    public final double right;
 
-    public InternalCartesianBounds(
-        String name,
-        double top,
-        double bottom,
-        double posLeft,
-        double posRight,
-        double negLeft,
-        double negRight,
-        Map<String, Object> metadata
-    ) {
-        super(name, top, bottom, posLeft, posRight, negLeft, negRight, metadata);
+    public InternalCartesianBounds(String name, double top, double bottom, double left, double right, Map<String, Object> metadata) {
+        super(name, top, bottom, metadata);
+        this.left = left;
+        this.right = right;
     }
 
     /**
@@ -36,6 +39,15 @@ public class InternalCartesianBounds extends InternalBounds<CartesianPoint> impl
      */
     public InternalCartesianBounds(StreamInput in) throws IOException {
         super(in);
+        left = in.readDouble();
+        right = in.readDouble();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        super.doWriteTo(out);
+        out.writeDouble(left);
+        out.writeDouble(right);
     }
 
     @Override
@@ -44,17 +56,20 @@ public class InternalCartesianBounds extends InternalBounds<CartesianPoint> impl
     }
 
     @Override
-    protected InternalCartesianBounds makeInternalBounds(
-        String name,
-        double top,
-        double bottom,
-        double posLeft,
-        double posRight,
-        double negLeft,
-        double negRight,
-        Map<String, Object> metadata
-    ) {
-        return new InternalCartesianBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, getMetadata());
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double left = Double.POSITIVE_INFINITY;
+        double right = Double.NEGATIVE_INFINITY;
+
+        for (InternalAggregation aggregation : aggregations) {
+            InternalCartesianBounds bounds = (InternalCartesianBounds) aggregation;
+            top = max(top, bounds.top);
+            bottom = min(bottom, bounds.bottom);
+            left = min(left, bounds.left);
+            right = max(right, bounds.right);
+        }
+        return new InternalCartesianBounds(name, top, bottom, left, right, getMetadata());
     }
 
     @Override
@@ -70,12 +85,23 @@ public class InternalCartesianBounds extends InternalBounds<CartesianPoint> impl
     protected BoundingBox<CartesianPoint> resolveBoundingBox() {
         if (Double.isInfinite(top)) {
             return null;
-        } else if (Double.isInfinite(posLeft)) {
-            return new CartesianBoundingBox(new CartesianPoint(negLeft, top), new CartesianPoint(negRight, bottom));
-        } else if (Double.isInfinite(negLeft)) {
-            return new CartesianBoundingBox(new CartesianPoint(posLeft, top), new CartesianPoint(posRight, bottom));
         } else {
-            return new CartesianBoundingBox(new CartesianPoint(negLeft, top), new CartesianPoint(posRight, bottom));
+            return new CartesianBoundingBox(new CartesianPoint(left, top), new CartesianPoint(right, bottom));
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
+        InternalCartesianBounds other = (InternalCartesianBounds) obj;
+        return top == other.top && bottom == other.bottom && left == other.left && right == other.right;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), bottom, left, right);
     }
 }

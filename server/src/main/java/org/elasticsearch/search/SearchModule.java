@@ -291,7 +291,6 @@ public class SearchModule {
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
-    private final SearchUsageService searchUsageService;
 
     /**
      * Constructs a new SearchModule object
@@ -301,7 +300,6 @@ public class SearchModule {
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
         this.settings = settings;
-        searchUsageService = SearchUsageService.INSTANCE;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
@@ -329,10 +327,6 @@ public class SearchModule {
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
         return valuesSourceRegistry;
-    }
-
-    public SearchUsageService getSearchUsageService() {
-        return searchUsageService;
     }
 
     @Nullable

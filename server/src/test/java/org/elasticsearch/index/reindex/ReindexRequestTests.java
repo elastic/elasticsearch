@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -115,7 +116,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
-        return ReindexRequest.fromXContent(parser);
+        return ReindexRequest.fromXContent(parser, new UsageService().getSearchUsageHolder());
     }
 
     @Override
@@ -349,7 +350,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            ReindexRequest r = ReindexRequest.fromXContent(p);
+            ReindexRequest r = ReindexRequest.fromXContent(p, new UsageService().getSearchUsageHolder());
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] { "source" }, r.getSearchRequest().indices());
         }
@@ -403,7 +404,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            return ReindexRequest.fromXContent(p);
+            return ReindexRequest.fromXContent(p, new UsageService().getSearchUsageHolder());
         }
     }
 }

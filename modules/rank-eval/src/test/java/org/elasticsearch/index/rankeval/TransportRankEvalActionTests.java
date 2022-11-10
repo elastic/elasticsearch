@@ -21,6 +21,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
@@ -79,7 +80,8 @@ public class TransportRankEvalActionTests extends ESTestCase {
             client,
             mock(TransportService.class),
             mock(ScriptService.class),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new UsageService()
         );
         action.doExecute(null, rankEvalRequest, null);
     }

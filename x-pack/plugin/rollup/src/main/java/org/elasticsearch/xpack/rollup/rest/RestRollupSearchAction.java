@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
 import java.io.IOException;
@@ -24,6 +25,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRollupSearchAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
+
+    private final SearchUsageHolder searchUsageHolder;
+
+    public RestRollupSearchAction(SearchUsageHolder searchUsageHolder) {
+        this.searchUsageHolder = searchUsageHolder;
+    }
 
     @Override
     public List<Route> routes() {
@@ -44,7 +51,8 @@ public class RestRollupSearchAction extends BaseRestHandler {
                 restRequest,
                 parser,
                 client.getNamedWriteableRegistry(),
-                size -> searchRequest.source().size(size)
+                size -> searchRequest.source().size(size),
+                searchUsageHolder
             )
         );
         RestSearchAction.validateSearchRequest(restRequest, searchRequest);

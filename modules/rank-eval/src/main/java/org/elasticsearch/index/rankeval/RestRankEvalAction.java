@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -77,7 +78,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestRankEvalAction extends BaseRestHandler {
 
-    public static String ENDPOINT = "_rank_eval";
+    public static final String ENDPOINT = "_rank_eval";
+
+    private final SearchUsageHolder searchUsageHolder;
+
+    public RestRankEvalAction(SearchUsageHolder searchUsageHolder) {
+        this.searchUsageHolder = searchUsageHolder;
+    }
 
     @Override
     public List<Route> routes() {
@@ -93,7 +100,7 @@ public class RestRankEvalAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            parseRankEvalRequest(rankEvalRequest, request, parser);
+            parseRankEvalRequest(rankEvalRequest, request, parser, searchUsageHolder);
         }
         return channel -> client.executeLocally(
             RankEvalAction.INSTANCE,
@@ -102,13 +109,18 @@ public class RestRankEvalAction extends BaseRestHandler {
         );
     }
 
-    private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {
+    private static void parseRankEvalRequest(
+        RankEvalRequest rankEvalRequest,
+        RestRequest request,
+        XContentParser parser,
+        SearchUsageHolder searchUsageHolder
+    ) {
         rankEvalRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         rankEvalRequest.indicesOptions(IndicesOptions.fromRequest(request, rankEvalRequest.indicesOptions()));
         if (request.hasParam("search_type")) {
             rankEvalRequest.searchType(SearchType.fromString(request.param("search_type")));
         }
-        RankEvalSpec spec = RankEvalSpec.parse(parser);
+        RankEvalSpec spec = RankEvalSpec.parse(parser, searchUsageHolder);
         rankEvalRequest.setRankEvalSpec(spec);
     }
 

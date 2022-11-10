@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -592,6 +593,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
         return handlers.retrieveAll(rawPath, paramsSupplier);
+    }
+
+    public SearchUsageHolder getSearchUsageHolder() {
+        return usageService.getSearchUsageHolder();
     }
 
     /**

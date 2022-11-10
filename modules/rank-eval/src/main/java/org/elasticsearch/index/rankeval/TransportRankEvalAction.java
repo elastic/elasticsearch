@@ -27,6 +27,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -59,6 +61,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final Client client;
     private final ScriptService scriptService;
     private final NamedXContentRegistry namedXContentRegistry;
+    private final SearchUsageHolder searchUsageHolder;
 
     @Inject
     public TransportRankEvalAction(
@@ -66,12 +69,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        NamedXContentRegistry namedXContentRegistry
+        NamedXContentRegistry namedXContentRegistry,
+        UsageService usageService
     ) {
         super(RankEvalAction.NAME, transportService, actionFilters, RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
+        this.searchUsageHolder = usageService.getSearchUsageHolder();
     }
 
     @Override
@@ -105,7 +110,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         XContentType.JSON
                     )
                 ) {
-                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
+                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false, searchUsageHolder);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {

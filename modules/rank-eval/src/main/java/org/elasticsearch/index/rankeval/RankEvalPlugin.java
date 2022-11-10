@@ -46,7 +46,7 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new RestRankEvalAction());
+        return Collections.singletonList(new RestRankEvalAction(restController.getSearchUsageHolder()));
     }
 
     @Override

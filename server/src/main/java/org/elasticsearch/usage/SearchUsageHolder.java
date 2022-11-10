@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search;
+package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 
@@ -21,14 +21,12 @@ import java.util.concurrent.atomic.LongAdder;
  * The counting is performed while parsing on the coordinating node.
  * Each distinct query type is counted once as part of a single search request.
  */
-public final class SearchUsageService {
-    public static final SearchUsageService INSTANCE = new SearchUsageService();
-
+public final class SearchUsageHolder {
     private final LongAdder totalSearchCount = new LongAdder();
     private final Map<String, LongAdder> queriesUsage = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> sectionsUsage = new ConcurrentHashMap<>();
 
-    private SearchUsageService() {}
+    SearchUsageHolder() {}
 
     /**
      * Update stats by adding the provided search request usage

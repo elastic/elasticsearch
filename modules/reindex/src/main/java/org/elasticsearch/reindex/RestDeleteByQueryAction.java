@@ -15,6 +15,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.usage.SearchUsageHolder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,8 +27,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
 
-    public RestDeleteByQueryAction() {
-        super(DeleteByQueryAction.INSTANCE);
+    public RestDeleteByQueryAction(SearchUsageHolder searchUsageHolder) {
+        super(DeleteByQueryAction.INSTANCE, searchUsageHolder);
     }
 
     @Override

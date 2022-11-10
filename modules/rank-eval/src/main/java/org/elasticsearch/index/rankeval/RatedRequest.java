@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -246,7 +247,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
     private static final ParseField TEMPLATE_ID_FIELD = new ParseField("template_id");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RatedRequest, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RatedRequest, SearchUsageHolder> PARSER = new ConstructingObjectParser<>(
         "request",
         a -> new RatedRequest(
             (String) a[0],
@@ -261,12 +262,12 @@ public class RatedRequest implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
         PARSER.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> { return RatedDocument.fromXContent(p); },
+            (p, c) -> RatedDocument.fromXContent(p),
             RATINGS_FIELD
         );
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> SearchSourceBuilder.fromXContent(p, false),
+            (p, c) -> SearchSourceBuilder.fromXContent(p, false, c),
             REQUEST_FIELD
         );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS_FIELD);
@@ -277,8 +278,8 @@ public class RatedRequest implements Writeable, ToXContentObject {
     /**
      * parse from rest representation
      */
-    public static RatedRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static RatedRequest fromXContent(XContentParser parser, SearchUsageHolder searchUsageHolder) {
+        return PARSER.apply(parser, searchUsageHolder);
     }
 
     @Override

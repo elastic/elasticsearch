@@ -26,8 +26,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.SearchUsage;
-import org.elasticsearch.search.SearchUsageService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -46,6 +44,8 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.usage.SearchUsage;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
@@ -111,9 +112,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
 
-    public static SearchSourceBuilder fromXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
+    public static SearchSourceBuilder fromXContent(XContentParser parser, boolean checkTrailingTokens, SearchUsageHolder searchUsageHolder)
+        throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser, checkTrailingTokens);
+        builder.parseXContent(parser, checkTrailingTokens, searchUsageHolder);
         return builder;
     }
 
@@ -1142,13 +1144,33 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
-     * different defaults than a regular SearchSourceBuilder would have and use {@link #fromXContent(XContentParser, boolean)} if you have
-     * normal defaults.
+     * different defaults than a regular SearchSourceBuilder would have and use
+     * {@link #fromXContent(XContentParser, boolean, SearchUsageHolder)} if you have normal defaults.
+     *
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param searchUsageHolder holder for the search usage statistics
+     */
+    public void parseXContent(XContentParser parser, boolean checkTrailingTokens, SearchUsageHolder searchUsageHolder) throws IOException {
+        parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage);
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
+     * different defaults than a regular SearchSourceBuilder would have and use
+     * {@link #fromXContent(XContentParser, boolean, SearchUsageHolder)} if you have normal defaults.
+     * This variant does not record search features usage. Most times the variant that accepts a {@link SearchUsageHolder} and records
+     * usage stats into it is the one to use.
      *
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      */
     public void parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
+        parseXContent(parser, checkTrailingTokens, s -> {});
+    }
+
+    private void parseXContent(XContentParser parser, boolean checkTrailingTokens, Consumer<SearchUsage> searchUsageConsumer)
+        throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1394,8 +1416,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
             }
         }
-        // TODO this is ugly, we need to try and plumb this properly
-        SearchUsageService.INSTANCE.updateUsage(searchUsage);
+        searchUsageConsumer.accept(searchUsage);
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {

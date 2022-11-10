@@ -36,6 +36,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -64,6 +65,12 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM);
+
+    private final SearchUsageHolder searchUsageHolder;
+
+    public RestSearchAction(SearchUsageHolder searchUsageHolder) {
+        this.searchUsageHolder = searchUsageHolder;
+    }
 
     @Override
     public String getName() {
@@ -105,7 +112,7 @@ public class RestSearchAction extends BaseRestHandler {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
+            parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize, searchUsageHolder)
         );
 
         return channel -> {
@@ -126,9 +133,10 @@ public class RestSearchAction extends BaseRestHandler {
         RestRequest request,
         XContentParser requestContentParser,
         NamedWriteableRegistry namedWriteableRegistry,
-        IntConsumer setSize
+        IntConsumer setSize,
+        SearchUsageHolder searchUsageHolder
     ) throws IOException {
-        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, (r, sr) -> {});
+        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, searchUsageHolder, (r, sr) -> {});
     }
 
     /**
@@ -141,6 +149,7 @@ public class RestSearchAction extends BaseRestHandler {
         XContentParser requestContentParser,
         NamedWriteableRegistry namedWriteableRegistry,
         IntConsumer setSize,
+        SearchUsageHolder searchUsageHolder,
         BiConsumer<RestRequest, SearchRequest> extraParamParser
     ) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
@@ -153,7 +162,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            searchRequest.source().parseXContent(requestContentParser, true);
+            searchRequest.source().parseXContent(requestContentParser, true, searchUsageHolder);
         }
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());

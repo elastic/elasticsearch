@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -315,10 +316,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return builder;
     }
 
-    static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, SearchUsageHolder> PARSER = new ObjectParser<>("reindex");
 
     static {
-        ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
+        ObjectParser.Parser<ReindexRequest, SearchUsageHolder> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
@@ -334,18 +335,18 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                     .xContent()
                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false);
+                request.getSearchRequest().source().parseXContent(innerParser, false, context);
             }
         };
 
-        ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
+        ObjectParser<IndexRequest, SearchUsageHolder> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
-        PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
 
         PARSER.declareInt(
@@ -367,9 +368,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
-    public static ReindexRequest fromXContent(XContentParser parser) throws IOException {
+    public static ReindexRequest fromXContent(XContentParser parser, SearchUsageHolder searchUsageHolder) throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
-        PARSER.parse(parser, reindexRequest, null);
+        PARSER.parse(parser, reindexRequest, searchUsageHolder);
         return reindexRequest;
     }
 

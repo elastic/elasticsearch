@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search;
+package org.elasticsearch.usage;
 
 import java.util.Collections;
 import java.util.HashSet;

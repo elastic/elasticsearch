@@ -18,6 +18,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,8 +35,11 @@ public abstract class AbstractBulkByQueryRestHandler<
     Request extends AbstractBulkByScrollRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(A action) {
+    private final SearchUsageHolder searchUsageHolder;
+
+    protected AbstractBulkByQueryRestHandler(A action, SearchUsageHolder searchUsageHolder) {
         super(action);
+        this.searchUsageHolder = searchUsageHolder;
     }
 
     protected void parseInternalRequest(
@@ -53,7 +57,14 @@ public abstract class AbstractBulkByQueryRestHandler<
             IntConsumer sizeConsumer = restRequest.getRestApiVersion() == RestApiVersion.V_7
                 ? size -> setMaxDocsFromSearchSize(internal, size)
                 : size -> failOnSizeSpecified();
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, namedWriteableRegistry, sizeConsumer);
+            RestSearchAction.parseSearchRequest(
+                searchRequest,
+                restRequest,
+                parser,
+                namedWriteableRegistry,
+                sizeConsumer,
+                searchUsageHolder
+            );
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));

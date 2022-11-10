@@ -183,7 +183,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchUsageService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -1010,7 +1009,6 @@ public class Node implements Closeable {
                 b.bind(IngestService.class).toInstance(ingestService);
                 b.bind(IndexingPressure.class).toInstance(indexingLimits);
                 b.bind(UsageService.class).toInstance(usageService);
-                b.bind(SearchUsageService.class).toInstance(searchModule.getSearchUsageService());
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                 b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);

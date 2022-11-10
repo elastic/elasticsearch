@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 
 import java.io.IOException;

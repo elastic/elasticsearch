@@ -154,6 +154,22 @@ public class RecoverySettingsTests extends ESTestCase {
         );
     }
 
+    public void testNodeBandwidthSettingsExist() {
+        final NodeRecoverySettings recoverySettings = nodeRecoverySettings();
+        recoverySettings.withRandomIndicesRecoveryMaxBytesPerSec();
+        recoverySettings.withRoles(randomDataNodeRoles());
+        recoverySettings.withRandomMemory();
+
+        if (randomBoolean()) {
+            recoverySettings.withNetworkBandwidth(randomNonZeroByteSizeValue());
+            recoverySettings.withDiskReadBandwidth(randomNonZeroByteSizeValue());
+            recoverySettings.withDiskWriteBandwidth(randomNonZeroByteSizeValue());
+            assertTrue(recoverySettings.build().nodeBandwidthSettingsExist());
+        } else {
+            assertFalse(recoverySettings.build().nodeBandwidthSettingsExist());
+        }
+    }
+
     public void testDefaultMaxBytesPerSecOnNonDataNode() {
         RecoverySettings recoverySettings = nodeRecoverySettings().withRole(randomFrom("master", "ingest", "ml"))
             .withRandomBandwidths()

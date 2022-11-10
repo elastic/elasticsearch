@@ -32,8 +32,7 @@ import static org.hamcrest.Matchers.greaterThan;
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
 
-    private Tuple<Long, Long> testThrottledRepository(String throttleSnapshot, String throttleRestore, boolean compressRepo)
-        throws Exception {
+    private Tuple<Long, Long> testThrottledRepository(String throttleSnapshot, String throttleRestore, boolean compressRepo) {
         logger.info(
             "--> testing throttled repository (throttleSnapshot=[{}], throttleRestore=[{}], compressRepo=[{}])",
             throttleSnapshot,
@@ -78,7 +77,6 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         boolean throttleRestoreViaRecovery = throttleSnapshotViaRecovery || randomBoolean();
 
         Settings.Builder primaryNodeSettings = Settings.builder()
-            .put(nodeSettings(0, Settings.EMPTY))
             .put(
                 INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
                 (throttleSnapshotViaRecovery || throttleRestoreViaRecovery) ? "10k" : "0"

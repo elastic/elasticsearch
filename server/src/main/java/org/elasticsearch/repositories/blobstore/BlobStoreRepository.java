@@ -304,7 +304,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
         "max_snapshot_bytes_per_sec",
         (settings) -> {
-            if (RecoverySettings.validateNodeBandwidthRecoverySettings(settings)) {
+            if (RecoverySettings.hasNodeBandwidthRecoverySettings(settings)) {
                 return "0";
             } else {
                 return "40mb";
@@ -657,12 +657,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         metadata = getRepoMetadata(state);
         final Settings updatedSettings = metadata.settings();
         if (updatedSettings.equals(previousSettings) == false) {
-            snapshotRateLimiter = getRateLimiter(
-                metadata.settings(),
-                MAX_SNAPSHOT_BYTES_PER_SEC,
-                recoverySettings.nodeBandwidthSettingsExist()
-            );
-            restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC, false);
+            snapshotRateLimiter = getSnapshotRateLimiter();
+            restoreRateLimiter = getSnapshotRestoreRateLimiter();
         }
 
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
@@ -1678,6 +1674,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             return new RateLimiter.SimpleRateLimiter(maxSnapshotBytesPerSec.getMbFrac());
         }
+    }
+
+    private RateLimiter getSnapshotRateLimiter() {
+        return getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC, recoverySettings.nodeBandwidthSettingsExist());
+    }
+
+    private RateLimiter getSnapshotRestoreRateLimiter() {
+        return getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC, false);
     }
 
     @Override

@@ -4,7 +4,6 @@
     workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+dra-snapshot
     display-name: "elastic / elasticsearch # %BRANCH% - DRA snapshot"
     description: "Publishing Daily Releasable Artifacts (DRAs) of Elasticsearch %BRANCH% snapshots.\n"
-    node: "ubuntu-20.04"
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -13,21 +12,20 @@
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
             #!/usr/local/bin/runbld --redirect-stderr
-            ES_VERSION=$(cat build-tools-internal/version.properties \
+            DRA_VERSION=`cat build-tools-internal/version.properties \
                   | grep elasticsearch \
                   | sed "s/elasticsearch//g" \
                   | sed "s/ //g" \
-                  | sed "s/=//")
-            BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats master)"
-            ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp master)"
+                  | sed "s/=//"`
+            beatsBuildId=`./.ci/scripts/resolve-dra-manifest.sh beats master`
+            mlCppBuildId=`./.ci/scripts/resolve-dra-manifest.sh ml-cpp master`
             set -euo pipefail
             set +x
             VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
             export VAULT_TOKEN
-            $WORKSPACE/.ci/scripts/run-gradle.sh assemble -Ddra.artifacts=true -Ddra.artifacts.dependency.beats=${BEATS_BUILD_ID} -Ddra.artifacts.dependency.ml-cpp=${ML_CPP_BUILD_ID}
+            $WORKSPACE/.ci/scripts/run-gradle.sh buildReleaseArtifacts -Ddra.artifacts=true -Ddra.artifacts.dependency.${beatsBuildId} -Ddra.artifacts.dependency.${mlCppBuildId}
             unset VAULT_TOKEN
             set -x
-            $WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier=-SNAPSHOT
             # Artifacts should be generated
             docker run --rm \
                    --name release-manager \
@@ -39,9 +37,9 @@
                    cli collect \
                    --project elasticsearch \
                    --branch "master" \
-                   --commit "$GIT_COMMIT" \
+                   --commit `git rev-parse HEAD` \
                    --workflow "snapshot" \
-                   --version "$ES_VERSION" \
+                   --version "$DRA_VERSION" \
                    --artifact-set main \
-                   --dependency https://artifacts-snapshot.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}-SNAPSHOT.json \
-                   --dependency https://artifacts-snapshot.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}-SNAPSHOT.json
+                   --dependency https://artifacts-snapshot.elastic.co/beats/$(echo $beatsBuildId | sed "s/beats=//g")/manifest-${DRA_VERSION}-SNAPSHOT.json \
+                   --dependency https://artifacts-snapshot.elastic.co/ml-cpp/$(echo $mlCppBuildId | sed "s/ml-cpp=//g")/manifest-${DRA_VERSION}-SNAPSHOT.json"

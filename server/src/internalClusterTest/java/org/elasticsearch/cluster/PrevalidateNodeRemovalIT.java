@@ -90,6 +90,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertFalse(resp.getPrevalidation().isSafe());
+        assertThat(resp.getPrevalidation().message(), equalTo("cluster health is RED"));
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertThat(nodeResult.name(), equalTo(node2));

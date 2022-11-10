@@ -22,7 +22,9 @@ import java.util.Locale;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -73,6 +75,8 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertNotNull(nodeResult);
         assertThat(nodeResult.name(), equalTo(node2));
+        assertThat(nodeResult.Id(), not(emptyString()));
+        assertThat(nodeResult.externalId(), not(emptyString()));
         assertTrue(nodeResult.result().isSafe());
     }
 }

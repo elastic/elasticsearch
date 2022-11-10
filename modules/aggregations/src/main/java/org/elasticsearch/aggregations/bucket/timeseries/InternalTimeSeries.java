@@ -228,13 +228,13 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
                 bucketsWithSameKey.add(iterator.current());
                 if (iterator.hasNext()) {
                     iterator.next();
+                    pq.updateTop();
                 } else {
                     pq.pop();
                     if (pq.size() == 0) {
                         break;
                     }
                 }
-                pq.updateTop();
             }
 
             InternalBucket reducedBucket;

@@ -159,8 +159,10 @@ you should see:
 ** 50 documents in logs-generic-default-replicated_from_clustera
 ** 50 documents in logs-generic-default
 
+. Queries should be set up to perform search across them.
++
 If you perform a search on `logs*` on either of the clusters, you should see 100
-hits in total. Queries should be set up to perform search across them.
+hits in total. 
 +
 [source,console]
 ----
@@ -181,6 +183,9 @@ bin/logstash -f multiple_hosts.conf
 ----
 
 . Observe all logstash traffic will be redirected to `cluster B` automatically. 
+
+TIP: You should also redirect all search traffic to the `clusterB` cluster during this time. 
+
 . Observe two data streams on `cluster B` now contain a different number of documents. 
 +
 * data streams On cluster A (Dead) 
@@ -190,7 +195,6 @@ bin/logstash -f multiple_hosts.conf
 ** 50 documents in logs-generic-default-replicated_from_clustera
 ** 150 documents in logs-generic-default
 
-TIP: You should also redirect all search traffic to the `clusterB` cluster during this time. 
 
 ==== Failback when `clusterA` comes back
 . You can simulate this by turning `cluster A` back. 

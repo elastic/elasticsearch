@@ -68,11 +68,11 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
             default -> throw new IllegalStateException("Unexpected value");
         }
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build()).get();
-        assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
-        assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));
-        NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().getNodes().get(0);
+        assertTrue(resp.getPrevalidation().isSafe());
+        assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
+        NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertNotNull(nodeResult);
         assertThat(nodeResult.name(), equalTo(node2));
-        assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
+        assertTrue(nodeResult.result().isSafe());
     }
 }

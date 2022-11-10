@@ -37,7 +37,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
@@ -153,11 +152,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         Metadata metadata = clusterState.metadata();
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
-                Result result = new Result(IsSafe.YES, "cluster status is not RED", "");
                 List<NodeResult> nodesResults = nodes.stream()
-                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "", "")))
+                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
                     .toList();
-                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodesResults)));
+                listener.onResponse(
+                    new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(true, "cluster status is not RED", nodesResults))
+                );
             }
             case RED -> {
                 Set<String> redIndices = clusterStateHealth.getIndices()
@@ -172,27 +172,30 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .filter(i -> i.isSearchableSnapshot() == false)
                     .map(im -> im.getIndex().getName())
                     .collect(Collectors.toSet());
-                Result result;
-                List<NodeResult> nodeResults;
                 if (redNonSSIndices.isEmpty()) {
-                    result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices", "");
-                    nodeResults = nodes.stream()
-                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "", "")))
+                    List<NodeResult> nodeResults = nodes.stream()
+                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
                         .toList();
+                    listener.onResponse(
+                        new PrevalidateNodeRemovalResponse(
+                            new NodesRemovalPrevalidation(true, "all red indices are searchable snapshot indices", nodeResults)
+                        )
+                    );
                 } else {
-                    result = new Result(IsSafe.NO, "cluster health is RED", "");
-                    nodeResults = nodes.stream()
+                    List<NodeResult> nodeResults = nodes.stream()
                         .map(
                             dn -> new NodeResult(
                                 dn.getName(),
                                 dn.getId(),
                                 dn.getExternalId(),
-                                new Result(IsSafe.NO, "node may contain a copy of a red index shard", "")
+                                new Result(false, "node may contain a copy of a red index shard")
                             )
                         )
                         .toList();
+                    listener.onResponse(
+                        new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(false, "cluster health is RED", nodeResults))
+                    );
                 }
-                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodeResults)));
             }
         }
     }

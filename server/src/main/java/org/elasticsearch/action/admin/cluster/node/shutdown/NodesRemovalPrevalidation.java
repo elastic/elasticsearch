@@ -105,10 +105,10 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("name", name);
-            builder.field("id", Id);
-            builder.field("external_id", externalId);
-            builder.field("result", result);
+            builder.field(NAME_FIELD.getPreferredName(), name);
+            builder.field(ID_FIELD.getPreferredName(), Id);
+            builder.field(EXTERNAL_ID_FIELD.getPreferredName(), externalId);
+            builder.field(RESULT_FIELD.getPreferredName(), result);
             builder.endObject();
             return builder;
         }
@@ -119,15 +119,14 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
     }
 
     // The prevalidation result of a node
-    public record Result(boolean isSafe, Reason reason, String message) implements ToXContentObject, Writeable {
+    public record Result(boolean isSafe, String message) implements ToXContentObject, Writeable {
 
         private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");
-        private static final ParseField REASON_FIELD = new ParseField("reason");
         private static final ParseField MESSAGE_FIELD = new ParseField("message");
 
         private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
             "nodes_removal_prevalidation_result",
-            objects -> new Result((boolean) objects[0], Reason.fromString((String) objects[1]), (String) objects[2])
+            objects -> new Result((boolean) objects[0], (String) objects[1])
         );
 
         static {
@@ -136,26 +135,23 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
 
         static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
             parser.declareBoolean(ConstructingObjectParser.constructorArg(), IS_SAFE_FIELD);
-            parser.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
             parser.declareString(ConstructingObjectParser.constructorArg(), MESSAGE_FIELD);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(isSafe);
-            reason.writeTo(out);
             out.writeString(message);
         }
 
         public static Result readFrom(final StreamInput in) throws IOException {
-            return new Result(in.readBoolean(), Reason.readFrom(in), in.readString());
+            return new Result(in.readBoolean(), in.readString());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(IS_SAFE_FIELD.getPreferredName(), isSafe);
-            builder.field(REASON_FIELD.getPreferredName(), reason.reason);
             builder.field(MESSAGE_FIELD.getPreferredName(), message);
             builder.endObject();
             return builder;
@@ -163,40 +159,6 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
 
         public static Result fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
-        }
-    }
-
-    public enum Reason implements Writeable {
-        RED_INDICES_ARE_SEARCHABLE_SNAPSHOT("red_indices_are_searchable_snapshot_based"),
-        NO_RED_INDICES("no_red_indices_in_cluster"),
-        MAY_CONTAIN_RED_SHARD_COPY("may_contain_red_shard_copy");
-
-        private final String reason;
-
-        Reason(String reason) {
-            this.reason = reason;
-        }
-
-        public String reason() {
-            return reason;
-        }
-
-        public static Reason readFrom(final StreamInput in) throws IOException {
-            return fromString(in.readString());
-        }
-
-        public static Reason fromString(String s) {
-            for (Reason r : values()) {
-                if (s.equalsIgnoreCase(r.reason)) {
-                    return r;
-                }
-            }
-            throw new IllegalArgumentException("unexpected Reason value [" + s + "]");
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(reason);
         }
     }
 }

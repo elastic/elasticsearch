@@ -10,7 +10,6 @@ package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalResponse;
 import org.elasticsearch.client.Request;
@@ -50,10 +49,8 @@ public class PrevalidateNodeRemovalRestIT extends HttpSmokeTestCase {
         ) {
             prevalidationResp = PrevalidateNodeRemovalResponse.fromXContent(parser);
         }
-        assertThat(
-            prevalidationResp.getPrevalidation().getResult(),
-            equalTo(new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.YES, "cluster status is not RED"))
-        );
+        assertTrue(prevalidationResp.getPrevalidation().isSafe());
+        assertThat(prevalidationResp.getPrevalidation().message(), equalTo("cluster status is not RED"));
 
         try {
             String queryParam = randomFrom("names", "ids", "external_ids") + "=nonExistingNode";

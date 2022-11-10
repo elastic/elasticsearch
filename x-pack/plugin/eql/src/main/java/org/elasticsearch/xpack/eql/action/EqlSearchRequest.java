@@ -123,6 +123,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (in.getVersion().before(Version.V_7_10_0)) {
             in.readBoolean();
         }
+        if (versionHasResultPosition(in.getVersion())) {
+            resultPosition = in.readString();
+        }
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
@@ -131,6 +134,16 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         } else {
             runtimeMappings = emptyMap();
         }
+    }
+
+    private boolean versionHasResultPosition(Version version) {
+        if (version.before(Version.V_7_17_8)) {
+            return false;
+        }
+        if (version.onOrAfter(Version.fromString("8.0.0")) && version.before(Version.fromString("8.5.2"))) {
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -442,6 +455,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         if (out.getVersion().before(Version.V_7_10_0)) {
             out.writeBoolean(true);
+        }
+        if (versionHasResultPosition(out.getVersion())) {
+            out.writeString(resultPosition);
         }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeBoolean(fetchFields != null);

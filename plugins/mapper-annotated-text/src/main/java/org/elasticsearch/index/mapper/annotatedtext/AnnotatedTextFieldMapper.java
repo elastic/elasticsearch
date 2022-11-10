@@ -121,7 +121,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 wrapAnalyzer(analyzers.getSearchAnalyzer()),
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer())
             );
-            return new AnnotatedTextFieldType(context.buildFullName(name), store.getValue(), tsi, meta.getValue());
+            return new AnnotatedTextFieldType(
+                context.buildFullName(name),
+                store.getValue(),
+                tsi,
+                context.isSourceSynthetic(),
+                meta.getValue()
+            );
         }
 
         @Override
@@ -467,8 +473,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        private AnnotatedTextFieldType(String name, boolean store, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, true, store, tsi, meta);
+        private AnnotatedTextFieldType(
+            String name,
+            boolean store,
+            TextSearchInfo tsi,
+            boolean isSyntheticSource,
+            Map<String, String> meta
+        ) {
+            super(name, true, store, tsi, isSyntheticSource, meta);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {

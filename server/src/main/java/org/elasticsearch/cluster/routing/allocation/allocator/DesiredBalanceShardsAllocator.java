@@ -97,7 +97,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.clusterService = clusterService;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
+        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {

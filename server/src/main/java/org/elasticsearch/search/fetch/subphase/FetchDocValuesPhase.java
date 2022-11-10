@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +58,11 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 for (DocValueField f : fields) {
                     f.fetcher.setNextReader(readerContext);
                 }
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override

@@ -106,7 +106,7 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
@@ -122,7 +122,7 @@ public class CircuitBreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -386,7 +386,7 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
@@ -433,7 +433,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertEquals(0, circuitBreaker.getUsed());
 
                 int ordinal = searchRequest.source().terminateAfter();
-                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
                 searchHit.sortValues(
                     new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
                 );

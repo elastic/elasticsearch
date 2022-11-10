@@ -201,14 +201,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 unassignedAllocationHandler.initialize(
                     allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
-                    DiskThresholdDecider.getExpectedShardSize(
-                        shardRouting,
-                        ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                        allocation.clusterInfo(),
-                        allocation.snapshotShardSizeInfo(),
-                        allocation.metadata(),
-                        allocation.routingTable()
-                    ),
+                    DiskThresholdDecider.getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                     allocation.changes()
                 );
             } else {

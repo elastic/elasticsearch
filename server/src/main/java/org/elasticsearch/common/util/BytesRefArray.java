@@ -87,11 +87,13 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
     public void append(BytesRef key) {
         assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(size);
-        bytes = bigArrays.grow(bytes, startOffset + key.length);
-        bytes.set(startOffset, key.bytes, key.offset, key.length);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
         startOffsets.set(size + 1, startOffset + key.length);
         ++size;
+        if (key.length > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + key.length);
+            bytes.set(startOffset, key.bytes, key.offset, key.length);
+        }
     }
 
     /**

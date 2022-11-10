@@ -29,6 +29,8 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_type";
 
+    public static final MappedFieldType FIELD_TYPE = new LegacyTypeFieldType();
+
     private static final LegacyTypeFieldMapper INSTANCE = new LegacyTypeFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
@@ -36,7 +38,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
     protected LegacyTypeFieldMapper() {
-        super(new LegacyTypeFieldType());
+        super(FIELD_TYPE);
     }
 
     @Override
@@ -44,7 +46,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
         return ANALYZERS;
     }
 
-    static final class LegacyTypeFieldType extends TermBasedFieldType {
+    private static final class LegacyTypeFieldType extends TermBasedFieldType {
 
         LegacyTypeFieldType() {
             super(NAME, false, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());

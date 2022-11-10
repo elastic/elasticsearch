@@ -67,9 +67,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
 
-    static final class RoutingFieldType extends StringFieldType {
+    public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
 
-        static RoutingFieldType INSTANCE = new RoutingFieldType();
+    static final class RoutingFieldType extends StringFieldType {
 
         private RoutingFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -101,7 +101,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE);
+        super(FIELD_TYPE);
         this.required = required;
     }
 

@@ -3,7 +3,7 @@ summary: Make `SnapshotsInProgress` Diffable
 area: Snapshot/Restore
 type: enhancement
 issues:
- - 88732
+ - 88732, 88209
 highlight: 
   title: Make `SnapshotsInProgress` Diffable
   body: |-

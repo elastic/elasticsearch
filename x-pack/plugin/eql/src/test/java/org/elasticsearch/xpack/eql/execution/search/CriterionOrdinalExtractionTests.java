@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchLongSortValues;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchSortValues;
@@ -152,7 +151,8 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put(tsField, new DocumentField(tsField, singletonList(timeValue)));
         fields.put(tbField, new DocumentField(tsField, singletonList(tiebreakerValue)));
-        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10), fields, emptyMap());
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10));
+        searchHit.addDocumentFields(fields, Map.of());
         searchHit.sortValues(searchSortValues.get());
 
         return searchHit;

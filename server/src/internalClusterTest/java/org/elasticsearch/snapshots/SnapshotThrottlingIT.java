@@ -127,10 +127,10 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
     }
 
     @TestLogging(
-        reason = "testing warning that snapshot speed is over recovery speed when node bandwidth settings have been set",
+        reason = "testing warning that speed is over recovery speed",
         value = "org.elasticsearch.repositories.blobstore.BlobStoreRepository:WARN"
     )
-    public void testWarningSnapshotSpeedOverRecovery() throws Exception {
+    public void testWarningSpeedOverRecovery() throws Exception {
         boolean nodeBandwidthSettingsSet = randomBoolean();
         Settings.Builder primaryNodeSettings = Settings.builder()
             .put(nodeSettings(0, Settings.EMPTY))
@@ -146,20 +146,42 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         try {
             mockLogAppender.start();
             Loggers.addAppender(LogManager.getLogger(BlobStoreRepository.class), mockLogAppender);
-            MockLogAppender.EventuallySeenEventExpectation expectation = new MockLogAppender.EventuallySeenEventExpectation(
+
+            MockLogAppender.EventuallySeenEventExpectation snapshotExpectation = new MockLogAppender.EventuallySeenEventExpectation(
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "[test-repo] repository snapshot rate limit [max_snapshot_bytes_per_sec=1gb] will be capped by the "
-                    + "effective recovery rate limit [100mb] per sec"
+                "[test-repo] repository rate limit [max_snapshot_bytes_per_sec=90mb] will be capped by the "
+                    + "effective recovery rate limit [50mb] per sec"
             );
-            if (nodeBandwidthSettingsSet) expectation.setExpectSeen();
-            mockLogAppender.addExpectation(expectation);
+            if (nodeBandwidthSettingsSet) snapshotExpectation.setExpectSeen();
+            mockLogAppender.addExpectation(snapshotExpectation);
+
+            MockLogAppender.SeenEventExpectation restoreExpectation = new MockLogAppender.SeenEventExpectation(
+                "snapshot restore speed over recovery speed",
+                "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                Level.WARN,
+                "[test-repo] repository rate limit [max_restore_bytes_per_sec=80mb] will be capped by the "
+                    + "effective recovery rate limit [50mb] per sec"
+            );
+            mockLogAppender.addExpectation(restoreExpectation);
+
             createRepository(
                 "test-repo",
                 "fs",
-                Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "1g")
+                Settings.builder()
+                    .put("location", randomRepoPath())
+                    .put("max_snapshot_bytes_per_sec", "90m")
+                    .put("max_restore_bytes_per_sec", "80m")
             );
+
+            admin().cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "50m")
+                )
+                .get();
+
             deleteRepository("test-repo");
             mockLogAppender.assertAllExpectationsMatched();
         } finally {

@@ -375,6 +375,21 @@ public class RecoverySettings {
         Setting.Property.NodeScope
     );
 
+    public static final List<Setting<?>> SETTINGS_AFFECTING_MAX_BYTES_PER_SEC = List.of(
+        INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
+        NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
+        NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING,
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING,
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING,
+        // non dynamic settings but they are used to update max bytes per sec
+        NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING,
+        NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,
+        NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING,
+        NODE_ROLES_SETTING
+    );
+
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
     private volatile ByteSizeValue maxBytesPerSec;
@@ -423,23 +438,7 @@ public class RecoverySettings {
         this.nodeBandwidthSettingsExist = hasNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
         if (DiscoveryNode.canContainData(settings)) {
-            clusterSettings.addSettingsUpdateConsumer(
-                this::computeMaxBytesPerSec,
-                List.of(
-                    INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING,
-                    // non dynamic settings but they are used to update max bytes per sec
-                    NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING,
-                    NODE_ROLES_SETTING
-                )
-            );
+            clusterSettings.addSettingsUpdateConsumer(this::computeMaxBytesPerSec, SETTINGS_AFFECTING_MAX_BYTES_PER_SEC);
         }
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);

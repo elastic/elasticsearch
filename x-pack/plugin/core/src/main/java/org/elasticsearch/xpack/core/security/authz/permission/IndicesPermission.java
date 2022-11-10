@@ -141,7 +141,7 @@ public final class IndicesPermission {
         final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (final Group group : groups) {
-            if (group.actionMatcher.test(action)) {
+            if (group.checkAction(action)) {
                 if (group.allowRestrictedIndices) {
                     restrictedIndices.addAll(Arrays.asList(group.indices()));
                 } else {
@@ -522,20 +522,15 @@ public final class IndicesPermission {
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
-                    boolean actionCheck = group.checkAction(action);
-                    // If action is granted we don't have to check for BWC and can stop at first granting group.
-                    if (actionCheck) {
+                    if (group.checkAction(action)) {
+                        // If action is granted we don't have to check for BWC and can stop at first granting group.
                         granted = true;
                         break;
-                    } else {
+                    } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
                         // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
                         // outside of the privilege definition
-                        boolean bwcMappingActionCheck = isMappingUpdateAction
-                            && false == resource.isPartOfDataStream()
-                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
-                        bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
-
-                        if (bwcMappingActionCheck) {
+                        if (false == resource.isPartOfDataStream()) {
+                            bwcGrantMappingUpdate = true;
                             logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
                         }
                     }

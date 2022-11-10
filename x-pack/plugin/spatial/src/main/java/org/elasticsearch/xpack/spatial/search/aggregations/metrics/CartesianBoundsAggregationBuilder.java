@@ -105,7 +105,6 @@ public class CartesianBoundsAggregationBuilder extends ValuesSourceAggregationBu
 
     @Override
     public Version getMinimalSupportedVersion() {
-        // TODO: Should we have a version here? We only release this for 8.5 or 8.6
-        return Version.V_EMPTY;
+        return Version.V_8_6_0;
     }
 }

@@ -151,8 +151,9 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "[test-repo] repository rate limit [max_snapshot_bytes_per_sec=90mb] will be capped by the "
-                    + "effective recovery rate limit [50mb] per sec"
+                "repository [test-repo] has a rate limit [max_snapshot_bytes_per_sec=90mb] per second which is above "
+                    + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=50mb] per second, thus the repository "
+                    + "rate limit will be superseded by the recovery rate limit"
             );
             if (nodeBandwidthSettingsSet) snapshotExpectation.setExpectSeen();
             mockLogAppender.addExpectation(snapshotExpectation);
@@ -161,8 +162,9 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot restore speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "[test-repo] repository rate limit [max_restore_bytes_per_sec=80mb] will be capped by the "
-                    + "effective recovery rate limit [50mb] per sec"
+                "repository [test-repo] has a rate limit [max_restore_bytes_per_sec=80mb] per second which is above "
+                    + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=50mb] per second, thus the repository "
+                    + "rate limit will be superseded by the recovery rate limit"
             );
             mockLogAppender.addExpectation(restoreExpectation);
 
@@ -177,9 +179,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
 
             admin().cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "50m")
-                )
+                .setPersistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "50m"))
                 .get();
 
             deleteRepository("test-repo");

@@ -151,6 +151,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.SETTINGS_AFFECTING_MAX_BYTES_PER_SEC;
 
 /**
@@ -1664,20 +1665,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (maxConfiguredBytesPerSec.getBytes() <= 0) {
             return null;
         } else {
-            if (warnIfOverRecovery && recoverySettings.rateLimiter() != null) {
-                double effectiveRecoverySpeed = recoverySettings.rateLimiter().getMBPerSec();
-                if (maxConfiguredBytesPerSec.getMbFrac() > effectiveRecoverySpeed) {
+            ByteSizeValue effectiveRecoverySpeed = recoverySettings.getMaxBytesPerSec();
+            if (warnIfOverRecovery && effectiveRecoverySpeed.getBytes() > 0) {
+                if (maxConfiguredBytesPerSec.getBytes() > effectiveRecoverySpeed.getBytes()) {
                     logger.warn(
-                        "[{}] repository rate limit [{}={}] will be capped by the effective recovery rate limit [{}] per sec",
+                        "repository [{}] has a rate limit [{}={}] per second which is above the effective recovery rate limit "
+                                + "[{}={}] per second, thus the repository rate limit will be superseded by the recovery rate limit",
                         metadata.name(),
                         setting.getKey(),
                         maxConfiguredBytesPerSec,
-                        effectiveRecoverySpeed > 1.0
-                            ? Strings.format1Decimals(effectiveRecoverySpeed, "mb")
-                            : (effectiveRecoverySpeed + "mb")
+                        INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                        effectiveRecoverySpeed
                     );
                 }
             }
+
             if (rateLimiter != null) {
                 rateLimiter.setMBPerSec(maxConfiguredBytesPerSec.getMbFrac());
                 return rateLimiter;

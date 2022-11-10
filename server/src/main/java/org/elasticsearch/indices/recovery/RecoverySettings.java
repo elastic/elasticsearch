@@ -608,7 +608,7 @@ public class RecoverySettings {
         }
     }
 
-    ByteSizeValue getMaxBytesPerSec() {
+    public ByteSizeValue getMaxBytesPerSec() {
         return maxBytesPerSec;
     }
 
@@ -699,9 +699,9 @@ public class RecoverySettings {
      */
     public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
         final List<String> nonDefaults = NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
-                .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
-                .map(Setting::getKey)
-                .toList();
+            .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
+            .map(Setting::getKey)
+            .toList();
         if (nonDefaults.size() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size()) {
             return true;
         } else {

@@ -1075,7 +1075,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private List<AExpression> collectArguments(ArgumentsContext ctx) {
-        List<AExpression> arguments = new ArrayList<>();
+        List<AExpression> arguments = new ArrayList<>(ctx.argument().size());
 
         for (ArgumentContext argument : ctx.argument()) {
             arguments.add((AExpression) visit(argument));
@@ -1099,8 +1099,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitLambda(LambdaContext ctx) {
-        List<String> paramTypes = new ArrayList<>();
-        List<String> paramNames = new ArrayList<>();
+        List<String> paramTypes = new ArrayList<>(ctx.lamtype().size());
+        List<String> paramNames = new ArrayList<>(ctx.lamtype().size());
         SBlock block;
 
         for (LamtypeContext lamtype : ctx.lamtype()) {

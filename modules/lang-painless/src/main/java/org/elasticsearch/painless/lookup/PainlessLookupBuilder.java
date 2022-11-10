@@ -701,7 +701,7 @@ public final class PainlessLookupBuilder {
 
         if (augmentedClass == null) {
             try {
-                javaMethod = targetClass.getMethod(methodName, javaTypeParameters.toArray(new Class<?>[typeParametersSize]));
+                javaMethod = targetClass.getMethod(methodName, javaTypeParameters.toArray(Class<?>[]::new));
             } catch (NoSuchMethodException nsme) {
                 throw new IllegalArgumentException(
                     "reflection object not found for method [["
@@ -717,7 +717,7 @@ public final class PainlessLookupBuilder {
             }
         } else {
             try {
-                javaMethod = augmentedClass.getMethod(methodName, javaTypeParameters.toArray(new Class<?>[typeParametersSize]));
+                javaMethod = augmentedClass.getMethod(methodName, javaTypeParameters.toArray(Class<?>[]::new));
 
                 if (Modifier.isStatic(javaMethod.getModifiers()) == false) {
                     throw new IllegalArgumentException(
@@ -752,8 +752,9 @@ public final class PainlessLookupBuilder {
         }
 
         // injections alter the type parameters required for the user to call this method, since some are injected by compiler
-        if (annotations.containsKey(InjectConstantAnnotation.class)) {
-            int numInjections = ((InjectConstantAnnotation) annotations.get(InjectConstantAnnotation.class)).injects().size();
+        InjectConstantAnnotation inject = (InjectConstantAnnotation) annotations.get(InjectConstantAnnotation.class);
+        if (inject != null) {
+            int numInjections = inject.injects().size();
 
             if (numInjections > 0) {
                 typeParameters.subList(0, numInjections).clear();
@@ -2134,8 +2135,8 @@ public final class PainlessLookupBuilder {
 
                 superInterfaces.addLast(targetClass);
 
-                while (superInterfaces.isEmpty() == false) {
-                    Class<?> superInterface = superInterfaces.removeFirst();
+                Class<?> superInterface;
+                while ((superInterface = superInterfaces.pollFirst()) != null) {
 
                     if (resolvedInterfaces.add(superInterface)) {
                         PainlessClassBuilder functionalInterfacePainlessClassBuilder = classesToPainlessClassBuilders.get(superInterface);

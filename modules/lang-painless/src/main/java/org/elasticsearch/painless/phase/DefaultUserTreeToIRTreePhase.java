@@ -367,7 +367,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     ),
                     null,
                     null,
-                    null
+                    Map.of()
                 )
             );
             invokeCallNode.setBox(DefBootstrap.class);

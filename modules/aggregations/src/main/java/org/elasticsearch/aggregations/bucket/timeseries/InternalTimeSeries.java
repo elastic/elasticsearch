@@ -9,6 +9,7 @@
 package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -201,51 +202,50 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             .max()
             .getAsInt();
 
-        final List<IteratorAndCurrent<InternalBucket>> iterators = new ArrayList<>(aggregations.size());
+        final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(IteratorAndCurrent<InternalBucket> a, IteratorAndCurrent<InternalBucket> b) {
+                return a.current().key.compareTo(b.current().key) < 0;
+            }
+        };
         for (InternalAggregation aggregation : aggregations) {
             InternalTimeSeries timeSeries = (InternalTimeSeries) aggregation;
             if (timeSeries.buckets.isEmpty() == false) {
                 IteratorAndCurrent<InternalBucket> iterator = new IteratorAndCurrent<>(timeSeries.buckets.iterator());
-                iterators.add(iterator);
+                pq.add(iterator);
             }
         }
 
         InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(initialCapacity), keyed, getMetadata());
-        List<IteratorAndCurrent<InternalBucket>> competitiveIterators = new ArrayList<>(iterators.size());
+        List<InternalBucket> bucketsWithSameKey = new ArrayList<>(aggregations.size());
         BytesRef prevTsid = null;
-        while (iterators.isEmpty() == false) {
+        while (pq.size() > 0) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
-            IteratorAndCurrent<InternalBucket> competitive = iterators.get(0);
-            competitiveIterators.clear();
-            competitiveIterators.add(competitive);
-            for (int i = 1; i < iterators.size(); i++) {
-                IteratorAndCurrent<InternalBucket> contender = iterators.get(i);
-                int cmp = contender.current().key.compareTo(competitive.current().key);
-                if (cmp < 0) {
-                    competitive = contender;
-                    competitiveIterators.clear();
-                    competitiveIterators.add(contender);
-                } else if (cmp == 0) {
-                    competitiveIterators.add(contender);
+            bucketsWithSameKey.clear();
+
+            while (bucketsWithSameKey.isEmpty() || bucketsWithSameKey.get(0).key.equals(pq.top().current().key)) {
+                IteratorAndCurrent<InternalBucket> iterator = pq.top();
+                bucketsWithSameKey.add(iterator.current());
+                if (iterator.hasNext()) {
+                    iterator.next();
+                } else {
+                    pq.pop();
+                    if (pq.size() == 0) {
+                        break;
+                    }
                 }
+                pq.updateTop();
             }
+
             InternalBucket reducedBucket;
-            if (competitiveIterators.size() == 1) {
-                reducedBucket = competitive.current();
+            if (bucketsWithSameKey.size() == 1) {
+                reducedBucket = bucketsWithSameKey.get(0);
             } else {
-                List<InternalBucket> buckets = competitiveIterators.stream().map(IteratorAndCurrent::current).toList();
-                reducedBucket = reduceBucket(buckets, reduceContext);
+                reducedBucket = reduceBucket(bucketsWithSameKey, reduceContext);
             }
             BytesRef tsid = reducedBucket.key;
             assert prevTsid == null || tsid.compareTo(prevTsid) > 0;
             reduced.buckets.add(reducedBucket);
-            for (IteratorAndCurrent<InternalBucket> iterator : competitiveIterators) {
-                if (iterator.hasNext()) {
-                    iterator.next();
-                } else {
-                    iterators.remove(iterator);
-                }
-            }
             prevTsid = tsid;
         }
         return reduced;

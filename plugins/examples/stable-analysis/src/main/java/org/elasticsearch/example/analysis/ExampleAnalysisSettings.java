@@ -31,6 +31,6 @@ public interface ExampleAnalysisSettings {
     @ListOfStringsSetting(path = "tokenizer_list_of_chars")
     List<String> tokenizerListOfChars();
 
-    @BooleanSetting(path = "analyzerUseTokenListOfChars", defaultValue = false)
+    @BooleanSetting(path = "analyzerUseTokenListOfChars", defaultValue = true)
     boolean analyzerUseTokenListOfChars();
 }

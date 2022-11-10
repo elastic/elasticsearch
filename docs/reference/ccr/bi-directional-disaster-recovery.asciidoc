@@ -107,6 +107,7 @@ In the following example, I use the input generator to demonstrate the document
 count in the clusters. Users would need to reconfigure this section
 to suit their use cases. 
 +
+[source]
 ----
 ### On Logstash server ###
 ### This is a logstash config file ###
@@ -135,6 +136,7 @@ TIP: Set up the same password for the same user on both clusters to use this loa
 
 . Start logstash with the above config file.
 +
+[source]
 ----
 ### On Logstash server ###
 bin/logstash -f multiple_hosts.conf
@@ -150,6 +152,7 @@ Bi-directional {ccr} will create one more data stream on each of the clusters
 with the `-replication_from_cluster{a|b}` suffix. At the end of this step,
 you should see:
 +
+[source]
 ----
 ### data streams On cluster A ###
  50 documents in logs-generic-default-replicated_from_clusterb 
@@ -174,6 +177,7 @@ GET logs*/_search?size=0
 . Start logstash with the same config file. (This step is not required in real
 use cases where logstash ingests continuously)
 +
+[source]
 ----
 ### On Logstash server ###
 bin/logstash -f multiple_hosts.conf
@@ -182,6 +186,7 @@ bin/logstash -f multiple_hosts.conf
 . Observe all logstash traffic will be redirected to `cluster B` automatically. 
 . Observe two data streams on `cluster B` now contain a different number of documents. 
 +
+[source]
 ----
 ### data streams On cluster A (Dead) ###
  50 documents in logs-generic-default-replicated_from_clusterb 
@@ -198,6 +203,7 @@ TIP: You should also redirect all search traffic to the `clusterB` cluster durin
 . Observe data ingested to `cluster B` during `cluster A` 's downtime will be
 automatically replicated. 
 +
+[source]
 ----
 ### data streams On cluster A ###
 150 documents in logs-generic-default-replicated_from_clusterb 

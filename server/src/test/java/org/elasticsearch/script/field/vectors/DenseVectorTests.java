@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTe
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -127,5 +128,117 @@ public class DenseVectorTests extends ESTestCase {
 
         assertEquals(bdv.cosineSimilarity(arrayQV), bdv.cosineSimilarity(listQV), 0.001f);
         assertEquals(bdv.cosineSimilarity((Object) listQV), bdv.cosineSimilarity((Object) arrayQV), 0.001f);
+    }
+
+    public void testByteUnsupported() {
+        int dims = randomIntBetween(1, 16);
+        byte[] docVector = new byte[dims];
+        float[] queryVector = new float[dims];
+        for (int i = 0; i < docVector.length; i++) {
+            docVector[i] = randomByte();
+            queryVector[i] = randomByte();
+        }
+
+        ByteKnnDenseVector knn = new ByteKnnDenseVector(new BytesRef(docVector));
+        UnsupportedOperationException e;
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.dotProduct(queryVector));
+        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.dotProduct((Object)queryVector));
+        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l1Norm(queryVector));
+        assertEquals(e.getMessage(), "use [int l1Norm(byte[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l1Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [int l1Norm(byte[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l2Norm(queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(byte[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l2Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(byte[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity(queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+
+        ByteBinaryDenseVector binary = new ByteBinaryDenseVector(new BytesRef(docVector), dims);
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
+        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct((Object)queryVector));
+        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l1Norm(queryVector));
+        assertEquals(e.getMessage(), "use [int l1Norm(byte[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l1Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [int l1Norm(byte[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l2Norm(queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(byte[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l2Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(byte[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.cosineSimilarity(queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.cosineSimilarity((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+    }
+
+    public void testFloatUnsupported() {
+        int dims = randomIntBetween(1, 16);
+        float[] docVector = new float[dims];
+        ByteBuffer docBuffer = ByteBuffer.allocate(dims*4);
+        byte[] queryVector = new byte[dims];
+        for (int i = 0; i < docVector.length; i++) {
+            docVector[i] = randomFloat();
+            docBuffer.putFloat(docVector[i]);
+            queryVector[i] = randomByte();
+        }
+
+        KnnDenseVector knn = new KnnDenseVector(docVector);
+        UnsupportedOperationException e;
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.dotProduct(queryVector));
+        assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.dotProduct((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l1Norm(queryVector));
+        assertEquals(e.getMessage(), "use [double l1Norm(float[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l1Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double l1Norm(float[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l2Norm(queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(float[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.l2Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(float[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity(queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
+
+        BinaryDenseVector binary = new BinaryDenseVector(new BytesRef(docBuffer.array()), dims, Version.CURRENT);
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
+        assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l1Norm(queryVector));
+        assertEquals(e.getMessage(), "use [double l1Norm(float[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l1Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double l1Norm(float[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l2Norm(queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(float[] queryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.l2Norm((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double l2Norm(float[] queryVector)] instead");
+
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.cosineSimilarity(queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
+        e = expectThrows(UnsupportedOperationException.class, () -> binary.cosineSimilarity((Object)queryVector));
+        assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
     }
 }

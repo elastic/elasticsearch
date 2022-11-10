@@ -126,7 +126,7 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
-        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector, boolean normalizeQueryVector)] instead");
+        throw new UnsupportedOperationException("use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
     }
 
     @Override

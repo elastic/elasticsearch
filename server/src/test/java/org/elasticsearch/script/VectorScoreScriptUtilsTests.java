@@ -151,7 +151,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript.field("vector")).thenAnswer(mock -> field);
+            when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
 
             // Test cosine similarity explicitly, as it must perform special logic on top of the doc values
             CosineSimilarity function = new CosineSimilarity(scoreScript, queryVector, fieldName);
@@ -370,7 +370,90 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                     );
                 }
             }
-            ;
+        }
+    }
+
+    public void testByteBoundaries() throws IOException {
+        String fieldName = "vector";
+        int dims = 1;
+        float[] docVector = new float[] { 0 };
+        List<Number> greaterThanVector = List.of(128);
+        List<Number> lessThanVector = List.of(-129);
+        List<Number> decimalVector = List.of(0.5);
+
+        List<DenseVectorDocValuesField> fields = List.of(
+            new ByteBinaryDenseVectorDocValuesField(
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, Version.CURRENT),
+                "test",
+                ElementType.BYTE,
+                dims
+            ),
+            new ByteKnnDenseVectorDocValuesField(
+                KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE),
+                "test",
+                ElementType.BYTE,
+                dims
+            )
+        );
+
+        for (DenseVectorDocValuesField field : fields) {
+            field.setNextDocId(0);
+
+            ScoreScript scoreScript = mock(ScoreScript.class);
+            when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
+
+            IllegalArgumentException e;
+
+            e = expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, greaterThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
+                    "Preview of invalid vector: [128.0]");
+            e = expectThrows(IllegalArgumentException.class, () -> new L1Norm(scoreScript, greaterThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
+                    "Preview of invalid vector: [128.0]");
+            e = expectThrows(IllegalArgumentException.class, () -> new L2Norm(scoreScript, greaterThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
+                    "Preview of invalid vector: [128.0]");
+            e = expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, greaterThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
+                    "Preview of invalid vector: [128.0]");
+
+            e = expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, lessThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
+                    "Preview of invalid vector: [-129.0]");
+            e = expectThrows(IllegalArgumentException.class, () -> new L1Norm(scoreScript, lessThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
+                    "Preview of invalid vector: [-129.0]");
+            e = expectThrows(IllegalArgumentException.class, () -> new L2Norm(scoreScript, lessThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
+                    "Preview of invalid vector: [-129.0]");
+            e = expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, lessThanVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
+                    "Preview of invalid vector: [-129.0]");
+
+            e = expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, decimalVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
+                    "Preview of invalid vector: [0.5]");
+            e = expectThrows(IllegalArgumentException.class, () -> new L1Norm(scoreScript, decimalVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
+                    "Preview of invalid vector: [0.5]");
+            e = expectThrows(IllegalArgumentException.class, () -> new L2Norm(scoreScript, decimalVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
+                    "Preview of invalid vector: [0.5]");
+            e = expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, decimalVector, fieldName));
+            assertEquals(e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
+                    "Preview of invalid vector: [0.5]");
         }
     }
 }

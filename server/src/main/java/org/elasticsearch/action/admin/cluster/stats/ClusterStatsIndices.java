@@ -106,10 +106,6 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return store;
     }
 
-    public SearchUsageStats getSearchUsageStats() {
-        return searchUsageStats;
-    }
-
     public FieldDataStats getFieldData() {
         return fieldData;
     }

@@ -16,9 +16,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
-import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
 public class NodesRemovalPrevalidationSerializationTests extends AbstractXContentSerializingTestCase<NodesRemovalPrevalidation> {
 
@@ -29,7 +27,7 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
 
     @Override
     protected Writeable.Reader<NodesRemovalPrevalidation> instanceReader() {
-        return NodesRemovalPrevalidation::new;
+        return NodesRemovalPrevalidation::readFrom;
     }
 
     @Override
@@ -43,22 +41,16 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
     }
 
     public static NodesRemovalPrevalidation mutateOverallResult(NodesRemovalPrevalidation instance) {
-        return new NodesRemovalPrevalidation(mutateResult(instance.getResult()), instance.getNodes());
+        return new NodesRemovalPrevalidation(instance.isSafe() ? false : true, randomAlphaOfLengthBetween(0, 1000), instance.nodes());
     }
 
     public static NodesRemovalPrevalidation mutateNodes(final NodesRemovalPrevalidation instance) {
-        int i = randomInt(instance.getNodes().size() - 1);
-        NodeResult nodeResult = instance.getNodes().get(i);
+        int i = randomInt(instance.nodes().size() - 1);
+        NodeResult nodeResult = instance.nodes().get(i);
         NodeResult mutatedNode = mutateNodeResult(nodeResult);
-        List<NodeResult> mutatedNodes = new ArrayList<>(instance.getNodes());
+        List<NodeResult> mutatedNodes = new ArrayList<>(instance.nodes());
         mutatedNodes.set(i, mutatedNode);
-        return new NodesRemovalPrevalidation(instance.getResult(), mutatedNodes);
-    }
-
-    public static Result mutateResult(Result instance) {
-        return randomBoolean()
-            ? new Result(randomValueOtherThan(instance.isSafe(), () -> randomFrom(IsSafe.values())), instance.reason())
-            : new Result(instance.isSafe(), randomValueOtherThan(instance.reason(), () -> randomAlphaOfLength(10)));
+        return new NodesRemovalPrevalidation(instance.isSafe(), instance.message(), mutatedNodes);
     }
 
     public static NodeResult mutateNodeResult(final NodeResult instance) {
@@ -82,7 +74,12 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
                 randomValueOtherThan(instance.externalId(), () -> randomAlphaOfLength(10)),
                 instance.result()
             );
-            case 3 -> new NodeResult(instance.name(), instance.Id(), instance.externalId(), mutateResult(instance.result()));
+            case 3 -> new NodeResult(
+                instance.name(),
+                instance.Id(),
+                instance.externalId(),
+                randomValueOtherThan(instance.result(), NodesRemovalPrevalidationSerializationTests::randomResult)
+            );
             default -> throw new IllegalStateException("Unexpected mutation branch value: " + mutationBranch);
         };
     }
@@ -101,16 +98,10 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
                 )
             );
         }
-        return new NodesRemovalPrevalidation(result, nodes);
+        return new NodesRemovalPrevalidation(randomBoolean(), randomAlphaOfLengthBetween(0, 1000), nodes);
     }
 
     private static NodesRemovalPrevalidation.Result randomResult() {
-        NodesRemovalPrevalidation.IsSafe isSafe = randomFrom(NodesRemovalPrevalidation.IsSafe.values());
-        String reason = randomReason(isSafe);
-        return new NodesRemovalPrevalidation.Result(isSafe, reason);
-    }
-
-    private static String randomReason(NodesRemovalPrevalidation.IsSafe isSafe) {
-        return isSafe == NodesRemovalPrevalidation.IsSafe.YES ? "" : randomAlphaOfLengthBetween(0, 1000);
+        return new NodesRemovalPrevalidation.Result(randomBoolean(), randomAlphaOfLengthBetween(0, 1000));
     }
 }

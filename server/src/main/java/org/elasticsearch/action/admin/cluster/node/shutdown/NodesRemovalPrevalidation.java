@@ -19,18 +19,17 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
 
-public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
+public record NodesRemovalPrevalidation(boolean isSafe, String message, List<NodeResult> nodes) implements ToXContentObject, Writeable {
 
-    private static final ParseField RESULT_FIELD = new ParseField("result");
+    private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");
+    private static final ParseField MESSAGE_FIELD = new ParseField("message");
     private static final ParseField NODES_FIELD = new ParseField("nodes");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<NodesRemovalPrevalidation, Void> PARSER = new ConstructingObjectParser<>(
         "nodes_removal_prevalidation",
-        objects -> new NodesRemovalPrevalidation((Result) objects[0], (List<NodeResult>) objects[1])
+        objects -> new NodesRemovalPrevalidation((boolean) objects[0], (String) objects[1], (List<NodeResult>) objects[2])
     );
 
     static {
@@ -38,42 +37,28 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
     }
 
     static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
-        parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Result.fromXContent(p), RESULT_FIELD);
+        parser.declareBoolean(ConstructingObjectParser.constructorArg(), IS_SAFE_FIELD);
+        parser.declareString(ConstructingObjectParser.constructorArg(), MESSAGE_FIELD);
         parser.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> NodeResult.fromXContent(p), NODES_FIELD);
     }
 
-    private final Result result;
-    private final List<NodeResult> nodes;
-
-    public NodesRemovalPrevalidation(Result result, List<NodeResult> nodes) {
-        this.result = result;
-        this.nodes = nodes;
-    }
-
-    public NodesRemovalPrevalidation(final StreamInput in) throws IOException {
-        this.result = Result.readFrom(in);
-        this.nodes = in.readList(NodeResult::readFrom);
-    }
-
-    public Result getResult() {
-        return result;
-    }
-
-    public List<NodeResult> getNodes() {
-        return nodes;
+    public static NodesRemovalPrevalidation readFrom(final StreamInput in) throws IOException {
+        return new NodesRemovalPrevalidation(in.readBoolean(), in.readString(), in.readList(NodeResult::readFrom));
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        result.writeTo(out);
+        out.writeBoolean(isSafe);
+        out.writeString(message);
         out.writeList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("result", result);
-        builder.xContentList("nodes", nodes, params);
+        builder.field(IS_SAFE_FIELD.getPreferredName(), isSafe);
+        builder.field(MESSAGE_FIELD.getPreferredName(), message);
+        builder.xContentList(NODES_FIELD.getPreferredName(), nodes, params);
         return builder.endObject();
     }
 
@@ -81,67 +66,7 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
         return PARSER.parse(parser, null);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o instanceof NodesRemovalPrevalidation == false) return false;
-        NodesRemovalPrevalidation other = (NodesRemovalPrevalidation) o;
-        return Objects.equals(result, other.result) && Objects.equals(nodes, other.nodes);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(result, nodes);
-    }
-
-    @Override
-    public String toString() {
-        return "NodesRemovalPrevalidation{" + "result=" + result + ", nodes=" + nodes + '}';
-    }
-
-    public record Result(IsSafe isSafe, String reason) implements ToXContentObject, Writeable {
-
-        private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");
-        private static final ParseField REASON_FIELD = new ParseField("reason");
-
-        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
-            "nodes_removal_prevalidation_result",
-            objects -> new Result(IsSafe.fromString((String) objects[0]), (String) objects[1])
-        );
-
-        static {
-            configureParser(PARSER);
-        }
-
-        static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
-            parser.declareString(ConstructingObjectParser.constructorArg(), IS_SAFE_FIELD);
-            parser.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(isSafe.isSafe());
-            out.writeString(reason);
-        }
-
-        public static Result readFrom(final StreamInput in) throws IOException {
-            return new Result(IsSafe.readFrom(in), in.readString());
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(IS_SAFE_FIELD.getPreferredName(), isSafe.name());
-            builder.field(REASON_FIELD.getPreferredName(), reason);
-            builder.endObject();
-            return builder;
-        }
-
-        public static Result fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-    }
-
+    // Prevalidation response for one node including its result
     public record NodeResult(String name, String Id, String externalId, Result result) implements ToXContentObject, Writeable {
 
         private static final ParseField NAME_FIELD = new ParseField("name");
@@ -180,10 +105,10 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("name", name);
-            builder.field("id", Id);
-            builder.field("external_id", externalId);
-            builder.field("result", result);
+            builder.field(NAME_FIELD.getPreferredName(), name);
+            builder.field(ID_FIELD.getPreferredName(), Id);
+            builder.field(EXTERNAL_ID_FIELD.getPreferredName(), externalId);
+            builder.field(RESULT_FIELD.getPreferredName(), result);
             builder.endObject();
             return builder;
         }
@@ -193,32 +118,47 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
         }
     }
 
-    public enum IsSafe {
-        YES("yes"),
-        NO("no"),
-        UNKNOWN("unknown");
+    // The prevalidation result of a node
+    public record Result(boolean isSafe, String message) implements ToXContentObject, Writeable {
 
-        private final String isSafe;
+        private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");
+        private static final ParseField MESSAGE_FIELD = new ParseField("message");
 
-        IsSafe(String isSafe) {
-            this.isSafe = isSafe;
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "nodes_removal_prevalidation_result",
+            objects -> new Result((boolean) objects[0], (String) objects[1])
+        );
+
+        static {
+            configureParser(PARSER);
         }
 
-        public String isSafe() {
-            return isSafe;
+        static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
+            parser.declareBoolean(ConstructingObjectParser.constructorArg(), IS_SAFE_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), MESSAGE_FIELD);
         }
 
-        public static IsSafe readFrom(final StreamInput in) throws IOException {
-            return fromString(in.readString());
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(isSafe);
+            out.writeString(message);
         }
 
-        public static IsSafe fromString(String s) {
-            return switch (s.toLowerCase(Locale.ROOT)) {
-                case "yes" -> YES;
-                case "no" -> NO;
-                case "unknown" -> UNKNOWN;
-                default -> throw new IllegalArgumentException("unexpected IsSafe value [" + s + "]");
-            };
+        public static Result readFrom(final StreamInput in) throws IOException {
+            return new Result(in.readBoolean(), in.readString());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(IS_SAFE_FIELD.getPreferredName(), isSafe);
+            builder.field(MESSAGE_FIELD.getPreferredName(), message);
+            builder.endObject();
+            return builder;
+        }
+
+        public static Result fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
     }
 }

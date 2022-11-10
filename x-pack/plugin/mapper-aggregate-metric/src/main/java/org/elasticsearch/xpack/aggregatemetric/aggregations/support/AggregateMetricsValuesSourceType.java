@@ -40,7 +40,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
             if ((indexFieldData instanceof IndexAggregateDoubleMetricFieldData) == false) {

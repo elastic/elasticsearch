@@ -368,7 +368,7 @@ public class HealthServiceTests extends ESTestCase {
             }
 
             @Override
-            public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+            public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
                 if (expectedHealthInfo != null) {
                     assertThat(healthInfo, equalTo(expectedHealthInfo));
                 }

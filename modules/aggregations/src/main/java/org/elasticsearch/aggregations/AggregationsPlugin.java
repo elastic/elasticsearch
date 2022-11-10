@@ -12,27 +12,34 @@ import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregatio
 import org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
+import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
+import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.Derivative;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptContext;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPlugin {
     @Override
     public List<AggregationSpec> getAggregations() {
-        return List.of(
+        List<AggregationSpec> specs = new ArrayList<>();
+        specs.add(
             new AggregationSpec(
                 AdjacencyMatrixAggregationBuilder.NAME,
                 AdjacencyMatrixAggregationBuilder::new,
                 AdjacencyMatrixAggregationBuilder::parse
-            ).addResultReader(InternalAdjacencyMatrix::new),
+            ).addResultReader(InternalAdjacencyMatrix::new)
+        );
+        specs.add(
             new AggregationSpec(
                 AutoDateHistogramAggregationBuilder.NAME,
                 AutoDateHistogramAggregationBuilder::new,
@@ -40,6 +47,16 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
             ).addResultReader(InternalAutoDateHistogram::new)
                 .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators)
         );
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            specs.add(
+                new AggregationSpec(
+                    TimeSeriesAggregationBuilder.NAME,
+                    TimeSeriesAggregationBuilder::new,
+                    TimeSeriesAggregationBuilder.PARSER
+                ).addResultReader(InternalTimeSeries::new)
+            );
+        }
+        return List.copyOf(specs);
     }
 
     @Override

@@ -43,7 +43,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
@@ -165,11 +164,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         DiscoveryNodes clusterNodes = clusterState.getNodes();
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
-                Result result = new Result(IsSafe.YES, "cluster status is not RED");
                 List<NodeResult> nodesResults = requestNodes.stream()
-                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
+                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
                     .toList();
-                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodesResults)));
+                listener.onResponse(
+                    new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(true, "cluster status is not RED", nodesResults))
+                );
             }
             case RED -> {
                 Set<String> redIndices = clusterStateHealth.getIndices()
@@ -185,11 +185,14 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .map(im -> im.getIndex().getName())
                     .collect(Collectors.toSet());
                 if (redNonSSIndices.isEmpty()) {
-                    Result result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");
                     List<NodeResult> nodeResults = requestNodes.stream()
-                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
+                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
                         .toList();
-                    listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodeResults)));
+                    listener.onResponse(
+                        new PrevalidateNodeRemovalResponse(
+                            new NodesRemovalPrevalidation(true, "all red indices are searchable snapshot indices", nodeResults)
+                        )
+                    );
                 } else {
                     // Reach out to the nodes to find out whether they contain copies of the red non-searchable-snapshot indices
                     Set<ShardId> redShards = clusterStateHealth.getIndices()
@@ -234,10 +237,10 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         for (NodeCheckShardsOnDataPathResponse nodeResponse : response.getNodes()) {
             Result result;
             if (nodeResponse.getShardIds().isEmpty()) {
-                result = new Result(IsSafe.YES, "");
+                result = new Result(true, "");
             } else {
                 result = new Result(
-                    IsSafe.NO,
+                    false,
                     Strings.format("node contains copies of the following red shards: %s", nodeResponse.getShardIds())
                 );
             }
@@ -257,7 +260,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     node.getName(),
                     node.getId(),
                     node.getExternalId(),
-                    new Result(IsSafe.UNKNOWN, Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage()))
+                    new Result(false, Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage()))
                 )
             );
         }
@@ -270,18 +273,18 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             .collect(Collectors.toSet());
         if (unsafeNodeRemovals.isEmpty() == false) {
             prevalidationResult = new Result(
-                IsSafe.NO,
+                false,
                 Strings.format("nodes with the following IDs contain copies of red shards: %s", unsafeNodeRemovals)
             );
         } else if (response.failures().isEmpty() == false) {
             Set<String> unknownNodeRemovals = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.toSet());
             prevalidationResult = new Result(
-                IsSafe.UNKNOWN,
+                false,
                 Strings.format("cannot prevalidate removal of nodes with the following IDs: %s", unknownNodeRemovals)
             );
         } else {
-            prevalidationResult = new Result(IsSafe.YES, "");
+            prevalidationResult = new Result(true, "");
         }
-        return new NodesRemovalPrevalidation(prevalidationResult, nodeResults);
+        return new NodesRemovalPrevalidation(prevalidationResult.isSafe(), prevalidationResult.message(), nodeResults);
     }
 }

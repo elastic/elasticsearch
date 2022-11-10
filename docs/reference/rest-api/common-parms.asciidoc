@@ -81,10 +81,36 @@ This parameter can only be used when the `q` query string parameter is
 specified.
 end::analyze_wildcard[]
 
+tag::bulk-id[]
+`_id`::
+(Optional, string)
+The document ID.
+If no ID is specified, a document ID is automatically generated.
+end::bulk-id[]
+
+tag::bulk-index[]
+`_index`::
+(Optional, string)
+Name of the index or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
+end::bulk-index[]
+
+tag::bulk-index-ds[]
+`_index`::
+(Optional, string)
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
+end::bulk-index-ds[]
+
 tag::bytes[]
 `bytes`::
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
+
+tag::cat-h[]
+`h`::
+(Optional, string) Comma-separated list of column names to display.
+end::cat-h[]
 
 tag::checkpointing-changes-last-detected-at[]
 The timestamp when changes were last detected in the source indices.
@@ -129,6 +155,13 @@ tag::completion-fields[]
 Comma-separated list or wildcard expressions of fields
 to include in `fielddata` and `suggest` statistics.
 end::completion-fields[]
+
+tag::component-template[]
+`<component-template>`::
+(Required, string)
+Comma-separated list or wildcard expression of component template names
+used to limit the request.
+end::component-template[]
 
 tag::delete-time-ms[]
 The amount of time spent deleting, in milliseconds.
@@ -364,23 +397,11 @@ Comma-separated list of search groups
 to include in the `search` statistics.
 end::groups[]
 
-tag::cat-h[]
-`h`::
-(Optional, string) Comma-separated list of column names to display.
-end::cat-h[]
-
 tag::help[]
 `help`::
 (Optional, Boolean) If `true`, the response includes help information. Defaults
 to `false`.
 end::help[]
-
-tag::bulk-id[]
-`_id`::
-(Optional, string)
-The document ID.
-If no ID is specified, a document ID is automatically generated.
-end::bulk-id[]
 
 tag::if_primary_term[]
 `if_primary_term`::
@@ -450,20 +471,6 @@ end::index-time-ms[]
 tag::index-total[]
 The number of index operations.
 end::index-total[]
-
-tag::bulk-index[]
-`_index`::
-(Optional, string)
-Name of the index or index alias to perform the action on. This
-parameter is required if a `<target>` is not specified in the request path.
-end::bulk-index[]
-
-tag::bulk-index-ds[]
-`_index`::
-(Optional, string)
-Name of the data stream, index, or index alias to perform the action on. This
-parameter is required if a `<target>` is not specified in the request path.
-end::bulk-index-ds[]
 
 tag::index-metric[]
 `<index-metric>`::
@@ -541,12 +548,37 @@ Comma-separated list of index template names used to limit the request. Wildcard
 (`*`) expressions are supported.
 end::index-template[]
 
-tag::component-template[]
-`<component-template>`::
-(Required, string)
-Comma-separated list or wildcard expression of component template names
-used to limit the request.
-end::component-template[]
+tag::knn[]
+Defines the <<approximate-knn,kNN>> query to run.
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string) The name of the vector field to search against. Must be a
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
+
+`query_vector`::
+(Required, array of floats) Query vector. Must have the same number of
+dimensions as the vector field you are searching against.
+
+`k`::
+(Required, integer) Number of nearest neighbors to return as top hits. This
+value must be less than `num_candidates`.
+
+`num_candidates`::
+(Required, integer) The number of nearest neighbor candidates to consider per
+shard. Cannot exceed 10,000. {es} collects `num_candidates` results from each
+shard, then merges them to find the top `k` results. Increasing
+`num_candidates` tends to improve the accuracy of the final `k` results.
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>) Query to filter the documents that
+can match. The kNN search will return the top `k` documents that also match
+this filter. The value can be a single query or a list of queries. If `filter`
+is not provided, all documents are allowed to match.
+====
+end::knn[]
 
 tag::lenient[]
 `lenient`::

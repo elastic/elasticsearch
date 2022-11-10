@@ -50,10 +50,8 @@ public class PrevalidateNodeRemovalRestIT extends HttpSmokeTestCase {
         ) {
             prevalidationResp = PrevalidateNodeRemovalResponse.fromXContent(parser);
         }
-        assertThat(
-            prevalidationResp.getPrevalidation().getResult(),
-            equalTo(new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.YES, "cluster status is not RED"))
-        );
+        assertTrue(prevalidationResp.getPrevalidation().isSafe());
+        assertThat(prevalidationResp.getPrevalidation().message(), equalTo("cluster status is not RED"));
 
         try {
             String queryParam = randomFrom("names", "ids", "external_ids") + "=nonExistingNode";

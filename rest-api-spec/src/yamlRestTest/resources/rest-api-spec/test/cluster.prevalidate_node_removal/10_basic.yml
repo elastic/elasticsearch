@@ -15,8 +15,8 @@
       _internal.prevalidate_node_removal:
         ids: $node_id
 
-  - match: { result.is_safe: "YES"}
-  - contains: {nodes: {id: "$node_id", result: {is_safe: "YES", reason: ""}}}
+  - match: { is_safe: true}
+  - contains: {nodes: {id: "$node_id", result: {is_safe: true, message: ""}}}
 ---
 "Prevalidation with no node specified":
   - skip:

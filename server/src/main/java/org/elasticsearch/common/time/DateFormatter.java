@@ -16,10 +16,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public interface DateFormatter {
 
@@ -114,8 +114,8 @@ public interface DateFormatter {
             input = input.substring(1);
         }
 
-        List<String> patterns = splitCombinedPatterns(input);
-        List<DateFormatter> formatters = patterns.stream().map(p -> {
+        String[] patterns = splitCombinedPatterns(input);
+        List<DateFormatter> formatters = Stream.of(patterns).map(p -> {
             // make sure we still support camel case for indices created before 8.0
             if (supportedVersion.before(Version.V_8_0_0)) {
                 return LegacyFormatNames.camelCaseToSnakeCase(p);
@@ -130,13 +130,12 @@ public interface DateFormatter {
         return JavaDateFormatter.combined(input, formatters);
     }
 
-    static List<String> splitCombinedPatterns(String input) {
-        List<String> patterns = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
+    static String[] splitCombinedPatterns(String input) {
+        String[] patterns = Strings.delimitedListToStringArray(input, "||");
+        for (String pattern : patterns) {
             if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
-            patterns.add(pattern);
         }
         return patterns;
     }

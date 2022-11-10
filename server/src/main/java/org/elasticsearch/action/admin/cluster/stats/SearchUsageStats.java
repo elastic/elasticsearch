@@ -77,17 +77,10 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         builder.startObject("search");
         builder.field("total", totalSearchCount);
         {
-            builder.startObject("queries");
+            builder.field("queries");
             builder.map(queries);
-            for (var entry : queries.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
-            builder.startObject("sections");
-            for (var entry : sections.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
+            builder.field("sections");
+            builder.map(sections);
         }
         builder.endObject();
         return builder;

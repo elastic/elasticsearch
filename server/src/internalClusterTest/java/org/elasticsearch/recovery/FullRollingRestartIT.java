@@ -171,13 +171,12 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91441")
     public void testNoRebalanceOnRollingRestart() throws Exception {
         // see https://github.com/elastic/elasticsearch/issues/14387
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(3);
         /**
-         * We start 3 nodes and a dedicated master. Restart on of the data-nodes and ensure that we got no relocations.
+         * We start 3 nodes and a dedicated master. Restart one of the data-nodes and ensure that we got no relocations.
          * Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject
          * to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
          * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
@@ -200,20 +199,36 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue(
-                "relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state,
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false
+            assertNotEquals(
+                "relocated "
+                    + recoveryState.getShardId()
+                    + " from: "
+                    + recoveryState.getSourceNode()
+                    + " to: "
+                    + recoveryState.getTargetNode()
+                    + "\n"
+                    + state,
+                recoveryState.getRecoverySource().getType(),
+                RecoverySource.Type.PEER
             );
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
-        client().admin().cluster().prepareState().get().getState();
+        client().admin().cluster().prepareState().get();
 
         recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue(
-                "relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "-- \nbefore: \n" + state,
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false
+            assertNotEquals(
+                "relocated "
+                    + recoveryState.getShardId()
+                    + " from: "
+                    + recoveryState.getSourceNode()
+                    + " to: "
+                    + recoveryState.getTargetNode()
+                    + "-- \nbefore: \n"
+                    + state,
+                recoveryState.getRecoverySource().getType(),
+                RecoverySource.Type.PEER
             );
         }
     }

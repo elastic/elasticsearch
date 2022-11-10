@@ -128,7 +128,7 @@ public interface SourceLoader {
                     } else {
                         b.startObject().endObject();
                     }
-                    return Source.fromBytes(BytesReference.bytes(b), XContentType.JSON);
+                    return Source.fromBytes(BytesReference.bytes(b), b.contentType());
                 }
             }
         }

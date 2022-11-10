@@ -1075,19 +1075,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
 
         /**
-         * Extracts the part of the root source that applies to this particularly NestedIdentity, while
+         * Extracts the part of the root source that applies to this particular NestedIdentity, while
          * preserving the enclosing path structure.
          *
          * For a root document that looks like this:
-         * { "child" :
+         * { "children" :
          *    [
-         *      { "grandchild" : [ { "field" : "value1" }, { "field" : "value2" } ] },
-         *      { "grandchild" : [ { "field" : "value3" }, { "field" : "value4" } ] }
+         *      { "grandchildren" : [ { "field" : "value1" }, { "field" : "value2" } ] },
+         *      { "grandchildren" : [ { "field" : "value3" }, { "field" : "value4" } ] }
          *   ]
          * }
          *
          * Extracting the NestedIdentity of the first child and second grandchild results in a source that looks like this:
-         * { "child" : { "grandchild" : { "field" : "value2" } } }
+         * { "children" : { "grandchildren" : { "field" : "value2" } } }
          *
          * If the relevant child source object does not exist in the root, then we return {@link Source#empty(XContentType)}
          */

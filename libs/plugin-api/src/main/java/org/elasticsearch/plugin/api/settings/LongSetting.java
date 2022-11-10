@@ -28,9 +28,4 @@ public @interface LongSetting {
      * A default value of a long setting
      */
     long defaultValue();
-
-    /**
-     * A maximum value of a long setting
-     */
-    long max() default Long.MAX_VALUE;
 }

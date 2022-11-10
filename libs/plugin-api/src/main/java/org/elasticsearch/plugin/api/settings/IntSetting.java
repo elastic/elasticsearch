@@ -28,9 +28,4 @@ public @interface IntSetting {
      * A default value of an int setting
      */
     int defaultValue();
-
-    /**
-     * A maximum value of an int setting
-     */
-    int max() default Integer.MAX_VALUE;
 }

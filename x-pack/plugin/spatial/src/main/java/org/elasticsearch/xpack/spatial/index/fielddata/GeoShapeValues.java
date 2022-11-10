@@ -52,7 +52,7 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
     }
 
     /**
-     * Cartesian data is not limited to geographic lat/lon degrees, so we use the standard validator
+     * Geo data is limited to geographic lat/lon degrees, so we use the GeographyValidator
      */
     public GeometryValidator geometryValidator() {
         return GeographyValidator.instance(true);

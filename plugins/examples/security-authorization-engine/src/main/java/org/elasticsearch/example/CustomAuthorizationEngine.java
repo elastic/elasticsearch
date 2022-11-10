@@ -94,10 +94,10 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                 }
                 IndicesAccessControl indicesAccessControl =
                     new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
-                listener.onResponse(new IndexAuthorizationResult(true, indicesAccessControl));
+                listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
             }, listener::onFailure));
         } else {
-            listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.DENIED));
+            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 
@@ -201,7 +201,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()) :
             Collections.emptySet();
         final Set<String> runAs = isSuperuser ? Collections.singleton("*") : Collections.emptySet();
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, Set.of());
     }
 
     public static class CustomAuthorizationInfo implements AuthorizationInfo {

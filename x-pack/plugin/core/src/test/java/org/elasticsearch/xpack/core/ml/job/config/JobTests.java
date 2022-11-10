@@ -152,7 +152,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
     public void testEnsureModelMemoryLimitSet() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setAnalysisLimits(new AnalysisLimits(null, null));
-        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(0L));
+        builder.validateAnalysisLimitsAndSetDefaults(ByteSizeValue.ZERO);
         Job job = builder.build();
         assertEquals("foo", job.getId());
         assertNotNull(job.getAnalysisLimits());

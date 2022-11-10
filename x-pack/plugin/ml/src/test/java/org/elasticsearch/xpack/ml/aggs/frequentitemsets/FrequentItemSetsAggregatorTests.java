@@ -79,7 +79,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             List.of(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName).build()),
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SUPPORT,
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SET_SIZE,
-            FrequentItemSetsAggregationBuilder.DEFAULT_SIZE
+            FrequentItemSetsAggregationBuilder.DEFAULT_SIZE,
+            null
         );
     }
 
@@ -118,7 +119,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             fields,
             minimumSupport,
             minimumSetSize,
-            size
+            size,
+            null
         );
 
         testCase(iw -> {
@@ -273,7 +275,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             fields,
             minimumSupport,
             minimumSetSize,
-            size
+            size,
+            null
         );
 
         testCase(iw -> {
@@ -471,7 +474,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             fields,
             minimumSupport,
             minimumSetSize,
-            size
+            size,
+            null
         );
 
         testCase(iw -> {

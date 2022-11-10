@@ -6,10 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health;
+package org.elasticsearch.health.stats;
 
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.HealthStatus;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -54,15 +58,15 @@ public class HealthApiStats {
     private static final String TOTAL_INVOCATIONS = "invocations.total";
     private static final String VERBOSE_TRUE = "invocations.verbose_true";
     private static final String VERBOSE_FALSE = "invocations.verbose_false";
-    private final Function<HealthStatus, String> statusLabel = status -> Strings.format("statuses.%s", status.name().toLowerCase());
+    private final Function<HealthStatus, String> statusLabel = status -> Strings.format("statuses.%s", status.xContentValue());
     private final BiFunction<HealthStatus, String, String> indicatorLabel = (status, indicator) -> Strings.format(
         "indicators.%s.%s",
-        status.name().toLowerCase(),
+        status.xContentValue(),
         indicator
     );
     private final BiFunction<HealthStatus, String, String> diagnosisLabel = (status, diagnosis) -> Strings.format(
         "diagnoses.%s.%s",
-        status.name().toLowerCase(),
+        status.xContentValue(),
         diagnosis
     );
 
@@ -70,7 +74,7 @@ public class HealthApiStats {
 
     public HealthApiStats() {}
 
-    void track(boolean verbose, GetHealthAction.Response response) {
+    public void track(boolean verbose, GetHealthAction.Response response) {
         counters.inc(TOTAL_INVOCATIONS);
         if (verbose) {
             counters.inc(VERBOSE_TRUE);
@@ -96,6 +100,10 @@ public class HealthApiStats {
                 }
             }
         }
+    }
+
+    public boolean hasCounters() {
+        return counters.hasCounters();
     }
 
     public Counters getCounters() {

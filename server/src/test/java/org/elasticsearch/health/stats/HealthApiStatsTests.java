@@ -6,9 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health;
+package org.elasticsearch.health.stats;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

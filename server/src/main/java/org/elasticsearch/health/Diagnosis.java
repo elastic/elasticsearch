@@ -134,7 +134,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
      * @param helpURL Optional evergreen url to a help document
      */
     public record Definition(String indicatorName, String id, String cause, String action, String helpURL) {
-        String getUniqueId() {
+        public String getUniqueId() {
             return HEALTH_API_ID_PREFIX + indicatorName + ":diagnosis:" + id;
         }
     }

@@ -76,6 +76,10 @@ public class Counters implements Writeable {
         return counters.size();
     }
 
+    public boolean hasCounters() {
+        return counters.isEmpty() == false;
+    }
+
     /**
      * Convert the counters to a nested map, using the "." as a splitter to create deeper maps
      * @return A nested map with all the current configured counters

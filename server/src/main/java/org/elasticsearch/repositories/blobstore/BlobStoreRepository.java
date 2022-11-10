@@ -1670,7 +1670,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (maxConfiguredBytesPerSec.getBytes() > effectiveRecoverySpeed.getBytes()) {
                     logger.warn(
                         "repository [{}] has a rate limit [{}={}] per second which is above the effective recovery rate limit "
-                                + "[{}={}] per second, thus the repository rate limit will be superseded by the recovery rate limit",
+                            + "[{}={}] per second, thus the repository rate limit will be superseded by the recovery rate limit",
                         metadata.name(),
                         setting.getKey(),
                         maxConfiguredBytesPerSec,
@@ -3221,11 +3221,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * `indices.recovery.max_bytes_per_sec` speed.
      */
     public InputStream maybeRateLimitSnapshots(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
-        return maybeRateLimit(
-            maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener),
-            () -> recoverySettings.nodeBandwidthSettingsExist() ? recoverySettings.rateLimiter() : null,
-            throttleListener
-        );
+        InputStream rateLimitStream = maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
+        if (recoverySettings.nodeBandwidthSettingsExist()) {
+            rateLimitStream = maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, throttleListener);
+        }
+        return rateLimitStream;
     }
 
     @Override

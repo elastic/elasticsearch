@@ -710,7 +710,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return fieldDataFromDocValues();
             }
-            if (isSyntheticSource && isStored()) {
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     name(),
                     CoreValuesSourceType.KEYWORD,
@@ -1141,6 +1148,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
             false
         ) {
+
             @Override
             protected BytesRef convert(BytesRef value) {
                 return value;

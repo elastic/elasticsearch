@@ -952,17 +952,24 @@ public class TextFieldMapper extends FieldMapper {
             if (operation != FielddataOperation.SCRIPT) {
                 throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
             }
-            if (isSyntheticSource && isStored()) {
-                return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
-                    name(),
-                    CoreValuesSourceType.KEYWORD,
-                    TextDocValuesField::new
-                ) {
-                    @Override
-                    protected BytesRef storedToBytesRef(Object stored) {
-                        return new BytesRef((String) stored);
-                    }
-                };
+            if (isSyntheticSource) {
+                if (isStored()) {
+                    return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
+                        name(),
+                        CoreValuesSourceType.KEYWORD,
+                        TextDocValuesField::new
+                    ) {
+                        @Override
+                        protected BytesRef storedToBytesRef(Object stored) {
+                            return new BytesRef((String) stored);
+                        }
+                    };
+                }
+                throw new IllegalArgumentException(
+                    "fetching values from a text field ["
+                        + name()
+                        + "] is not yet supported because synthetic _source is enabled and the field doesn't create stored fields"
+                );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),

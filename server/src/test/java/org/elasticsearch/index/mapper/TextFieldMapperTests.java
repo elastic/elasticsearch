@@ -1230,15 +1230,24 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testDocValues() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "text")));
-        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
     }
 
     public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
         MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "text").field("store", true)));
-        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86603")
     public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
         MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
             b.field("type", "text");
@@ -1248,6 +1257,12 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> assertScriptDocValues(mapper, "foo", equalTo(List.of("foo"))));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "fetching values from a text field [field] is not yet supported because synthetic _source is enabled and the field doesn't create stored fields"
+            )
+        );
     }
 }

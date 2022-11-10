@@ -179,7 +179,7 @@ final class H3Index {
      *         a Class II grid.
      */
     public static boolean isResolutionClassIII(int res) {
-        return res % 2 != 0;
+        return (res & 1) == 1;
     }
 
     /**

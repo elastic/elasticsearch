@@ -192,6 +192,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 );
             }), false));
         } catch (Exception e) {
+            assert false : e;
             context.onFailure(e);
         }
     }
@@ -355,6 +356,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 );
             }));
         } catch (Exception e) {
+            assert false;
             listener.onFailure(e);
         }
     }

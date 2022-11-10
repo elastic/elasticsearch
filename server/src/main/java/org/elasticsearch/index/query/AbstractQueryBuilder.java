@@ -302,6 +302,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
      * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     * This variant of the method does not support collecting statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser) throws IOException {
         return parseTopLevelQuery(parser, queryName -> {});

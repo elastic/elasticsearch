@@ -71,7 +71,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Uses the significant text aggregation to find the keywords in text fields
      */
     public void testSignificance() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -126,7 +126,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Uses the significant text aggregation to find the keywords in text fields and include/exclude selected terms
      */
     public void testIncludeExcludes() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -187,7 +187,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingField() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -215,7 +215,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldAlias() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -274,7 +274,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     }
 
     public void testInsideTermsAgg() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -331,7 +331,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Test documents with arrays of text
      */
     public void testSignificanceOnTextArrays() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);

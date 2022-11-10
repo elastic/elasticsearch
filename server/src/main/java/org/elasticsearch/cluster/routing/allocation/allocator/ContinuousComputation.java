@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -30,10 +32,10 @@ public abstract class ContinuousComputation<T> {
     private final Processor processor = new Processor();
 
     /**
-     * @param executorService the background executor service to use to run the computations. No more than one task is executed at once.
+     * @param threadPool Each computation runs on a {@code GENERIC} thread from this thread pool. At most one task executes at once.
      */
-    public ContinuousComputation(ExecutorService executorService) {
-        this.executorService = executorService;
+    public ContinuousComputation(ThreadPool threadPool) {
+        this.executorService = threadPool.generic();
     }
 
     /**
@@ -77,7 +79,8 @@ public abstract class ContinuousComputation<T> {
 
         @Override
         public void onRejection(Exception e) {
-            // shutting down, just give up
+            // The executor has an unbounded queue so we must be shutting down to get here.
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
             logger.debug("rejected", e);
         }
 

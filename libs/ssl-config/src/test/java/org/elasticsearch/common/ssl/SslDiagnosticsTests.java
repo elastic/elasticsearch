@@ -52,7 +52,7 @@ public class SslDiagnosticsTests extends ESTestCase {
     private static final String MOCK_FINGERPRINT_3 = "da8e062d74919f549a9764c24ab0fcde3af3719f";
     private static final byte[] MOCK_ENCODING_4 = { 0x64, 0x65, 0x66, 0x67, 0x68, 0x69 };
     private static final String MOCK_FINGERPRINT_4 = "5d96965bfae50bf2be0d6259eb87a6cc9f5d0b26";
-    private static final String MOCK_TIME = "2022-12-30T12:34:56.789Z";
+    private static final String MOCK_NOW = "2022-12-30T12:34:56.789Z";
     private static final String MOCK_NOT_BEFORE = "2022-12-01T00:00:00Z";
     private static final String MOCK_NOT_AFTER = "2023-02-01T00:00:00Z";
 
@@ -60,7 +60,7 @@ public class SslDiagnosticsTests extends ESTestCase {
 
     @Before
     public void setUpDiagnostics() {
-        this.diagnostics = buildSslDiagnostics(MOCK_TIME);
+        this.diagnostics = buildSslDiagnostics(MOCK_NOW);
     }
 
     private SslDiagnostics buildSslDiagnostics(String mockTime) {
@@ -86,7 +86,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -116,7 +118,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -145,7 +149,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -173,7 +179,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -202,7 +210,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -233,7 +243,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -263,7 +275,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -298,7 +312,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the client did not provide a copy of the issuing certificate in the certificate chain;"
@@ -329,7 +345,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -360,7 +378,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -425,7 +445,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "] and ["
                     + MOCK_NOT_AFTER
                     + "]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is issued by [CN=ca,OU=windows,DC=example,DC=com];"
@@ -496,7 +518,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "] and ["
                     + MOCK_NOT_AFTER
                     + "]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is issued by [CN=ca,OU=windows,DC=example,DC=com];"
@@ -533,7 +557,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:38:26Z] and [2046-05-20T07:38:26Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued; the [CN=Test CA 1]"
@@ -560,7 +586,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=Test CA 1]"
                     + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc], no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:38:26Z] and [2046-05-20T07:38:26Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued; the [CN=Test CA 1]"
@@ -588,7 +616,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:38:26Z] and [2046-05-20T07:38:26Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued; the [CN=Test CA 1]"
@@ -649,7 +679,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "] and ["
                     + MOCK_NOT_AFTER
                     + "]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any DNS/IP subject alternative names;"
                     + " the certificate is self-issued;"
@@ -700,7 +732,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "] and ["
                     + MOCK_NOT_AFTER
                     + "]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -758,7 +792,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "] and ["
                     + MOCK_NOT_AFTER
                     + "]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -815,7 +851,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "] and ["
                     + MOCK_NOT_AFTER
                     + "]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -872,7 +910,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "] and ["
                     + MOCK_NOT_AFTER
                     + "]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -909,7 +949,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " invalid encoding [java.security.cert.CertificateEncodingException: MOCK INVALID ENCODING],"
                     + " keyUsage [digitalSignature, nonRepudiation] and extendedKeyUsage [serverAuth, codeSigning];"
                     + (" the certificate is valid between [" + MOCK_NOT_BEFORE + "] and [" + MOCK_NOT_AFTER + "]")
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued;"
@@ -986,7 +1028,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the client provided a certificate with subject name [CN=cert1]"
                     + ", fingerprint [3bebe388a66362784afd6c51a9000961a4e10050], no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the client did not provide a copy of the issuing certificate in the certificate chain;"
@@ -1024,7 +1068,9 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
                     + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
-                    + " (current time is [2022-12-30T12:34:56.789Z], certificate dates are valid);"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"

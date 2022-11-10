@@ -34,6 +34,7 @@ import java.util.TreeSet;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
  * Holds the desired balance and updates it as the cluster evolves.
@@ -62,7 +63,7 @@ public class DesiredBalanceComputer {
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
         final var changes = routingAllocation.changes();
-        final var ignoredShards = desiredBalanceInput.ignoredShards();
+        final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
         final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(toSet());
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
 
@@ -90,7 +91,8 @@ public class DesiredBalanceComputer {
                 final var shardRouting = iterator.next();
                 if (shardRouting.primary() == primary) {
                     var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
-                    if (knownNodeIds.contains(lastAllocatedNodeId) || ignoredShards.contains(shardRouting) == false) {
+                    if (knownNodeIds.contains(lastAllocatedNodeId)
+                        || ignoredShards.contains(discardAllocationStatus(shardRouting)) == false) {
                         shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
                     } else {
                         iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
@@ -216,10 +218,11 @@ public class DesiredBalanceComputer {
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
                 // them all back out of the ignored list to give the allocator another go...
                 routingNodes.unassigned().resetIgnored();
+
                 // ... but not if they're ignored because they're out of scope for allocation
                 for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
                     final var shardRouting = iterator.next();
-                    if (ignoredShards.contains(shardRouting)) {
+                    if (ignoredShards.contains(discardAllocationStatus(shardRouting))) {
                         iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
                     }
                 }
@@ -314,5 +317,34 @@ public class DesiredBalanceComputer {
         private ShardRoutings(ShardId ignored) {
             this(new ArrayList<>(), new ArrayList<>());
         }
+    }
+
+    private static Set<ShardRouting> getIgnoredShardsWithDiscardedAllocationStatus(List<ShardRouting> ignoredShards) {
+        return ignoredShards.stream().map(DesiredBalanceComputer::discardAllocationStatus).collect(toUnmodifiableSet());
+    }
+
+    /**
+     * AllocationStatus is discarded as it might come from GatewayAllocator and not be present in corresponding routing table
+     */
+    private static ShardRouting discardAllocationStatus(ShardRouting shardRouting) {
+        return shardRouting.updateUnassigned(discardAllocationStatus(shardRouting.unassignedInfo()), shardRouting.recoverySource());
+    }
+
+    private static UnassignedInfo discardAllocationStatus(UnassignedInfo info) {
+        if (info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT) {
+            return info;
+        }
+        return new UnassignedInfo(
+            info.getReason(),
+            info.getMessage(),
+            info.getFailure(),
+            info.getNumFailedAllocations(),
+            info.getUnassignedTimeInNanos(),
+            info.getUnassignedTimeInMillis(),
+            info.isDelayed(),
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            info.getFailedNodeIds(),
+            info.getLastAllocatedNodeId()
+        );
     }
 }

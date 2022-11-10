@@ -10,23 +10,20 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 
 import java.io.IOException;
 
-public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
+public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
     protected final BinaryDocValues input;
-    protected final Version indexVersion;
     protected final int dims;
     protected BytesRef value;
 
-    public BinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims, Version indexVersion) {
+    public ByteBinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims) {
         super(name, elementType);
         this.input = input;
-        this.indexVersion = indexVersion;
         this.dims = dims;
     }
 
@@ -55,7 +52,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return DenseVector.EMPTY;
         }
 
-        return new BinaryDenseVector(value, dims, indexVersion);
+        return new ByteBinaryDenseVector(value, dims);
     }
 
     @Override
@@ -63,7 +60,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         if (isEmpty()) {
             return defaultValue;
         }
-        return new BinaryDenseVector(value, dims, indexVersion);
+        return new ByteBinaryDenseVector(value, dims);
     }
 
     @Override

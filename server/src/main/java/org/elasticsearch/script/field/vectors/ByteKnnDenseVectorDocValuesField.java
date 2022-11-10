@@ -8,34 +8,44 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 
 import java.io.IOException;
 
-public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-    protected final BinaryDocValues input;
-    protected final Version indexVersion;
+public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
+    protected VectorValues input; // null if no vectors
+    protected BytesRef vector;
     protected final int dims;
-    protected BytesRef value;
 
-    public BinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims, Version indexVersion) {
+    public ByteKnnDenseVectorDocValuesField(@Nullable VectorValues input, String name, ElementType elementType, int dims) {
         super(name, elementType);
-        this.input = input;
-        this.indexVersion = indexVersion;
         this.dims = dims;
+        this.input = input;
     }
 
     @Override
     public void setNextDocId(int docId) throws IOException {
-        if (input.advanceExact(docId)) {
-            value = input.binaryValue();
+        if (input == null) {
+            return;
+        }
+        int currentDoc = input.docID();
+        if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {
+            vector = null;
+        } else if (docId == currentDoc) {
+            vector = input.binaryValue();
         } else {
-            value = null;
+            currentDoc = input.advance(docId);
+            if (currentDoc == docId) {
+                vector = input.binaryValue();
+            } else {
+                vector = null;
+            }
         }
     }
 
@@ -44,9 +54,8 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         return new DenseVectorScriptDocValues(this, dims);
     }
 
-    @Override
     public boolean isEmpty() {
-        return value == null;
+        return vector == null;
     }
 
     @Override
@@ -55,7 +64,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return DenseVector.EMPTY;
         }
 
-        return new BinaryDenseVector(value, dims, indexVersion);
+        return new ByteKnnDenseVector(vector);
     }
 
     @Override
@@ -63,7 +72,8 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         if (isEmpty()) {
             return defaultValue;
         }
-        return new BinaryDenseVector(value, dims, indexVersion);
+
+        return new ByteKnnDenseVector(vector);
     }
 
     @Override

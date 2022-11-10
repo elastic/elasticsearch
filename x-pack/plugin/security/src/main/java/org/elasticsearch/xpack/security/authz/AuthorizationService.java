@@ -209,14 +209,23 @@ public class AuthorizationService {
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        // TODO as an optimization we can try to fetch authz info from securityContext first
-        authorizationEngine.resolveAuthorizationInfo(subject, ActionListener.wrap(authzInfo -> {
+        final AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
+        if (authorizationInfo != null) {
             authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
                 remoteClusterAlias,
-                authzInfo,
+                authorizationInfo,
                 wrapPreservingContext(listener, threadContext)
             );
-        }, listener::onFailure));
+        } else {
+            assert isInternal(subject.getUser()) : "authorization info expected to be in context for all users other than internal users";
+            authorizationEngine.resolveAuthorizationInfo(subject, ActionListener.wrap(resolvedAuthzInfo -> {
+                authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                    remoteClusterAlias,
+                    resolvedAuthzInfo,
+                    wrapPreservingContext(listener, threadContext)
+                );
+            }, listener::onFailure));
+        }
     }
 
     /**

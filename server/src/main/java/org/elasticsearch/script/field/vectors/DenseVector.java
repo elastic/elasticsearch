@@ -30,7 +30,7 @@ public interface DenseVector {
 
     float getMagnitude();
 
-    double dotProduct(byte[] queryVector);
+    int dotProduct(byte[] queryVector);
 
     double dotProduct(float[] queryVector);
 
@@ -52,7 +52,7 @@ public interface DenseVector {
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
 
-    double l1Norm(byte[] queryVector);
+    int l1Norm(byte[] queryVector);
 
     double l1Norm(float[] queryVector);
 
@@ -96,10 +96,17 @@ public interface DenseVector {
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
 
+    /**
+     * Get the cosine similarity with the un-normalized query vector
+     */
     default double cosineSimilarity(byte[] queryVector) {
         return cosineSimilarity(queryVector, getMagnitude(queryVector));
     }
 
+    /**
+     * Get the cosine similarity with the query vector
+     * @param qvMagnitude - pre-calculated magnitude of the query vector
+     */
     double cosineSimilarity(byte[] queryVector, float qvMagnitude);
 
     /**
@@ -203,7 +210,7 @@ public interface DenseVector {
         }
 
         @Override
-        public double dotProduct(byte[] queryVector) {
+        public int dotProduct(byte[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 
@@ -218,7 +225,7 @@ public interface DenseVector {
         }
 
         @Override
-        public double l1Norm(byte[] queryVector) {
+        public int l1Norm(byte[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

@@ -29,22 +29,13 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public byte[] asBytes() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public float getMagnitude() {
         return DenseVector.getMagnitude(docVector);
     }
 
     @Override
-    public double dotProduct(byte[] queryVector) {
-        float result = 0;
-        for (int i = 0; i < docVector.length; i++) {
-            result += docVector[i] * queryVector[i];
-        }
-        return result;
+    public int dotProduct(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
     }
 
     @Override
@@ -62,12 +53,8 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double l1Norm(byte[] queryVector) {
-        double result = 0.0;
-        for (int i = 0; i < docVector.length; i++) {
-            result += Math.abs(docVector[i] - queryVector[i]);
-        }
-        return result;
+    public int l1Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l1Norm(float[] queryVector)] instead");
     }
 
     @Override
@@ -90,12 +77,7 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(byte[] queryVector) {
-        double l2norm = 0;
-        for (int i = 0; i < docVector.length; i++) {
-            double diff = docVector[i] - queryVector[i];
-            l2norm += diff * diff;
-        }
-        return Math.sqrt(l2norm);
+        throw new UnsupportedOperationException("use [double l2Norm(float[] queryVector)] instead");
     }
 
     @Override
@@ -115,7 +97,7 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
-        return dotProduct(queryVector) / (qvMagnitude * getMagnitude());
+        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector, boolean normalizeQueryVector)] instead");
     }
 
     @Override

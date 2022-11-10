@@ -22,7 +22,6 @@ public class ByteBinaryDenseVector implements DenseVector {
     protected final int dims;
 
     protected float[] floatDocVector;
-    protected byte[] byteDocVector;
     protected boolean magnitudeDecoded;
     protected float magnitude;
 
@@ -56,7 +55,7 @@ public class ByteBinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double dotProduct(byte[] queryVector) {
+    public int dotProduct(byte[] queryVector) {
         int result = 0;
         int i = 0;
         int j = docVector.offset;
@@ -68,23 +67,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public double dotProduct(float[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            result += docVector.bytes[j++] * (int) queryVector[i++];
-        }
-        return result;
-    }
-
-    protected double dotProductNormalized(float[] normalizedQueryVector) {
-        float result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            result += docVector.bytes[j++] * normalizedQueryVector[i++];
-        }
-        return result;
+        throw new UnsupportedOperationException("use [int dotProduct(byte[] queryVector)] instead");
     }
 
     @Override
@@ -104,7 +87,7 @@ public class ByteBinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double l1Norm(byte[] queryVector) {
+    public int l1Norm(byte[] queryVector) {
         int result = 0;
         int i = 0;
         int j = docVector.offset;
@@ -116,13 +99,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public double l1Norm(float[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            result += abs(docVector.bytes[j++] - (int) queryVector[i++]);
-        }
-        return result;
+        throw new UnsupportedOperationException("use [int l1Norm(byte[] queryVector)] instead");
     }
 
     @Override
@@ -150,14 +127,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(float[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            int diff = docVector.bytes[j++] - (int) queryVector[i++];
-            result += diff * diff;
-        }
-        return Math.sqrt(result);
+        throw new UnsupportedOperationException("use [double l2Norm(byte[] queryVector)] instead");
     }
 
     @Override

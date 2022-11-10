@@ -259,7 +259,7 @@ public class VectorScoreScriptUtils {
 
         public double cosineSimilarity() {
             setNextVector();
-            return field.get().cosineSimilarity(queryVector);
+            return field.get().cosineSimilarity(queryVector, qvMagnitude);
         }
     }
 

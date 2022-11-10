@@ -128,8 +128,4 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(bdv.cosineSimilarity(arrayQV), bdv.cosineSimilarity(listQV), 0.001f);
         assertEquals(bdv.cosineSimilarity((Object) listQV), bdv.cosineSimilarity((Object) arrayQV), 0.001f);
     }
-
-    public void testByteVsFloatSimilarity() {
-
-    }
 }

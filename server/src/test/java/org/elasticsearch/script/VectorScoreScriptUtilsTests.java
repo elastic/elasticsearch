@@ -168,11 +168,11 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             for (int i = 0; i < queryVectorArray.length; i++) {
                 queryVectorArray[i] = queryVector.get(i).floatValue();
             }
-            assertEquals(
-                "cosineSimilarity result is not equal to the expected value!",
-                cosineSimilarityExpected,
-                field.getInternal().cosineSimilarity(queryVectorArray, true),
-                0.001
+            UnsupportedOperationException uoe =
+                expectThrows(UnsupportedOperationException.class, () -> field.getInternal().cosineSimilarity(queryVectorArray, true));
+            assertThat(
+                uoe.getMessage(),
+                containsString("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead")
             );
 
             // Check each function rejects query vectors with the wrong dimension
@@ -259,25 +259,61 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             ScoreScript scoreScript = mock(ScoreScript.class);
             when(scoreScript.field("vector")).thenAnswer(mock -> field);
 
-            float dotProductExpected = 17382.0f;
+            int dotProductExpected = 17382;
             DotProduct dotProduct = new DotProduct(scoreScript, listFloatVector, "vector");
             assertEquals(field.getName(), dotProductExpected, dotProduct.dotProduct(), 0.001);
             dotProduct = new DotProduct(scoreScript, listByteVector, "vector");
             assertEquals(field.getName(), dotProductExpected, dotProduct.dotProduct(), 0.001);
             assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(listFloatVector), 0.001);
             assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(listByteVector), 0.001);
-            assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(floatVector), 0.001);
-            assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(byteVector), 0.001);
+            switch (field.getElementType()) {
+                case BYTE -> {
+                    assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(byteVector));
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().dotProduct(floatVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [int dotProduct(byte[] queryVector)] instead")
+                    );
+                }
+                case FLOAT -> {
+                    assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(floatVector), 0.001);
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().dotProduct(byteVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [double dotProduct(float[] queryVector)] instead")
+                    );
+                }
+            };
 
-            float l1NormExpected = 135.0f;
+            int l1NormExpected = 135;
             L1Norm l1Norm = new L1Norm(scoreScript, listFloatVector, "vector");
             assertEquals(field.getName(), l1NormExpected, l1Norm.l1norm(), 0.001);
             l1Norm = new L1Norm(scoreScript, listByteVector, "vector");
             assertEquals(field.getName(), l1NormExpected, l1Norm.l1norm(), 0.001);
             assertEquals(field.getName(), l1NormExpected, field.get().l1Norm(listFloatVector), 0.001);
             assertEquals(field.getName(), l1NormExpected, field.get().l1Norm(listByteVector), 0.001);
-            assertEquals(field.getName(), l1NormExpected, field.get().l1Norm(floatVector), 0.001);
-            assertEquals(field.getName(), l1NormExpected, field.get().l1Norm(byteVector), 0.001);
+            switch (field.getElementType()) {
+                case BYTE -> {
+                    assertEquals(field.getName(), l1NormExpected, field.get().l1Norm(byteVector));
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().l1Norm(floatVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [int l1Norm(byte[] queryVector)] instead")
+                    );
+                }
+                case FLOAT -> {
+                    assertEquals(field.getName(), l1NormExpected, field.get().l1Norm(floatVector), 0.001);
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().l1Norm(byteVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [double l1Norm(float[] queryVector)] instead")
+                    );
+                }
+            };
 
             float l2NormExpected = 116.897f;
             L2Norm l2Norm = new L2Norm(scoreScript, listFloatVector, "vector");
@@ -286,8 +322,26 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             assertEquals(field.getName(), l2NormExpected, l2Norm.l2norm(), 0.001);
             assertEquals(field.getName(), l2NormExpected, field.get().l2Norm(listFloatVector), 0.001);
             assertEquals(field.getName(), l2NormExpected, field.get().l2Norm(listByteVector), 0.001);
-            assertEquals(field.getName(), l2NormExpected, field.get().l2Norm(floatVector), 0.001);
-            assertEquals(field.getName(), l2NormExpected, field.get().l2Norm(byteVector), 0.001);
+            switch (field.getElementType()) {
+                case BYTE -> {
+                    assertEquals(field.getName(), l2NormExpected, field.get().l2Norm(byteVector), 0.001);
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().l2Norm(floatVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [double l2Norm(byte[] queryVector)] instead")
+                    );
+                }
+                case FLOAT -> {
+                    assertEquals(field.getName(), l2NormExpected, field.get().l2Norm(floatVector), 0.001);
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().l2Norm(byteVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [double l2Norm(float[] queryVector)] instead")
+                    );
+                }
+            };
 
             float cosineSimilarityExpected = 0.765f;
             CosineSimilarity cosineSimilarity = new CosineSimilarity(scoreScript, listFloatVector, "vector");
@@ -296,8 +350,26 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             assertEquals(field.getName(), cosineSimilarityExpected, cosineSimilarity.cosineSimilarity(), 0.001);
             assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(listFloatVector), 0.001);
             assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(listByteVector), 0.001);
-            assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(floatVector), 0.001);
-            assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(byteVector), 0.001);
+            switch (field.getElementType()) {
+                case BYTE -> {
+                    assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(byteVector), 0.001);
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().cosineSimilarity(floatVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead")
+                    );
+                }
+                case FLOAT -> {
+                    assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(floatVector), 0.001);
+                    UnsupportedOperationException e =
+                        expectThrows(UnsupportedOperationException.class, () -> field.get().cosineSimilarity(byteVector));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("use [double dotProduct(float[] queryVector, boolean normalizeQueryVector)] instead")
+                    );
+                }
+            };
         }
     }
 }

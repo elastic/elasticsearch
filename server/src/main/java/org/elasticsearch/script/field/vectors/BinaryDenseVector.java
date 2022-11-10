@@ -39,24 +39,13 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public byte[] asBytes() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public float getMagnitude() {
         return VectorEncoderDecoder.getMagnitude(indexVersion, docVector);
     }
 
     @Override
-    public double dotProduct(byte[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
-        double dotProduct = 0;
-        for (float v : queryVector) {
-            dotProduct += byteBuffer.getFloat() * v;
-        }
-        return dotProduct;
+    public int dotProduct(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
     }
 
     @Override
@@ -82,14 +71,8 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double l1Norm(byte[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
-        double l1norm = 0;
-        for (float v : queryVector) {
-            l1norm += Math.abs(v - byteBuffer.getFloat());
-        }
-        return l1norm;
+    public int l1Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l1Norm(float[] queryVector)] instead");
     }
 
     @Override
@@ -116,13 +99,7 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(byte[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-        double l2norm = 0;
-        for (float queryValue : queryVector) {
-            double diff = byteBuffer.getFloat() - queryValue;
-            l2norm += diff * diff;
-        }
-        return Math.sqrt(l2norm);
+        throw new UnsupportedOperationException("use [double l2Norm(float[] queryVector)] instead");
     }
 
     @Override
@@ -149,7 +126,7 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
-        return dotProduct(queryVector) / (qvMagnitude * getMagnitude());
+        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector, boolean normalizeQueryVector)] instead");
     }
 
     @Override

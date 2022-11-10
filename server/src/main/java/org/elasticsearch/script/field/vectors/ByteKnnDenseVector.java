@@ -18,7 +18,6 @@ public class ByteKnnDenseVector implements DenseVector {
     protected final BytesRef docVector;
 
     protected float[] floatDocVector;
-    protected byte[] byteDocVector;
     protected boolean magnitudeCalculated = false;
     protected float magnitude;
 
@@ -43,16 +42,6 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @Override
-    public byte[] asBytes() {
-        if (byteDocVector == null) {
-            byteDocVector = new byte[docVector.length];
-            System.arraycopy(docVector.bytes, docVector.offset, byteDocVector, 0, docVector.length);
-        }
-
-        return byteDocVector;
-    }
-
-    @Override
     public float getMagnitude() {
         if (magnitudeCalculated == false) {
             magnitude = DenseVector.getMagnitude(docVector, docVector.length);
@@ -62,7 +51,7 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double dotProduct(byte[] queryVector) {
+    public int dotProduct(byte[] queryVector) {
         int result = 0;
         int i = 0;
         int j = docVector.offset;
@@ -74,23 +63,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double dotProduct(float[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < docVector.length) {
-            result += docVector.bytes[j++] * (int) queryVector[i++];
-        }
-        return result;
-    }
-
-    protected double dotProductNormalized(float[] normalizedQueryVector) {
-        float result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < docVector.length) {
-            result += docVector.bytes[j++] * normalizedQueryVector[i++];
-        }
-        return result;
+        throw new UnsupportedOperationException("use [int dotProduct(byte[] queryVector)] instead");
     }
 
     @Override
@@ -110,7 +83,7 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double l1Norm(byte[] queryVector) {
+    public int l1Norm(byte[] queryVector) {
         int result = 0;
         int i = 0;
         int j = docVector.offset;
@@ -122,13 +95,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double l1Norm(float[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < docVector.length) {
-            result += abs(docVector.bytes[j++] - (int) queryVector[i++]);
-        }
-        return result;
+        throw new UnsupportedOperationException("use [int l1Norm(byte[] queryVector)] instead");
     }
 
     @Override
@@ -156,14 +123,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(float[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < docVector.length) {
-            int diff = docVector.bytes[j++] - (int) queryVector[i++];
-            result += diff * diff;
-        }
-        return Math.sqrt(result);
+        throw new UnsupportedOperationException("use [double l2Norm(byte[] queryVector)] instead");
     }
 
     @Override
@@ -185,11 +145,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
-        if (normalizeQueryVector) {
-            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
-        }
-
-        return dotProductNormalized(queryVector) / getMagnitude();
+        throw new UnsupportedOperationException("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
     }
 
     @Override

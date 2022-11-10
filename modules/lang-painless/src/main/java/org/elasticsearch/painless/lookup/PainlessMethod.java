@@ -40,7 +40,7 @@ public record PainlessMethod(
         this.typeParameters = List.copyOf(typeParameters);
         this.methodHandle = methodHandle;
         this.methodType = methodType;
-        this.annotations = annotations;
+        this.annotations = annotations != null ? Map.copyOf(annotations) : null;
     }
 
     @Override

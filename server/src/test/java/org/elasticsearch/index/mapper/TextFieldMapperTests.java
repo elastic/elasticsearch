@@ -1261,7 +1261,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "fetching values from a text field [field] is not yet supported because synthetic _source is enabled and the field doesn't create stored fields"
+                "fetching values from a text field [field] is not yet supported because synthetic _source is "
+                    + "enabled and the field doesn't create stored fields"
             )
         );
     }

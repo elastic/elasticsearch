@@ -288,9 +288,9 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(1));
+        assertThat(roles.size(), is(2));
 
-        final RoleDescriptor roleDescriptor = roles.get("role1");
+        final RoleDescriptor roleDescriptor = roles.get("role");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getRemoteIndicesPrivileges().length, equalTo(1));
         final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges()[0];

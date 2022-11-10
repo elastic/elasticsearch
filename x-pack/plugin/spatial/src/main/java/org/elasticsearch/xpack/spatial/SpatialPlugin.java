@@ -180,10 +180,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
             new AggregationSpec(
                 CartesianBoundsAggregationBuilder.NAME,
                 CartesianBoundsAggregationBuilder::new,
-                usage.track(
-                    SpatialStatsAction.Item.CARTESIANBOUNDS,
-                    CartesianBoundsAggregationBuilder.PARSER    // TODO: Should we have a license for this?
-                )
+                usage.track(SpatialStatsAction.Item.CARTESIANBOUNDS, CartesianBoundsAggregationBuilder.PARSER)
             ).addResultReader(InternalCartesianBounds::new).setAggregatorRegistrar(SpatialPlugin::registerCartesianBoundsAggregators)
         );
     }

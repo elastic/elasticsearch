@@ -1,0 +1,210 @@
+[role="xpack"]
+[[ccr-disaster-recovery-bi-directional-tutorial]]
+=== Tutorial: Disaster recovery based on bi-directional {ccr}
+++++
+<titleabbrev>Bi-directional disaster recovery</titleabbrev>
+++++
+
+Learn how to set up disaster recovery between two clusters based on
+bi-directional {ccr}. The following tutorial is designed for immutable indices
+(data no longer need to be updated after writing) like logs, metrics, observability, 
+and security events. If you have mutable indices, you should follow <<disaster-recovery,the uni-directional cross-cluster replication disaster recovery tutorial>>.
+
+This tutorial works with Logstash as the source of ingestion. It takes
+advantage of a logstash feature where <<{logstash-ref}/plugins-outputs-elasticsearch,the output can be load balanced
+across an array of hosts specified>>. Beats and agents currently do not 
+support multiple outputs. It should also be possible to set up a proxy 
+(Load Balancer) to redirect traffic without Logstash in this tutorial. 
+
+* Setting up a remote cluster on `clusterA` and `clusterB`.
+* Setting up bi-directional cross-cluster replication with exclusion patterns.
+* Setting up Logstash with multiple hosts to allow automatic load balancing and switching during disasters.
+
+==== Initial setup
+. Set up a remote cluster on both clusters.
++
+[source,console]
+----
+### On cluster A ###
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "clusterB": {
+          "mode": "proxy",
+          "skip_unavailable": true,
+          "server_name": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com",
+          "proxy_socket_connections": 18,
+          "proxy_address": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400",
+        }
+      }
+    }
+  }
+}
+### On cluster B ###
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "clusterA": {
+          "mode": "proxy",
+          "skip_unavailable": true,
+          "server_name": "clustera.es.australia-southeast1.gcp.elastic-cloud.com",
+          "proxy_socket_connections": 18,
+          "proxy_address": "clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400",
+        }
+      }
+    }
+  }
+}
+----
+
+. Set up bi-directional cross-cluster replication.
++
+[source,console]
+----
+### On cluster A ###
+PUT /_ccr/auto_follow/logs-generic-default
+{
+  "remote_cluster": "clusterB",
+  "leader_index_patterns": [
+    ".ds-logs-generic-default-20*"
+  ],
+  "leader_index_exclusion_patterns":"{{leader_index}}-replicated_from_clustera",
+  "follow_index_pattern": "{{leader_index}}-replicated_from_clusterb"
+}
+
+### On cluster B ###
+PUT /_ccr/auto_follow/logs-generic-default
+{
+  "remote_cluster": "clusterA",
+  "leader_index_patterns": [
+    ".ds-logs-generic-default-20*"
+  ],
+  "leader_index_exclusion_patterns":"{{leader_index}}-replicated_from_clusterb",
+  "follow_index_pattern": "{{leader_index}}-replicated_from_clustera"
+}
+----
++
+IMPORTANT: Existing data on the cluster will not be replicated by
+`_ccr/auto_follow` even though the patterns may match. This function will only
+replicate newly created backing indices (as part of the data stream)
++
+IMPORTANT: Ensure to have `leader_index_exclustion_patterns` to avoid recursion.
++
+TIP: `follow_index_pattern` allows lowercase characters only.
++
+TIP: This step cannot be executed via Kibana UI due to the lack of an exclusion
+pattern in the UI. Use API in this step.
+
+. Set up the Logstash config file
++
+In the following example, I use the input generator to demonstrate the document
+count in the clusters. Users would need to reconfigure this section
+to suit their use cases. 
++
+----
+### On Logstash server ###
+### This is a logstash config file ###
+input {
+  generator{
+    message => 'Hello World'
+    count => 100
+  }
+}
+output {
+  elasticsearch {
+    hosts => ["https://clustera.es.australia-southeast1.gcp.elastic-cloud.com:9243","https://clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9243"]
+    user => "logstash-user"
+    password => "same_password_for_both_clusters"
+  }
+}
+----
++
+IMPORTANT: The key point is that when `cluster A` is down, all traffic will be
+automatically redirected to `cluster B`, and once `cluster A` comes back, they
+are automatically redirected back to `cluster A` again. This is achieved by the
+option `hosts` where multiple ES cluster endpoints are specified in the
+array `[cluserA, clusterB]`.
++
+TIP: Set up the same password for the same user on both clusters to use this load-balancing feature.
+
+. Start logstash with the above config file.
++
+----
+### On Logstash server ###
+bin/logstash -f multiple_hosts.conf
+----
+
+. Observe document counts in data streams
++
+The setup above will create a data stream named `logs-generic-default`
+on each of the clusters. Logstash will write 50% of the documents to `clusterp
+A` and 50% of the documents to `cluster B` when both clusters are alive.
++
+Bi-directional {ccr} will create one more data stream on each of the clusters
+with the `-replication_from_cluster{a|b}` suffix. At the end of this step,
+you should see:
++
+----
+### data streams On cluster A ###
+ 50 documents in logs-generic-default-replicated_from_clusterb 
+ 50 documents in logs-generic-default
+### data streams On cluster B ###
+ 50 documents in logs-generic-default-replicated_from_clustera
+ 50 documents in logs-generic-default
+----
++
+If you perform a search on `logs*` on either of the clusters, you should see 100
+hits in total. Queries should be set up to perform search across them.
++
+[source,console]
+----
+GET logs*/_search?size=0
+----
+
+
+==== Failover when `clusterA` is down
+. You can simulate this by shutting down either of the clusters. Let's shut down
+`cluster A` in this tutorial.
+. Start logstash with the same config file. (This step is not required in real
+use cases where logstash ingests continuously)
++
+----
+### On Logstash server ###
+bin/logstash -f multiple_hosts.conf
+----
+
+. Observe all logstash traffic will be redirected to `cluster B` automatically. 
+. Observe two data streams on `cluster B` now contain a different number of documents. 
++
+----
+### data streams On cluster A (Dead) ###
+ 50 documents in logs-generic-default-replicated_from_clusterb 
+ 50 documents in logs-generic-default
+### data streams On cluster B (Alive) ###
+ 50 documents in logs-generic-default-replicated_from_clustera
+150 documents in logs-generic-default
+----
++
+TIP: You should also redirect all search traffic to the `clusterB` cluster during this time. 
+
+==== Failback when `clusterA` comes back
+. You can simulate this by turning `cluster A` back. 
+. Observe data ingested to `cluster B` during `cluster A` 's downtime will be
+automatically replicated. 
++
+----
+### data streams On cluster A ###
+150 documents in logs-generic-default-replicated_from_clusterb 
+ 50 documents in logs-generic-default
+### data streams On cluster B ###
+ 50 documents in logs-generic-default-replicated_from_clustera
+150 documents in logs-generic-default
+----
+. If you have logstash running at this time, you will also observe traffic is
+sending to both clusters.
+
+

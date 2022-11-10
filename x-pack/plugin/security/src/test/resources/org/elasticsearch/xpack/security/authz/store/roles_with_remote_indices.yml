@@ -9,21 +9,6 @@ role:
       privileges:
         - READ
 
-role_with_multiple_remote_indices:
-  remote_indices:
-    - clusters:
-        - remote1
-      names:
-        - idx1
-      privileges:
-        - READ
-    - clusters:
-        - remote2
-      names:
-        - idx2
-      privileges:
-        - READ
-
 role_with_dls_fls:
   remote_indices:
     - clusters:
@@ -37,11 +22,12 @@ role_with_dls_fls:
         grant:
           - foo
           - boo
+        except:
+          - boo
 
 invalid_role_missing_clusters:
   remote_indices:
     - names:
         - idx1
-        - idx2
       privileges:
         - READ

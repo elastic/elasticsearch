@@ -277,8 +277,11 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles.get("role_query_invalid"), nullValue());
     }
 
-    public void testParseFileWithRemoteIndices() {
+    public void testParseFileWithRemoteIndices() throws IllegalAccessException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR, null);
+        final List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        events.clear();
         final Path path = getDataPath("roles_with_remote_indices.yml");
         final Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(
             path,
@@ -288,7 +291,7 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(3));
+        assertThat(roles.size(), is(2));
 
         final RoleDescriptor roleDescriptor = roles.get("role");
         assertNotNull(roleDescriptor);
@@ -299,28 +302,26 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(remoteIndicesPrivileges.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
         assertThat(remoteIndicesPrivileges.indicesPrivileges().allowRestrictedIndices(), is(false));
 
-        final RoleDescriptor roleDescriptor2 = roles.get("role_with_multiple_remote_indices");
+        final RoleDescriptor roleDescriptor2 = roles.get("role_with_dls_fls");
         assertNotNull(roleDescriptor2);
-        assertThat(roleDescriptor2.getRemoteIndicesPrivileges().length, equalTo(2));
-        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges2 = roleDescriptor2.getRemoteIndicesPrivileges()[0];
-        assertThat(remoteIndicesPrivileges2.remoteClusters(), arrayContaining("remote1"));
-        assertThat(remoteIndicesPrivileges2.indicesPrivileges().getIndices(), arrayContaining("idx1"));
-        assertThat(remoteIndicesPrivileges2.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
-        assertThat(remoteIndicesPrivileges2.indicesPrivileges().allowRestrictedIndices(), is(false));
-        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges3 = roleDescriptor2.getRemoteIndicesPrivileges()[1];
-        assertThat(remoteIndicesPrivileges3.remoteClusters(), arrayContaining("remote2"));
-        assertThat(remoteIndicesPrivileges3.indicesPrivileges().getIndices(), arrayContaining("idx2"));
-        assertThat(remoteIndicesPrivileges3.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
-        assertThat(remoteIndicesPrivileges3.indicesPrivileges().allowRestrictedIndices(), is(false));
-
-        final RoleDescriptor roleDescriptor3 = roles.get("role_with_dls_fls");
-        assertNotNull(roleDescriptor3);
-        assertThat(roleDescriptor3.getRemoteIndicesPrivileges().length, equalTo(1));
-        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges4 = roleDescriptor3.getRemoteIndicesPrivileges()[0];
+        assertThat(roleDescriptor2.getRemoteIndicesPrivileges().length, equalTo(1));
+        final RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges4 = roleDescriptor2.getRemoteIndicesPrivileges()[0];
         assertThat(remoteIndicesPrivileges4.remoteClusters(), arrayContaining("*"));
         assertThat(remoteIndicesPrivileges4.indicesPrivileges().getIndices(), arrayContaining("idx1"));
         assertThat(remoteIndicesPrivileges4.indicesPrivileges().getPrivileges(), arrayContaining("READ"));
         assertThat(remoteIndicesPrivileges4.indicesPrivileges().allowRestrictedIndices(), is(false));
+        assertThat(remoteIndicesPrivileges4.indicesPrivileges().getGrantedFields(), arrayContaining("foo", "boo"));
+        assertThat(remoteIndicesPrivileges4.indicesPrivileges().getDeniedFields(), arrayContaining("boo"));
+
+        assertThat(roles.get("invalid_role_missing_clusters"), nullValue());
+        assertThat(events, hasSize(1));
+        assertThat(
+            events.get(0),
+            startsWith(
+                "failed to parse remote indices privileges for role [invalid_role_missing_clusters]. "
+                    + "missing required [clusters] field. skipping role."
+            )
+        );
     }
 
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {

@@ -299,14 +299,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
-        final long shardSize = getExpectedShardSize(
-            shardRouting,
-            0L,
-            allocation.clusterInfo(),
-            allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
-        );
+        final long shardSize = getExpectedShardSize(shardRouting, 0L, allocation);
         assert shardSize >= 0 : shardSize;
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHighStage(total).getBytes()) {
@@ -360,14 +353,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
-        final long shardSize = getExpectedShardSize(
-            shardRouting,
-            0L,
-            allocation.clusterInfo(),
-            allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
-        );
+        final long shardSize = getExpectedShardSize(shardRouting, 0L, allocation);
         assert shardSize >= 0 : shardSize;
         final long freeBytesAfterShard = usage.getFreeBytes() - shardSize;
         if (freeBytesAfterShard < 0) {
@@ -551,6 +537,17 @@ public class DiskThresholdDecider extends AllocationDecider {
             return YES_USAGES_UNAVAILABLE;
         }
         return null;
+    }
+
+    public static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
+        return DiskThresholdDecider.getExpectedShardSize(
+            shardRouting,
+            defaultSize,
+            allocation.clusterInfo(),
+            allocation.snapshotShardSizeInfo(),
+            allocation.metadata(),
+            allocation.routingTable()
+        );
     }
 
     /**

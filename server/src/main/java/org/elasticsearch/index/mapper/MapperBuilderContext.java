@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * Holds context for building Mapper objects from their Builders
@@ -21,19 +22,28 @@ public final class MapperBuilderContext {
      * The root context, to be used when building a tree of mappers
      */
     public static MapperBuilderContext root(boolean isSourceSynthetic) {
-        return new MapperBuilderContext(isSourceSynthetic);
+        return new MapperBuilderContext(null, () -> isSourceSynthetic);
+    }
+
+    /**
+     * A context to use to build metadata fields.
+     */
+    public static MapperBuilderContext forMetadata() {
+        return new MapperBuilderContext(
+            null,
+            () -> { throw new UnsupportedOperationException("metadata fields can't check if _source is synthetic"); }
+        );
     }
 
     private final String path;
-    private final boolean isSourceSynthetic;
-
-    private MapperBuilderContext(boolean isSourceSynthetic) {
-        this.path = null;
-        this.isSourceSynthetic = isSourceSynthetic;
-    }
+    private final BooleanSupplier isSourceSynthetic;
 
     MapperBuilderContext(String path, boolean isSourceSynthetic) {
-        this.path = Objects.requireNonNull(path);
+        this(Objects.requireNonNull(path), () -> isSourceSynthetic);
+    }
+
+    private MapperBuilderContext(String path, BooleanSupplier isSourceSynthetic) {
+        this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
     }
 
@@ -56,7 +66,10 @@ public final class MapperBuilderContext {
         return path + "." + name;
     }
 
+    /**
+     * Is the {@code _source} field being reconstructed on the fly?
+     */
     public boolean isSourceSynthetic() {
-        return isSourceSynthetic;
+        return isSourceSynthetic.getAsBoolean();
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -111,7 +113,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
             assertThat(document.getIntervalMillis(), equalTo(interval));
             assertThat(document.getSystem(), is(MonitoredSystem.ES));
             assertThat(document.getType(), equalTo(ShardMonitoringDoc.TYPE));
-            assertThat(document.getId(), equalTo(ShardMonitoringDoc.id(stateUUID, document.getShardRouting())));
+            assertThat(document.getId(), equalTo(ShardMonitoringDoc.id(stateUUID, document.getShardRouting(), 0)));
             assertThat(document.getClusterStateUUID(), equalTo(stateUUID));
 
             if (document.getShardRouting().assignedToNode()) {
@@ -138,7 +140,24 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         }
 
         final RoutingTable routingTable = mock(RoutingTable.class);
+        // _index* matches the test data above
+        when(routingTable.allShards("_index*")).thenReturn(allShards);
+        // _all is reserved to mean all indices in the routing table
+        when(routingTable.allShards("_all")).thenReturn(allShards);
+        // When collection indices is set to [], it's treated the same as "_all", so the key set of the routing table is used to grab the
+        // index names
+        when(routingTable.allShards("_index")).thenReturn(allShards);
+        // This mock routing table only has the index named "_index", so if collection indices is set to ["_none"] no shards should be
+        // found.
+        when(routingTable.allShards("_none")).thenReturn(new ArrayList<>(0));
+
+        final IndexRoutingTable indexRoutingTable = mock(IndexRoutingTable.class);
+        final Map<String, IndexRoutingTable> indicesRouting = Map.of("_index", indexRoutingTable);
+        when(routingTable.indicesRouting()).thenReturn(indicesRouting);
+
+        // This is only used by the test to decide how many shards should be covered
         when(routingTable.allShards()).thenReturn(allShards);
+
         return routingTable;
     }
 }

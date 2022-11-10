@@ -36,7 +36,16 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         final int shardCount
     ) {
 
-        super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting, shardCount), XCONTENT_FILTERS);
+        super(
+            cluster,
+            timestamp,
+            interval,
+            node,
+            MonitoredSystem.ES,
+            TYPE,
+            id(clusterStateUUID, shardRouting, shardCount),
+            XCONTENT_FILTERS
+        );
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.clusterStateUUID = Objects.requireNonNull(clusterStateUUID);
     }

@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -21,6 +25,8 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -31,9 +37,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
@@ -92,8 +101,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolutionOfChainedReferences() {
-        EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(loadMapping("mapping-one-field.json", "idx"));
 
         Eval eval = (Eval) analyzer.analyze(
             new Eval(
@@ -153,8 +161,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnresolvableAttribute() {
-        EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(loadMapping("mapping-one-field.json", "idx"));
 
         VerificationException ve = expectThrows(
             VerificationException.class,
@@ -170,8 +177,148 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(ve.getMessage(), containsString("Unknown column [emp_nos], did you mean [emp_no]?"));
     }
 
+    public void testProjectBasic() {
+        assertProjection("""
+            from test
+            | project first_name
+            """, "first_name");
+    }
+
+    public void testProjectBasicPattern() {
+        assertProjection("""
+            from test
+            | project first*name
+            """, "first_name");
+    }
+
+    public void testProjectIncludePattern() {
+        assertProjection("""
+            from test
+            | project *name
+            """, "first_name", "last_name");
+    }
+
+    public void testProjectIncludeMultiStarPattern() {
+        assertProjection("""
+            from test
+            | project *t*name
+            """, "first_name", "last_name");
+    }
+
+    public void testProjectStar() {
+        assertProjection("""
+            from test
+            | project *
+            """, "emp_no", "first_name", "gender", "languages", "last_name", "salary", "_meta_field");
+    }
+
+    public void testProjectOrder() {
+        assertProjection("""
+            from test
+            | project first_name, *, last_name
+            """, "first_name", "emp_no", "gender", "languages", "salary", "_meta_field", "last_name");
+    }
+
+    public void testProjectExcludeName() {
+        assertProjection("""
+            from test
+            | project *name, -first_name
+            """, "last_name");
+    }
+
+    public void testProjectExcludePattern() {
+        assertProjection("""
+            from test
+            | project *, -*_name
+            """, "emp_no", "gender", "languages", "salary", "_meta_field");
+    }
+
+    public void testProjectExcludeNoStarPattern() {
+        assertProjection("""
+            from test
+            | project -*_name
+            """, "emp_no", "gender", "languages", "salary", "_meta_field");
+    }
+
+    public void testProjectOrderPatternWithRest() {
+        assertProjection("""
+            from test
+            | project *name, *, emp_no
+            """, "first_name", "last_name", "gender", "languages", "salary", "_meta_field", "emp_no");
+    }
+
+    public void testErrorOnNoMatchingPatternInclusion() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | project *nonExisting
+            """));
+        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+    }
+
+    public void testErrorOnNoMatchingPatternExclusion() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | project -*nonExisting
+            """));
+        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+    }
+
+    public void testIncludeUnsupportedFieldExplicit() {
+        verifyUnsupported("""
+            from test
+            | project unsupported
+            """, "Cannot use field [unsupported] with unsupported type");
+    }
+
+    public void testIncludeUnsupportedFieldPattern() {
+        verifyUnsupported("""
+            from test
+            | project un*
+            """, "Cannot use field [unsupported] with unsupported type");
+    }
+
+    public void testExcludeUnsupportedFieldExplicit() {
+        verifyUnsupported("""
+            from test
+            | project unsupported
+            """, "Cannot use field [unsupported] with unsupported type");
+    }
+
+    public void testExcludeUnsupportedPattern() {
+        verifyUnsupported("""
+            from test
+            | project -un*
+            """, "Cannot use field [unsupported] with unsupported type");
+    }
+
+    private void verifyUnsupported(String query, String errorMessage) {
+        var e = expectThrows(VerificationException.class, () -> analyze(query, "mapping-multi-field-variation.json"));
+        assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    private void assertProjection(String query, String... names) {
+        var plan = analyze(query);
+
+        var project = as(plan, Project.class);
+        assertThat(plan, not(instanceOf(ProjectReorderRenameRemove.class)));
+        assertThat(Expressions.names(project.projections()), contains(names));
+    }
+
     private Analyzer newAnalyzer(IndexResolution indexResolution) {
         Configuration configuration = new Configuration(ZoneOffset.UTC, null, null, x -> Collections.emptySet());
         return new Analyzer(indexResolution, new EsqlFunctionRegistry(), new Verifier(), configuration);
+    }
+
+    private IndexResolution loadMapping(String resource, String indexName) {
+        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource));
+        return IndexResolution.valid(test);
+    }
+
+    private LogicalPlan analyze(String query) {
+        return analyze(query, "mapping-basic.json");
+    }
+
+    private LogicalPlan analyze(String query, String mapping) {
+        return newAnalyzer(loadMapping(mapping, "test")).analyze(new EsqlParser().createStatement(query));
     }
 }

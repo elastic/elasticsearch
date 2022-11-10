@@ -43,6 +43,7 @@ import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.ql.util.StringUtils.MINUS;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -216,6 +217,10 @@ public class ExpressionBuilder extends IdentifierBuilder {
             if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
                 throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
             }
+            if (newName.startsWith(MINUS) || oldName.startsWith(MINUS)) {
+                throw new ParsingException(src, "Renaming and removing a field at the same time is not allowed [{}]", src.text());
+            }
+
             return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
         } else {
             String identifier = visitSourceIdentifier(ctx.sourceIdentifier(0));

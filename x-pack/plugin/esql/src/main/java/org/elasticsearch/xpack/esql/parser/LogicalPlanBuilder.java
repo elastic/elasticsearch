@@ -128,14 +128,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> projections = new ArrayList<>(clauseSize);
         List<NamedExpression> removals = new ArrayList<>(clauseSize);
 
+        boolean hasSeenStar = false;
         for (EsqlBaseParser.ProjectClauseContext clause : ctx.projectClause()) {
             NamedExpression ne = this.visitProjectClause(clause);
             if (ne instanceof UnresolvedStar == false && ne.name().startsWith(MINUS)) {
-                if (ne.name().substring(1).equals(WILDCARD)) {// forbid "-*" kind of expression
+                var name = ne.name().substring(1);
+                if (name.equals(WILDCARD)) {// forbid "-*" kind of expression
                     throw new ParsingException(ne.source(), "Removing all fields is not allowed [{}]", ne.source().text());
                 }
-                removals.add(ne);
+                removals.add(new UnresolvedAttribute(ne.source(), name, ne.toAttribute().qualifier()));
             } else {
+                if (ne instanceof UnresolvedStar) {
+                    if (hasSeenStar) {
+                        throw new ParsingException(ne.source(), "Cannot specify [*] more than once", ne.source().text());
+                    } else {
+                        hasSeenStar = true;
+                    }
+                }
                 projections.add(ne);
             }
         }

@@ -40,9 +40,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
     private final EsqlParser parser = new EsqlParser();
@@ -412,13 +412,27 @@ public class ExpressionTests extends ESTestCase {
             assertThat(p.projections().size(), equalTo(0));
             assertThat("Projection [" + e + "] has an unexpected type", removals.get(0), instanceOf(UnresolvedAttribute.class));
             UnresolvedAttribute ursa = (UnresolvedAttribute) removals.get(0);
-            assertThat(ursa.name(), equalTo(e));
-            assertThat(ursa.unresolvedMessage(), equalTo("Unknown column [" + e + "]"));
+            assertThat(ursa.name(), equalTo(e.substring(1)));
+            assertThat(ursa.unresolvedMessage(), equalTo("Unknown column [" + e.substring(1) + "]"));
         }
     }
 
     public void testForbidWildcardProjectAway() {
         assertParsingException(() -> projectExpression("-*"), "line 1:19: Removing all fields is not allowed [-*]");
+    }
+
+    public void testForbidRenameRemovalProjectAway() {
+        var errorMsg = "Renaming and removing a field at the same time is not allowed";
+        assertParsingException(() -> projectExpression("a=-b"), errorMsg);
+        assertParsingException(() -> projectExpression("-a=-b"), errorMsg);
+        assertParsingException(() -> projectExpression("-a=b"), errorMsg);
+    }
+
+    public void testForbidMultipleIncludeStar() {
+        var errorMsg = "Cannot specify [*] more than once";
+        assertParsingException(() -> projectExpression("a, *, *, b"), errorMsg);
+        assertParsingException(() -> projectExpression("a, *, b, *, c"), errorMsg);
+        assertParsingException(() -> projectExpression("a, b, *, c, d, *"), errorMsg);
     }
 
     public void testProjectKeepPatterns() {
@@ -444,7 +458,7 @@ public class ExpressionTests extends ESTestCase {
             assertThat(removals.size(), equalTo(1));
             assertThat(p.projections().size(), equalTo(0));
             assertThat(removals.get(0), instanceOf(UnresolvedAttribute.class));
-            assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo(e));
+            assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo(e.substring(1)));
         }
     }
 
@@ -479,9 +493,9 @@ public class ExpressionTests extends ESTestCase {
         assertThat(projections.get(2), instanceOf(Alias.class));
         assertThat(projections.get(3), instanceOf(UnresolvedStar.class));
         assertThat(removals.get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo("-foo"));
+        assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo("foo"));
         assertThat(removals.get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) removals.get(1)).name(), equalTo("-bar"));
+        assertThat(((UnresolvedAttribute) removals.get(1)).name(), equalTo("bar"));
     }
 
     public void testForbidWildcardProjectRename() {
@@ -506,6 +520,6 @@ public class ExpressionTests extends ESTestCase {
 
     private void assertParsingException(ThrowingRunnable expression, String expectedError) {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", expression);
-        assertThat(e.getMessage(), startsWith(expectedError));
+        assertThat(e.getMessage(), containsString(expectedError));
     }
 }

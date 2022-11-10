@@ -16,10 +16,9 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public interface DateFormatter {
 
@@ -115,13 +114,14 @@ public interface DateFormatter {
         }
 
         String[] patterns = splitCombinedPatterns(input);
-        List<DateFormatter> formatters = Stream.of(patterns).map(p -> {
+        List<DateFormatter> formatters = new ArrayList<>(patterns.length);
+        for (String pattern : patterns) {
             // make sure we still support camel case for indices created before 8.0
             if (supportedVersion.before(Version.V_8_0_0)) {
-                return LegacyFormatNames.camelCaseToSnakeCase(p);
+                pattern = LegacyFormatNames.camelCaseToSnakeCase(pattern);
             }
-            return p;
-        }).map(DateFormatters::forPattern).collect(Collectors.toList());
+            formatters.add(DateFormatters.forPattern(pattern));
+        }
 
         if (formatters.size() == 1) {
             return formatters.get(0);

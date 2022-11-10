@@ -146,13 +146,13 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
             return new ShardView(
                 ShardRoutingState.fromValue(in.readByte()),
                 in.readBoolean(),
-                in.readString(),
+                in.readOptionalString(),
                 in.readBoolean(),
                 in.readOptionalString(),
                 in.readBoolean(),
                 in.readVInt(),
                 in.readString(),
-                new AllocationId(in)
+                in.readOptionalWriteable(AllocationId::new)
             );
         }
 
@@ -160,13 +160,13 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(state.value());
             out.writeBoolean(primary);
-            out.writeString(node);
+            out.writeOptionalString(node);
             out.writeBoolean(nodeIsDesired);
             out.writeOptionalString(relocatingNode);
             out.writeBoolean(relocatingNodeIsDesired);
             out.writeVInt(shardId);
             out.writeString(index);
-            allocationId.writeTo(out);
+            out.writeOptionalWriteable(allocationId);
         }
 
         @Override

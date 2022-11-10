@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation testArtifact(project(xpackModule('core')))
   javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   javaRestTestImplementation "com.google.guava:guava:${versions.jimfs_guava}"
 }
@@ -40,10 +40,9 @@ def setupPorts = tasks.register("setupPorts") {
   }
 }
 
-project.sourceSets.javaRestTest.output.dir(outputDir, builtBy: [copyIdpFiles])
-
 tasks.named("javaRestTest").configure {
   dependsOn setupPorts
+  classpath += files(outputDir)
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
 }
 

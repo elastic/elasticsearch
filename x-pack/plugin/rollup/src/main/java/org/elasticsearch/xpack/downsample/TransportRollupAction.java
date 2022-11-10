@@ -594,32 +594,33 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        /*
+         * When creating the rollup index, we copy the index.number_of_shards from source index,
+         * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
+         * Also, we set the index.refresh_interval to -1.
+         * We will set the correct number of replicas and refresh the index later.
+         *
+         * We should note that there is a risk of losing a node during the rollup process. In this
+         * case rollup will fail.
+         */
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED);
+        if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
+            builder.put(
+                MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
+                sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            );
+        }
+
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
             "rollup",
             rollupIndexName,
             rollupIndexName
-        ).settings(
-            /*
-             * When creating the rollup index, we copy the index.number_of_shards from source index,
-             * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
-             * Also, we set the index.refresh_interval to -1.
-             * We will set the correct number of replicas and refresh the index later.
-             *
-             * We should note that there is a risk of losing a node during the rollup process. In this
-             * case rollup will fail.
-             */
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
-                .put(
-                    MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-                    sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
-                )
-                .build()
-        ).mappings(mapping);
+        ).settings(builder.build()).mappings(mapping);
         clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

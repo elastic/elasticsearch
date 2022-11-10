@@ -4,9 +4,11 @@
 ++++
 <titleabbrev>Has privileges user profile</titleabbrev>
 ++++
-[[security-api-has-privileges-user-profile]]
 
-beta::[]
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Determines whether the users associated with the specified <<user-profile, user profile>> IDs
 have all the requested privileges.

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.admin.cluster.desiredbalance;
 
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -144,13 +144,11 @@ public class TransportGetDesiredBalanceActionIntegrationTests extends ESIntegTes
     }
 
     private static void indexData(String index) {
-        BulkResponse bulkResponse = client().prepareBulk()
-            .add(new IndexRequest(index).id("1").source("field", "foo 1"))
-            .add(new IndexRequest(index).id("2").source("field", "foo 2"))
-            .add(new IndexRequest(index).id("3").source("field", "foo 3"))
-            .add(new IndexRequest(index).id("4").source("field", "foo 4"))
-            .add(new IndexRequest(index).id("5").source("field", "bar"))
-            .get();
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        for (int i = 0; i < randomIntBetween(5, 32); i++) {
+            bulkRequestBuilder.add(new IndexRequest(index).id(String.valueOf(i)).source("field", "foo " + i));
+        }
+        var bulkResponse = bulkRequestBuilder.get();
         assertFalse(bulkResponse.hasFailures());
     }
 }

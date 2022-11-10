@@ -26,7 +26,7 @@ import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugin.api.settings.AnalysisSettings;
 import org.elasticsearch.plugin.api.settings.BooleanSetting;
-import org.elasticsearch.plugin.api.settings.Inject;
+import org.elasticsearch.plugin.api.settings.InjectSettings;
 import org.elasticsearch.plugin.api.settings.IntSetting;
 import org.elasticsearch.plugin.api.settings.ListOfStringsSetting;
 import org.elasticsearch.plugin.api.settings.LongSetting;
@@ -198,7 +198,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         private final TestAnalysisSettings settings;
 
-        @Inject
+        @InjectSettings
         public TestAnalyzerFactory(TestAnalysisSettings settings) {
             this.settings = settings;
         }
@@ -234,7 +234,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
         private final String oldChar;
         private final int newNumber;
 
-        @Inject
+        @InjectSettings
         public TestCharFilterFactory(TestAnalysisSettings settings) {
             oldChar = settings.oldChar();
             newNumber = settings.newNumber();
@@ -257,7 +257,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         private final long tokenFilterNumber;
 
-        @Inject
+        @InjectSettings
         public TestTokenFilterFactory(TestAnalysisSettings settings) {
             this.tokenFilterNumber = settings.tokenFilterNumber();
         }
@@ -283,7 +283,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
     public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
         private final List<String> tokenizerListOfChars;
 
-        @Inject
+        @InjectSettings
         public TestTokenizerFactory(TestAnalysisSettings settings) {
             this.tokenizerListOfChars = settings.tokenizerListOfChars();
         }

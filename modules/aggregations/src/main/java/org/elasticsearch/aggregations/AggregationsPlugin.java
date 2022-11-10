@@ -12,9 +12,9 @@ import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregatio
 import org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
-import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
+import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.Derivative;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;

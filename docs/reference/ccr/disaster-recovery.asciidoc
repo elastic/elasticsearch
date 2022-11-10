@@ -1,140 +1,153 @@
 [role="xpack"]
-[[ccr-disaster-recovery-tutorial]]
-=== Tutorial: Configure disaster recovery with {ccr}
+[[ccr-disaster-recovery-uni-directional-tutorial]]
+=== Tutorial: Disaster recovery based on uni-directional {ccr}
 ++++
-<titleabbrev>Configure disaster recovery</titleabbrev>
+<titleabbrev>Uni-directional disaster recovery</titleabbrev>
 ++++
 
-////
-[source,console]
-----
-PUT /server-metrics
-{
-  "settings" : {
-    "index" : {
-      "number_of_shards" : 1,
-      "number_of_replicas" : 0
-    }
-  },
-  "mappings" : {
-    "properties" : {
-      "@timestamp" : {
-        "type" : "date"
-      },
-      "accept" : {
-        "type" : "long"
-      },
-      "deny" : {
-        "type" : "long"
-      },
-      "host" : {
-        "type" : "keyword"
-      },
-      "response" : {
-        "type" : "float"
-      },
-      "service" : {
-        "type" : "keyword"
-      },
-      "total" : {
-        "type" : "long"
-      }
-    }
-  }
-}
-----
-// TESTSETUP
-////
 
-Learn how to configure failover between two clusters using {ccr}. The cluster
-that contains the leader index is considered the production datacenter. You'll
-replicate this index to a follower index on a connected cluster, which acts as
-the disaster recovery datacenter in a failover scenario.
+Learn how to failover and failback between two clusters based on
+uni-directional {ccr}. The following tutorial is designed for mutable indices
+(data need to be updated after write). If you have append-only data (logs,
+metrics, observability and security events), you should follow
+https://www.elastic.co/blog/bi-directional-replication-with-elasticsearch-cross-cluster-replication-ccr[Bi-directional
+replication with Elasticsearch cross-cluster replication (CCR) blog] to set up
+bi-directional {ccr} which automatically failover and failback without human
+intervention.
 
-If the production datacenter goes offline, the recovery datacenter assumes this
-role. When the production datacenter is back online, it assumes the role of the
-recovery datacenter and begins replicating the leader index from the connected
-cluster.
+* After setting up uni-directional {ccr}, data were replicated from `clusterA`
+to `clusterB`.
+* Failover. If `clusterA` goes offline, `clusterB` needs to promote follower
+indices to regular indices to allow write operation. All ingestion will need to
+be redirected to `clusterB`, this is controlled by the clients (Logstash, Beats,
+Agents etc). 
+* Failback. When `clusterA` is back online, it assumes the role of a follower
+and replicating the leader indices from `clusterB`.
 
-To complete this tutorial, you configure a 
-<<ccr-single-datacenter-recovery,one-way connection>> between two clusters using 
-{ccr}.
+image::images/ccr-uni-directional-disaster-recovery.png[Uni-directional cross cluster replication failover and failback]
 
 NOTE: {ccr-cap} provides functionality to replicate user-generated indices only.
 {ccr-cap} isn't designed for replicating system-generated indices or snapshot
 settings, and can't replicate {ilm-init} or {slm-init} policies across clusters.
+Learn more in {ccr} <<ccr-limitations,limitations>>
 
 ==== Prerequisites
 Before completing this tutorial,
 <<ccr-getting-started-tutorial,set up cross cluster replication>> to connect two 
-clusters and configure a leader and follower index.
+clusters and configure a leader and follower index. 
 
+In this tutorial, `kibana_sample_data_ecommerce` is replicated from `clusterA` to `clusterB`.
++
+[source,console]
+----
+### On clusterB ###
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "clusterA": {
+          "mode": "proxy",
+          "skip_unavailable": "true",
+          "server_name": "clustera.es.australia-southeast1.gcp.elastic-cloud.com",
+          "proxy_socket_connections": "18",
+          "proxy_address": "clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400"
+        }
+      }
+    }
+  }
+}
+PUT /kibana_sample_data_ecommerce/_ccr/follow
+{
+  "remote_cluster" : "clusterA",
+  "leader_index" : "kibana_sample_data_ecommerce"
+}
+----
 IMPORTANT: Writes (such as ingestion or updates) should occur only on the leader
-index in the production datacenter. To make changes, you must update the leader index. Because they are read-only, follower indices reject any writes.
+index. Follower indices are read-only and will reject any writes.
 
-Assuming the two clusters setup are `prod1` and `prod2` while `prod1` being the
-leader and `prod2` being the follower. The index replicated from `prod1` to
-`prod2` is called `my_index`.
 
-==== When `prod1` is down
+==== Failover when `clusterA` is down
 
-. On the Clients side, pause ingestion of `my_index` into `prod1`.
+. On the Clients (logstash, beats, agent) side, pause ingestion of
+`kibana_sample_data_ecommerce` into `clusterA`.
 +
 TIP: Ensure no writes are occurring on the leader index (if the data centre is
 down, or cluster is unavailable, no action needed).
 
-. On the Elasticsearch side, convert the follower indices in the `prod2`
-into regular indices so that it will be capable of accepting writes.
+. On the Elasticsearch side, convert the follower indices in the `clusterB`
+into regular indices so that it will be accepting writes.
 +
 [source,console]
 ----
-### On prod2 cluster ###
-POST /my_index/_ccr/pause_follow
-POST /my_index/_close           
-POST /my_index/_ccr/unfollow    
-POST /my_index/_open
+### On clusterB ###
+POST /kibana_sample_data_ecommerce/_ccr/pause_follow
+POST /kibana_sample_data_ecommerce/_close           
+POST /kibana_sample_data_ecommerce/_ccr/unfollow    
+POST /kibana_sample_data_ecommerce/_open
 ----
 
-. On the Client side, manually re-enable ingestion of `my_index` and
-direct to the `prod2` cluster. (You can test that the index should be writable:
-+
-[source,console]
-----
-### On prod2 cluster ###
-POST my_index/_doc/2
-{
-  "foo": "new"
-}  
-----
-TIP: You should also redirect all search traffic to the `prod2` cluster during
+. On the Client (logstash, beats, agent) side, manually re-enable ingestion of
+`kibana_sample_data_ecommerce` and redirect traffic to the `clusterB`. 
+TIP: You should also redirect all search traffic to the `clusterB` cluster during
 this time.
 
-
-==== When `prod1` comes back
-You can simply swap the leader and follower role of `prod1` and `prod2` so that
-`prod2` becomes the new leader and `prod1` becomes the follower. 
-
-. In order for the indices to follow the leader cluster, existing data
-need to be discard before you can turn the index into a follower. Ensure the
-most up-to-date data is available on `prod2` prior to deleting the index on
-`prod1`.  
-
-. Create follower indices in `prod1`, to follow the leader index in
-`prod2`.  
+. We can simulate this by ingesting document into this index. You should notice
+this index is now writable.
 +
 [source,console]
 ----
-### On prod1 cluster ###
-DELETE my_index
+### On clusterB ###
+POST kibana_sample_data_ecommerce/_doc/
+{
+  "user":"kimchy"
+}
+----
 
-### On prod1 cluster ###
-PUT /my_index/_ccr/follow 
+==== Failback when `clusterA` comes back
+`clusterB` becomes the new leader and `clusterA` becomes the follower. 
+. Set up a remote `clusterB` on `clusterA`.
+
+. Existing data need to be discard before you can turn any index into a
+follower. Ensure the most up-to-date data is available on `clusterB` prior to
+deleting the index on `clusterA`.  
+
+. Create follower index on `clusterA`, to follow the leader index in
+`clusterB`.  
++
+[source,console]
+----
+### On clusterA ###
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "clusterB": {
+          "mode": "proxy",
+          "skip_unavailable": "true",
+          "server_name": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com",
+          "proxy_socket_connections": "18",
+          "proxy_address": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400"
+        }
+      }
+    }
+  }
+}
+DELETE kibana_sample_data_ecommerce
+
+PUT /kibana_sample_data_ecommerce/_ccr/follow 
 { 
-  "remote_cluster" : "prod2", 
-  "leader_index" : "my_index" 
+  "remote_cluster" : "clusterB", 
+  "leader_index" : "kibana_sample_data_ecommerce" 
 }
 ----
 +
-NOTE: It might take some time for the follower indices on `prod1` to be
-recreated and replicated from `prod2`.
 
+. You should now see updated documents from this index on the follower cluster.
++
+[source,console]
+----
+### On clusterA ###
+GET kibana_sample_data_ecommerce/_search?q=kimchy
+----

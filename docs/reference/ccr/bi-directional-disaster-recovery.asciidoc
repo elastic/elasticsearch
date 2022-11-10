@@ -183,7 +183,7 @@ bin/logstash -f multiple_hosts.conf
 ----
 
 . Observe all logstash traffic will be redirected to `cluster B` automatically. 
-
++
 TIP: You should also redirect all search traffic to the `clusterB` cluster during this time. 
 
 . Observe two data streams on `cluster B` now contain a different number of documents. 

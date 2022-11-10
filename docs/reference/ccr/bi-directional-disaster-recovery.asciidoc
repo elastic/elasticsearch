@@ -20,6 +20,8 @@ support multiple outputs. It should also be possible to set up a proxy
 * Setting up bi-directional cross-cluster replication with exclusion patterns.
 * Setting up Logstash with multiple hosts to allow automatic load balancing and switching during disasters.
 
+image::images/ccr-bi-directional-disaster-recovery.png[Bi-directional cross cluster replication failover and failback]
+
 ==== Initial setup
 . Set up a remote cluster on both clusters.
 +

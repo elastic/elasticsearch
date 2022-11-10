@@ -131,4 +131,8 @@ public class Counters implements Writeable {
 
         return result;
     }
+
+    public boolean hasCounters() {
+        return counters.isEmpty() == false;
+    }
 }

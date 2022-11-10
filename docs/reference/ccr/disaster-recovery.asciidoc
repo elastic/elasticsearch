@@ -9,7 +9,7 @@
 Learn how to failover and failback between two clusters based on
 uni-directional {ccr}. The following tutorial is designed for mutable indices
 (data need to be updated after write). If you have append-only data (logs,
-metrics, observability and security events), you should follow
+metrics, observability, and security events), you should follow
 https://www.elastic.co/blog/bi-directional-replication-with-elasticsearch-cross-cluster-replication-ccr[Bi-directional
 replication with Elasticsearch cross-cluster replication (CCR) blog] to set up
 bi-directional {ccr} which automatically failover and failback without human
@@ -18,11 +18,11 @@ intervention.
 * Setting up uni-directional {ccr} replicated from `clusterA`
 to `clusterB`.
 * Failover. If `clusterA` goes offline, `clusterB` needs to "promote" follower
-indices to regular indices to allow write operation. All ingestion will need to
+indices to regular indices to allow write operations. All ingestion will need to
 be redirected to `clusterB`, this is controlled by the clients (Logstash, Beats,
-Agents etc). 
+Agents, etc). 
 * Failback. When `clusterA` is back online, it assumes the role of a follower
-and replicating the leader indices from `clusterB`.
+and replicates the leader indices from `clusterB`.
 
 image::images/ccr-uni-directional-disaster-recovery.png[Uni-directional cross cluster replication failover and failback]
 
@@ -33,8 +33,8 @@ Learn more in {ccr} <<ccr-limitations,limitations>>
 
 ==== Prerequisites
 Before completing this tutorial,
-<<ccr-getting-started-tutorial,set up cross cluster replication>> to connect two 
-clusters and configure a leader and follower index. 
+<<ccr-getting-started-tutorial,set up cross-cluster replication>> to connect two 
+clusters and configure a follower index. 
 
 In this tutorial, `kibana_sample_data_ecommerce` is replicated from `clusterA` to `clusterB`.
 
@@ -59,8 +59,8 @@ PUT _cluster/settings
 }
 PUT /kibana_sample_data_ecommerce/_ccr/follow
 {
-  "remote_cluster" : "clusterA",
-  "leader_index" : "kibana_sample_data_ecommerce"
+  "remote_cluster": "clusterA",
+  "leader_index": "kibana_sample_data_ecommerce"
 }
 ----
 IMPORTANT: Writes (such as ingestion or updates) should occur only on the leader
@@ -69,12 +69,12 @@ index. Follower indices are read-only and will reject any writes.
 
 ==== Failover when `clusterA` is down
 
-. Promote the follower indices in the `clusterB`
-into regular indices so that it will be accepting writes. This can be achieved by:
+. Promote the follower indices in `clusterB` into regular indices so 
+that it will be accepting writes. This can be achieved by:
 * Pauses indexing following for the follower index.
 * Closes the follower index.
 * Unfollows the leader index.
-* Opens the follower index (which is at this point is a regular index).
+* Opens the follower index (which at this point is a regular index).
 
 +
 [source,console]
@@ -89,7 +89,7 @@ POST /kibana_sample_data_ecommerce/_open
 . On the Client (logstash, beats, agent) side, manually re-enable ingestion of
 `kibana_sample_data_ecommerce` and redirect traffic to the `clusterB`. You should
 also redirect all search traffic to the `clusterB` cluster during
-this time. We can simulate this by ingesting document into this index. You should
+this time. We can simulate this by ingesting documents into this index. You should
 notice this index is now writable.
 +
 [source,console]
@@ -97,7 +97,7 @@ notice this index is now writable.
 ### On clusterB ###
 POST kibana_sample_data_ecommerce/_doc/
 {
-  "user":"kimchy"
+  "user": "kimchy"
 }
 ----
 
@@ -127,9 +127,9 @@ PUT _cluster/settings
   }
 }
 ----
-. Existing data need to be discard before you can turn any index into a
+. Existing data need to be discarded before you can turn any index into a
 follower. Ensure the most up-to-date data is available on `clusterB` prior to
-deleting the index on `clusterA`.  
+deleting any indices on `clusterA`.  
 +
 [source,console]
 ----
@@ -137,7 +137,7 @@ deleting the index on `clusterA`.
 DELETE kibana_sample_data_ecommerce
 ----
 
-. Create follower index on `clusterA`, to follow the leader index in
+. Create a follower index on `clusterA`, now following the leader index in
 `clusterB`.  
 +
 [source,console]
@@ -145,8 +145,8 @@ DELETE kibana_sample_data_ecommerce
 ### On clusterA ###
 PUT /kibana_sample_data_ecommerce/_ccr/follow 
 { 
-  "remote_cluster" : "clusterB", 
-  "leader_index" : "kibana_sample_data_ecommerce" 
+  "remote_cluster": "clusterB", 
+  "leader_index": "kibana_sample_data_ecommerce" 
 }
 ----
 

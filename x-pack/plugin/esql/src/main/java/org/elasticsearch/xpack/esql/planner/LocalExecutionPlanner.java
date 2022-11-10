@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -24,9 +24,8 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.GroupingAggregatorFunctionFactory;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
-import org.elasticsearch.compute.lucene.NumericDocValuesExtractor.NumericDocValuesExtractorFactory;
+import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AggregationOperator.AggregationOperatorFactory;
-import org.elasticsearch.compute.operator.DoubleTransformerOperator.DoubleTransformerOperatorFactory;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -39,7 +38,13 @@ import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
@@ -229,39 +234,7 @@ public class LocalExecutionPlanner {
         } else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
-            PhysicalOperation source = plan(fieldExtractExec.child(), context);
-            Map<Object, Integer> layout = new HashMap<>();
-            layout.putAll(source.layout);
-
-            var souceAttributes = fieldExtractExec.sourceAttributes().toArray(new Attribute[3]);
-
-            PhysicalOperation op = source;
-            for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-                layout = new HashMap<>(layout);
-                layout.put(attr.id(), layout.size());
-                Map<Object, Integer> previousLayout = op.layout;
-                op = new PhysicalOperation(
-                    new NumericDocValuesExtractorFactory(
-                        searchContexts.stream().map(ctx -> ctx.getSearchExecutionContext().getIndexReader()).collect(Collectors.toList()),
-                        previousLayout.get(souceAttributes[0].id()),
-                        previousLayout.get(souceAttributes[1].id()),
-                        previousLayout.get(souceAttributes[2].id()),
-                        attr.name()
-                    ),
-                    layout,
-                    op
-                );
-                if (attr.dataType().isRational()) {
-                    layout = new HashMap<>(layout);
-                    int channel = layout.get(attr.id());
-                    op = new PhysicalOperation(
-                        new DoubleTransformerOperatorFactory(channel, NumericUtils::sortableLongToDouble),
-                        layout,
-                        op
-                    );
-                }
-            }
-            return op;
+            return planFieldExtractNode(context, fieldExtractExec);
         } else if (node instanceof OutputExec outputExec) {
             PhysicalOperation source = plan(outputExec.child(), context);
             if (outputExec.output().size() != source.layout.size()) {
@@ -388,6 +361,53 @@ public class LocalExecutionPlanner {
             layout.put(esQuery.output().get(i).id(), i);
         }
         return new PhysicalOperation(operatorFactory, layout);
+    }
+
+    private PhysicalOperation planFieldExtractNode(LocalExecutionPlanContext context, FieldExtractExec fieldExtractExec) {
+        PhysicalOperation source = plan(fieldExtractExec.child(), context);
+        Map<Object, Integer> layout = new HashMap<>();
+        layout.putAll(source.layout);
+
+        var souceAttributes = fieldExtractExec.sourceAttributes().toArray(new Attribute[3]);
+
+        PhysicalOperation op = source;
+        for (Attribute attr : fieldExtractExec.attributesToExtract()) {
+            layout = new HashMap<>(layout);
+            layout.put(attr.id(), layout.size());
+            Map<Object, Integer> previousLayout = op.layout;
+
+            // Create ValuesSource object for the field to extract its values
+            final List<Tuple<ValuesSourceType, ValuesSource>> valuesSources = searchContexts.stream()
+                .map(SearchContext::getSearchExecutionContext)
+                .map(ctx -> {
+                    MappedFieldType fieldType = ctx.getFieldType(attr.name());
+                    IndexFieldData<?> fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    FieldContext fieldContext = new FieldContext(attr.name(), fieldData, fieldType);
+                    ValuesSourceType vstype = fieldData.getValuesSourceType();
+                    ValuesSource vs = vstype.getField(fieldContext, null);
+                    return Tuple.tuple(vstype, vs);
+                })
+                .collect(Collectors.toList());
+
+            final List<IndexReader> indexReaders = searchContexts.stream()
+                .map(ctx -> ctx.getSearchExecutionContext().getIndexReader())
+                .collect(Collectors.toList());
+
+            op = new PhysicalOperation(
+                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
+                    valuesSources.stream().map(Tuple::v1).collect(Collectors.toList()),
+                    valuesSources.stream().map(Tuple::v2).collect(Collectors.toList()),
+                    indexReaders,
+                    previousLayout.get(souceAttributes[0].id()),
+                    previousLayout.get(souceAttributes[1].id()),
+                    previousLayout.get(souceAttributes[2].id()),
+                    attr.name()
+                ),
+                layout,
+                op
+            );
+        }
+        return op;
     }
 
     private ExpressionEvaluator toEvaluator(Expression exp, Map<Object, Integer> layout) {

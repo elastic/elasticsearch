@@ -37,7 +37,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.NumericDocValuesExtractor;
+import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -55,8 +55,12 @@ import org.elasticsearch.compute.operator.exchange.RandomExchanger;
 import org.elasticsearch.compute.operator.exchange.RandomUnionSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -160,10 +164,11 @@ public class OperatorTests extends ESTestCase {
     }
 
     public void testOperatorsWithLucene() throws IOException {
-        int numDocs = 100000;
+        final String fieldName = "value";
+        final int numDocs = 100000;
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            NumericDocValuesField docValuesField = new NumericDocValuesField("value", 0);
+            NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
             for (int i = 0; i < numDocs; i++) {
                 doc.clear();
                 docValuesField.setLongValue(i);
@@ -171,6 +176,15 @@ public class OperatorTests extends ESTestCase {
                 w.addDocument(doc);
             }
             w.commit();
+
+            ValuesSource vs = new ValuesSource.Numeric.FieldData(
+                new SortedNumericIndexFieldData(
+                    fieldName,
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null
+                )
+            );
 
             try (IndexReader reader = w.getReader()) {
                 AtomicInteger pageCount = new AtomicInteger();
@@ -181,7 +195,15 @@ public class OperatorTests extends ESTestCase {
                 Driver driver = new Driver(
                     List.of(
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
-                        new NumericDocValuesExtractor(reader, 0, 1, 2, "value"),
+                        new ValuesSourceReaderOperator(
+                            List.of(CoreValuesSourceType.NUMERIC),
+                            List.of(vs),
+                            List.of(reader),
+                            0,
+                            1,
+                            2,
+                            fieldName
+                        ),
                         new LongGroupingOperator(3, BigArrays.NON_RECYCLING_INSTANCE),
                         new LongMaxOperator(4), // returns highest group number
                         new LongTransformerOperator(0, i -> i + 1), // adds +1 to group number (which start with 0) to get group count
@@ -203,10 +225,11 @@ public class OperatorTests extends ESTestCase {
     }
 
     public void testOperatorsWithLuceneSlicing() throws IOException {
-        int numDocs = 100000;
+        final String fieldName = "value";
+        final int numDocs = 100000;
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            NumericDocValuesField docValuesField = new NumericDocValuesField("value", 0);
+            NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
             for (int i = 0; i < numDocs; i++) {
                 doc.clear();
                 docValuesField.setLongValue(i);
@@ -217,6 +240,15 @@ public class OperatorTests extends ESTestCase {
                 w.forceMerge(randomIntBetween(1, 10));
             }
             w.commit();
+
+            ValuesSource vs = new ValuesSource.Numeric.FieldData(
+                new SortedNumericIndexFieldData(
+                    fieldName,
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null
+                )
+            );
 
             try (IndexReader reader = w.getReader()) {
                 AtomicInteger rowCount = new AtomicInteger();
@@ -229,7 +261,15 @@ public class OperatorTests extends ESTestCase {
                         new Driver(
                             List.of(
                                 luceneSourceOperator,
-                                new NumericDocValuesExtractor(reader, 0, 1, 2, "value"),
+                                new ValuesSourceReaderOperator(
+                                    List.of(CoreValuesSourceType.NUMERIC),
+                                    List.of(vs),
+                                    List.of(reader),
+                                    0,
+                                    1,
+                                    2,
+                                    fieldName
+                                ),
                                 new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
                             ),
                             () -> {}
@@ -499,10 +539,11 @@ public class OperatorTests extends ESTestCase {
     }
 
     public void testOperatorsWithLuceneGroupingCount() throws IOException {
-        int numDocs = 100000;
+        final String fieldName = "value";
+        final int numDocs = 100000;
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            NumericDocValuesField docValuesField = new NumericDocValuesField("value", 0);
+            NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
             for (int i = 0; i < numDocs; i++) {
                 doc.clear();
                 docValuesField.setLongValue(i);
@@ -510,6 +551,15 @@ public class OperatorTests extends ESTestCase {
                 w.addDocument(doc);
             }
             w.commit();
+
+            ValuesSource vs = new ValuesSource.Numeric.FieldData(
+                new SortedNumericIndexFieldData(
+                    fieldName,
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null
+                )
+            );
 
             try (IndexReader reader = w.getReader()) {
                 AtomicInteger pageCount = new AtomicInteger();
@@ -520,7 +570,15 @@ public class OperatorTests extends ESTestCase {
                 Driver driver = new Driver(
                     List.of(
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
-                        new NumericDocValuesExtractor(reader, 0, 1, 2, "value"),
+                        new ValuesSourceReaderOperator(
+                            List.of(CoreValuesSourceType.NUMERIC),
+                            List.of(vs),
+                            List.of(reader),
+                            0,
+                            1,
+                            2,
+                            fieldName
+                        ),
                         new HashAggregationOperator(
                             3, // group by channel
                             List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 3)),

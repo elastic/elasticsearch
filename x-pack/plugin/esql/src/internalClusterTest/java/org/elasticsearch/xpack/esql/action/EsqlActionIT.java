@@ -273,7 +273,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals("avg(ratio)", results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
         assertEquals(1, results.values().get(0).size());
-        assertEquals(0.03d, (double) results.values().get(0).get(0), 0.01d);
+        assertEquals(0.034d, (double) results.values().get(0).get(0), 0.001d);
     }
 
     public void testFromStatsEvalWithPragma() {

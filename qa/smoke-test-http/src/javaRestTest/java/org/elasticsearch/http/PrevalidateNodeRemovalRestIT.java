@@ -10,7 +10,6 @@ package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalResponse;
 import org.elasticsearch.client.Request;

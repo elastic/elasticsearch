@@ -151,7 +151,10 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         String node1Id = internalCluster().clusterService(node1).localNode().getId();
         assertFalse(resp.getPrevalidation().isSafe());
-        assertThat(resp.getPrevalidation().message(), equalTo("nodes with the following IDs contain copies of red shards: [" + node1Id + "]"));
+        assertThat(
+            resp.getPrevalidation().message(),
+            equalTo("nodes with the following IDs contain copies of red shards: [" + node1Id + "]")
+        );
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertThat(nodeResult.name(), equalTo(node1));
@@ -188,7 +191,10 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertTrue(resp.getPrevalidation().isSafe());
         String node2Id = internalCluster().clusterService(node2).localNode().getId();
-        assertThat(resp.getPrevalidation().message(), equalTo("cannot prevalidate removal of nodes with the following IDs: [" + node2Id + "]"));
+        assertThat(
+            resp.getPrevalidation().message(),
+            equalTo("cannot prevalidate removal of nodes with the following IDs: [" + node2Id + "]")
+        );
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertThat(nodeResult.name(), equalTo(node2));

@@ -47,6 +47,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        BytesRef spare = new BytesRef();
         InternalTimeSeries.InternalBucket[][] allBucketsPerOrd = new InternalTimeSeries.InternalBucket[owningBucketOrds.length][];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
@@ -54,14 +55,17 @@ public class TimeSeriesAggregator extends BucketsAggregator {
             BytesRef prev = null;
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
-                BytesRef key = new BytesRef();
-                ordsEnum.readValue(key);
-                assert prev == null || key.compareTo(prev) > 0
-                    : "key [" + key.utf8ToString() + "] is smaller than previous key [" + prev.utf8ToString() + "]";
-                InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(key, docCount, null, keyed);
+                ordsEnum.readValue(spare);
+                assert prev == null || spare.compareTo(prev) > 0
+                    : "key [" + spare.utf8ToString() + "] is smaller than previous key [" + prev.utf8ToString() + "]";
+                InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
+                    prev = BytesRef.deepCopyOf(spare), // Closing bucketOrds will corrupt the bytes ref, so need to make a deep copy here.
+                    docCount,
+                    null,
+                    keyed
+                );
                 bucket.bucketOrd = ordsEnum.ord();
                 buckets.add(bucket);
-                prev = key;
             }
             allBucketsPerOrd[ordIdx] = buckets.toArray(new InternalTimeSeries.InternalBucket[0]);
         }

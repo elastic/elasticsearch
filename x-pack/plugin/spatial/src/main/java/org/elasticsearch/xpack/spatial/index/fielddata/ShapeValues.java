@@ -90,7 +90,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the provided decoder (could be geo or cartesian)
      */
-    public abstract static class ShapeValue implements ToXContentFragment {
+    protected abstract static class ShapeValue implements ToXContentFragment {
         protected final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         protected final CoordinateEncoder encoder;

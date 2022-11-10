@@ -48,7 +48,7 @@ public final class CartesianShapeBoundsAggregator extends CartesianBoundsAggrega
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     maybeResize(bucket);
-                    ShapeValues.ShapeValue value = values.value();
+                    CartesianShapeValues.CartesianShapeValue value = values.value();
                     ShapeValues.BoundingBox bounds = value.boundingBox();
                     addBounds(bucket, bounds.top, bounds.bottom, bounds.minX(), bounds.maxX());
                 }

@@ -15,7 +15,7 @@ replication with Elasticsearch cross-cluster replication (CCR) blog] to set up
 bi-directional {ccr} which automatically failover and failback without human
 intervention.
 
-* After setting up uni-directional {ccr}, data were replicated from `clusterA`
+* Setting up uni-directional {ccr} replicated from `clusterA`
 to `clusterB`.
 * Failover. If `clusterA` goes offline, `clusterB` needs to "promote" follower
 indices to regular indices to allow write operation. All ingestion will need to
@@ -75,6 +75,7 @@ into regular indices so that it will be accepting writes. This can be achieved b
 * Closes the follower index.
 * Unfollows the leader index.
 * Opens the follower index (which is at this point is a regular index).
+
 +
 [source,console]
 ----
@@ -87,12 +88,13 @@ POST /kibana_sample_data_ecommerce/_open
 
 . On the Client (logstash, beats, agent) side, manually re-enable ingestion of
 `kibana_sample_data_ecommerce` and redirect traffic to the `clusterB`. 
+
 TIP: You should also redirect all search traffic to the `clusterB` cluster during
 this time.
 
 We can simulate this by ingesting document into this index. You should notice
 this index is now writable.
-+
+
 [source,console]
 ----
 ### On clusterB ###

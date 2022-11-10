@@ -102,15 +102,10 @@ POST kibana_sample_data_ecommerce/_doc/
 ----
 
 ==== Failback when `clusterA` comes back
-`clusterB` becomes the new leader and `clusterA` becomes the follower. 
-. Set up a remote `clusterB` on `clusterA`.
 
-. Existing data need to be discard before you can turn any index into a
-follower. Ensure the most up-to-date data is available on `clusterB` prior to
-deleting the index on `clusterA`.  
+When `clusterA` comes back, `clusterB` becomes the new leader and `clusterA` becomes the follower. 
 
-. Create follower index on `clusterA`, to follow the leader index in
-`clusterB`.  
+. Set up remote cluster `clusterB` on `clusterA`.
 +
 [source,console]
 ----
@@ -131,15 +126,29 @@ PUT _cluster/settings
     }
   }
 }
+----
+. Existing data need to be discard before you can turn any index into a
+follower. Ensure the most up-to-date data is available on `clusterB` prior to
+deleting the index on `clusterA`.  
++
+[source,console]
+----
+### On clusterA ###
 DELETE kibana_sample_data_ecommerce
+----
 
+. Create follower index on `clusterA`, to follow the leader index in
+`clusterB`.  
++
+[source,console]
+----
+### On clusterA ###
 PUT /kibana_sample_data_ecommerce/_ccr/follow 
 { 
   "remote_cluster" : "clusterB", 
   "leader_index" : "kibana_sample_data_ecommerce" 
 }
 ----
-+
 
 . You should now see updated documents from this index on the follower cluster.
 +

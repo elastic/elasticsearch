@@ -17,7 +17,7 @@ intervention.
 
 * After setting up uni-directional {ccr}, data were replicated from `clusterA`
 to `clusterB`.
-* Failover. If `clusterA` goes offline, `clusterB` needs to promote follower
+* Failover. If `clusterA` goes offline, `clusterB` needs to "promote" follower
 indices to regular indices to allow write operation. All ingestion will need to
 be redirected to `clusterB`, this is controlled by the clients (Logstash, Beats,
 Agents etc). 
@@ -37,7 +37,7 @@ Before completing this tutorial,
 clusters and configure a leader and follower index. 
 
 In this tutorial, `kibana_sample_data_ecommerce` is replicated from `clusterA` to `clusterB`.
-+
+
 [source,console]
 ----
 ### On clusterB ###
@@ -69,14 +69,12 @@ index. Follower indices are read-only and will reject any writes.
 
 ==== Failover when `clusterA` is down
 
-. On the Clients (logstash, beats, agent) side, pause ingestion of
-`kibana_sample_data_ecommerce` into `clusterA`.
-+
-TIP: Ensure no writes are occurring on the leader index (if the data centre is
-down, or cluster is unavailable, no action needed).
-
-. On the Elasticsearch side, convert the follower indices in the `clusterB`
-into regular indices so that it will be accepting writes.
+. Promote the follower indices in the `clusterB`
+into regular indices so that it will be accepting writes. This can be achieved by:
+* Pauses indexing following for the follower index.
+* Closes the follower index.
+* Unfollows the leader index.
+* Opens the follower index (which is at this point is a regular index).
 +
 [source,console]
 ----
@@ -92,7 +90,7 @@ POST /kibana_sample_data_ecommerce/_open
 TIP: You should also redirect all search traffic to the `clusterB` cluster during
 this time.
 
-. We can simulate this by ingesting document into this index. You should notice
+We can simulate this by ingesting document into this index. You should notice
 this index is now writable.
 +
 [source,console]

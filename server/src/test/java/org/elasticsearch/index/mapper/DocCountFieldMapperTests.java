@@ -71,6 +71,7 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field(CONTENT_TYPE, 10)), equalTo("{\"_doc_count\":10}"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91520")
     public void testSyntheticSourceMany() throws IOException {
         MapperService mapper = createMapperService(syntheticSourceMapping(b -> {}));
         List<Integer> counts = randomList(2, 10000, () -> between(1, Integer.MAX_VALUE));

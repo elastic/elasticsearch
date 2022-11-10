@@ -10,7 +10,6 @@ package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -32,7 +31,6 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected final BytesKeyedBucketOrds bucketOrds;
     private final boolean keyed;
 
-    @SuppressWarnings("unchecked")
     public TimeSeriesAggregator(
         String name,
         AggregatorFactories factories,
@@ -49,16 +47,19 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        BytesRef spare = new BytesRef();
         InternalTimeSeries.InternalBucket[][] allBucketsPerOrd = new InternalTimeSeries.InternalBucket[owningBucketOrds.length][];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            BytesRef spareKey = new BytesRef();
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
             List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>();
+            BytesRef prev = null;
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
-                ordsEnum.readValue(spareKey);
+                ordsEnum.readValue(spare);
+                assert prev == null || spare.compareTo(prev) > 0
+                    : "key [" + spare.utf8ToString() + "] is smaller than previous key [" + prev.utf8ToString() + "]";
                 InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
-                    TimeSeriesIdFieldMapper.decodeTsid(spareKey),
+                    prev = BytesRef.deepCopyOf(spare), // Closing bucketOrds will corrupt the bytes ref, so need to make a deep copy here.
                     docCount,
                     null,
                     keyed

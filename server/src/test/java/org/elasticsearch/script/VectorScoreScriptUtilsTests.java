@@ -405,55 +405,79 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             IllegalArgumentException e;
 
             e = expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, greaterThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
-                    "Preview of invalid vector: [128.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; "
+                    + "Preview of invalid vector: [128.0]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new L1Norm(scoreScript, greaterThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
-                    "Preview of invalid vector: [128.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; "
+                    + "Preview of invalid vector: [128.0]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new L2Norm(scoreScript, greaterThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
-                    "Preview of invalid vector: [128.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; "
+                    + "Preview of invalid vector: [128.0]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, greaterThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; " +
-                    "Preview of invalid vector: [128.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; "
+                    + "Preview of invalid vector: [128.0]"
+            );
 
             e = expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, lessThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
-                    "Preview of invalid vector: [-129.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; "
+                    + "Preview of invalid vector: [-129.0]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new L1Norm(scoreScript, lessThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
-                    "Preview of invalid vector: [-129.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; "
+                    + "Preview of invalid vector: [-129.0]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new L2Norm(scoreScript, lessThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
-                    "Preview of invalid vector: [-129.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; "
+                    + "Preview of invalid vector: [-129.0]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, lessThanVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; " +
-                    "Preview of invalid vector: [-129.0]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [0]; "
+                    + "Preview of invalid vector: [-129.0]"
+            );
 
             e = expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, decimalVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
-                    "Preview of invalid vector: [0.5]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; "
+                    + "Preview of invalid vector: [0.5]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new L1Norm(scoreScript, decimalVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
-                    "Preview of invalid vector: [0.5]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; "
+                    + "Preview of invalid vector: [0.5]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new L2Norm(scoreScript, decimalVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
-                    "Preview of invalid vector: [0.5]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; "
+                    + "Preview of invalid vector: [0.5]"
+            );
             e = expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, decimalVector, fieldName));
-            assertEquals(e.getMessage(),
-                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; " +
-                    "Preview of invalid vector: [0.5]");
+            assertEquals(
+                e.getMessage(),
+                "element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [0]; "
+                    + "Preview of invalid vector: [0.5]"
+            );
         }
     }
 }

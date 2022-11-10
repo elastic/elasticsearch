@@ -366,7 +366,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                     );
                     assertThat(
                         e.getMessage(),
-                        containsString("use [double dotProduct(float[] queryVector, boolean normalizeQueryVector)] instead")
+                        containsString("use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead")
                     );
                 }
             }

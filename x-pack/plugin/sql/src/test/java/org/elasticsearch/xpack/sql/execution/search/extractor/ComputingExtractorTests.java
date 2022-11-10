@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.NONE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
@@ -84,7 +83,8 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
             double value = randomDouble();
             double expected = Math.log(value);
             DocumentField field = new DocumentField(fieldName, singletonList(value));
-            SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
+            SearchHit hit = new SearchHit(1, null);
+            hit.setDocumentField(fieldName, field);
             assertEquals(expected, extractor.process(hit));
         }
     }

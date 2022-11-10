@@ -17,7 +17,6 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.MemoizedSupplier;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.xcontent.XContentType;
@@ -234,17 +233,13 @@ public class SourceLookup implements Source, Map<String, Object> {
     /**
      * Provider for source using a given map and optional content type.
      */
-    public static class MapSourceProvider implements SourceProvider {
-        private Map<String, Object> source;
-        private XContentType sourceContentType;
+    private static class MapSourceProvider implements SourceProvider {
+        private final Map<String, Object> source;
+        private final XContentType sourceContentType;
 
-        public MapSourceProvider(Map<String, Object> source) {
+        private MapSourceProvider(Map<String, Object> source) {
             this.source = source;
-        }
-
-        public MapSourceProvider(Map<String, Object> source, @Nullable XContentType sourceContentType) {
-            this.source = source;
-            this.sourceContentType = sourceContentType;
+            this.sourceContentType = XContentType.JSON;
         }
 
         @Override

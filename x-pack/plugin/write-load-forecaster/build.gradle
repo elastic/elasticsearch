@@ -14,8 +14,3 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:data-streams')
 }
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-}

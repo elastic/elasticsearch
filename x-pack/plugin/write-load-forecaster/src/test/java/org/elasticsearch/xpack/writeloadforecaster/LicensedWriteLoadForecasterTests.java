@@ -25,94 +25,344 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.forecastIndexWriteLoad;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class LicensedWriteLoadForecasterTests extends ESTestCase {
-    public void testForecastComputation() {
-        final var metadataBuilder = Metadata.builder();
-        final int numberOfBackingIndices = 10;
-        final int numberOfShards = 1;
-        final List<Index> backingIndices = new ArrayList<>();
+    public void testWriteLoadForecastIsAddedToWriteIndex() {
+        final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
+        final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, maxIndexAge);
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
         final String dataStreamName = "logs-es";
+        final int numberOfBackingIndices = 10;
+        final int numberOfShards = randomIntBetween(1, 5);
+        final List<Index> backingIndices = new ArrayList<>();
         for (int i = 0; i < numberOfBackingIndices; i++) {
-            String dataStreamBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, i);
-            IndexMetadata indexMetadata = IndexMetadata.builder(dataStreamBackingIndexName)
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .build()
-                )
-                .indexWriteLoad(
-                    IndexWriteLoad.builder(numberOfShards).withShardWriteLoad(0, 12, TimeValue.timeValueHours(24).millis()).build()
-                )
-                .creationDate(System.currentTimeMillis())
-                .build();
+            final IndexMetadata indexMetadata = createIndexMetadata(
+                DataStream.getDefaultBackingIndexName(dataStreamName, i),
+                numberOfShards,
+                randomIndexWriteLoad(numberOfShards),
+                System.currentTimeMillis() - (maxIndexAge.millis() / 2)
+            );
             backingIndices.add(indexMetadata.getIndex());
             metadataBuilder.put(indexMetadata, false);
         }
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            numberOfBackingIndices,
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
+
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numberOfBackingIndices),
+            numberOfShards,
+            null,
+            System.currentTimeMillis()
         );
+        backingIndices.add(writeIndexMetadata.getIndex());
+        metadataBuilder.put(writeIndexMetadata, false);
+
+        final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
-        final var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
 
-        WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(
-            () -> true,
-            TimeValue.timeValueDays(7),
-            TimeValue.timeValueHours(1)
-        );
+        final ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
 
-        ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
+        final IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
 
-        IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
-
-        OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
 
         assertThat(forecastedWriteLoadForShard.isPresent(), is(true));
-        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(equalTo(1.0)));
+        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(greaterThan(0.0)));
+
+        hasValidLicense.set(false);
+
+        final OptionalDouble forecastedWriteLoadForShardAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        assertThat(forecastedWriteLoadForShardAfterLicenseChange.isPresent(), is(false));
     }
 
-    public void testForecastComputationFallbacksToSetting() {
+    public void testUptimeIsUsedToWeightWriteLoad() {
+        final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final var metadataBuilder = Metadata.builder();
-        final int numberOfBackingIndices = 10;
-        final int numberOfShards = 1;
-        final List<Index> backingIndices = new ArrayList<>();
         final String dataStreamName = "logs-es";
+        final int numberOfShards = 5;
+        final List<Index> backingIndices = new ArrayList<>();
+        // Weighted avg 14.4
+        final IndexMetadata indexMetadata = createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 0),
+            numberOfShards,
+            IndexWriteLoad.builder(numberOfShards)
+                .withShardWriteLoad(0, 12, 80)
+                .withShardWriteLoad(1, 24, 5)
+                .withShardWriteLoad(2, 24, 5)
+                .withShardWriteLoad(3, 24, 5)
+                .withShardWriteLoad(4, 24, 5)
+                .build(),
+            System.currentTimeMillis() - (maxIndexAge.millis() / 2)
+        );
+        backingIndices.add(indexMetadata.getIndex());
+        metadataBuilder.put(indexMetadata, false);
+
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            numberOfShards,
+            null,
+            System.currentTimeMillis()
+        );
+        backingIndices.add(writeIndexMetadata.getIndex());
+        metadataBuilder.put(writeIndexMetadata, false);
+
+        final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
+        metadataBuilder.put(dataStream);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
+
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, maxIndexAge);
+
+        final ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
+
+        final IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+        final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+
+        assertThat(forecastedWriteLoadForShard.isPresent(), is(true));
+        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(equalTo(14.4)));
+    }
+
+    public void testForecastedWriteLoadIsOverriddenBySetting() {
+        final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
+        final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, maxIndexAge);
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final String dataStreamName = "logs-es";
+        final int numberOfBackingIndices = 10;
+        final int numberOfShards = randomIntBetween(1, 5);
+        final List<Index> backingIndices = new ArrayList<>();
         for (int i = 0; i < numberOfBackingIndices; i++) {
-            String dataStreamBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, i);
-            IndexMetadata indexMetadata = IndexMetadata.builder(dataStreamBackingIndexName)
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(WriteLoadForecasterPlugin.DEFAULT_WRITE_LOAD_FORECAST_SETTING.getKey(), 0.5)
-                        .build()
-                )
-                .indexWriteLoad(
-                    IndexWriteLoad.builder(numberOfShards).withShardWriteLoad(0, 12, TimeValue.timeValueHours(24).millis()).build()
-                )
-                .creationDate(System.currentTimeMillis())
-                .build();
+            final IndexMetadata indexMetadata = createIndexMetadata(
+                DataStream.getDefaultBackingIndexName(dataStreamName, i),
+                numberOfShards,
+                randomIndexWriteLoad(numberOfShards),
+                System.currentTimeMillis() - (maxIndexAge.millis() / 2)
+            );
             backingIndices.add(indexMetadata.getIndex());
             metadataBuilder.put(indexMetadata, false);
         }
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
+
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numberOfBackingIndices),
+            numberOfShards,
+            null,
+            System.currentTimeMillis(),
+            Settings.builder().put(WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey(), 0.6).build()
+        );
+        backingIndices.add(writeIndexMetadata.getIndex());
+        metadataBuilder.put(writeIndexMetadata, false);
+
+        final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
+        metadataBuilder.put(dataStream);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
+
+        final ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
+
+        final IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+        final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+
+        assertThat(forecastedWriteLoadForShard.isPresent(), is(true));
+        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(equalTo(0.6)));
+
+        hasValidLicense.set(false);
+
+        final OptionalDouble forecastedWriteLoadForShardAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        assertThat(forecastedWriteLoadForShardAfterLicenseChange.isPresent(), is(false));
+    }
+
+    public void testWriteLoadForecast() {
+        {
+            OptionalDouble writeLoadForecast = forecastIndexWriteLoad(List.of());
+            assertThat(writeLoadForecast.isEmpty(), is(true));
+        }
+
+        {
+            OptionalDouble writeLoadForecast = forecastIndexWriteLoad(List.of(IndexWriteLoad.builder(5).build()));
+            assertThat(writeLoadForecast.isEmpty(), is(true));
+        }
+
+        {
+            OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
+                List.of(IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 100).build())
+            );
+            assertThat(writeLoadForecast.isPresent(), is(true));
+            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(12.0)));
+        }
+
+        {
+            OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
+                List.of(
+                    IndexWriteLoad.builder(5)
+                        .withShardWriteLoad(0, 12, 80)
+                        .withShardWriteLoad(1, 24, 5)
+                        .withShardWriteLoad(2, 24, 5)
+                        .withShardWriteLoad(3, 24, 5)
+                        .withShardWriteLoad(4, 24, 5)
+                        .build()
+                )
+            );
+            assertThat(writeLoadForecast.isPresent(), is(true));
+            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(14.4)));
+        }
+
+        {
+            OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
+                List.of(
+                    IndexWriteLoad.builder(5)
+                        .withShardWriteLoad(0, 12, 80)
+                        .withShardWriteLoad(1, 24, 5)
+                        .withShardWriteLoad(2, 24, 5)
+                        .withShardWriteLoad(3, 24, 5)
+                        .withShardWriteLoad(4, 24, 4)
+                        .build(),
+                    // Since this shard uptime is really low, it doesn't add much to the avg
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 120, 1).build()
+                )
+            );
+            assertThat(writeLoadForecast.isPresent(), is(true));
+            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(15.36)));
+        }
+
+        {
+            OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
+                List.of(
+                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 12, 25).withShardWriteLoad(1, 12, 25).build(),
+
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 50).build()
+                )
+            );
+            assertThat(writeLoadForecast.isPresent(), is(true));
+            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(12.0)));
+        }
+
+        {
+            // All indices have the same uptime, therefore it's just a regular avg
+            OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
+                List.of(
+                    IndexWriteLoad.builder(3)
+                        .withShardWriteLoad(0, 25, 1)
+                        .withShardWriteLoad(1, 18, 1)
+                        .withShardWriteLoad(2, 23, 1)
+                        .build(),
+
+                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 6, 1).withShardWriteLoad(1, 8, 1).build(),
+
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 15, 1).build()
+                )
+            );
+            assertThat(writeLoadForecast.isPresent(), is(true));
+            assertThat(writeLoadForecast.getAsDouble(), is(closeTo(15.83, 0.01)));
+        }
+    }
+
+    public void testGetIndicesWithinMaxAgeRange() {
+        final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
+        final LicensedWriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, maxIndexAge);
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final int numberOfBackingIndicesOlderThanMinAge = randomIntBetween(0, 10);
+        final int numberOfBackingIndicesWithinMinAnge = randomIntBetween(0, 10);
+        final int numberOfShards = 1;
+        final List<Index> backingIndices = new ArrayList<>();
+        final String dataStreamName = "logs-es";
+        final List<Index> backingIndicesOlderThanMinAge = new ArrayList<>();
+        for (int i = 0; i < numberOfBackingIndicesOlderThanMinAge; i++) {
+            long creationDate = System.currentTimeMillis() - maxIndexAge.millis() * 2;
+            final IndexMetadata indexMetadata = createIndexMetadata(
+                DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), creationDate),
+                numberOfShards,
+                randomIndexWriteLoad(numberOfShards),
+                creationDate
+            );
+            backingIndices.add(indexMetadata.getIndex());
+            backingIndicesOlderThanMinAge.add(indexMetadata.getIndex());
+            metadataBuilder.put(indexMetadata, false);
+        }
+
+        final List<Index> backingIndicesWithinMinAge = new ArrayList<>();
+        for (int i = 0; i < numberOfBackingIndicesWithinMinAnge; i++) {
+            final long createdAt = System.currentTimeMillis() - (maxIndexAge.getMillis() / 2);
+            final IndexMetadata indexMetadata = createIndexMetadata(
+                DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), createdAt),
+                numberOfShards,
+                randomIndexWriteLoad(numberOfShards),
+                createdAt
+            );
+            backingIndices.add(indexMetadata.getIndex());
+            backingIndicesWithinMinAge.add(indexMetadata.getIndex());
+            metadataBuilder.put(indexMetadata, false);
+        }
+
+        final String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size());
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, numberOfShards, null, System.currentTimeMillis());
+        backingIndices.add(writeIndexMetadata.getIndex());
+        metadataBuilder.put(writeIndexMetadata, false);
+
+        final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
+
+        metadataBuilder.put(dataStream);
+        Metadata metadata = metadataBuilder.build();
+
+        final List<Index> indicesWithinMaxAgeRange = writeLoadForecaster.getIndicesWithinMaxAgeRange(dataStream, metadata);
+
+        final List<Index> expectedIndicesWithinMaxAgeRange = new ArrayList<>();
+        if (numberOfBackingIndicesOlderThanMinAge > 0) {
+            expectedIndicesWithinMaxAgeRange.add(backingIndicesOlderThanMinAge.get(backingIndicesOlderThanMinAge.size() - 1));
+        }
+        expectedIndicesWithinMaxAgeRange.addAll(backingIndicesWithinMinAge);
+        expectedIndicesWithinMaxAgeRange.add(writeIndexMetadata.getIndex());
+
+        assertThat(indicesWithinMaxAgeRange, is(equalTo(expectedIndicesWithinMaxAgeRange)));
+    }
+
+    private IndexWriteLoad randomIndexWriteLoad(int numberOfShards) {
+        IndexWriteLoad.Builder builder = IndexWriteLoad.builder(numberOfShards);
+        for (int shardId = 0; shardId < numberOfShards; shardId++) {
+            builder.withShardWriteLoad(shardId, randomDoubleBetween(0, 64, true), randomLongBetween(1, 10));
+        }
+        return builder.build();
+    }
+
+    private IndexMetadata createIndexMetadata(String indexName, int numberOfShards, IndexWriteLoad indexWriteLoad, long createdAt) {
+        return createIndexMetadata(indexName, numberOfShards, indexWriteLoad, createdAt, Settings.EMPTY);
+    }
+
+    private IndexMetadata createIndexMetadata(
+        String indexName,
+        int numberOfShards,
+        IndexWriteLoad indexWriteLoad,
+        long createdAt,
+        Settings extraSettings
+    ) {
+        return IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(extraSettings)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .build()
+            )
+            .indexWriteLoad(indexWriteLoad)
+            .creationDate(createdAt)
+            .build();
+    }
+
+    private DataStream createDataStream(String name, List<Index> backingIndices) {
+        return new DataStream(
+            name,
             backingIndices,
-            numberOfBackingIndices,
+            backingIndices.size(),
             Collections.emptyMap(),
             false,
             false,
@@ -120,22 +370,5 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             false,
             IndexMode.STANDARD
         );
-        metadataBuilder.put(dataStream);
-        final var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
-
-        WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(
-            () -> true,
-            TimeValue.timeValueDays(7),
-            TimeValue.timeValueHours(1)
-        );
-
-        ClusterState updatedClusterState = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStream.getName(), clusterState);
-
-        IndexMetadata writeIndex = updatedClusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
-
-        OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
-
-        assertThat(forecastedWriteLoadForShard.isPresent(), is(true));
-        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(equalTo(0.5)));
     }
 }

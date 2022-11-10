@@ -1174,7 +1174,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return writeLoad;
     }
 
-    public OptionalDouble getForecastedWriteLoadForShard() {
+    public OptionalDouble getForecastedWriteLoad() {
         return writeLoadForecast == null ? OptionalDouble.empty() : OptionalDouble.of(writeLoadForecast);
     }
 

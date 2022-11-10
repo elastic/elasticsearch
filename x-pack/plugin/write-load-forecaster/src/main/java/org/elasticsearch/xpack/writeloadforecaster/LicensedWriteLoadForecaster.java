@@ -19,6 +19,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexWriteLoad;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.function.BooleanSupplier;
@@ -31,37 +33,21 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    public static final Setting<TimeValue> MIN_UPTIME_SETTING = Setting.timeSetting(
-        "write_load_forecaster.min_uptime",
-        TimeValue.timeValueHours(1),
-        TimeValue.timeValueMinutes(1),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     private final BooleanSupplier hasValidLicense;
     private volatile TimeValue maxIndexAge;
-    private volatile TimeValue minShardUptime;
 
     LicensedWriteLoadForecaster(BooleanSupplier hasValidLicense, Settings settings, ClusterSettings clusterSettings) {
-        this(hasValidLicense, MAX_INDEX_AGE_SETTING.get(settings), MIN_UPTIME_SETTING.get(settings));
+        this(hasValidLicense, MAX_INDEX_AGE_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_INDEX_AGE_SETTING, this::setMaxIndexAgeSetting);
-        clusterSettings.addSettingsUpdateConsumer(MIN_UPTIME_SETTING, this::setMinUptimeSetting);
     }
 
-    LicensedWriteLoadForecaster(BooleanSupplier hasValidLicense, TimeValue maxIndexAge, TimeValue minShardUptime) {
+    LicensedWriteLoadForecaster(BooleanSupplier hasValidLicense, TimeValue maxIndexAge) {
         this.hasValidLicense = hasValidLicense;
         this.maxIndexAge = maxIndexAge;
-        this.minShardUptime = minShardUptime;
     }
 
     private void setMaxIndexAgeSetting(TimeValue updatedMaxIndexAge) {
         this.maxIndexAge = updatedMaxIndexAge;
-    }
-
-    private void setMinUptimeSetting(TimeValue updatedMinShardUptime) {
-        this.minShardUptime = updatedMinShardUptime;
     }
 
     @Override
@@ -70,63 +56,75 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             return clusterState;
         }
 
-        DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
+        final Metadata metadata = clusterState.metadata();
+        final DataStream dataStream = metadata.dataStreams().get(dataStreamName);
 
         if (dataStream == null) {
             return clusterState;
         }
 
-        double maxWriteLoadAvg = Double.MIN_VALUE;
-        double totalWriteLoadAvg = 0;
-        double totalIndices = 0;
+        final List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange = getIndicesWithinMaxAgeRange(dataStream, metadata).stream()
+            .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
+            .map(metadata::getIndexSafe)
+            .map(IndexMetadata::getWriteLoad)
+            .filter(Objects::nonNull)
+            .toList();
 
-        for (Index index : dataStream.getIndices()) {
-            final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(index);
-            final long indexAge = System.currentTimeMillis() - indexMetadata.getCreationDate();
-            final IndexWriteLoad writeLoad = indexMetadata.getWriteLoad();
+        OptionalDouble forecastIndexWriteLoad = forecastIndexWriteLoad(indicesWriteLoadWithinMaxAgeRange);
 
-            if (index.equals(dataStream.getWriteIndex()) || indexAge > maxIndexAge.millis() || writeLoad == null) {
-                continue;
-            }
+        if (forecastIndexWriteLoad.isEmpty()) {
+            return clusterState;
+        }
 
-            double totalIndexWriteLoad = 0;
-            int totalShards = 0;
-            for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+        final IndexMetadata writeIndex = metadata.getIndexSafe(dataStream.getWriteIndex());
+
+        return ClusterState.builder(clusterState)
+            .metadata(
+                Metadata.builder(metadata)
+                    .put(IndexMetadata.builder(writeIndex).indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble()).build(), false)
+            )
+            .build();
+    }
+
+    // Visible for testing
+    static OptionalDouble forecastIndexWriteLoad(List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange) {
+        double totalWeightedWriteLoad = 0;
+        long totalShardUptime = 0;
+        for (IndexWriteLoad writeLoad : indicesWriteLoadWithinMaxAgeRange) {
+            for (int shardId = 0; shardId < writeLoad.numberOfShards(); shardId++) {
                 final OptionalDouble writeLoadForShard = writeLoad.getWriteLoadForShard(shardId);
                 final OptionalLong uptimeInMillisForShard = writeLoad.getUptimeInMillisForShard(shardId);
                 if (writeLoadForShard.isPresent()) {
                     assert uptimeInMillisForShard.isPresent();
                     double shardWriteLoad = writeLoadForShard.getAsDouble();
                     long shardUptimeInMillis = uptimeInMillisForShard.getAsLong();
-                    if (shardUptimeInMillis > minShardUptime.millis()) {
-                        totalIndexWriteLoad += shardWriteLoad;
-                        totalShards++;
-                    }
-                }
-
-                if (totalShards > 0) {
-                    final double indexWriteLoadAvg = totalIndexWriteLoad / totalShards;
-                    totalWriteLoadAvg += indexWriteLoadAvg;
-                    maxWriteLoadAvg = Math.max(maxWriteLoadAvg, indexWriteLoadAvg);
-                    totalIndices++;
+                    totalWeightedWriteLoad += shardWriteLoad * shardUptimeInMillis;
+                    totalShardUptime += shardUptimeInMillis;
                 }
             }
-
         }
 
-        if (totalIndices == 0) {
-            return clusterState;
+        return totalShardUptime == 0 ? OptionalDouble.empty() : OptionalDouble.of(totalWeightedWriteLoad / totalShardUptime);
+    }
+
+    // Visible for testing
+    List<Index> getIndicesWithinMaxAgeRange(DataStream dataStream, Metadata metadata) {
+        final List<Index> dataStreamIndices = dataStream.getIndices();
+        // Consider at least 1 index (including the write index) for cases where rollovers happen less often than maxIndexAge
+        int firstIndexWithinAgeRange = Math.max(dataStreamIndices.size() - 2, 0);
+        for (int i = 0; i < dataStreamIndices.size(); i++) {
+            Index index = dataStreamIndices.get(i);
+            final IndexMetadata indexMetadata = metadata.getIndexSafe(index);
+            final long indexAge = System.currentTimeMillis() - indexMetadata.getCreationDate();
+            if (indexAge < maxIndexAge.getMillis()) {
+                // We need to consider the previous index too in order to cover the entire max-index-age range.
+                firstIndexWithinAgeRange = i == 0 ? 0 : i - 1;
+                break;
+            }
         }
-
-        final double normalizedIndexWriteLoad = (totalWriteLoadAvg / totalIndices) / maxWriteLoadAvg;
-        final IndexMetadata writeIndex = clusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
-
-        return ClusterState.builder(clusterState)
-            .metadata(
-                Metadata.builder(clusterState.metadata())
-                    .put(IndexMetadata.builder(writeIndex).indexWriteLoadForecast(normalizedIndexWriteLoad))
-            )
-            .build();
+        return firstIndexWithinAgeRange == 0
+            ? dataStreamIndices
+            : dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
     }
 
     @Override
@@ -135,11 +133,13 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             return OptionalDouble.empty();
         }
 
-        if (WriteLoadForecasterPlugin.DEFAULT_WRITE_LOAD_FORECAST_SETTING.exists(indexMetadata.getSettings())) {
-            Double defaultWriteLoad = WriteLoadForecasterPlugin.DEFAULT_WRITE_LOAD_FORECAST_SETTING.get(indexMetadata.getSettings());
-            return OptionalDouble.of(defaultWriteLoad);
+        if (WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING.exists(indexMetadata.getSettings())) {
+            Double overrideWriteLoadForecast = WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING.get(
+                indexMetadata.getSettings()
+            );
+            return OptionalDouble.of(overrideWriteLoadForecast);
         }
 
-        return indexMetadata.getForecastedWriteLoadForShard();
+        return indexMetadata.getForecastedWriteLoad();
     }
 }

@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.MAX_INDEX_AGE_SETTING;
-import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.MIN_UPTIME_SETTING;
 
 public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     public static final LicensedFeature.Momentary WRITE_LOAD_FORECAST_FEATURE = LicensedFeature.momentary(
@@ -30,11 +29,10 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         License.OperationMode.ENTERPRISE
     );
 
-    public static final Setting<Double> DEFAULT_WRITE_LOAD_FORECAST_SETTING = Setting.doubleSetting(
-        "index.default_write_load_forecast",
+    public static final Setting<Double> OVERRIDE_WRITE_LOAD_FORECAST_SETTING = Setting.doubleSetting(
+        "index.override_write_load_forecast",
         0.0,
         0.0,
-        1.0,
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
@@ -47,7 +45,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(MAX_INDEX_AGE_SETTING, MIN_UPTIME_SETTING, DEFAULT_WRITE_LOAD_FORECAST_SETTING);
+        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING);
     }
 
     @Override

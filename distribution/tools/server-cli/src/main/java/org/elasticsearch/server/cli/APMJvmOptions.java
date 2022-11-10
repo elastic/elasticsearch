@@ -8,11 +8,11 @@
 
 package org.elasticsearch.server.cli;
 
-import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.StringJoiner;
 
 /**
  * This class is responsible for working out if APM tracing is configured and if so, preparing
@@ -218,23 +219,22 @@ class APMJvmOptions {
 
         // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
         final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
-        final StringBuilder globalLabels = new StringBuilder();
+        final StringJoiner globalLabels = new StringJoiner(",");
 
         for (var globalLabel : globalLabelsSettings.keySet()) {
             // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
             // something to the agent it doesn't understand.
             propertiesMap.remove("global_labels." + globalLabel);
             var globalLabelValue = globalLabelsSettings.get(globalLabel);
-            if (Strings.isNotBlank(globalLabelValue)) {
+            if (Strings.isNullOrBlank(globalLabelValue) == false) {
                 // sanitize for the agent labels separators in case the global labels passed in have , or =
                 globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
                 // append to the global labels string
-                globalLabels.append(globalLabel).append('=').append(globalLabelValue).append(",");
+                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
             }
         }
 
         if (globalLabels.length() > 0) {
-            globalLabels.setLength(globalLabels.length() - 1); // remove trailing comma
             propertiesMap.put("global_labels", globalLabels.toString());
         }
 

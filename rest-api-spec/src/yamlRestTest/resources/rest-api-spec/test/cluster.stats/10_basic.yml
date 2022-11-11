@@ -215,40 +215,10 @@
           sort:
             keyword: desc
           terminate_after: 1000
-
-  - do: {cluster.stats: {}}
-  - match: { indices.search.total: 1 }
-  - length: { indices.search.queries: 1 }
-  - match: { indices.search.queries.match: 1 }
-  - length: { indices.search.sections: 2 }
-  - match: { indices.search.sections.terminate_after: 1 }
-  - match: { indices.search.sections.query: 1 }
-
-  - do:
-      search:
-        index: sensor
-        body:
           aggs:
             values:
               terms:
                 field: keyword
-
-  - do: {cluster.stats: {}}
-  - match: { indices.search.total: 2 }
-  - length: { indices.search.queries: 1 }
-  - match: { indices.search.queries.match: 1 }
-  - length: { indices.search.sections: 3 }
-  - match: { indices.search.sections.terminate_after: 1 }
-  - match: { indices.search.sections.query: 1 }
-  - match: { indices.search.sections.aggs: 1 }
-
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            match:
-              keyword: value
           knn:
             field: vector
             query_vector: [0.6, 0.8]
@@ -257,12 +227,10 @@
           fields: ["keyword"]
 
   - do: {cluster.stats: {}}
-  - match: { indices.search.total: 3 }
-  - length: { indices.search.queries: 1 }
-  - match: { indices.search.queries.match: 2 }
-  - length: { indices.search.sections: 5 }
-  - match: { indices.search.sections.terminate_after: 1 }
-  - match: { indices.search.sections.query: 2 }
-  - match: { indices.search.sections.aggs: 1 }
-  - match: { indices.search.sections.fields: 1 }
-  - match: { indices.search.sections.knn: 1 }
+  - gte: { indices.search.total: 1 }
+  - gte: { indices.search.queries.match: 1 }
+  - gte: { indices.search.sections.terminate_after: 1 }
+  - gte: { indices.search.sections.query: 1 }
+  - gte: { indices.search.sections.aggs: 1 }
+  - gte: { indices.search.sections.fields: 1 }
+  - gte: { indices.search.sections.knn: 1 }

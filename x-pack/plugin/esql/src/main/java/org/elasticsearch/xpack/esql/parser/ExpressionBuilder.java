@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -40,15 +41,21 @@ import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
+import java.util.List;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.ql.util.StringUtils.MINUS;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class ExpressionBuilder extends IdentifierBuilder {
     protected Expression expression(ParseTree ctx) {
         return typedParsing(this, ctx, Expression.class);
+    }
+
+    protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
+        return visitList(this, contexts, Expression.class);
     }
 
     @Override

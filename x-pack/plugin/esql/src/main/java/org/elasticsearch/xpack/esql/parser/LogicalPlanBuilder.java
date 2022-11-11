@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
@@ -71,16 +70,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier tables = new TableIdentifier(source, null, indexPatterns(ctx));
-        return new UnresolvedRelation(source, tables, "", false, null);
+        TableIdentifier table = new TableIdentifier(source, null, visitSourceIdentifiers(ctx.sourceIdentifier()));
+        return new UnresolvedRelation(source, table, "", false, null);
     }
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         List<NamedExpression> aggregates = visitFields(ctx.fields());
-        List<Expression> groupings = ctx.qualifiedNames() == null
-            ? List.of()
-            : visitQualifiedNames(ctx.qualifiedNames()).stream().map(q -> (Expression) q).toList();
+        List<Expression> groupings = visitQualifiedNames(ctx.qualifiedNames());
         return input -> new Aggregate(source(ctx), input, groupings, aggregates);
     }
 
@@ -92,15 +89,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public Alias visitField(EsqlBaseParser.FieldContext ctx) {
-        UnresolvedAttribute id = this.visitQualifiedName(ctx.qualifiedName());
-        Expression value = (Expression) this.visit(ctx.booleanExpression());
+        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
+        Expression value = expression(ctx.booleanExpression());
         String name = id == null ? ctx.getText() : id.qualifiedName();
         return new Alias(source(ctx), name, value);
     }
 
     @Override
     public List<NamedExpression> visitFields(EsqlBaseParser.FieldsContext ctx) {
-        return ctx.field().stream().map(this::visitField).collect(Collectors.toList());
+        return visitList(this, ctx.field(), NamedExpression.class);
     }
 
     @Override
@@ -149,10 +146,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         return input -> new ProjectReorderRenameRemove(source(ctx), input, projections, removals);
-    }
-
-    private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
-        return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

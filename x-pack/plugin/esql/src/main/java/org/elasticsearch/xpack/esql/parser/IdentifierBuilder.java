@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
@@ -41,8 +43,8 @@ public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
     }
 
     @Override
-    public List<UnresolvedAttribute> visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) {
-        return ctx.qualifiedName().stream().map(this::visitQualifiedName).toList();
+    public List<Expression> visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) {
+        return ctx == null ? emptyList() : visitList(this, ctx.qualifiedName(), Expression.class);
     }
 
     @Override
@@ -53,5 +55,9 @@ public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
         } else {
             return ctx.SRC_UNQUOTED_IDENTIFIER().getText();
         }
+    }
+
+    public String visitSourceIdentifiers(List<EsqlBaseParser.SourceIdentifierContext> ctx) {
+        return Strings.collectionToDelimitedString(visitList(this, ctx, String.class), ",");
     }
 }

@@ -171,22 +171,11 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
-            healthService.getHealth(
-                client,
-                request.indicatorName,
-                request.verbose,
-                responseListener.map(
-                    healthIndicatorResults -> {
-                        Response response = new Response(
-                            clusterService.getClusterName(),
-                            healthIndicatorResults,
-                            request.indicatorName == null
-                        );
-                        healthApiStats.track(request.verbose, response);
-                        return response;
-                    }
-                )
-            );
+            healthService.getHealth(client, request.indicatorName, request.verbose, responseListener.map(healthIndicatorResults -> {
+                Response response = new Response(clusterService.getClusterName(), healthIndicatorResults, request.indicatorName == null);
+                healthApiStats.track(request.verbose, response);
+                return response;
+            }));
         }
     }
 }

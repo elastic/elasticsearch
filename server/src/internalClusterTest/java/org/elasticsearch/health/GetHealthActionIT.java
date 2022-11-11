@@ -15,11 +15,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -36,12 +38,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -202,6 +206,36 @@ public class GetHealthActionIT extends ESIntegTestCase {
                         .get()
                 );
                 assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));
+            }
+
+            // Check health api stats
+            {
+                List<Counters> countersPerNode = client.execute(HealthApiStatsAction.INSTANCE, new HealthApiStatsAction.Request())
+                    .get()
+                    .getNodes()
+                    .stream()
+                    .map(HealthApiStatsAction.Response.Node::getStats)
+                    .filter(Objects::nonNull)
+                    .toList();
+                Counters mergedCounters = Counters.merge(countersPerNode);
+                assertThat(mergedCounters.get("invocations.total"), equalTo(4L));
+                assertThat(mergedCounters.get("invocations.verbose_true"), equalTo(0L));
+                assertThat(mergedCounters.get("invocations.verbose_false"), equalTo(0L));
+                assertThat(
+                    mergedCounters.get("invocations.verbose_true") + mergedCounters.get("invocations.verbose_false"),
+                    equalTo(mergedCounters.get("invocations.total"))
+                );
+                HealthStatus mostSevereHealthStatus = HealthStatus.merge(
+                    Stream.of(ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus)
+                );
+                assertThat(mergedCounters.get("statuses." + mostSevereHealthStatus.xContentValue()), greaterThanOrEqualTo(2L));
+                assertThat(mergedCounters.get("statuses." + ilmIndicatorStatus.xContentValue()), greaterThanOrEqualTo(2L));
+                String label = "indicators." + ilmIndicatorStatus.xContentValue() + ".ilm";
+                if (ilmIndicatorStatus != HealthStatus.GREEN) {
+                    assertThat(mergedCounters.get(label), greaterThanOrEqualTo(4L));
+                } else {
+                    expectThrows(IllegalArgumentException.class, () -> mergedCounters.get(label));
+                }
             }
 
         } finally {

@@ -20,11 +20,11 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.CoreRangeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -124,7 +124,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchSparseRangeField() throws IOException {
-        final RangeType rangeType = RangeType.DOUBLE;
+        final CoreRangeType rangeType = CoreRangeType.DOUBLE;
         final MappedFieldType aggFieldType = new RangeFieldMapper.RangeFieldType("agg_field", rangeType);
         final MappedFieldType anotherFieldType = new RangeFieldMapper.RangeFieldType("another_field", rangeType);
 

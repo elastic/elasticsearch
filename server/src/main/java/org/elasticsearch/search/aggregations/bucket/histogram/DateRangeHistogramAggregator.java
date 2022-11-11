@@ -14,6 +14,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.CoreRangeType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.DocValueFormat;
@@ -92,9 +93,9 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
-        if (this.valuesSource.rangeType() != RangeType.DATE) {
+        if (this.valuesSource.rangeType() != CoreRangeType.DATE) {
             throw new IllegalArgumentException(
-                "Expected date range type but found range type [" + this.valuesSource.rangeType().name + "]"
+                "Expected date range type but found range type [" + this.valuesSource.rangeType().getName() + "]"
             );
         }
 

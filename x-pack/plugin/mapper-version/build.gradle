@@ -19,6 +19,7 @@ archivesBaseName = 'x-pack-mapper-version'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':modules:lang-painless:spi')
+  api project(':modules:percolator')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
 }

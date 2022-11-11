@@ -1,0 +1,67 @@
+# Integration tests for the version_range field
+#
+---
+setup:
+
+  - skip:
+      features: headers
+      version: " - 7.99.99"
+      reason: "version_range fields are added to 8.0 first"
+
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                properties:
+                  version:
+                    type: version_range
+
+  - do:
+        bulk:
+          refresh: true
+          body:
+            - '{ "index" : { "_index" : "test_index", "_id" : "1" } }'
+            - '{"version": { "gte" : "1.0.0", "lt" : "2.0.0" } }'
+            - '{ "index" : { "_index" : "test_index", "_id" : "2" } }'
+            - '{"version": { "gte" : "2.0.0", "lt" : "2.5.0" } }'
+            - '{ "index" : { "_index" : "test_index", "_id" : "3" } }'
+            - '{"version": { "gte" : "2.5.0", "lt" : "3.0.0" } }'
+
+---
+"Search":
+  - do:
+        search:
+          index: test_index
+          body:
+            query: { "range" : { "version" : { "gt" : "1.0.0", "lt" : "2.3.0", "relation" : "intersects" } } }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+       search:
+         index: test_index
+         body:
+           query: { "range" : { "version" : { "gt" : "1.1.0", "lt" : "1.5.0", "relation" : "contains" } } }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  
+  - do:
+       search:
+         index: test_index
+         body:
+           query: { "range" : { "version" : { "gte" : "1.0.0", "lt" : "2.3.0", "relation" : "within" } } }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+       search:
+         index: test_index
+         body:
+           query: { "range" : { "version" : { "gt" : "1.0.0", "lt" : "2.3.0", "relation" : "within" } } }
+
+  - match: { hits.total.value: 0 }

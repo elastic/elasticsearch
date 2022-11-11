@@ -17,7 +17,7 @@ import org.apache.lucene.util.BytesRef;
 /**
  * A range field for binary encoded ranges
  */
-final class BinaryRange extends Field {
+public final class BinaryRange extends Field {
     /** The number of bytes per dimension, use {@link InetAddressPoint#BYTES} as max, because that is maximum we need to support */
     public static final int BYTES = InetAddressPoint.BYTES;
 
@@ -33,7 +33,7 @@ final class BinaryRange extends Field {
      * @param name              field name. must not be null.
      * @param encodedRange      Encoded range
      */
-    BinaryRange(String name, byte[] encodedRange) {
+    public BinaryRange(String name, byte[] encodedRange) {
         super(name, TYPE);
         if (encodedRange.length != BYTES * 2) {
             throw new IllegalArgumentException("Unexpected encoded range length [" + encodedRange.length + "]");
@@ -42,7 +42,7 @@ final class BinaryRange extends Field {
     }
 
     /**
-     * Create a query for matching indexed ip ranges that {@code INTERSECT} the defined range.
+     * Create a query for matching indexed ranges that {@code INTERSECT} the defined range.
      * @param field         field name. must not be null.
      * @param encodedRange  Encoded range
      * @return query for matching intersecting encoded ranges (overlap, within, crosses, or contains)
@@ -50,6 +50,14 @@ final class BinaryRange extends Field {
      */
     public static Query newIntersectsQuery(String field, byte[] encodedRange) {
         return newRelationQuery(field, encodedRange, RangeFieldQuery.QueryType.INTERSECTS);
+    }
+
+    public static Query newContainsQuery(String field, byte[] encodedRange) {
+        return newRelationQuery(field, encodedRange, RangeFieldQuery.QueryType.CONTAINS);
+    }
+
+    public static Query newWithinQuery(String field, byte[] encodedRange) {
+        return newRelationQuery(field, encodedRange, RangeFieldQuery.QueryType.WITHIN);
     }
 
     static Query newRelationQuery(String field, byte[] encodedRange, RangeFieldQuery.QueryType relation) {

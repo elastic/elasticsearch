@@ -73,7 +73,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testIntegerRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(INTEGER_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createSearchExecutionContext());
         Query range = IntRange.newIntersectsQuery(INTEGER_RANGE_FIELD_NAME, new int[] { -450 }, new int[] { 45000 });
-        Query dv = RangeType.INTEGER.dvRangeQuery(
+        Query dv = CoreRangeType.INTEGER.dvRangeQuery(
             INTEGER_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             -450,
@@ -87,7 +87,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testLongRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(LONG_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createSearchExecutionContext());
         Query range = LongRange.newIntersectsQuery(LONG_RANGE_FIELD_NAME, new long[] { -450 }, new long[] { 45000 });
-        Query dv = RangeType.LONG.dvRangeQuery(
+        Query dv = CoreRangeType.LONG.dvRangeQuery(
             LONG_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             -450,
@@ -101,7 +101,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testFloatRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(FLOAT_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createSearchExecutionContext());
         Query range = FloatRange.newIntersectsQuery(FLOAT_RANGE_FIELD_NAME, new float[] { -450 }, new float[] { 45000 });
-        Query dv = RangeType.FLOAT.dvRangeQuery(
+        Query dv = CoreRangeType.FLOAT.dvRangeQuery(
             FLOAT_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             -450.0f,
@@ -115,7 +115,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testDoubleRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(DOUBLE_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createSearchExecutionContext());
         Query range = DoubleRange.newIntersectsQuery(DOUBLE_RANGE_FIELD_NAME, new double[] { -450 }, new double[] { 45000 });
-        Query dv = RangeType.DOUBLE.dvRangeQuery(
+        Query dv = CoreRangeType.DOUBLE.dvRangeQuery(
             DOUBLE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             -450.0,
@@ -140,7 +140,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() },
             new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }
         );
-        Query dv = RangeType.DATE.dvRangeQuery(
+        Query dv = CoreRangeType.DATE.dvRangeQuery(
             DATE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
@@ -177,7 +177,14 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             createSearchExecutionContext()
         );
         Query range = InetAddressRange.newIntersectsQuery(IP_RANGE_FIELD_NAME, lower, upper);
-        Query dv = RangeType.IP.dvRangeQuery(IP_RANGE_FIELD_NAME, BinaryDocValuesRangeQuery.QueryType.INTERSECTS, lower, upper, true, true);
+        Query dv = CoreRangeType.IP.dvRangeQuery(
+            IP_RANGE_FIELD_NAME,
+            BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
+            lower,
+            upper,
+            true,
+            true
+        );
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
 

@@ -28,6 +28,14 @@
             unset VAULT_TOKEN
             set -x
             $WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier=-SNAPSHOT
+
+            # Allow other users access to read the artifacts so they are readable in the
+            # container
+            find . -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
+  
+            # Allow other users write access to create checksum files
+            find . -type d -path "*/build/distributions" -exec chmod a+w {} \;
+  
             # Artifacts should be generated
             docker run --rm \
                    --name release-manager \

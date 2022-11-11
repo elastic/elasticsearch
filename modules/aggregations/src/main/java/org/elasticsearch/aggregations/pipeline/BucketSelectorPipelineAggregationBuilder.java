@@ -6,14 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -41,10 +43,6 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
         this.script = script;
     }
 
-    public BucketSelectorPipelineAggregationBuilder(String name, Script script, String... bucketsPaths) {
-        this(name, convertToBucketsPathMap(bucketsPaths), script);
-    }
-
     /**
      * Read from a stream.
      */
@@ -60,14 +58,6 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
         out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
         script.writeTo(out);
         gapPolicy.writeTo(out);
-    }
-
-    private static Map<String, String> convertToBucketsPathMap(String[] bucketsPaths) {
-        Map<String, String> bucketsPathsMap = new HashMap<>();
-        for (int i = 0; i < bucketsPaths.length; i++) {
-            bucketsPathsMap.put("_value" + i, bucketsPaths[i]);
-        }
-        return bucketsPathsMap;
     }
 
     /**

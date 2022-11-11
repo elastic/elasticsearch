@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfPrimarySegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
@@ -138,7 +138,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
-        Integer preLifecycleBackingIndexSegments = getNumberOfSegments(client(), backingIndexName);
+        Integer preLifecycleBackingIndexSegments = getNumberOfPrimarySegments(client(), backingIndexName);
         assertThat(preLifecycleBackingIndexSegments, greaterThanOrEqualTo(1));
 
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
@@ -147,7 +147,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
         assertTrue(waitUntil(() -> {
             try {
-                Integer numberOfSegments = getNumberOfSegments(client(), backingIndexName);
+                Integer numberOfSegments = getNumberOfPrimarySegments(client(), backingIndexName);
                 logger.info("index {} has {} segments", backingIndexName, numberOfSegments);
                 // this is a loose assertion here as forcemerge is best effort
                 if (preLifecycleBackingIndexSegments > 1) {

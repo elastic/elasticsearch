@@ -28,7 +28,9 @@
             unset VAULT_TOKEN
             set -x
             $WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier=-SNAPSHOT
-            ls -lh $WORKSPACE/build/distributions
+            
+            # we regenerate this file as part of the release manager invocation
+            rm $WORKSPACE/build/distributions/elasticsearch-jdbc-${ES_VERSION}-SNAPSHOT.taco.sha512
             
             # Allow other users access to read the artifacts so they are readable in the
             # container
@@ -36,9 +38,7 @@
   
             # Allow other users write access to create checksum files
             find $WORKSPACE -type d -path "*/build/distributions" -exec chmod a+w {} \;
-          
-            chmod a+w $WORKSPACE/build/distributions
-          
+                    
             # Artifacts should be generated
             docker run --rm \
                    --name release-manager \

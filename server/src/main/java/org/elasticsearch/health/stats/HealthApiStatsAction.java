@@ -106,9 +106,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
 
             public Node(StreamInput in) throws IOException {
                 super(in);
-                if (in.readBoolean()) {
-                    stats = new Counters(in);
-                }
+                in.readOptionalWriteable(Counters::new);
             }
 
             public Node(DiscoveryNode node) {
@@ -126,6 +124,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
+                out.writeOptionalWriteable(stats);
             }
         }
     }

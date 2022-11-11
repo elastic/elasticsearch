@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -632,7 +633,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
-    public void testSearchUsageCollection() throws IOException {
+    public void testSearchSectionsUsageCollection() throws IOException {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(
             new BoolQueryBuilder().must(new MatchQueryBuilder("field", "value")).must(new QueryStringQueryBuilder("test"))
@@ -702,6 +703,28 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(1L, sectionsUsage.get("rescore").longValue());
         assertEquals(1L, sectionsUsage.get("collapse").longValue());
         assertEquals(1L, sectionsUsage.get("aggs").longValue());
+    }
+
+    public void testSearchTotalUsageCollection() throws IOException {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(new TermQueryBuilder("field", "value"));
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        assertEquals(0, searchUsageHolder.getSearchUsageStats().getTotalSearchCount());
+        int iters = randomIntBetween(10, 100);
+        for (int i = 0; i < iters; i++) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(searchSourceBuilder))) {
+                SearchSourceBuilder.fromXContent(parser, true, searchUsageHolder);
+            }
+        }
+
+        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        assertEquals(iters, searchUsageStats.getTotalSearchCount());
+        Map<String, Long> queryUsage = searchUsageStats.getQueryUsage();
+        assertEquals(1, queryUsage.size());
+        assertEquals(iters, queryUsage.get("term").longValue());
+        Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
+        assertEquals(1, sectionsUsage.size());
+        assertEquals(iters, sectionsUsage.get("query").longValue());
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

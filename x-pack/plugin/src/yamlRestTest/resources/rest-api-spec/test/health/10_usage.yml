@@ -1,0 +1,33 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: red_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing.allocation.enable: none
+
+  - do:
+      _internal.health: {}
+
+  - do:
+      _internal.health:
+        feature: disk
+---
+"Usage stats on the health API":
+  - skip:
+      version: "- 8.5.99"
+      reason: "the verbose parameter was only added in 8.6"
+
+  - do:
+      xpack.usage: {}
+
+  - match: { health.available: true }
+  - match: { health.enabled: true }
+  - match: { health.invocations.total: 2 }
+  - match: { health.invocations.verbose_true: 2 }
+  - match: { health.statuses.red: 1 }
+  - match: { health.statuses.green: 1 }
+  - match: { health.indicators.red.shards_availability: 1 }

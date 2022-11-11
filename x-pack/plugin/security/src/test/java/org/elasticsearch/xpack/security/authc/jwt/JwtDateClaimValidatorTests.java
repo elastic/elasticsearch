@@ -116,7 +116,18 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
             ElasticsearchSecurityException.class,
             () -> validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())))
         );
-        assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be before now"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "date claim ["
+                    + claimName
+                    + "] value ["
+                    + after.getEpochSecond() * 1000
+                    + "] must be before now ["
+                    + now.toEpochMilli()
+                    + "]"
+            )
+        );
     }
 
     public void testAfterNow() throws ParseException {
@@ -138,7 +149,18 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
             ElasticsearchSecurityException.class,
             () -> validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())))
         );
-        assertThat(e.getMessage(), containsString("date claim [" + claimName + "] must be after now"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "date claim ["
+                    + claimName
+                    + "] value ["
+                    + before.getEpochSecond() * 1000
+                    + "] must be after now ["
+                    + now.toEpochMilli()
+                    + "]"
+            )
+        );
 
         final Instant after = now.plusSeconds(randomLongBetween(1 - allowedSkewInSeconds, 600));
         try {

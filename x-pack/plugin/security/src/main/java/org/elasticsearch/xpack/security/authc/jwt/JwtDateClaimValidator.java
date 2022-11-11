@@ -11,6 +11,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
@@ -64,7 +65,12 @@ public class JwtDateClaimValidator implements JwtFieldValidator {
             case BEFORE_NOW:
                 if (false == claimInstant.isBefore(now.plusSeconds(allowedClockSkewSeconds))) {
                     throw new ElasticsearchSecurityException(
-                        "date claim [" + claimName + "] must be before now [" + now.toEpochMilli() + "]",
+                        Strings.format(
+                            "date claim [%s] value [%s] must be before now [%s]",
+                            claimName,
+                            claimInstant.toEpochMilli(),
+                            now.toEpochMilli()
+                        ),
                         RestStatus.BAD_REQUEST
                     );
                 }
@@ -72,7 +78,12 @@ public class JwtDateClaimValidator implements JwtFieldValidator {
             case AFTER_NOW:
                 if (false == claimInstant.isAfter(now.minusSeconds(allowedClockSkewSeconds))) {
                     throw new ElasticsearchSecurityException(
-                        "date claim [" + claimName + "] must be after now [" + now.toEpochMilli() + "]",
+                        Strings.format(
+                            "date claim [%s] value [%s] must be after now [%s]",
+                            claimName,
+                            claimInstant.toEpochMilli(),
+                            now.toEpochMilli()
+                        ),
                         RestStatus.BAD_REQUEST
                     );
                 }

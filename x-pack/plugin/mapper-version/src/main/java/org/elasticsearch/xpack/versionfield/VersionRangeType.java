@@ -164,9 +164,9 @@ public class VersionRangeType implements RangeType {
         boolean includeTo,
         ShapeRelation relation
     ) {
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException("range queries on `version_range` fields require doc_values.");
-        }
+        // if (hasDocValues == false) {
+        //     throw new IllegalArgumentException("range queries on `version_range` fields require doc_values.");
+        // }
         Query rangeQuery;
         if (relation == ShapeRelation.WITHIN) {
             rangeQuery = withinQuery(field, lower, upper, includeFrom, includeTo);

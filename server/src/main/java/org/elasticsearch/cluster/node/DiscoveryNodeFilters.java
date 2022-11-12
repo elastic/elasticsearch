@@ -15,10 +15,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DiscoveryNodeFilters {
 
@@ -45,6 +48,11 @@ public class DiscoveryNodeFilters {
                 }
             }
         }
+    }
+
+    public static Map<String, List<String>> mergeFilters(Map<String, List<String>> exist, Map<String, List<String>> toApply) {
+        return Stream.concat(exist.entrySet().stream(), toApply.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existValue, toApplyValue) -> toApplyValue));
     }
 
     public static DiscoveryNodeFilters buildFromKeyValues(OpType opType, Map<String, List<String>> filters) {
@@ -103,6 +111,10 @@ public class DiscoveryNodeFilters {
         final String[] removed = newFilters.remove("_tier_preference");
         assert removed != null;
         return newFilters.isEmpty() ? null : new DiscoveryNodeFilters(original.opType, newFilters);
+    }
+
+    public Map<String, List<String>> getFilters() {
+        return filters.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> Arrays.stream(entry.getValue()).toList()));
     }
 
     public boolean match(DiscoveryNode node) {

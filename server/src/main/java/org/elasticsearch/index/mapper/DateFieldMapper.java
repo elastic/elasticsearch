@@ -785,7 +785,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType().getValuesSourceType(),
                     sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
+                    searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );
             }

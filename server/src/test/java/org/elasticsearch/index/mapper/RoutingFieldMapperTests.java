@@ -13,7 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -72,7 +72,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
                     fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
-                    new SourceLookup.ReaderSourceProvider()
+                    (ctx, doc) -> null
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
@@ -80,9 +80,8 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
+                assertEquals(List.of("abcd"), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()));
             }
         );
     }

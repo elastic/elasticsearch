@@ -244,16 +244,20 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         return switch (script.getIdOrCode()) {
             case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(((Number) foo).doubleValue());
                     }
                 }
             };
             case "add_param" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                     }
                 }

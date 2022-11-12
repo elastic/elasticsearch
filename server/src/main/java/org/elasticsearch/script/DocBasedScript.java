@@ -11,9 +11,12 @@ package org.elasticsearch.script;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.EmptyField;
 import org.elasticsearch.script.field.Field;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public abstract class DocBasedScript {
@@ -51,6 +54,13 @@ public abstract class DocBasedScript {
             return Collections.emptyMap();
         }
         return docReader.docAsMap();
+    }
+
+    public Supplier<Source> source() {
+        if (docReader == null) {
+            return () -> Source.empty(XContentType.JSON);
+        }
+        return docReader.source();
     }
 
     /**

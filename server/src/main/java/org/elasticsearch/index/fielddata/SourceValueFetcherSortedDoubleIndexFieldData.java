@@ -14,7 +14,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,10 +31,10 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
-            super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+            super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
         }
 
         @Override
@@ -42,7 +43,7 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
                 fieldName,
                 valuesSourceType,
                 valueFetcher,
-                sourceLookup,
+                sourceProvider,
                 toScriptFieldFactory
             );
         }
@@ -52,15 +53,15 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
         String fieldName,
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
-        SourceLookup sourceLookup,
+        SourceProvider sourceProvider,
         ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+        super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
     }
 
     @Override
     public SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> loadDirect(LeafReaderContext context) throws Exception {
-        return new SourceValueFetcherSortedDoubleLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
+        return new SourceValueFetcherSortedDoubleLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
     private static class SourceValueFetcherSortedDoubleLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> {
@@ -69,15 +70,15 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
-            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceLookup);
+            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceProvider);
         }
 
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(
-                new SourceValueFetcherSortedNumericDoubleValues(leafReaderContext, valueFetcher, sourceLookup),
+                new SourceValueFetcherSortedNumericDoubleValues(leafReaderContext, valueFetcher, sourceProvider),
                 name
             );
         }
@@ -88,7 +89,7 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
         private final LeafReaderContext leafReaderContext;
 
         private final ValueFetcher valueFetcher;
-        private final SourceLookup sourceLookup;
+        private final SourceProvider sourceProvider;
 
         private final List<Double> values;
         private Iterator<Double> iterator;
@@ -96,21 +97,20 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
         private SourceValueFetcherSortedNumericDoubleValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
-            this.sourceLookup = sourceLookup;
+            this.sourceProvider = sourceProvider;
 
             values = new ArrayList<>();
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
-            sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
             values.clear();
-
-            for (Object value : valueFetcher.fetchValues(sourceLookup, doc, Collections.emptyList())) {
+            Source source = sourceProvider.getSource(leafReaderContext, doc);
+            for (Object value : valueFetcher.fetchValues(source, doc, Collections.emptyList())) {
                 assert value instanceof Number;
                 values.add(((Number) value).doubleValue());
             }

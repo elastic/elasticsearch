@@ -15,7 +15,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,15 +55,14 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
                 fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
-                new SourceLookup.ReaderSourceProvider()
+                (ctx, doc) -> null
             );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), 0, Collections.emptyList()));
+            assertEquals(List.of(version), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, Collections.emptyList()));
         });
     }
 

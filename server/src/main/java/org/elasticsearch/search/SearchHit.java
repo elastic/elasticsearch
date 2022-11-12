@@ -31,7 +31,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -399,7 +399,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
     }
 

@@ -421,16 +421,20 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         return switch (script.getIdOrCode()) {
             case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit((Boolean) foo);
                     }
                 }
             };
             case "xor_param" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
                     }
                 }

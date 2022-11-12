@@ -18,7 +18,7 @@ import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -64,7 +64,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -90,7 +90,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -130,7 +130,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields())
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<String> results = stringFieldScript.resultsForDoc(0);
@@ -159,7 +159,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields())
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<String> results = stringFieldScript.resultsForDoc(0);

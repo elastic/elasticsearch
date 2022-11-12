@@ -55,7 +55,7 @@ import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -390,14 +390,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     HalfFloatDocValuesField::new
                 );
             }
@@ -541,14 +541,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     FloatDocValuesField::new
                 );
             }
@@ -670,14 +670,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     DoubleDocValuesField::new
                 );
             }
@@ -774,14 +774,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     ByteDocValuesField::new
                 );
             }
@@ -863,14 +863,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     ShortDocValuesField::new
                 );
             }
@@ -1019,14 +1019,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     IntegerDocValuesField::new
                 );
             }
@@ -1145,14 +1145,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     LongDocValuesField::new
                 );
             }
@@ -1385,7 +1385,7 @@ public class NumberFieldMapper extends FieldMapper {
         public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
             String name,
             ValuesSourceType valuesSourceType,
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             ValueFetcher valueFetcher
         ) {
             throw new UnsupportedOperationException("not supported for source fallback");
@@ -1562,12 +1562,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-                return type.getValueFetcherFieldDataBuilder(
-                    name(),
-                    valuesSourceType,
-                    searchLookup.source(),
-                    sourceValueFetcher(sourcePaths)
-                );
+                return type.getValueFetcherFieldDataBuilder(name(), valuesSourceType, searchLookup, sourceValueFetcher(sourcePaths));
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");

@@ -47,7 +47,8 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -501,23 +502,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         throws IOException {
 
         SetOnce<List<?>> result = new SetOnce<>();
-        withLuceneIndex(
-            mapperService,
-            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
-            iw -> {
-                SearchLookup lookup = new SearchLookup(
-                    mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
-                    new SourceLookup.ReaderSourceProvider()
-                );
-                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
-                IndexSearcher searcher = newSearcher(iw);
-                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                lookup.source().setSegmentAndDocument(context, 0);
-                valueFetcher.setNextReader(context);
-                result.set(valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
-            }
-        );
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue)));
+        withLuceneIndex(mapperService, iw -> { iw.addDocument(doc.rootDoc()); }, iw -> {
+            SearchLookup lookup = new SearchLookup(
+                mapperService::fieldType,
+                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                (ctx, docid) -> Source.fromBytes(doc.source())
+            );
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            valueFetcher.setNextReader(context);
+            result.set(valueFetcher.fetchValues(lookup.getSource(context, 0), 0, new ArrayList<>()));
+        });
         return result.get();
     }
 
@@ -794,12 +791,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
-            sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
-            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
-            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
+            List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
+            List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
             /*
              * The native fetcher uses byte, short, etc but doc values always
              * uses long or double. This difference is fine because on the outside
@@ -906,7 +902,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
             (f, s, t) -> { throw new UnsupportedOperationException(); },
-            new SourceLookup.ReaderSourceProvider()
+            (ctx, docid) -> Source.fromBytes(doc.source())
         );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {

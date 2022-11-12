@@ -322,7 +322,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     name(),
                     valuesSourceType,
                     sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
+                    searchLookup,
                     UnsignedLongDocValuesField::new
                 );
             }

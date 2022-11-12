@@ -261,16 +261,20 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
         return switch (script.getIdOrCode()) {
             case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(foo.toString());
                     }
                 }
             };
             case "append_param" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(foo.toString() + getParams().get("param"));
                     }
                 }

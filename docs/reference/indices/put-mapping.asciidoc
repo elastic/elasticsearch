@@ -198,6 +198,10 @@ PUT /my-index-000001/_mapping
 You can use the update mapping API to update the `fields` mapping parameter and
 enable multi-fields for an existing field.
 
+WARNING: If an index (or data stream) contains documents when you add a multi-field,
+those documents will not receive the mapping update. You can apply mapping changes
+with the <<docs-update-by-query,update by query API>>.
+
 To see how this works, try the following example.
 
 Use the <<indices-create-index,create index>> API to create an index with the

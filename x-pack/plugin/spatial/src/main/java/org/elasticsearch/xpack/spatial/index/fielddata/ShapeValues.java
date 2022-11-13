@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.Geometry;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.ShapeValuesSourceType;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -40,47 +42,152 @@ import java.util.function.Supplier;
  *
  * There is just one value for one document.
  */
-public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
-    protected final CoordinateEncoder encoder;
-    protected final Supplier<T> supplier;
-    protected final ShapeIndexer missingShapeIndexer;
-
-    /**
-     * Creates a new {@link ShapeValues} instance
-     */
-    protected ShapeValues(CoordinateEncoder encoder, Supplier<T> supplier, ShapeIndexer missingShapeIndexer) {
-        this.encoder = encoder;
-        this.supplier = supplier;
-        this.missingShapeIndexer = missingShapeIndexer;
-    }
+public interface ShapeValues<T extends ShapeValues.ShapeValue> {
 
     /**
      * Advance this instance to the given document id
+     *
      * @return true if there is a value for this document
      */
-    public abstract boolean advanceExact(int doc) throws IOException;
-
-    public abstract ValuesSourceType valuesSourceType();
+    boolean advanceExact(int doc) throws IOException;
 
     /**
      * Return the value associated with the current document.
-     *
+     * <p>
      * Note: the returned {@link ShapeValue} might be shared across invocations.
      *
      * @return the value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract T value() throws IOException;
+    T value() throws IOException;
 
-    public T missing(String missing) {
-        try {
-            final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
-            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
-            field.add(missingShapeIndexer.indexShape(geometry), geometry);
-            final T value = supplier.get();
-            value.reset(field.binaryValue());
-            return value;
-        } catch (IOException | ParseException e) {
-            throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
+    ValuesSourceType valuesSourceType();
+
+    T missing(String missing);
+
+    class ShapeValuesConfig<T extends ShapeValues.ShapeValue> {
+        protected final CoordinateEncoder encoder;
+        protected final Supplier<T> supplier;
+        protected final ShapeIndexer missingShapeIndexer;
+        protected final ShapeValuesSourceType valuesSourceType;
+
+        protected ShapeValuesConfig(
+            CoordinateEncoder encoder,
+            Supplier<T> supplier,
+            ShapeIndexer missingShapeIndexer,
+            ShapeValuesSourceType valuesSourceType
+        ) {
+            this.encoder = encoder;
+            this.supplier = supplier;
+            this.missingShapeIndexer = missingShapeIndexer;
+            this.valuesSourceType = valuesSourceType;
+        }
+    }
+
+    abstract class ShapeValuesImpl<T extends ShapeValues.ShapeValue> implements ShapeValues<T> {
+        protected final ShapeValuesConfig<T> config;
+
+        protected ShapeValuesImpl(ShapeValuesConfig<T> config) {
+            this.config = config;
+        }
+
+        @Override
+        public ValuesSourceType valuesSourceType() {
+            return config.valuesSourceType;
+        }
+
+        @Override
+        public T missing(String missing) {
+            try {
+                final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
+                final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", config.encoder);
+                field.add(config.missingShapeIndexer.indexShape(geometry), geometry);
+                final T value = config.supplier.get();
+                value.reset(field.binaryValue());
+                return value;
+            } catch (IOException | ParseException e) {
+                throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
+            }
+        }
+    }
+
+    /**
+     * An empty collection of ShapeValue
+     */
+    class Empty<T extends ShapeValues.ShapeValue> extends ShapeValuesImpl<T> {
+        protected Empty(ShapeValuesConfig<T> config) {
+            super(config);
+        }
+
+        @Override
+        public boolean advanceExact(int doc) {
+            return false;
+        }
+
+        @Override
+        public T value() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * ShapeValues that produces a stream of ShapeValue from a BinaryDocValues instance
+     */
+    class BinaryDocData<T extends ShapeValues.ShapeValue> extends ShapeValuesImpl<T> {
+        private final BinaryDocValues binaryValues;
+        private final T shapeValue;
+
+        protected BinaryDocData(ShapeValuesConfig<T> config, BinaryDocValues binaryValues, T shapeValue) {
+            super(config);
+            this.binaryValues = binaryValues;
+            this.shapeValue = shapeValue;
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            return binaryValues.advanceExact(doc);
+        }
+
+        @Override
+        public T value() throws IOException {
+            shapeValue.reset(binaryValues.binaryValue());
+            return shapeValue;
+        }
+    }
+
+    /**
+     * ShapeValues that wraps another ShapeValues, but replaces missing values with the specified missing value
+     */
+    class Wrapped<T extends ShapeValues.ShapeValue> extends ShapeValuesImpl<T> {
+        private final ShapeValues<T> values;
+        private final T missing;
+        private boolean exists;
+
+        protected Wrapped(ShapeValuesConfig<T> config, ShapeValues<T> values, T missing) {
+            super(config);
+            this.values = values;
+            this.missing = missing;
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            exists = values.advanceExact(doc);
+            // always return true because we want to return a value even if the document does not have a value
+            return true;
+        }
+
+        @Override
+        public ValuesSourceType valuesSourceType() {
+            return values.valuesSourceType();
+        }
+
+        @Override
+        public T value() throws IOException {
+            return exists ? values.value() : missing;
+        }
+
+        @Override
+        public String toString() {
+            return "anon ShapeValues of [" + super.toString() + "]";
         }
     }
 
@@ -88,7 +195,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the provided decoder (could be geo or cartesian)
      */
-    protected abstract static class ShapeValue implements ToXContentFragment {
+    abstract class ShapeValue implements ToXContentFragment {
         protected final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         protected final CoordinateEncoder encoder;
@@ -180,7 +287,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         }
     }
 
-    public static class BoundingBox {
+    class BoundingBox {
         public double top;
         public double bottom;
         public double negLeft;

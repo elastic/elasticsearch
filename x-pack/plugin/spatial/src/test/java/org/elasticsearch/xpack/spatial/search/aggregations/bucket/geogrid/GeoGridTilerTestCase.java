@@ -28,10 +28,9 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -253,29 +252,34 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     }
 
     protected GeoShapeValues makeGeoShapeValues(GeoShapeValues.GeoShapeValue... values) {
-        return new GeoShapeValues() {
-            int index = 0;
+        return new TestGeoShapeValues(values);
+    }
 
-            @Override
-            public boolean advanceExact(int doc) {
-                assertThat(index, Matchers.greaterThanOrEqualTo(doc));
-                if (doc < values.length) {
-                    index = doc;
-                    return true;
-                }
-                return false;
-            }
+    private static final class TestGeoShapeValues extends ShapeValues.ShapeValuesImpl<GeoShapeValues.GeoShapeValue>
+        implements
+            GeoShapeValues {
+        private final GeoShapeValue[] values;
+        int index = 0;
 
-            @Override
-            public ValuesSourceType valuesSourceType() {
-                return GeoShapeValuesSourceType.instance();
-            }
+        private TestGeoShapeValues(GeoShapeValues.GeoShapeValue[] values) {
+            super(GeoShapeValues.DEFAULT_CONFIG);
+            this.values = values;
+        }
 
-            @Override
-            public GeoShapeValue value() {
-                return values[index];
+        @Override
+        public boolean advanceExact(int doc) {
+            assertThat(index, Matchers.greaterThanOrEqualTo(doc));
+            if (doc < values.length) {
+                index = doc;
+                return true;
             }
-        };
+            return false;
+        }
+
+        @Override
+        public GeoShapeValues.GeoShapeValue value() {
+            return values[index];
+        }
     }
 
     private static Geometry boxToGeo(GeoBoundingBox geoBox) {

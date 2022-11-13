@@ -169,3 +169,45 @@ GET /_search
   }
 }
 ----
+
+==== Named Nested queries
+
+If you want to use a `_name` with a `nested` query, it must go into the the `nested` body like below. 
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "nested": {
+            "_name": "find",
+            "path": "obj1",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "obj1.type": "cat"
+                    }
+                  },
+                  {
+                    "range": {
+                      "obj1.count": {
+                        "gt": 5
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "score_mode": "avg"
+          }
+        }
+      ]
+    }
+  }
+}
+----

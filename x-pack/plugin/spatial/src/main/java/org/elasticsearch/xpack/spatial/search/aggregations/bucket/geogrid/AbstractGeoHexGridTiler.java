@@ -43,6 +43,8 @@ public abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     @Override
     public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+        // TODO: this could be done in GeoShapeCellValues.advanceExact(), but some cleanup of the geoTile and GeoHash tilers would be needed
+        values.resizeCell(0);
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
@@ -51,7 +53,7 @@ public abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             return setPointValue(values, H3.geoToH3Address(bounds.minY(), bounds.minX(), precision));
         }
         // TODO: test the H3 cells of the bounds at the specified precision, because we can optimize the search
-        // if the bounds leads to neighbouring H3 cells, we won't need to to the recursive tree search. Using H3.areNeiughborCells.
+        // if the bounds leads to neighbouring H3 cells, we won't need to to the recursive tree search. Using H3.areNeighborCells.
         return setValuesByRecursion(values, geoValue);
     }
 

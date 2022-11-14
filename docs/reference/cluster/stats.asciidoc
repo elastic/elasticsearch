@@ -264,36 +264,6 @@ grow due to ongoing peer recoveries, restoring snapshots, and similar
 activities.
 =====
 
-`search`::
-(array of objects)
-Contains usage statistics about search requests submitted to selected nodes
-that acted as coordinator during the search execution.
-Usage includes information about the total number of incoming search requests,
-which sections were specified in their request body, as well as which queries
-were used as part of the query and post_filter sections. Queries are counted
-once per search request, meaning that if the same search requests includes
-multiple term queries, the counter for term is going to be incremented by 1 only.
-
-+
-.Properties of `search` objects
-[%collapsible%open]
-====
-`total`::
-(integer)
-Total number of received search requests
-
-`queries`::
-(object)
-Query types used in selected nodes. For each query, name and number of times
-it's been used is reported.
-
-`sections`::
-(object)
-Search sections used in selected nodes. For each section, name and number of times
-it's been used is reported.
-
-====
-
 `fielddata`::
 (object)
 Contains statistics about the <<modules-fielddata, field data cache>> of selected nodes.
@@ -851,6 +821,36 @@ Occurrences of the built-in analyzer in selected nodes.
 (integer)
 Number of indices using the built-in analyzer in selected nodes.
 ======
+=====
+
+`search`::
+(array of objects)
+Contains usage statistics about search requests submitted to selected nodes
+that acted as coordinator during the search execution.
+Usage includes information about the total number of incoming search requests,
+which sections were specified in their request body, as well as which queries
+were used as part of the query and post_filter sections. Queries are counted
+once per search request, meaning that if the same search requests includes
+multiple term queries, the counter for term is going to be incremented by 1 only.
+
++
+.Properties of `search` objects
+[%collapsible%open]
+=====
+`total`::
+(integer)
+Total number of received search requests
+
+`queries`::
+(object)
+Query types used in selected nodes. For each query, name and number of times
+it's been used is reported.
+
+`sections`::
+(object)
+Search sections used in selected nodes. For each section, name and number of times
+it's been used is reported.
+
 =====
 ====
 

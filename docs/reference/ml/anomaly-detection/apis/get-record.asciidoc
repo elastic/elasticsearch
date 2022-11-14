@@ -190,15 +190,19 @@ configuration. For example, `max`.
 (string) The description of the function in which the anomaly occurs, as
 specified in the detector configuration.
 
-`geo_results.actual_point`::
-(string) The actual value for the bucket formatted as a `geo_point`. If the
-detector function is `lat_long`, this is a comma delimited string of the
-latitude and longitude.
+`geo_results`::
+(optional, object) If the detector function is `lat_long`, this object contains
+comma delimited strings for the latitude and longitude of the actual and typical values.  
++
+.Properties of `geo_results`
+[%collapsible%open]
+====
+`actual_point`::
+(string) The actual value for the bucket formatted as a `geo_point`.
 
-`geo_results.typical_point`::
-(string) The typical value for the bucket formatted as a `geo_point`. If the
-detector function is `lat_long`, this is a comma delimited string of the
-latitude and longitude.
+`typical_point`::
+(string) The typical value for the bucket formatted as a `geo_point`.
+====
 
 `influencers`::
 (array) If `influencers` was specified in the detector configuration, this array

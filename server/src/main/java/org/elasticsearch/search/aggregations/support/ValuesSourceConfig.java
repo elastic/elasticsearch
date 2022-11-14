@@ -323,7 +323,7 @@ public class ValuesSourceConfig {
                 vs = valueSourceType().getScript(script(), scriptValueType());
             } else {
                 // Field or Value Script case
-                vs = valueSourceType().getField(fieldContext(), script(), context);
+                vs = valueSourceType().getField(fieldContext(), script());
             }
         }
 
@@ -403,8 +403,8 @@ public class ValuesSourceConfig {
      * This returns a {@linkplain Function} because auto date histogram will
      * need to call it many times over the course of running the aggregation.
      */
-    public Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-        return valuesSource.roundingPreparer();
+    public Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+        return valuesSource.roundingPreparer(context);
     }
 
     /**

@@ -80,7 +80,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             numberOfAllocations,
             params.getThreadsPerAllocation(),
             params.getQueueCapacity(),
-            params.getCacheSize().orElse(null)
+            params.getCacheSize().orElse(null),
+            params.getPriority()
         );
     }
 

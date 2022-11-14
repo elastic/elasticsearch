@@ -611,9 +611,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
         if ((irComparisonNode.getLeftNode() instanceof ConstantNode || irComparisonNode.getLeftNode() instanceof NullNode)
             && (irComparisonNode.getRightNode() instanceof ConstantNode || irComparisonNode.getRightNode() instanceof NullNode)) {
 
-            ExpressionNode irLeftConstantNode = irComparisonNode.getLeftNode() instanceof NullNode
-                ? null
-                : irComparisonNode.getLeftNode();
+            ExpressionNode irLeftConstantNode = irComparisonNode.getLeftNode() instanceof NullNode ? null : irComparisonNode.getLeftNode();
             ExpressionNode irRightConstantNode = irComparisonNode.getRightNode() instanceof NullNode
                 ? null
                 : irComparisonNode.getRightNode();
@@ -814,7 +812,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
     public void visitCast(CastNode irCastNode, Consumer<ExpressionNode> scope) {
         irCastNode.getChildNode().visit(this, irCastNode::setChildNode);
 
-        if (irCastNode.getChildNode()instanceof ConstantNode
+        if (irCastNode.getChildNode() instanceof ConstantNode
             && PainlessLookupUtility.isConstantType(irCastNode.getDecorationValue(IRDExpressionType.class))) {
             ExpressionNode irConstantNode = irCastNode.getChildNode();
             Object constantValue = irConstantNode.getDecorationValue(IRDConstant.class);

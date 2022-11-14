@@ -175,9 +175,7 @@ public final class PainlessLookupUtility {
      * of classes or a mixed list of classes and types to a list of canonical type names as a string as well.
      */
     public static String typesToCanonicalTypeNames(List<Class<?>> types) {
-        return types.stream()
-            .map(PainlessLookupUtility::typeToCanonicalTypeName)
-            .collect(Collectors.joining(",", "[", "]"));
+        return types.stream().map(PainlessLookupUtility::typeToCanonicalTypeName).collect(Collectors.joining(",", "[", "]"));
     }
 
     /**

@@ -1,0 +1,5 @@
+pr: 91539
+summary: Restrict `cluster.routing.allocation.balance.threshold` parameter
+area: Allocation
+type: bug
+issues: []

@@ -445,8 +445,8 @@ remote 8.x cluster.
 [[ccs-version-compatibility]]
 include::{es-repo-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]
 
-IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
-clusters must use the same {es} version.
+IMPORTANT: For the <<eql-search-api,EQL search API>>, please check
+specific limitations about local {es} version.
 
 For example, a local 8.0 cluster can search a remote 7.17 or any remote 8.x
 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8

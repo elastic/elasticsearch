@@ -6,21 +6,29 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregationBuilder> {
+public class BucketSelectorAggregationBuilderTests extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregationBuilder> {
+
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return List.of(new AggregationsPlugin());
+    }
 
     @Override
     protected BucketSelectorPipelineAggregationBuilder createTestAggregatorFactory() {

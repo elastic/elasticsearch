@@ -592,9 +592,11 @@ final class FaceIJK {
     /**
      * compute the corresponding H3Index.
      * @param res The cell resolution.
-     * @return The encoded H3Index (or H3_NULL on failure).
+     * @param face The face.
+     * @param coord The CoordIJK.
+     * @return The encoded H3Index
      */
-    public long faceIjkToH3(int res) {
+    static long faceIjkToH3(int res, int face, CoordIJK coord) {
         // initialize the index
         long h = H3Index.H3_INIT;
         h = H3Index.H3_set_mode(h, Constants.H3_CELL_MODE);
@@ -607,53 +609,51 @@ final class FaceIJK {
                 throw new IllegalArgumentException(" out of range input");
             }
 
-            return H3Index.H3_set_base_cell(h, BaseCells.getBaseCell(this));
+            return H3Index.H3_set_base_cell(h, BaseCells.getBaseCell(face, coord));
         }
 
-        // we need to find the correct base cell FaceIJK for this H3 index;
+        // we need to find the correct base cell CoordIJK for this H3 index;
         // start with the passed in face and resolution res ijk coordinates
         // in that face's coordinate system
 
         // build the H3Index from finest res up
         // adjust r for the fact that the res 0 base cell offsets the indexing
         // digits
-        for (int r = res - 1; r >= 0; r--) {
-            int lastI = coord.i;
-            int lastJ = coord.j;
-            int lastK = coord.k;
-            CoordIJK lastCenter;
-            if (H3Index.isResolutionClassIII(r + 1)) {
+        final CoordIJK scratch = new CoordIJK(0, 0, 0);
+        for (int r = res; r > 0; r--) {
+            final int lastI = coord.i;
+            final int lastJ = coord.j;
+            final int lastK = coord.k;
+            if (H3Index.isResolutionClassIII(r)) {
                 // rotate ccw
                 coord.upAp7();
-                lastCenter = new CoordIJK(coord.i, coord.j, coord.k);
-                lastCenter.downAp7();
+                scratch.reset(coord.i, coord.j, coord.k);
+                scratch.downAp7();
             } else {
                 // rotate cw
                 coord.upAp7r();
-                lastCenter = new CoordIJK(coord.i, coord.j, coord.k);
-                lastCenter.downAp7r();
+                scratch.reset(coord.i, coord.j, coord.k);
+                scratch.downAp7r();
             }
-
-            CoordIJK diff = new CoordIJK(lastI - lastCenter.i, lastJ - lastCenter.j, lastK - lastCenter.k);
-            diff.ijkNormalize();
-            h = H3Index.H3_set_index_digit(h, r + 1, diff.unitIjkToDigit());
+            scratch.reset(lastI - scratch.i, lastJ - scratch.j, lastK - scratch.k);
+            scratch.ijkNormalize();
+            h = H3Index.H3_set_index_digit(h, r, scratch.unitIjkToDigit());
         }
 
         // we should now hold the IJK of the base cell in the
-        // coordinate system of the current face
-
+        // coordinate system of the given face
         if (coord.i > MAX_FACE_COORD || coord.j > MAX_FACE_COORD || coord.k > MAX_FACE_COORD) {
             // out of range input
             throw new IllegalArgumentException(" out of range input");
         }
 
         // lookup the correct base cell
-        int baseCell = BaseCells.getBaseCell(this);
+        final int baseCell = BaseCells.getBaseCell(face, coord);
         h = H3Index.H3_set_base_cell(h, baseCell);
 
         // rotate if necessary to get canonical base cell orientation
         // for this base cell
-        int numRots = BaseCells.getBaseCellCCWrot60(this);
+        final int numRots = BaseCells.getBaseCellCCWrot60(face, coord);
         if (BaseCells.isBaseCellPentagon(baseCell)) {
             // force rotation out of missing k-axes sub-sequence
             if (H3Index.h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) {

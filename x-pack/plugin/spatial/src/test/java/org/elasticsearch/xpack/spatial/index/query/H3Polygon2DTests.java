@@ -7,15 +7,24 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.geo.Component2D;
+import org.apache.lucene.geo.LatLonGeometry;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.geom.TestGeometryCollector;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
+import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The behaviour of H3Polygon2D is mostly done in NormalizedH3Polygon2DTests, but we have a few specific tests her to focus on edge cases.
@@ -109,6 +118,39 @@ public class H3Polygon2DTests extends ESTestCase {
             }
         }
         testGeometryCollector.stop();
+    }
+
+    public void testInflatedContainsAllChildren() throws Exception {
+        String cell = H3.geoToH3Address(0, 0, 0);
+        H3LatLonGeometry hexagon = new H3LatLonGeometry.Planar.Scaled(cell, 1.174);
+        Component2D component2D = LatLonGeometry.create(hexagon);
+        testInflatedContainsAllChildren(component2D, cell);
+    }
+
+    private void testInflatedContainsAllChildren(Component2D component2D, String cell) throws Exception {
+        if (H3.getResolution(cell) == 5) {
+            return;
+        }
+        String[] children = H3.h3ToChildren(cell);
+        for (String child : children) {
+            assertThat(cell, GeoTestUtils.geoShapeValue(getGeoPolygon(child)).relate(component2D), not(is(GeoRelation.QUERY_DISJOINT)));
+            testInflatedContainsAllChildren(component2D, child);
+        }
+    }
+
+    private Polygon getGeoPolygon(String h3Address) {
+        CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3Address);
+        double[] x = new double[cellBoundary.numPoints() + 1];
+        double[] y = new double[cellBoundary.numPoints() + 1];
+        for (int i = 0; i < cellBoundary.numPoints(); i++) {
+            LatLng latLng = cellBoundary.getLatLon(i);
+            x[i] = latLng.getLonDeg();
+            y[i] = latLng.getLatDeg();
+        }
+        x[x.length - 1] = x[0];
+        y[y.length - 1] = y[0];
+        LinearRing ring = new LinearRing(x, y);
+        return new Polygon(ring);
     }
 
     private void assertAllPointsWithinPolygon(H3Polygon2D bigger, H3Polygon2D smaller) {

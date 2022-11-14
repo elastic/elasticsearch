@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
 import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.calculateCentroid;
@@ -123,7 +122,7 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         for (int precision = 0; precision < 6; precision++) {
             UnboundedGeoHexGridTiler tiler = new UnboundedGeoHexGridTiler(precision);
             List<String> cells = tiler.getAllCellsAt(precision);
-            List<String> found = cells.stream().filter(v -> v.equals(find)).collect(Collectors.toList());
+            List<String> found = cells.stream().filter(v -> v.equals(find)).toList();
             int count = cells.size();
             long expectedCount = baseHexagons * (long) Math.pow(7, precision) + basePentagons * (long) Math.pow(6, precision);
             // assertThat("Number of cells at precision " + precision, count, equalTo(expectedCount));
@@ -585,12 +584,11 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         Point centroid = calculateCentroid(cellBoundary);
         double[] lats = new double[cellBoundary.numPoints() + 1];
         double[] lons = new double[cellBoundary.numPoints() + 1];
-        Point[] ring = new Point[cellBoundary.numPoints()];
         for (int i = 0; i < cellBoundary.numPoints(); i++) {
-            LatLng point = cellBoundary.getLatLon(i);
-            ring[i] = pointInterpolation(centroid, new Point(point.getLonDeg(), point.getLatDeg()), scaleFactor);
-            lats[i] = ring[i].getLat();
-            lons[i] = ring[i].getLon();
+            LatLng latlng = cellBoundary.getLatLon(i);
+            Point point = pointInterpolation(centroid, new Point(latlng.getLonDeg(), latlng.getLatDeg()), scaleFactor);
+            lats[i] = point.getLat();
+            lons[i] = point.getLon();
         }
         // Close the ring
         lats[lats.length - 1] = lats[0];

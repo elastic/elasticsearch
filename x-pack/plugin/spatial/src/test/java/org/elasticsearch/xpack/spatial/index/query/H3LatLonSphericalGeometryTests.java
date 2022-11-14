@@ -33,16 +33,6 @@ public class H3LatLonSphericalGeometryTests extends H3LatLonGeometryTests {
         return new H3LatLonGeometry.Spherical(h3Address);
     }
 
-    @Override
-    protected H3LatLonGeometry makeGeometry(String h3Address, double scaleFactor) {
-        return new H3LatLonGeometry.Spherical.Scaled(h3Address, scaleFactor);
-    }
-
-    @Override
-    protected double getLatitudeThreshold() {
-        return 90d;
-    }
-
     /**
      * This test is specific to the `geo_point` field type, as indicated by the use of LatLonPoint.
      * As such it only works with the H3LatLonGeometry.Spherical class, since that was originally developed for this field type.

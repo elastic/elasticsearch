@@ -7,22 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-
 public class H3LatLonPlanarGeometryTests extends H3LatLonGeometryTests {
 
     @Override
     protected H3LatLonGeometry makeGeometry(String h3Address) {
         return new H3LatLonGeometry.Planar(h3Address);
-    }
-
-    @Override
-    protected H3LatLonGeometry makeGeometry(String h3Address, double scaleFactor) {
-        return new H3LatLonGeometry.Planar.Scaled(h3Address, scaleFactor);
-    }
-
-    @Override
-    protected double getLatitudeThreshold() {
-        return GeoTileUtils.LATITUDE_MASK;
     }
 }

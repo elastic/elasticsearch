@@ -24,7 +24,7 @@ public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
 
     public void testSingleValuedFieldNearDateLine() {
         SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
-            .addAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
+            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
             .get();
 
         assertSearchResponse(response);
@@ -48,7 +48,7 @@ public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
         GeoPoint geoValuesTopLeft = new GeoPoint(38, 170);
         GeoPoint geoValuesBottomRight = new GeoPoint(-24, -175);
         SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
-            .addAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(true))
+            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(true))
             .get();
 
         assertSearchResponse(response);
@@ -70,8 +70,8 @@ public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
     }
 
     @Override
-    public GeoBoundsAggregationBuilder boundsAgg(String name) {
-        return new GeoBoundsAggregationBuilder(name);
+    public GeoBoundsAggregationBuilder boundsAgg(String aggName, String fieldName) {
+        return new GeoBoundsAggregationBuilder(aggName).field(fieldName).wrapLongitude(false);
     }
 
     @Override

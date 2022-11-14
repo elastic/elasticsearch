@@ -32,8 +32,8 @@ public class CartesianBoundsIT extends SpatialBoundsAggregationTestBase<Cartesia
     }
 
     @Override
-    protected CartesianBoundsAggregationBuilder boundsAgg(String name) {
-        return new CartesianBoundsAggregationBuilder(name);
+    protected CartesianBoundsAggregationBuilder boundsAgg(String aggName, String fieldName) {
+        return new CartesianBoundsAggregationBuilder(aggName).field(fieldName);
     }
 
     @Override

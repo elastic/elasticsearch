@@ -37,12 +37,10 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
 
     protected abstract String aggName();
 
-    protected abstract ValuesSourceAggregationBuilder<?> boundsAgg(String name);
+    protected abstract ValuesSourceAggregationBuilder<?> boundsAgg(String aggName, String fieldName);
 
     public void testSingleValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .addAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            .get();
+        SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)).get();
 
         assertSearchResponse(response);
 
@@ -60,7 +58,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     public void testSingleValuedField_getProperty() {
         SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
             .setQuery(matchAllQuery())
-            .addAggregation(global("global").subAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(global("global").subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -101,9 +99,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .addAggregation(boundsAgg(aggName()).field(MULTI_VALUED_FIELD_NAME))
-            .get();
+        SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), MULTI_VALUED_FIELD_NAME)).get();
 
         assertSearchResponse(response);
 
@@ -120,7 +116,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
-            .addAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
+            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertSearchResponse(response);
@@ -136,7 +132,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
 
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
-            .addAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
+            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertSearchResponse(response);
@@ -155,7 +151,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch(EMPTY_IDX_NAME)
             .setQuery(matchAllQuery())
-            .addAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
+            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
@@ -173,7 +169,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
      */
     public void testSingleValuedFieldAsSubAggToHighCardTermsAgg() {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addAggregation(terms("terms").field(NUMBER_FIELD_NAME).subAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(terms("terms").field(NUMBER_FIELD_NAME).subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)))
             .get();
 
         assertSearchResponse(response);
@@ -199,7 +195,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
 
     public void testSingleValuedFieldWithZeroLon() {
         SearchResponse response = client().prepareSearch(IDX_ZERO_NAME)
-            .addAggregation(boundsAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
+            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertSearchResponse(response);

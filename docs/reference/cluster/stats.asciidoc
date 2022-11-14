@@ -277,7 +277,7 @@ multiple term queries, the counter for term is going to be incremented by 1 only
 +
 .Properties of `search` objects
 [%collapsible%open]
-======
+====
 `total`::
 (integer)
 Total number of received search requests

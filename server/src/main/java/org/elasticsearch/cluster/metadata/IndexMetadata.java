@@ -1175,8 +1175,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public OptionalDouble getForecastedWriteLoad() {
-        // TODO prefer version from https://github.com/elastic/elasticsearch/pull/91425/files
-        return writeLoad != null ? writeLoad.getWriteLoadForShard(0) : OptionalDouble.empty();
+        return writeLoadForecast == null ? OptionalDouble.empty() : OptionalDouble.of(writeLoadForecast);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";

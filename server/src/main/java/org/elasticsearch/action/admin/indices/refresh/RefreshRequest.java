@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
@@ -24,11 +25,43 @@ import java.io.IOException;
  */
 public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 
+    private boolean waitIfOngoing = true;
+
     public RefreshRequest(String... indices) {
         super(indices);
     }
 
     public RefreshRequest(StreamInput in) throws IOException {
         super(in);
+        waitIfOngoing = in.readBoolean();
+    }
+
+    /**
+     * Returns {@code true} iff a flush should block
+     * if a another flush operation is already running. Otherwise {@code false}
+     */
+    public boolean waitIfOngoing() {
+        return this.waitIfOngoing;
+    }
+
+    /**
+     * if set to {@code true} the flush will block
+     * if a another flush operation is already running until the flush can be performed.
+     * The default is <code>true</code>
+     */
+    public RefreshRequest waitIfOngoing(boolean waitIfOngoing) {
+        this.waitIfOngoing = waitIfOngoing;
+        return this;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(waitIfOngoing);
+    }
+
+    @Override
+    public String toString() {
+        return "RefreshRequest{" + "waitIfOngoing=" + waitIfOngoing + "}";
     }
 }

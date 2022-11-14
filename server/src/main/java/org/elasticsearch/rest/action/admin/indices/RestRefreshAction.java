@@ -45,7 +45,8 @@ public class RestRefreshAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RefreshRequest refreshRequest = new RefreshRequest(Strings.splitStringByCommaToArray(request.param("index")));
         refreshRequest.indicesOptions(IndicesOptions.fromRequest(request, refreshRequest.indicesOptions()));
-        return channel -> client.admin().indices().refresh(refreshRequest, new RestToXContentListener<RefreshResponse>(channel) {
+        refreshRequest.waitIfOngoing(request.paramAsBoolean("wait_if_ongoing", refreshRequest.waitIfOngoing()));
+        return channel -> client.admin().indices().refresh(refreshRequest, new RestToXContentListener<>(channel) {
             @Override
             protected RestStatus getStatus(RefreshResponse response) {
                 return response.getStatus();

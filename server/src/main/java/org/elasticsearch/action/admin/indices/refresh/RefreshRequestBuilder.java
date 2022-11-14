@@ -21,4 +21,9 @@ public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<Refr
     public RefreshRequestBuilder(ElasticsearchClient client, RefreshAction action) {
         super(client, action, new RefreshRequest());
     }
+
+    public RefreshRequestBuilder setWaitIfOngoing(boolean waitIfOngoing) {
+        request.waitIfOngoing(waitIfOngoing);
+        return this;
+    }
 }

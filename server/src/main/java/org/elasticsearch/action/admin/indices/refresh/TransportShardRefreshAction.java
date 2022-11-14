@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.refresh;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -26,10 +25,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportShardRefreshAction extends TransportReplicationAction<
-    BasicReplicationRequest,
-    BasicReplicationRequest,
-    ReplicationResponse> {
+public class TransportShardRefreshAction extends TransportReplicationAction<ShardRefreshRequest, ShardRefreshRequest, ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
@@ -53,8 +49,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             threadPool,
             shardStateAction,
             actionFilters,
-            BasicReplicationRequest::new,
-            BasicReplicationRequest::new,
+            ShardRefreshRequest::new,
+            ShardRefreshRequest::new,
             ThreadPool.Names.REFRESH
         );
     }
@@ -66,21 +62,21 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
 
     @Override
     protected void shardOperationOnPrimary(
-        BasicReplicationRequest shardRequest,
+        ShardRefreshRequest shardRequest,
         IndexShard primary,
-        ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener
+        ActionListener<PrimaryResult<ShardRefreshRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            primary.refresh("api");
+            primary.refresh(shardRequest.getRequest(), "api");
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
         });
     }
 
     @Override
-    protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+    protected void shardOperationOnReplica(ShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            replica.refresh("api");
+            replica.refresh(request.getRequest(), "api");
             logger.trace("{} refresh request executed on replica", replica.shardId());
             return new ReplicaResult();
         });

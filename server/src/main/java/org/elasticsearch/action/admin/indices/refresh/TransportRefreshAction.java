@@ -9,9 +9,7 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -29,7 +27,7 @@ import java.util.List;
 public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     RefreshRequest,
     RefreshResponse,
-    BasicReplicationRequest,
+    ShardRefreshRequest,
     ReplicationResponse> {
 
     @Inject
@@ -58,10 +56,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
-        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId);
-        replicationRequest.waitForActiveShards(ActiveShardCount.NONE);
-        return replicationRequest;
+    protected ShardRefreshRequest newShardRequest(RefreshRequest request, ShardId shardId) {
+        return new ShardRefreshRequest(request, shardId);
     }
 
     @Override

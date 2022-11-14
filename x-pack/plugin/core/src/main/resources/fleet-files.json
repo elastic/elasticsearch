@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    ".fleet-files-*"
+    ".fleet-files-*-*"
   ],
   "priority": 200,
   "composed_of": [],

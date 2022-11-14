@@ -257,6 +257,7 @@ public class Constants {
         "cluster:monitor/fetch/health/info",
         "cluster:monitor/health",
         "cluster:monitor/health_api",
+        "cluster:monitor/health_api/stats",
         "cluster:monitor/update/health/info",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",

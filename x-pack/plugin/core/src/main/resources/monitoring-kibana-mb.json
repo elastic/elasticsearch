@@ -221,19 +221,6 @@
                 },
                 "elasticsearch_client": {
                   "properties": {
-                    "protocol": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "connected_nodes": {
-                      "type": "short"
-                    },
-                    "nodes_with_active_sockets": {
-                      "type": "short"
-                    },
-                    "nodes_with_idle_sockets": {
-                      "type": "short"
-                    },
                     "total_active_sockets": {
                       "type": "integer"
                     },
@@ -242,18 +229,6 @@
                     },
                     "total_queued_requests": {
                       "type": "integer"
-                    },
-                    "most_active_node_sockets": {
-                      "type": "integer"
-                    },
-                    "average_active_sockets_per_node": {
-                      "type": "float"
-                    },
-                    "most_idle_node_sockets": {
-                      "type": "integer"
-                    },
-                    "average_idle_sockets_per_node": {
-                      "type": "float"
                     }
                   }
                 },

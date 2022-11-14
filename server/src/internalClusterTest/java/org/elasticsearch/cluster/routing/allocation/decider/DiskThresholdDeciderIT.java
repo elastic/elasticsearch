@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -245,6 +246,12 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                     .filter(it -> it.getStats().getStore().sizeInBytes() == smallestShardSize)
                     .map(it -> removeIndexUUID(it.getShardRouting().shardId()))
                     .collect(toSet());
+
+                logger.info(
+                    "Created shards with sizes {}",
+                    Arrays.stream(shardStates)
+                        .collect(toMap(it -> it.getShardRouting().shardId(), it -> it.getStats().getStore().sizeInBytes()))
+                );
 
                 return new SmallestShards(smallestShardSize, smallestShardIds);
             }

@@ -40,7 +40,8 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -272,12 +273,12 @@ public class TermVectorsService {
         }
         if (source != null) {
             MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
-            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.MapSourceProvider(source));
+            Source s = Source.fromMap(source, XContentType.JSON);
             for (String field : fields) {
                 if (values.containsKey(field) == false) {
                     SourceValueFetcher valueFetcher = SourceValueFetcher.toString(mappingLookup.sourcePaths(field));
                     List<Object> ignoredValues = new ArrayList<>();
-                    List<Object> v = valueFetcher.fetchValues(sourceLookup, -1, ignoredValues);
+                    List<Object> v = valueFetcher.fetchValues(s, -1, ignoredValues);
                     if (v.isEmpty() == false) {
                         values.put(field, v);
                     }

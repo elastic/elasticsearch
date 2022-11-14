@@ -332,7 +332,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public double writeLoad(String index) {
-            return metadata.index(index).getForecastedWriteLoad().orElse(0.0);
+            return writeLoadForecaster.getForecastedWriteLoad(metadata.index(index)).orElse(0.0);
         }
 
         /**

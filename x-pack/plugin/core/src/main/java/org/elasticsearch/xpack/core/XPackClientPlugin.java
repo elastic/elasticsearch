@@ -546,7 +546,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // TSDB Downsampling
             new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new),
             // Health API usage
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.HEALTH, HealthApiFeatureSetUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new)
         );
     }
 

@@ -74,7 +74,7 @@ public final class XPackField {
     /** Name constant for the archive feature. */
     public static final String ARCHIVE = "archive";
     /** Name constant for the health api feature. */
-    public static final String HEALTH = "health";
+    public static final String HEALTH_API = "health_api";
 
     private XPackField() {}
 

@@ -28,7 +28,7 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     public HealthApiFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
-        super(XPackField.HEALTH, available, enabled);
+        super(XPackField.HEALTH_API, available, enabled);
         this.stats = stats;
     }
 

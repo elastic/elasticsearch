@@ -30,7 +30,7 @@ import java.util.List;
 public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Response> {
 
     public static final HealthApiStatsAction INSTANCE = new HealthApiStatsAction();
-    public static final String NAME = "cluster:monitor/xpack/health/stats/dist";
+    public static final String NAME = "cluster:monitor/health_api/stats";
 
     private HealthApiStatsAction() {
         super(NAME, Response::new);

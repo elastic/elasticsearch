@@ -17,10 +17,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 
 import java.time.ZoneId;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
@@ -52,10 +50,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         int fetchSize,
         String clientId,
         TaskId taskId,
-        EqlSearchTask task,
-        Function<String, Collection<String>> versionIncompatibleClusters
+        EqlSearchTask task
     ) {
-        super(zi, username, clusterName, versionIncompatibleClusters);
+        super(zi, username, clusterName);
 
         this.indices = indices;
         this.filter = filter;

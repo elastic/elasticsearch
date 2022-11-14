@@ -89,7 +89,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
     public static final Setting<Float> WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.load",
-        0.0f,
+        0.5f,
         0.0f,
         Property.Dynamic,
         Property.NodeScope
@@ -551,12 +551,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
+                final float localThreshold = sorter.minWeightDelta() * threshold;
                 while (true) {
                     final ModelNode minNode = modelNodes[lowIdx];
                     final ModelNode maxNode = modelNodes[highIdx];
                     advance_range: if (maxNode.numShards(index) > 0) {
                         final float delta = absDelta(weights[lowIdx], weights[highIdx]);
-                        var localThreshold = sorter.minWeightDelta() * threshold;
                         if (lessThan(delta, localThreshold)) {
                             if (lowIdx > 0
                                 && highIdx - 1 > 0 // is there a chance for a higher delta?

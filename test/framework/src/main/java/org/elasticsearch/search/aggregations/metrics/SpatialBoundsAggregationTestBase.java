@@ -24,11 +24,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -38,6 +35,8 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     protected abstract String aggName();
 
     protected abstract ValuesSourceAggregationBuilder<?> boundsAgg(String aggName, String fieldName);
+
+    protected abstract void assertBoundsLimits(SpatialBounds<T> spatialBounds);
 
     public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)).get();
@@ -186,10 +185,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
             SpatialBounds<T> geoBounds = bucket.getAggregations().get(aggName());
             assertThat(geoBounds, notNullValue());
             assertThat(geoBounds.getName(), equalTo(aggName()));
-            assertThat(geoBounds.topLeft().getY(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
-            assertThat(geoBounds.topLeft().getX(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
-            assertThat(geoBounds.bottomRight().getY(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
-            assertThat(geoBounds.bottomRight().getX(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
+            assertBoundsLimits(geoBounds);
         }
     }
 

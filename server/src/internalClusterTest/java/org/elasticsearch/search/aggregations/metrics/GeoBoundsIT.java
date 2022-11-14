@@ -15,8 +15,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -72,6 +75,14 @@ public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
     @Override
     public GeoBoundsAggregationBuilder boundsAgg(String aggName, String fieldName) {
         return new GeoBoundsAggregationBuilder(aggName).field(fieldName).wrapLongitude(false);
+    }
+
+    @Override
+    protected void assertBoundsLimits(SpatialBounds<GeoPoint> geoBounds) {
+        assertThat(geoBounds.topLeft().getY(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
+        assertThat(geoBounds.topLeft().getX(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
+        assertThat(geoBounds.bottomRight().getY(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
+        assertThat(geoBounds.bottomRight().getX(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
     }
 
     @Override

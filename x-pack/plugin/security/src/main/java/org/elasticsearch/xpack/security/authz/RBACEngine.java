@@ -787,17 +787,13 @@ public class RBACEngine implements AuthorizationEngine {
             if (indexAbstraction == null) {
                 return false;
             }
-            if (includeDataStreams) {
-                // We check the parent data stream first if there is one. For testing requested indices, this is most likely
-                // more efficient than checking the index name first because we recommend grant privileges over data stream
-                // instead of backing indices.
-                if (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream())) {
-                    return true;
-                } else {
-                    return predicate.test(indexAbstraction);
-                }
+            // We check the parent data stream first if there is one. For testing requested indices, this is most likely
+            // more efficient than checking the index name first because we recommend grant privileges over data stream
+            // instead of backing indices.
+            if (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream())) {
+                return true;
             } else {
-                return indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction);
+                return predicate.test(indexAbstraction);
             }
         });
     }

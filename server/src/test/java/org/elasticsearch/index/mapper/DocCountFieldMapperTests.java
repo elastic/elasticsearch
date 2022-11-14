@@ -11,6 +11,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -71,16 +73,16 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field(CONTENT_TYPE, 10)), equalTo("{\"_doc_count\":10}"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91520")
     public void testSyntheticSourceMany() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {}));
+        MapperService mapper = createMapperService(syntheticSourceMapping(b -> b.startObject("doc").field("type", "integer").endObject()));
         List<Integer> counts = randomList(2, 10000, () -> between(1, Integer.MAX_VALUE));
         withLuceneIndex(mapper, iw -> {
+            int d = 0;
             for (int c : counts) {
-                iw.addDocument(mapper.documentMapper().parse(source(b -> b.field(CONTENT_TYPE, c))).rootDoc());
+                int doc = d++;
+                iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("doc", doc).field(CONTENT_TYPE, c))).rootDoc());
             }
         }, reader -> {
-            int i = 0;
             SourceLoader loader = mapper.mappingLookup().newSourceLoader();
             assertTrue(loader.requiredStoredFields().isEmpty());
             for (LeafReaderContext leaf : reader.leaves()) {
@@ -88,11 +90,9 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
-                    assertThat(
-                        "doc " + docId,
-                        sourceLoaderLeaf.source(storedFieldLoader, docId).utf8ToString(),
-                        equalTo("{\"_doc_count\":" + counts.get(i++) + "}")
-                    );
+                    String source = sourceLoaderLeaf.source(storedFieldLoader, docId).utf8ToString();
+                    int doc = (int) JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source).map().get("doc");
+                    assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
                 }
             }
         });

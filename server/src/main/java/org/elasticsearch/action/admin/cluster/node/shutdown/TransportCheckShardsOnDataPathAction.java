@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -18,7 +19,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.tasks.Task;
@@ -31,6 +34,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+/**
+ * Given a set of shard IDs, checks which of those shards have a matching directory in the local data path.
+ * This is used by {@link PrevalidateNodeRemovalAction} as an indication that the node may contain some copy of the shard.
+ */
 public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
     CheckShardsOnDataPathRequest,
     CheckShardsOnDataPathResponse,
@@ -43,6 +50,7 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
 
     private final TransportService transportService;
     private final NodeEnvironment nodeEnv;
+    private final Settings settings;
 
     @Inject
     public TransportCheckShardsOnDataPathAction(
@@ -50,7 +58,8 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        NodeEnvironment nodeEnv
+        NodeEnvironment nodeEnv,
+        Settings settings
     ) {
         super(
             ACTION_NAME,
@@ -65,6 +74,7 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
         );
         this.transportService = transportService;
         this.nodeEnv = nodeEnv;
+        this.settings = settings;
     }
 
     @Override
@@ -90,16 +100,24 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
     protected NodeCheckShardsOnDataPathResponse nodeOperation(NodeCheckShardsOnDataPathRequest request, Task task) {
         Set<ShardId> localShards = new HashSet<>();
         ShardPath shardPath = null;
-
+        // For each shard we only check whether the shard path exists, regardless of whether the content is a valid index or not.
         for (ShardId shardId : request.getShardIDs()) {
             try {
-                shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, null);
+                var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                String customDataPath = null;
+                if (indexMetadata != null) {
+                    customDataPath = new IndexSettings(indexMetadata, settings).customDataPath();
+                } else {
+                    logger.warn("node doesn't have metadata for the index [{}]", shardId.getIndex());
+                    throw new ElasticsearchException("node doesn't have meta data for index " + shardId.getIndex());
+                }
+                shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
                 if (shardPath != null) {
                     localShards.add(shardId);
                 }
             } catch (IOException e) {
                 final String path = shardPath != null ? shardPath.resolveIndex().toString() : "";
-                logger.debug(() -> String.format(Locale.ROOT, "cannot open index for shard [%s] in path [%s]", shardId, path), e);
+                logger.debug(() -> String.format(Locale.ROOT, "error loading shard path for shard [%s]", shardId), e);
             }
         }
         return new NodeCheckShardsOnDataPathResponse(transportService.getLocalNode(), localShards);

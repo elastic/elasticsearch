@@ -107,7 +107,7 @@ public class DeploymentManager {
                 stats.timingStats().getAverage(),
                 stats.timingStatsExcludingCacheHits().getAverage(),
                 stats.lastUsed(),
-                processContext.executorService.queueSize() + stats.numberOfPendingResults(),
+                processContext.priorityProcessWorker.queueSize() + stats.numberOfPendingResults(),
                 stats.errorCount(),
                 stats.cacheHitCount(),
                 processContext.rejectedExecutionCount.intValue(),
@@ -130,7 +130,7 @@ public class DeploymentManager {
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
         logger.info("[{}] Starting model deployment", task.getModelId());
 
-        ProcessContext processContext = new ProcessContext(task, executorServiceForProcess);
+        ProcessContext processContext = new ProcessContext(task);
         if (addProcessContext(task.getId(), processContext) != null) {
             finalListener.onFailure(
                 ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getModelId())
@@ -232,7 +232,10 @@ public class DeploymentManager {
     private void startAndLoad(ProcessContext processContext, TrainedModelLocation modelLocation, ActionListener<Boolean> loadedListener) {
         try {
             processContext.startProcess();
-            processContext.loadModel(modelLocation, loadedListener);
+            processContext.loadModel(modelLocation, ActionListener.wrap(success -> {
+                processContext.startPriorityProcessWorker();
+                loadedListener.onResponse(success);
+            }, loadedListener::onFailure));
         } catch (Exception e) {
             loadedListener.onFailure(e);
         }
@@ -332,13 +335,13 @@ public class DeploymentManager {
         executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
     }
 
-    public void executePyTorchAction(
+    void executePyTorchAction(
         ProcessContext processContext,
         PriorityProcessWorkerExecutorService.RequestPriority priority,
         AbstractPyTorchAction<?> action
     ) {
         try {
-            processContext.getExecutorService().executeWithPriority(action, priority, action.getRequestId());
+            processContext.getPriorityProcessWorker().executeWithPriority(action, priority, action.getRequestId());
         } catch (EsRejectedExecutionException e) {
             processContext.getRejectedExecutionCount().incrementAndGet();
             action.onFailure(e);
@@ -376,21 +379,21 @@ public class DeploymentManager {
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
-        private final PriorityProcessWorkerExecutorService executorService;
+        private final PriorityProcessWorkerExecutorService priorityProcessWorker;
         private volatile Instant startTime;
         private volatile Integer numThreadsPerAllocation;
         private volatile Integer numAllocations;
         private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
         private final AtomicInteger timeoutCount = new AtomicInteger();
 
-        ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
+        ProcessContext(TrainedModelDeploymentTask task) {
             this.task = Objects.requireNonNull(task);
             resultProcessor = new PyTorchResultProcessor(task.getModelId(), threadSettings -> {
                 this.numThreadsPerAllocation = threadSettings.numThreadsPerAllocation();
                 this.numAllocations = threadSettings.numAllocations();
             });
-            this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
-            this.executorService = new PriorityProcessWorkerExecutorService(
+            this.stateStreamer = new PyTorchStateStreamer(client, executorServiceForProcess, xContentRegistry);
+            this.priorityProcessWorker = new PriorityProcessWorkerExecutorService(
                 threadPool.getThreadContext(),
                 "inference process",
                 task.getParams().getQueueCapacity()
@@ -404,12 +407,15 @@ public class DeploymentManager {
         synchronized void startProcess() {
             process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, onProcessCrash()));
             startTime = Instant.now();
-            executorServiceForProcess.submit(executorService::start);
+        }
+
+        void startPriorityProcessWorker() {
+            executorServiceForProcess.submit(priorityProcessWorker::start);
         }
 
         synchronized void stopProcess() {
             resultProcessor.stop();
-            executorService.shutdown();
+            priorityProcessWorker.shutdown();
             try {
                 if (process.get() == null) {
                     return;
@@ -430,7 +436,7 @@ public class DeploymentManager {
             return reason -> {
                 logger.error("[{}] inference process crashed due to reason [{}]", task.getModelId(), reason);
                 resultProcessor.stop();
-                executorService.shutdownWithError(new IllegalStateException(reason));
+                priorityProcessWorker.shutdownWithError(new IllegalStateException(reason));
                 processContextByAllocation.remove(task.getId());
                 if (nlpTaskProcessor.get() != null) {
                     nlpTaskProcessor.get().close();
@@ -441,6 +447,7 @@ public class DeploymentManager {
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {
             if (modelLocation instanceof IndexLocation indexLocation) {
+                logger.debug("[{}] loading model state", task.getModelId());
                 process.get().loadModel(task.getModelId(), indexLocation.getIndexName(), stateStreamer, listener);
             } else {
                 listener.onFailure(
@@ -455,8 +462,8 @@ public class DeploymentManager {
         }
 
         // accessor used for mocking in tests
-        PriorityProcessWorkerExecutorService getExecutorService() {
-            return executorService;
+        PriorityProcessWorkerExecutorService getPriorityProcessWorker() {
+            return priorityProcessWorker;
         }
 
         // accessor used for mocking in tests

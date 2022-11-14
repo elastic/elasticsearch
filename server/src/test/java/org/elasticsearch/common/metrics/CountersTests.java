@@ -20,25 +20,25 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CountersTests extends ESTestCase {
 
-        @SuppressWarnings("unchecked")
-        public void testCounters() {
-            Counters counters = new Counters();
-            counters.inc("f", 200);
-            counters.inc("foo.bar");
-            counters.inc("foo.baz");
-            counters.inc("foo.baz");
-            assertThat(counters.get("f"), equalTo(200L));
-            assertThat(counters.get("foo.bar"), equalTo(1L));
-            assertThat(counters.get("foo.baz"), equalTo(2L));
-            expectThrows(IllegalArgumentException.class, () -> counters.get("foo"));
-            Map<String, Object> map = counters.toNestedMap();
-            assertThat(map, hasEntry("f", 200L));
-            assertThat(map, hasKey("foo"));
-            assertThat(map.get("foo"), instanceOf(Map.class));
-            Map<String, Object> fooMap = (Map<String, Object>) map.get("foo");
-            assertThat(fooMap, hasEntry("bar", 1L));
-            assertThat(fooMap, hasEntry("baz", 2L));
-        }
+    @SuppressWarnings("unchecked")
+    public void testCounters() {
+        Counters counters = new Counters();
+        counters.inc("f", 200);
+        counters.inc("foo.bar");
+        counters.inc("foo.baz");
+        counters.inc("foo.baz");
+        assertThat(counters.get("f"), equalTo(200L));
+        assertThat(counters.get("foo.bar"), equalTo(1L));
+        assertThat(counters.get("foo.baz"), equalTo(2L));
+        expectThrows(IllegalArgumentException.class, () -> counters.get("foo"));
+        Map<String, Object> map = counters.toNestedMap();
+        assertThat(map, hasEntry("f", 200L));
+        assertThat(map, hasKey("foo"));
+        assertThat(map.get("foo"), instanceOf(Map.class));
+        Map<String, Object> fooMap = (Map<String, Object>) map.get("foo");
+        assertThat(fooMap, hasEntry("bar", 1L));
+        assertThat(fooMap, hasEntry("baz", 2L));
+    }
 
     public void testMerging() {
         Counters counters1 = new Counters();

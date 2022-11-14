@@ -2573,6 +2573,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 return CONTENT_TYPE;
             }
 
+            @Override
+            public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+                throw new UnsupportedOperationException();
+            }
+
             private static final TypeParser PARSER = new FixedTypeParser(c -> new MockMetadataMapper());
         }
 

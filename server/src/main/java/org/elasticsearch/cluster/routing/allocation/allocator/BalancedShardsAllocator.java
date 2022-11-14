@@ -43,7 +43,6 @@ import org.elasticsearch.gateway.PriorityComparator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -257,8 +256,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         float weight(Balancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            final float ingestLoad = (float) (node.normalizedWriteLoad() - balancer.avgNormalizedWriteLoadPerNode());
+            final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNode());
             return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad;
+        }
+
+        float minWeightDelta(Balancer balancer, String index) {
+            return theta0 * 1 + theta1 * 1 + theta2 * (float) balancer.writeLoad(index);
         }
     }
 
@@ -275,8 +278,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float threshold;
         private final Metadata metadata;
         private final float avgShardsPerNode;
-        private final double maxWriteLoad;
-        private final double avgNormalizedWriteLoadPerNode;
+        private final double avgWriteLoadPerNode;
         private final NodeSorter sorter;
 
         public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
@@ -287,31 +289,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
-            var writeLoadSummary = getWriteLoadSummary(metadata, routingNodes);
-            maxWriteLoad = writeLoadSummary.getMax();
-            avgNormalizedWriteLoadPerNode = writeLoadSummary.getMax() > 0
-                ? writeLoadSummary.getSum() / writeLoadSummary.getMax() / routingNodes.size()
-                : 0.0;
+            avgWriteLoadPerNode = getTotalWriteLoad(metadata) / routingNodes.size();
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
         }
 
-        private static DoubleSummaryStatistics getWriteLoadSummary(Metadata metadata, RoutingNodes routingNodes) {
-            double max = 0.0;
-            double sum = 0.0;
-
+        private static double getTotalWriteLoad(Metadata metadata) {
+            double writeLoad = 0.0;
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
-                var indexWriteLoad = indexMetadata.getWriteLoad();
-                if (indexWriteLoad != null) {
-                    for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
-                        var shardWriteLoad = indexWriteLoad.getWriteLoadForShard(shardId).orElse(0.0);
-                        max = Math.max(max, shardWriteLoad);
-                        sum += shardWriteLoad;
-                    }
-                }
+                writeLoad += indexMetadata.getForecastedWriteLoad().orElse(0.0);
             }
-
-            return new DoubleSummaryStatistics(routingNodes.size(), 0.0, max, sum);
+            return writeLoad;
         }
 
         /**
@@ -335,8 +323,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return avgShardsPerNode;
         }
 
-        public double avgNormalizedWriteLoadPerNode() {
-            return avgNormalizedWriteLoadPerNode;
+        public double avgWriteLoadPerNode() {
+            return avgWriteLoadPerNode;
+        }
+
+        public double writeLoad(String index) {
+            return metadata.index(index).getForecastedWriteLoad().orElse(0.0);
         }
 
         /**
@@ -564,10 +556,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     final ModelNode maxNode = modelNodes[highIdx];
                     advance_range: if (maxNode.numShards(index) > 0) {
                         final float delta = absDelta(weights[lowIdx], weights[highIdx]);
-                        if (lessThan(delta, threshold)) {
+                        var localThreshold = sorter.minWeightDelta() * threshold;
+                        if (lessThan(delta, localThreshold)) {
                             if (lowIdx > 0
                                 && highIdx - 1 > 0 // is there a chance for a higher delta?
-                                && (absDelta(weights[0], weights[highIdx - 1]) > threshold) // check if we need to break at all
+                                && (absDelta(weights[0], weights[highIdx - 1]) > localThreshold) // check if we need to break at all
                             ) {
                                 /* This is a special case if allocations from the "heaviest" to the "lighter" nodes is not possible
                                  * due to some allocation decider restrictions like zone awareness. if one zone has for instance
@@ -604,7 +597,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 delta
                             );
                         }
-                        if (delta <= 1.0f) {
+                        if (localThreshold <= 1.0f) {
                             /*
                              * prevent relocations that only swap the weights of the two nodes. a relocation must bring us closer to the
                              * balance if we only achieve the same delta the relocation is useless
@@ -850,7 +843,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Map<String, ModelNode> buildModelFromAssigned() {
             Map<String, ModelNode> nodes = new HashMap<>();
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(maxWriteLoad, metadata, rn);
+                ModelNode node = new ModelNode(metadata, rn);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -1145,13 +1138,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
-        private double normalizedWriteLoad = 0.0;
-        private final double maxWriteLoad;
+        private double writeLoad = 0.0;
         private final Metadata metadata;
         private final RoutingNode routingNode;
 
-        ModelNode(double maxWriteLoad, Metadata metadata, RoutingNode routingNode) {
-            this.maxWriteLoad = maxWriteLoad;
+        ModelNode(Metadata metadata, RoutingNode routingNode) {
             this.metadata = metadata;
             this.routingNode = routingNode;
         }
@@ -1177,8 +1168,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return index == null ? 0 : index.numShards();
         }
 
-        public double normalizedWriteLoad() {
-            return normalizedWriteLoad;
+        public double writeLoad() {
+            return writeLoad;
         }
 
         public int highestPrimary(String index) {
@@ -1191,10 +1182,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
-            var indexWriteLoad = metadata.index(shard.index()).getWriteLoad();
-            if (indexWriteLoad != null) {
-                normalizedWriteLoad += indexWriteLoad.getWriteLoadForShard(shard.id()).orElse(0.0) / maxWriteLoad;
-            }
+            writeLoad += metadata.index(shard.index()).getForecastedWriteLoad().orElse(0.0);
             numShards++;
         }
 
@@ -1206,10 +1194,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
-            var indexWriteLoad = metadata.index(shard.index()).getWriteLoad();
-            if (indexWriteLoad != null) {
-                normalizedWriteLoad -= indexWriteLoad.getWriteLoadForShard(shard.id()).orElse(0.0) / maxWriteLoad;
-            }
+            writeLoad -= metadata.index(shard.index()).getForecastedWriteLoad().orElse(0.0);
             numShards--;
         }
 
@@ -1312,6 +1297,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public float weight(ModelNode node) {
             return function.weight(balancer, node, index);
+        }
+
+        public float minWeightDelta() {
+            return function.minWeightDelta(balancer, index);
         }
 
         @Override

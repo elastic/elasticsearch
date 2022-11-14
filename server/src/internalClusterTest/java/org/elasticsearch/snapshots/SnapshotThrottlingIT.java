@@ -45,7 +45,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", compressRepo)
-                .put("chunk_size", randomIntBetween(1000, 4000), ByteSizeUnit.BYTES)
+                .put("chunk_size", randomIntBetween(1000, 8000), ByteSizeUnit.BYTES)
                 .put("max_snapshot_bytes_per_sec", maxSnapshotBytesPerSec)
                 .put("max_restore_bytes_per_sec", maxRestoreBytesPerSec)
         );
@@ -59,7 +59,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             .execute()
             .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        assertDocCount("test-idx", 100L);
+        assertDocCount("test-idx", 50L);
         long snapshotPause = 0L;
         long restorePause = 0L;
         for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
@@ -79,23 +79,23 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         Settings.Builder primaryNodeSettings = Settings.builder()
             .put(
                 INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                (throttleSnapshotViaRecovery || throttleRestoreViaRecovery) ? "10k" : "0"
+                (throttleSnapshotViaRecovery || throttleRestoreViaRecovery) ? "25k" : "0"
             );
 
         if (throttleSnapshotViaRecovery) {
-            primaryNodeSettings = primaryNodeSettings.put(NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.getKey(), "10k")
-                .put(NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.getKey(), "10k")
-                .put(NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.getKey(), "10k");
+            primaryNodeSettings = primaryNodeSettings.put(NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.getKey(), "25k")
+                .put(NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.getKey(), "25k")
+                .put(NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.getKey(), "25k");
         }
         final String primaryNode = internalCluster().startNode(primaryNodeSettings);
 
         logger.info("--> create index");
-        createIndexWithRandomDocs("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 50);
 
         long snapshotPauseViaRecovery = 0L;
         long restorePauseViaRecovery = 0L;
 
-        // Throttle snapshot and/or restore only via recovery 10kb rate limit
+        // Throttle snapshot and/or restore only via recovery 25kb rate limit
         if (throttleSnapshotViaRecovery || throttleRestoreViaRecovery) {
             logger.info("--> testing throttling via recovery settings only");
             Tuple<Long, Long> pauses = testThrottledRepository("0", "0", compressRepo);
@@ -105,14 +105,14 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             if (throttleRestoreViaRecovery) assertThat(restorePauseViaRecovery, greaterThan(0L));
         }
 
-        // Throttle snapshot and/or restore separately with 4kb rate limit, which is less than half of the potential recovery rate limit
-        // For this reason, we assert that the separately throttled speeds incur a pause time which is at least double of the pause time
-        // detected in the recovery-only throttling run above.
+        // Throttle snapshot and/or restore separately with 8kb rate limit, which is much less than half of the potential recovery rate
+        // limit. For this reason, we assert that the separately throttled speeds incur a pause time which is at least double of the
+        // pause time detected in the recovery-only throttling run above.
         boolean throttleSnapshot = randomBoolean();
         boolean throttleRestore = randomBoolean();
 
         if (throttleSnapshot || throttleRestore) {
-            Tuple<Long, Long> pauses = testThrottledRepository(throttleSnapshot ? "4k" : "0", throttleRestore ? "4k" : "0", compressRepo);
+            Tuple<Long, Long> pauses = testThrottledRepository(throttleSnapshot ? "8k" : "0", throttleRestore ? "8k" : "0", compressRepo);
             long snapshotPause = pauses.v1();
             long restorePause = pauses.v2();
             if (throttleSnapshot) {

@@ -63,6 +63,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -566,6 +567,11 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
+            final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,
@@ -574,7 +580,8 @@ public class Node implements Closeable {
                 snapshotsInfoService,
                 threadPool,
                 systemIndices,
-                rerouteServiceReference::get
+                rerouteServiceReference::get,
+                writeLoadForecaster
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -1084,6 +1091,7 @@ public class Node implements Closeable {
                 b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
+                b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1231,6 +1239,23 @@ public class Node implements Closeable {
             clusterService
         );
         return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
+    }
+
+    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+        final List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+        final List<WriteLoadForecaster> writeLoadForecasters = clusterPlugins.stream()
+            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream())
+            .toList();
+
+        if (writeLoadForecasters.isEmpty()) {
+            return WriteLoadForecaster.DEFAULT;
+        }
+
+        if (writeLoadForecasters.size() > 1) {
+            throw new IllegalStateException("A single WriteLoadForecaster was expected but got: " + writeLoadForecasters);
+        }
+
+        return writeLoadForecasters.get(0);
     }
 
     protected TransportService newTransportService(

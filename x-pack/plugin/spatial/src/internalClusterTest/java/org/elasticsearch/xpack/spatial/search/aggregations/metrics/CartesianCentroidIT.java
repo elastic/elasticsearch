@@ -71,7 +71,7 @@ public class CartesianCentroidIT extends CentroidAggregationTestBase {
 
     @Override
     protected double tolerance(double a, double b) {
-        return Math.max(Math.abs(a), Math.abs(b)) / 1e5;
+        return Math.max(GEOHASH_TOLERANCE, Math.max(Math.abs(a), Math.abs(b)) / 1e5);
     }
 
     @Override

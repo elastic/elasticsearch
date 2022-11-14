@@ -68,10 +68,10 @@ public class EnrichPolicyExecutor {
         ActionListener<ExecuteEnrichPolicyAction.Response> listener
     ) {
         long nowTimestamp = nowSupplier.getAsLong();
-        String targetIndexName = EnrichPolicy.getIndexName(request.getName(), nowTimestamp);
-        EnrichPolicyLock policyLock = tryLockingPolicy(request.getName(), targetIndexName);
+        String enrichIndexName = EnrichPolicy.getIndexName(request.getName(), nowTimestamp);
+        EnrichPolicyLock policyLock = tryLockingPolicy(request.getName(), enrichIndexName);
         try {
-            Request internalRequest = new Request(request.getName(), targetIndexName);
+            Request internalRequest = new Request(request.getName(), enrichIndexName);
             internalRequest.setWaitForCompletion(request.isWaitForCompletion());
             internalRequest.setParentTask(request.getParentTask());
             client.execute(InternalExecutePolicyAction.INSTANCE, internalRequest, ActionListener.wrap(response -> {
@@ -97,7 +97,7 @@ public class EnrichPolicyExecutor {
     public void runPolicyLocally(
         ExecuteEnrichPolicyTask task,
         String policyName,
-        String targetIndex,
+        String enrichIndexName,
         ActionListener<ExecuteEnrichPolicyStatus> listener
     ) {
         try {
@@ -107,7 +107,7 @@ public class EnrichPolicyExecutor {
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
-            Runnable runnable = createPolicyRunner(policyName, policy, targetIndex, task, listener);
+            Runnable runnable = createPolicyRunner(policyName, policy, enrichIndexName, task, listener);
             threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
         } catch (Exception e) {
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.FAILED));
@@ -115,8 +115,8 @@ public class EnrichPolicyExecutor {
         }
     }
 
-    private EnrichPolicyLock tryLockingPolicy(String policyName, String targetIndexName) {
-        EnrichPolicyLock policyLock = policyLocks.lockPolicy(policyName, targetIndexName);
+    private EnrichPolicyLock tryLockingPolicy(String policyName, String enrichIndexName) {
+        EnrichPolicyLock policyLock = policyLocks.lockPolicy(policyName, enrichIndexName);
         if (policyExecutionPermits.tryAcquire() == false) {
             // Release policy lock, and throw a different exception
             policyLock.release();
@@ -150,7 +150,7 @@ public class EnrichPolicyExecutor {
     private Runnable createPolicyRunner(
         String policyName,
         EnrichPolicy policy,
-        String targetIndex,
+        String enrichIndexName,
         ExecuteEnrichPolicyTask task,
         ActionListener<ExecuteEnrichPolicyStatus> listener
     ) {
@@ -162,7 +162,7 @@ public class EnrichPolicyExecutor {
             clusterService,
             client,
             indexNameExpressionResolver,
-            targetIndex,
+            enrichIndexName,
             fetchSize,
             maxForceMergeAttempts
         );

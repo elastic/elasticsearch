@@ -28,12 +28,12 @@ public class EnrichPolicyLocks {
      */
     public class EnrichPolicyLock {
         private final String policyName;
-        private final String targetIndexName;
+        private final String enrichIndexName;
         private final Semaphore executionLease;
 
-        private EnrichPolicyLock(String policyName, String targetIndexName, Semaphore executionLease) {
+        private EnrichPolicyLock(String policyName, String enrichIndexName, Semaphore executionLease) {
             this.policyName = policyName;
-            this.targetIndexName = targetIndexName;
+            this.enrichIndexName = enrichIndexName;
             this.executionLease = executionLease;
         }
 
@@ -42,10 +42,10 @@ public class EnrichPolicyLocks {
          * this lock was created for an execution, the target index for the policy execution is also cleared from the locked state.
          */
         public void release() {
-            if (targetIndexName != null) {
-                boolean wasRemoved = workingIndices.remove(targetIndexName, executionLease);
+            if (enrichIndexName != null) {
+                boolean wasRemoved = workingIndices.remove(enrichIndexName, executionLease);
                 assert wasRemoved
-                    : "Target index [" + targetIndexName + "] for policy [" + policyName + "] was removed prior to policy unlock";
+                    : "Target index [" + enrichIndexName + "] for policy [" + policyName + "] was removed prior to policy unlock";
             }
             boolean wasRemoved = policyLocks.remove(policyName, executionLease);
             assert wasRemoved : "Second attempt was made to unlock policy [" + policyName + "]";
@@ -85,12 +85,12 @@ public class EnrichPolicyLocks {
      * If a policy needs to be locked just to ensure it is not executing, use {@link EnrichPolicyLocks#lockPolicy(String)} instead since
      * no new enrich indices need to be maintained.
      * @param policyName The policy name to lock for execution
-     * @param targetIndexName If the policy is being executed, this parameter denotes the index that should be protected from maintenance
+     * @param enrichIndexName If the policy is being executed, this parameter denotes the index that should be protected from maintenance
      *                  operations.
      * @throws EsRejectedExecutionException if the policy is locked already or if the maximum number of concurrent policy executions
      *                                      has been reached
      */
-    public EnrichPolicyLock lockPolicy(String policyName, String targetIndexName) {
+    public EnrichPolicyLock lockPolicy(String policyName, String enrichIndexName) {
         Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
         boolean acquired = runLock.tryAcquire();
         if (acquired == false) {
@@ -98,11 +98,11 @@ public class EnrichPolicyLocks {
                 "Could not obtain lock because policy execution for [" + policyName + "] is already in progress."
             );
         }
-        if (targetIndexName != null) {
-            Semaphore previous = workingIndices.putIfAbsent(targetIndexName, runLock);
-            assert previous == null : "Target index [" + targetIndexName + "] is already claimed by an execution, or was not cleaned up.";
+        if (enrichIndexName != null) {
+            Semaphore previous = workingIndices.putIfAbsent(enrichIndexName, runLock);
+            assert previous == null : "Target index [" + enrichIndexName + "] is already claimed by an execution, or was not cleaned up.";
         }
-        return new EnrichPolicyLock(policyName, targetIndexName, runLock);
+        return new EnrichPolicyLock(policyName, enrichIndexName, runLock);
     }
 
     public Set<String> lockedPolices() {

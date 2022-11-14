@@ -84,7 +84,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final ClusterService clusterService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final String targetIndexName;
+    private final String enrichIndexName;
     private final int fetchSize;
     private final int maxForceMergeAttempts;
 
@@ -96,7 +96,7 @@ public class EnrichPolicyRunner implements Runnable {
         ClusterService clusterService,
         Client client,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        String targetIndexName,
+        String enrichIndexName,
         int fetchSize,
         int maxForceMergeAttempts
     ) {
@@ -107,7 +107,7 @@ public class EnrichPolicyRunner implements Runnable {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = wrapClient(client, policyName, task, clusterService);
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
-        this.targetIndexName = targetIndexName;
+        this.enrichIndexName = enrichIndexName;
         this.fetchSize = fetchSize;
         this.maxForceMergeAttempts = maxForceMergeAttempts;
     }
@@ -378,14 +378,14 @@ public class EnrichPolicyRunner implements Runnable {
             // This disables eager global ordinals loading for all fields:
             .put("index.warmer.enabled", false)
             .build();
-        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(targetIndexName, enrichIndexSettings);
+        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping(resolveEnrichMapping(policy, mappings));
-        logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, targetIndexName);
+        logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         enrichOriginClient().admin()
             .indices()
             .create(
                 createEnrichIndexRequest,
-                listener.delegateFailure((l, createIndexResponse) -> prepareReindexOperation(targetIndexName))
+                listener.delegateFailure((l, createIndexResponse) -> prepareReindexOperation(enrichIndexName))
             );
     }
 

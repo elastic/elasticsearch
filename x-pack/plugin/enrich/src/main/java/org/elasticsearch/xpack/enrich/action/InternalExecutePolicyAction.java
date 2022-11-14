@@ -64,26 +64,26 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
 
     public static class Request extends ExecuteEnrichPolicyAction.Request {
 
-        private final String targetIndex;
+        private final String enrichIndexName;
 
-        public Request(String name, String targetIndex) {
+        public Request(String name, String enrichIndexName) {
             super(name);
-            this.targetIndex = targetIndex;
+            this.enrichIndexName = enrichIndexName;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.targetIndex = in.readString();
+            this.enrichIndexName = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(targetIndex);
+            out.writeString(enrichIndexName);
         }
 
-        public String getTargetIndex() {
-            return targetIndex;
+        public String getEnrichIndexName() {
+            return enrichIndexName;
         }
 
         @Override
@@ -92,12 +92,12 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
             if (o == null || getClass() != o.getClass()) return false;
             if (super.equals(o) == false) return false;
             Request request = (Request) o;
-            return Objects.equals(targetIndex, request.targetIndex);
+            return Objects.equals(enrichIndexName, request.enrichIndexName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), targetIndex);
+            return Objects.hash(super.hashCode(), enrichIndexName);
         }
     }
 
@@ -152,7 +152,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                         String description = "executing enrich policy ["
                             + request.getName()
                             + "] creating new enrich index ["
-                            + request.getTargetIndex()
+                            + request.getEnrichIndexName()
                             + "]";
                         return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, headers);
                     }
@@ -177,7 +177,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                             }
                         );
                     }
-                    policyExecutor.runPolicyLocally(task, request.getName(), request.getTargetIndex(), ActionListener.wrap(result -> {
+                    policyExecutor.runPolicyLocally(task, request.getName(), request.getEnrichIndexName(), ActionListener.wrap(result -> {
                         taskManager.unregister(task);
                         listener.onResponse(result);
                     }, e -> {

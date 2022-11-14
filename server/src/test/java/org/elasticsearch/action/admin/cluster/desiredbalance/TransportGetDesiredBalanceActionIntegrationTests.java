@@ -7,13 +7,15 @@
  */
 package org.elasticsearch.action.admin.cluster.desiredbalance;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Map;
@@ -36,20 +38,11 @@ public class TransportGetDesiredBalanceActionIntegrationTests extends ESIntegTes
 
         indexData(index);
 
-        // Wait until all replicas have started
-        waitUntil(() -> {
-            IndexRoutingTable indexRoutingTable = client().admin().cluster().prepareState().get().getState().routingTable().index(index);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                for (int j = 0; j < shardRoutingTable.size(); j++) {
-                    ShardRouting shard = shardRoutingTable.shard(j);
-                    if (shard.state() != ShardRoutingState.STARTED) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        });
+        var clusterHealthResponse = client().admin()
+            .cluster()
+            .health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN))
+            .get();
+        assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
         DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
             .get();
@@ -88,6 +81,11 @@ public class TransportGetDesiredBalanceActionIntegrationTests extends ESIntegTes
             Settings.builder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", numberOfReplicas).build()
         );
         indexData(index);
+        var clusterHealthResponse = client().admin()
+            .cluster()
+            .health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW))
+            .get();
+        assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
         DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
             .get();
@@ -128,7 +126,7 @@ public class TransportGetDesiredBalanceActionIntegrationTests extends ESIntegTes
         assertEquals(shard.currentNodeId(), shardView.node());
         if (shardView.state() == ShardRoutingState.STARTED) {
             assertTrue(shardView.nodeIsDesired());
-        } else {
+        } else if (shardView.state() == ShardRoutingState.UNASSIGNED) {
             assertFalse(shardView.nodeIsDesired());
         }
         assertEquals(shard.relocatingNodeId(), shardView.relocatingNode());

@@ -134,7 +134,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var shardSize = approxIndexSize.getBytes() / shardCount + randomLongBetween(-maxSizeVariance, maxSizeVariance);
                 shardSizesByIndex.put(indexName, shardSize);
                 tierSizes.computeIfPresent(tier, (ignored, size) -> size + shardSize * shardCount * (replicaCount + 1));
-                tierWriteLoads.computeIfPresent(tier, (ignored, writeLoad) -> writeLoad + indexWriteLoad * (replicaCount + 1));
+                tierWriteLoads.computeIfPresent(tier, (ignored, writeLoad) -> writeLoad + indexWriteLoad * shardCount * (replicaCount + 1));
             }
         }
         final var metadata = metadataBuilder.build();

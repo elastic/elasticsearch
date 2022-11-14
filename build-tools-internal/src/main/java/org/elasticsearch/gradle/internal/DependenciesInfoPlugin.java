@@ -35,8 +35,11 @@ public class DependenciesInfoPlugin implements Plugin<Project> {
         Configuration dependenciesInfoFilesConfiguration = project.getConfigurations().create("dependenciesInfoFiles");
         dependenciesInfoFilesConfiguration.setCanBeResolved(false);
         dependenciesInfoFilesConfiguration.setCanBeConsumed(true);
-        dependenciesInfoFilesConfiguration.attributes(attributes ->
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
+        dependenciesInfoFilesConfiguration.attributes(
+            attributes -> attributes.attribute(
+                Category.CATEGORY_ATTRIBUTE,
+                project.getObjects().named(Category.class, Category.DOCUMENTATION)
+            )
         );
 
         project.getArtifacts().add("dependenciesInfoFiles", depsInfo);

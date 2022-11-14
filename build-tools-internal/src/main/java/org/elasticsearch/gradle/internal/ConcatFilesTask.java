@@ -90,7 +90,7 @@ public class ConcatFilesTask extends DefaultTask {
         // To remove duplicate lines
         LinkedHashSet<String> uniqueLines = new LinkedHashSet<>();
         for (File f : getFiles()) {
-            if(f.exists()) {
+            if (f.exists()) {
                 uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
             }
         }

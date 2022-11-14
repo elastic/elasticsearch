@@ -824,14 +824,9 @@ Number of indices using the built-in analyzer in selected nodes.
 =====
 
 `search`::
-(array of objects)
+(object)
 Contains usage statistics about search requests submitted to selected nodes
 that acted as coordinator during the search execution.
-Usage includes information about the total number of incoming search requests,
-which sections were specified in their request body, as well as which queries
-were used as part of the query and post_filter sections. Queries are counted
-once per search request, meaning that if the same search requests includes
-multiple term queries, the counter for term is going to be incremented by 1 only.
 
 +
 .Properties of `search` objects
@@ -839,12 +834,15 @@ multiple term queries, the counter for term is going to be incremented by 1 only
 =====
 `total`::
 (integer)
-Total number of received search requests
+Total number of incoming search requests
 
 `queries`::
 (object)
 Query types used in selected nodes. For each query, name and number of times
-it's been used is reported.
+it's been used within the `query` or `post_filter` section is reported. Queries
+are counted once per search request, meaning that if the same query type is used
+multiple times in the same search request, its counter will be incremented by 1
+rather than by the number of times it's been used in that individual search request.
 
 `sections`::
 (object)

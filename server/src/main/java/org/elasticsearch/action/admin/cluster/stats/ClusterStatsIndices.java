@@ -144,7 +144,6 @@ public class ClusterStatsIndices implements ToXContentFragment {
         shards.toXContent(builder, params);
         docs.toXContent(builder, params);
         store.toXContent(builder, params);
-        searchUsageStats.toXContent(builder, params);
         fieldData.toXContent(builder, params);
         queryCache.toXContent(builder, params);
         completion.toXContent(builder, params);
@@ -158,6 +157,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         if (versions != null) {
             versions.toXContent(builder, params);
         }
+        searchUsageStats.toXContent(builder, params);
         return builder;
     }
 

@@ -18,8 +18,7 @@ public class TopNOperator implements Operator {
     // monotonically increasing state
     private static final int NEEDS_INPUT = 0;
     private static final int HAS_OUTPUT = 1;
-    private static final int FINISHING = 2;
-    private static final int FINISHED = 3;
+    private static final int FINISHED = 2;
 
     private int state = NEEDS_INPUT;
 
@@ -67,8 +66,6 @@ public class TopNOperator implements Operator {
     public void finish() {
         if (state == NEEDS_INPUT) {
             state = HAS_OUTPUT;
-        } else {
-            state = FINISHED;
         }
     }
 

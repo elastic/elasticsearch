@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -489,7 +490,13 @@ public final class DataStreamTestHelper {
             new IndexSettingProviders(providers)
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
-        return new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService, EmptySystemIndices.INSTANCE);
+        return new MetadataRolloverService(
+            testThreadPool,
+            createIndexService,
+            indexAliasesService,
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
+        );
     }
 
     public static MetadataFieldMapper getDataStreamTimestampFieldMapper() {

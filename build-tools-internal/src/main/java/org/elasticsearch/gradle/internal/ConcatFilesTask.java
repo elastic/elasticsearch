@@ -83,7 +83,7 @@ public class ConcatFilesTask extends DefaultTask {
     @TaskAction
     public void concatFiles() throws IOException {
         if (getHeaderLine() != null) {
-            getTarget().mkdirs();
+            getTarget().getParentFile().mkdirs();
             Files.write(getTarget().toPath(), (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8));
         }
 

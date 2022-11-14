@@ -49,12 +49,12 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
         return values.get(index);
     }
 
-    long getOrDefault(int index) {
+    void increment(long value, int index) {
+        ensureCapacity(index);
         if (index > largestIndex) {
-            return initialDefaultValue;
-        } else {
-            return values.get(index);
+            largestIndex = index;
         }
+        values.increment(index, value);
     }
 
     void set(long value, int index) {

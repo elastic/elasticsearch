@@ -116,7 +116,7 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
                 );
             }
         } catch (Exception e) {
-            policyLock.release();
+            policyLock.close();
             listener.onFailure(e);
             return;
         }
@@ -131,9 +131,9 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             // so we need to filter down to just the concrete indices that are actually indices for this policy
             concreteIndices = Stream.of(concreteIndices).filter(i -> EnrichPolicy.isPolicyForIndex(policyName, i)).toArray(String[]::new);
 
-            deleteIndicesAndPolicy(concreteIndices, policyName, ActionListener.runBefore(listener, policyLock::release));
+            deleteIndicesAndPolicy(concreteIndices, policyName, ActionListener.runBefore(listener, policyLock::close));
         } catch (Exception e) {
-            policyLock.release();
+            policyLock.close();
             listener.onFailure(e);
         }
     }

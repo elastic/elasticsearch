@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -26,7 +27,7 @@ public class EnrichPolicyLocks {
      * object is the owner of the held lock. Additionally, this manages the lock lifecycle for any other resources tracked by the policy
      * coordination logic, such as a policy execution's target index.
      */
-    public class EnrichPolicyLock {
+    public class EnrichPolicyLock implements Releasable {
         private final String policyName;
         private final String enrichIndexName;
         private final Semaphore executionLease;
@@ -41,7 +42,8 @@ public class EnrichPolicyLocks {
          * Unlocks this policy for execution and maintenance IFF this lock represents the currently held semaphore for a policy name. If
          * this lock was created for an execution, the target index for the policy execution is also cleared from the locked state.
          */
-        public void release() {
+        @Override
+        public void close() {
             if (enrichIndexName != null) {
                 boolean wasRemoved = workingIndices.remove(enrichIndexName, executionLease);
                 assert wasRemoved

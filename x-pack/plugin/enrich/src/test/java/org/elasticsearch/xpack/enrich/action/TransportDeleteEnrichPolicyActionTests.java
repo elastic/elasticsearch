@@ -216,7 +216,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             );
         }
         {
-            policyLock.release();
+            policyLock.close();
             assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
             final CountDownLatch latch = new CountDownLatch(1);

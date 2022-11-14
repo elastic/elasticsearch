@@ -49,8 +49,8 @@ public class EnrichPolicyLocksTests extends ESTestCase {
         EnrichPolicyLock lock2 = policyLocks.lockPolicy(policy2);
 
         // Unlock
-        lock1.release();
-        lock2.release();
+        lock1.close();
+        lock2.close();
 
         // Ensure locking again after release works
         policyLocks.lockPolicy(policy1);
@@ -64,17 +64,17 @@ public class EnrichPolicyLocksTests extends ESTestCase {
         // Lock and unlock
         EnrichPolicyLock lock1 = policyLocks.lockPolicy(policy1);
         assertThat(policyLocks.lockedPolices().size(), equalTo(1));
-        lock1.release();
+        lock1.close();
         assertThat(policyLocks.lockedPolices().size(), equalTo(0));
 
         // Lock again, but try unlocking with the first lock which no longer actively holds the lock
         EnrichPolicyLock lock2 = policyLocks.lockPolicy(policy1);
         assertThat(policyLocks.lockedPolices().size(), equalTo(1));
-        expectThrows(AssertionError.class, lock1::release);
+        expectThrows(AssertionError.class, lock1::close);
         assertThat(policyLocks.lockedPolices().size(), equalTo(1));
 
         // Ensure that the second lock correctly unlocks
-        lock2.release();
+        lock2.close();
         assertThat(policyLocks.lockedPolices().size(), equalTo(0));
     }
 }

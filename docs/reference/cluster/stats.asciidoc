@@ -292,7 +292,7 @@ it's been used is reported.
 Search sections used in selected nodes. For each section, name and number of times
 it's been used is reported.
 
-=====
+====
 
 `fielddata`::
 (object)

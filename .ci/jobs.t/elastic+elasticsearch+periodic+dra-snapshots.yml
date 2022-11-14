@@ -27,7 +27,7 @@
             $WORKSPACE/.ci/scripts/run-gradle.sh -Ddra.artifacts=true \
                 -Ddra.artifacts.dependency.beats=${BEATS_BUILD_ID} \
                 -Ddra.artifacts.dependency.ml-cpp=${ML_CPP_BUILD_ID} \
-                -Dcsv=build/distributions/build/distributions/dependencies-${ES_VERSION}-SNAPSHOT.csv \
+                -Dcsv=$WORKSPACE/build/distributions/dependencies-${ES_VERSION}-SNAPSHOT.csv \
                 buildReleaseArtifacts \
                 :distribution:docker:assemble \
                 :distribution:generateDependenciesReport

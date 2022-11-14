@@ -37,7 +37,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
     public static DesiredBalanceResponse from(StreamInput in) throws IOException {
         return new DesiredBalanceResponse(
             DesiredBalanceStats.readFrom(in),
-            in.readMap(StreamInput::readString, v -> v.readMap(in1 -> in1.readVInt(), DesiredShards::from))
+            in.readImmutableMap(StreamInput::readString, v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from))
         );
     }
 

@@ -510,13 +510,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total_data_set_size_in_bytes": 0,
                     "reserved_in_bytes": 0
                   },
-                  "search": {
-                    "total": 0,
-                    "queries": {
-                    },
-                    "sections": {
-                    }
-                  },
                   "fielddata": {
                     "memory_size_in_bytes": 0,
                     "evictions": 0
@@ -565,7 +558,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_filters": [],
                     "built_in_analyzers": []
                   },
-                  "versions": []
+                  "versions": [],
+                  "search" : {
+                    "total" : 0,
+                    "queries" : {},
+                    "sections" : {}
+                  }
                 },
                 "nodes": {
                   "count": {

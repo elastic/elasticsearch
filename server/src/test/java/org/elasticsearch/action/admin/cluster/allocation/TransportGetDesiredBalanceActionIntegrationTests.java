@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceRequest;
-import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceResponse;
-import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;

@@ -25,4 +25,22 @@ public class InternalExecutePolicyActionRequestTests extends AbstractWireSeriali
         }
         return request;
     }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        String policyName = instance.getName();
+        String enrichIndexName = instance.getEnrichIndexName();
+        boolean waitForCompletion = instance.isWaitForCompletion();
+
+        switch (between(0, 2)) {
+            case 0 -> policyName = randomAlphaOfLength(4);
+            case 1 -> enrichIndexName = randomAlphaOfLength(6);
+            case 2 -> waitForCompletion = waitForCompletion == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        Request request = new Request(policyName, enrichIndexName);
+        request.setWaitForCompletion(waitForCompletion);
+        return request;
+    }
 }

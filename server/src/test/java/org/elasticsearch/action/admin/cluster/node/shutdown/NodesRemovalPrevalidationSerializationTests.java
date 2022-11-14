@@ -87,7 +87,6 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
     public static NodesRemovalPrevalidation randomNodesRemovalPrevalidation() {
         int noOfNodes = randomIntBetween(1, 10);
         List<NodesRemovalPrevalidation.NodeResult> nodes = new ArrayList<>(noOfNodes);
-        NodesRemovalPrevalidation.Result result = randomResult();
         for (int i = 0; i < noOfNodes; i++) {
             nodes.add(
                 new NodesRemovalPrevalidation.NodeResult(

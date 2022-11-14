@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -38,8 +39,8 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -54,6 +55,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -77,6 +79,19 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             Math.max((int) Math.ceil(tierWriteLoad / nodeIndexingThreads), minCount)
         ) + between(0, 2);
     }
+
+    private static final WriteLoadForecaster SIMULATION_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
+        @Override
+        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+            throw new AssertionError("should not be rolling over in simulation");
+        }
+
+        @Override
+        @SuppressForbidden(reason = "This is simulation implementation")
+        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
+            return indexMetadata.getForecastedWriteLoad();
+        }
+    };
 
     public void testBalanceQuality() throws IOException {
 
@@ -103,15 +118,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var indexName = Strings.format("index-%03d-%s-%03d", dataStreamIndex, tier.charAt(5), index);
                 final var shardCount = DataTier.DATA_HOT.equals(tier) ? hotShards : shrunkShards;
                 final var replicaCount = DataTier.DATA_COLD.equals(tier) ? 0 : 1;
-
-                final var indexWriteLoadBuilder = IndexWriteLoad.builder(shardCount);
-                var totalWriteLoad = 0.0;
-                for (int shardId = 0; shardId < shardCount; shardId++) {
-                    final var shardWriteLoad = index == indexCount - 1 ? (scaledRandomIntBetween(1, 8000) / 1000.0) : 0.0;
-                    totalWriteLoad += shardWriteLoad;
-                    indexWriteLoadBuilder.withShardWriteLoad(shardId, shardWriteLoad, TimeValue.timeValueHours(1).millis());
-                }
-                final var finalWriteLoad = totalWriteLoad;
+                final var indexWriteLoad = index == indexCount - 1 ? (scaledRandomIntBetween(1, 8000) / 1000.0) : 0.0;
 
                 metadataBuilder.put(
                     IndexMetadata.builder(indexName)
@@ -122,12 +129,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier", tier)
                         )
-                        .indexWriteLoad(indexWriteLoadBuilder.build())
+                        .indexWriteLoadForecast(indexWriteLoad)
                 );
                 final var shardSize = approxIndexSize.getBytes() / shardCount + randomLongBetween(-maxSizeVariance, maxSizeVariance);
                 shardSizesByIndex.put(indexName, shardSize);
                 tierSizes.computeIfPresent(tier, (ignored, size) -> size + shardSize * shardCount * (replicaCount + 1));
-                tierWriteLoads.computeIfPresent(tier, (ignored, writeLoad) -> writeLoad + finalWriteLoad * (replicaCount + 1));
+                tierWriteLoads.computeIfPresent(tier, (ignored, writeLoad) -> writeLoad + indexWriteLoad * (replicaCount + 1));
             }
         }
         final var metadata = metadataBuilder.build();
@@ -383,11 +390,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 for (ShardRouting shardRouting : routingNode) {
                     shards += 1;
                     totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                    totalWriteLoad += clusterState.metadata()
-                        .index(shardRouting.index())
-                        .getWriteLoad()
-                        .getWriteLoadForShard(shardRouting.id())
-                        .orElseThrow(() -> new AssertionError("missing write load"));
+                    totalWriteLoad += SIMULATION_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(
+                        clusterState.metadata().index(shardRouting.index())
+                    ).orElseThrow(() -> new AssertionError("missing write load"));
                 }
 
                 results.startObject();
@@ -479,7 +484,11 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
     ) {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            new BalancedShardsAllocator(settings),
+            new BalancedShardsAllocator(
+                settings,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                SIMULATION_WRITE_LOAD_FORECASTER
+            ),
             threadPool,
             clusterService,
             (clusterState, routingAllocationAction) -> strategyRef.get()

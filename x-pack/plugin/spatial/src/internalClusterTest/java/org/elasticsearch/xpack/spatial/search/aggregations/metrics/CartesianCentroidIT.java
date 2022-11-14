@@ -45,28 +45,28 @@ public class CartesianCentroidIT extends CentroidAggregationTestBase {
 
     @Override
     protected CartesianPoint makePoint(double x, double y) {
-        return new CartesianPoint(x, y);
+        return new CartesianPoint((float) x, (float) y);
     }
 
     @Override
     protected CartesianPoint randomPoint() {
         Point point = ShapeTestUtils.randomPointNotExtreme(false);
-        return new CartesianPoint(point.getX(), point.getY());
+        return makePoint(point.getX(), point.getY());
     }
 
     @Override
     protected void resetX(SpatialPoint point, double x) {
-        ((CartesianPoint) point).resetX(x);
+        ((CartesianPoint) point).resetX((float) x);
     }
 
     @Override
     protected void resetY(SpatialPoint point, double y) {
-        ((CartesianPoint) point).resetY(y);
+        ((CartesianPoint) point).resetY((float) y);
     }
 
     @Override
     protected CartesianPoint reset(SpatialPoint point, double x, double y) {
-        return ((CartesianPoint) point).reset(x, y);
+        return ((CartesianPoint) point).reset((float) x, (float) y);
     }
 
     @Override

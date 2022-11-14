@@ -9,6 +9,7 @@
 package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
+import org.elasticsearch.common.util.Maps;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,9 +46,9 @@ public final class SearchUsageHolder {
      * Returns a snapshot of the search usage statistics
      */
     public SearchUsageStats getSearchUsageStats() {
-        Map<String, Long> queriesUsageMap = new HashMap<>();
+        Map<String, Long> queriesUsageMap = Maps.newMapWithExpectedSize(queriesUsage.size());
         queriesUsage.forEach((query, adder) -> queriesUsageMap.put(query, adder.longValue()));
-        Map<String, Long> sectionsUsageMap = new HashMap<>();
+        Map<String, Long> sectionsUsageMap = Maps.newMapWithExpectedSize(sectionsUsage.size());
         sectionsUsage.forEach((query, adder) -> sectionsUsageMap.put(query, adder.longValue()));
         return new SearchUsageStats(
             Collections.unmodifiableMap(queriesUsageMap),

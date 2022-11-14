@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.util.Maps;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;

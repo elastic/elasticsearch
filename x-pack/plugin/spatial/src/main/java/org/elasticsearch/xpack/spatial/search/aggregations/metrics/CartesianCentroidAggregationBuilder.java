@@ -112,6 +112,6 @@ public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregation
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+        return Version.V_8_6_0;
     }
 }

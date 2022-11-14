@@ -122,17 +122,17 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static class Request extends ActionRequest {
         private final String indicatorName;
-        private final boolean explain;
+        private final boolean verbose;
 
-        public Request(boolean explain) {
+        public Request(boolean verbose) {
             // We never compute details if no indicator name is given because of the runtime cost:
             this.indicatorName = null;
-            this.explain = explain;
+            this.verbose = verbose;
         }
 
-        public Request(String indicatorName, boolean explain) {
+        public Request(String indicatorName, boolean verbose) {
             this.indicatorName = indicatorName;
-            this.explain = explain;
+            this.verbose = verbose;
         }
 
         @Override
@@ -166,7 +166,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             healthService.getHealth(
                 client,
                 request.indicatorName,
-                request.explain,
+                request.verbose,
                 responseListener.map(
                     healthIndicatorResults -> new Response(
                         clusterService.getClusterName(),

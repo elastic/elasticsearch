@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -498,6 +499,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         try {
             executableSection.execute(restTestExecutionContext);
         } catch (AssertionError | Exception e) {
+            // Dump the original yaml file, if available, for reference.
+            Optional<Path> file = testCandidate.getRestTestSuite().getFile();
+            if (file.isPresent()) {
+                try {
+                    logger.info("Dump test yaml [{}] on failure:\n{}", file.get(), Files.readString(file.get()));
+                } catch (IOException ex) {
+                    logger.info("Did not dump test yaml [{}] on failure due to an exception [{}]", file.get(), ex);
+                }
+            }
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
             logger.info(
                 "Stash dump on test failure [{}]",

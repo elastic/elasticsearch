@@ -8,12 +8,16 @@
 
 package org.elasticsearch.aggregations.bucket.timeseries;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -47,11 +51,12 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket {
         protected long bucketOrd;
         protected final boolean keyed;
-        protected final Map<String, Object> key;
+        protected final BytesRef key;
+        // TODO: make computing docCount optional
         protected long docCount;
         protected InternalAggregations aggregations;
 
-        public InternalBucket(Map<String, Object> key, long docCount, InternalAggregations aggregations, boolean keyed) {
+        public InternalBucket(BytesRef key, long docCount, InternalAggregations aggregations, boolean keyed) {
             this.key = key;
             this.docCount = docCount;
             this.aggregations = aggregations;
@@ -63,26 +68,26 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
          */
         public InternalBucket(StreamInput in, boolean keyed) throws IOException {
             this.keyed = keyed;
-            key = in.readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
+            key = in.readBytesRef();
             docCount = in.readVLong();
             aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(key, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            out.writeBytesRef(key);
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
 
         @Override
         public Map<String, Object> getKey() {
-            return key;
+            return TimeSeriesIdFieldMapper.decodeTsid(key);
         }
 
         @Override
         public String getKeyAsString() {
-            return key.toString();
+            return getKey().toString();
         }
 
         @Override
@@ -97,8 +102,10 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // Use map key in the xcontent response:
+            var key = getKey();
             if (keyed) {
-                builder.startObject(getKeyAsString());
+                builder.startObject(key.toString());
             } else {
                 builder.startObject();
             }
@@ -187,38 +194,61 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        // We still need to reduce in case we got the same time series in 2 different indices, but we should be able to optimize
-        // that in the future
-        Map<Map<String, Object>, List<InternalBucket>> bucketsList = null;
+        // TODO: optimize single result case either by having a if check here and return aggregations.get(0) or
+        // by overwriting the mustReduceOnSingleInternalAgg() method
+        final int initialCapacity = aggregations.stream()
+            .map(value -> (InternalTimeSeries) value)
+            .mapToInt(value -> value.getBuckets().size())
+            .max()
+            .getAsInt();
+
+        final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(IteratorAndCurrent<InternalBucket> a, IteratorAndCurrent<InternalBucket> b) {
+                return a.current().key.compareTo(b.current().key) < 0;
+            }
+        };
         for (InternalAggregation aggregation : aggregations) {
             InternalTimeSeries timeSeries = (InternalTimeSeries) aggregation;
-            if (bucketsList != null) {
-                for (InternalBucket bucket : timeSeries.buckets) {
-                    bucketsList.compute(bucket.key, (map, list) -> {
-                        if (list == null) {
-                            list = new ArrayList<>();
-                        }
-                        list.add(bucket);
-                        return list;
-                    });
-                }
-            } else {
-                bucketsList = new HashMap<>(timeSeries.buckets.size());
-                for (InternalTimeSeries.InternalBucket bucket : timeSeries.buckets) {
-                    List<InternalBucket> bucketList = new ArrayList<>();
-                    bucketList.add(bucket);
-                    bucketsList.put(bucket.key, bucketList);
-                }
+            if (timeSeries.buckets.isEmpty() == false) {
+                IteratorAndCurrent<InternalBucket> iterator = new IteratorAndCurrent<>(timeSeries.buckets.iterator());
+                pq.add(iterator);
             }
         }
 
-        reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
-        InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(bucketsList.size()), keyed, getMetadata());
-        for (Map.Entry<Map<String, Object>, List<InternalBucket>> bucketEntry : bucketsList.entrySet()) {
-            reduced.buckets.add(reduceBucket(bucketEntry.getValue(), reduceContext));
+        InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(initialCapacity), keyed, getMetadata());
+        List<InternalBucket> bucketsWithSameKey = new ArrayList<>(aggregations.size());
+        BytesRef prevTsid = null;
+        while (pq.size() > 0) {
+            reduceContext.consumeBucketsAndMaybeBreak(1);
+            bucketsWithSameKey.clear();
+
+            while (bucketsWithSameKey.isEmpty() || bucketsWithSameKey.get(0).key.equals(pq.top().current().key)) {
+                IteratorAndCurrent<InternalBucket> iterator = pq.top();
+                bucketsWithSameKey.add(iterator.current());
+                if (iterator.hasNext()) {
+                    iterator.next();
+                    pq.updateTop();
+                } else {
+                    pq.pop();
+                    if (pq.size() == 0) {
+                        break;
+                    }
+                }
+            }
+
+            InternalBucket reducedBucket;
+            if (bucketsWithSameKey.size() == 1) {
+                reducedBucket = bucketsWithSameKey.get(0);
+            } else {
+                reducedBucket = reduceBucket(bucketsWithSameKey, reduceContext);
+            }
+            BytesRef tsid = reducedBucket.key;
+            assert prevTsid == null || tsid.compareTo(prevTsid) > 0;
+            reduced.buckets.add(reducedBucket);
+            prevTsid = tsid;
         }
         return reduced;
-
     }
 
     @Override

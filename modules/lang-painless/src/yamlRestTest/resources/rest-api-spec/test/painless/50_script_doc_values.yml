@@ -2382,7 +2382,6 @@ keyword_stored_synthetic:
   - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
 
   - do:
-      catch: bad_request  # TODO make this work in a follow up
       search:
         index: test_synthetic
         body:
@@ -2391,13 +2390,11 @@ keyword_stored_synthetic:
             field:
               script:
                 source: "field('keyword_stored').get('missing')"
-#  - match: { hits.hits.0.fields.field.0: "no doc values" }
-#  - match: { hits.hits.1.fields.field.0: "missing" }
-#  - match: { hits.hits.2.fields.field.0: "no doc values 0" } # doc values are sorted
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0" } # doc values are sorted
 
   - do:
-      catch: bad_request  # TODO make this work in a follow up
       search:
         index: test_synthetic
         body:
@@ -2407,13 +2404,11 @@ keyword_stored_synthetic:
               script:
                 source: "/* avoid yaml stash */ $('keyword_stored', 'missing')"
   # same as `field('keyword').get('missing')`
-#  - match: { hits.hits.0.fields.field.0: "no doc values" }
-#  - match: { hits.hits.1.fields.field.0: "missing" }
-#  - match: { hits.hits.2.fields.field.0: "no doc values 0" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0" }
 
   - do:
-      catch: bad_request  # TODO make this work in a follow up
       search:
         index: test_synthetic
         body:
@@ -2422,13 +2417,11 @@ keyword_stored_synthetic:
             field:
               script:
                 source: "field('keyword_stored').get(1, 'dne')"
-#  - match: { hits.hits.0.fields.field.0: "dne" }
-#  - match: { hits.hits.1.fields.field.0: "dne" }
-#  - match: { hits.hits.2.fields.field.0: "no doc values 1" } # doc values are sorted
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "dne" }
+  - match: { hits.hits.1.fields.field.0: "dne" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 1" } # doc values are sorted
 
   - do:
-      catch: bad_request  # TODO make this work in a follow up
       search:
         index: test_synthetic
         body:
@@ -2437,10 +2430,9 @@ keyword_stored_synthetic:
             field:
               script:
                 source: "String.join(', ', field('keyword_stored'))"
-#  - match: { hits.hits.0.fields.field.0: "no doc values" }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "no doc values 0, no doc values 1, no doc values 2" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0, no doc values 1, no doc values 2" }
 
 ---
 long:
@@ -5188,7 +5180,7 @@ text_sub_stored_keyword_synthetic:
           script_fields:
             field:
               script:
-                source: "String cat = ''; for (String s : field('text_sub_stored_keyword')) { cat += s; } cat + field('text_no_field_data').size();"
+                source: "String cat = ''; for (String s : field('text_sub_stored_keyword')) { cat += s; } cat + field('text_sub_stored_keyword').size();"
   #  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
   #  - match: { hits.hits.1.fields.field.0: "0" }
   #  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
@@ -5221,7 +5213,6 @@ text_stored_synthetic:
   - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5230,13 +5221,11 @@ text_stored_synthetic:
             field:
               script:
                 source: "field('text_stored').get('')"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5245,13 +5234,11 @@ text_stored_synthetic:
             field:
               script:
                 source: "/* avoid yaml stash */ $('text_stored', '')"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5260,13 +5247,11 @@ text_stored_synthetic:
             field:
               script:
                 source: "String defaultText = 'default text'; field('text_stored').get(defaultText)"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "default text" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5275,13 +5260,11 @@ text_stored_synthetic:
             field:
               script:
                 source: "String defaultText = 'default text'; $('text_stored', defaultText)"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "default text" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5290,13 +5273,11 @@ text_stored_synthetic:
             field:
               script:
                 source: "field('text_stored').get(1, '')"
-#  - match: { hits.hits.0.fields.field.0: "" }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5305,13 +5286,11 @@ text_stored_synthetic:
             field:
               script:
                 source: "String defaultText = 'default text'; field('text_stored').get(1, defaultText)"
-#  - match: { hits.hits.0.fields.field.0: "default text" }
-#  - match: { hits.hits.1.fields.field.0: "default text" }
-#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5320,13 +5299,11 @@ text_stored_synthetic:
             field:
               script:
                 source: "field('text_stored').get(1, '')"
-#  - match: { hits.hits.0.fields.field.0: "" }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5334,11 +5311,10 @@ text_stored_synthetic:
           script_fields:
             field:
               script:
-                source: "String cat = ''; for (String s : field('text_stored')) { cat += s; } cat + field('text_no_field_data').size();"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
-#  - match: { hits.hits.1.fields.field.0: "0" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+                source: "String cat = ''; for (String s : field('text_stored')) { cat += s; } cat + field('text_stored').size();"
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
 
 ---
 match_only_text:
@@ -5497,7 +5473,6 @@ match_only_text_synthetic:
   - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5506,13 +5481,11 @@ match_only_text_synthetic:
             field:
               script:
                 source: "field('match_only_text').get('')"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5521,13 +5494,11 @@ match_only_text_synthetic:
             field:
               script:
                 source: "/* avoid yaml stash */ $('match_only_text', '')"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5536,13 +5507,11 @@ match_only_text_synthetic:
             field:
               script:
                 source: "String defaultText = 'default text'; field('match_only_text').get(defaultText)"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "default text" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5551,13 +5520,11 @@ match_only_text_synthetic:
             field:
               script:
                 source: "String defaultText = 'default text'; $('match_only_text', defaultText)"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
-#  - match: { hits.hits.1.fields.field.0: "default text" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5566,13 +5533,11 @@ match_only_text_synthetic:
             field:
               script:
                 source: "field('match_only_text').get(1, '')"
-#  - match: { hits.hits.0.fields.field.0: "" }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5581,13 +5546,11 @@ match_only_text_synthetic:
             field:
               script:
                 source: "String defaultText = 'default text'; field('match_only_text').get(1, defaultText)"
-#  - match: { hits.hits.0.fields.field.0: "default text" }
-#  - match: { hits.hits.1.fields.field.0: "default text" }
-#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5596,13 +5559,11 @@ match_only_text_synthetic:
             field:
               script:
                 source: "field('match_only_text').get(1, '')"
-#  - match: { hits.hits.0.fields.field.0: "" }
-#  - match: { hits.hits.1.fields.field.0: "" }
-#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
 
   - do:
-      catch: bad_request  # TODO fix in a followup
       search:
         index: test_synthetic
         body:
@@ -5611,10 +5572,9 @@ match_only_text_synthetic:
             field:
               script:
                 source: "String cat = ''; for (String s : field('match_only_text')) { cat += s; } cat + field('match_only_text').size();"
-#  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
-#  - match: { hits.hits.1.fields.field.0: "0" }
-#  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
 
 ---
 version and sequence number:

@@ -1776,6 +1776,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".deprecation-")) {
             return true;
         }
+        if (name.startsWith(".fleet-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":

@@ -24,7 +24,14 @@
             set +x
             VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
             export VAULT_TOKEN
-            $WORKSPACE/.ci/scripts/run-gradle.sh buildReleaseArtifacts -Ddra.artifacts=true -Ddra.artifacts.dependency.beats=${BEATS_BUILD_ID} -Ddra.artifacts.dependency.ml-cpp=${ML_CPP_BUILD_ID}
+            $WORKSPACE/.ci/scripts/run-gradle.sh -Ddra.artifacts=true \
+                -Ddra.artifacts.dependency.beats=${BEATS_BUILD_ID} \
+                -Ddra.artifacts.dependency.ml-cpp=${ML_CPP_BUILD_ID} \
+                -Dcsv=build/distributions/build/distributions/dependencies-${ES_VERSION}-SNAPSHOT.csv \
+                buildReleaseArtifacts \
+                :distribution:docker:assemble \
+                :distribution:generateDependenciesReport
+            
             unset VAULT_TOKEN
             set -x
             $WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier=-SNAPSHOT

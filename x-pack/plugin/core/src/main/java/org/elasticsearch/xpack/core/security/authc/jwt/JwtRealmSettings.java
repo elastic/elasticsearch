@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
@@ -98,7 +99,8 @@ public class JwtRealmSettings {
                 }
             }
             throw new IllegalArgumentException(
-                "Invalid value [%s] for [%s], allowed values are [%s]".formatted(
+                Strings.format(
+                    "Invalid value [%s] for [%s], allowed values are [%s]",
                     value,
                     settingKey,
                     Stream.of(values()).map(TokenType::value).collect(Collectors.joining(","))

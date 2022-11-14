@@ -46,6 +46,7 @@ import org.elasticsearch.compute.operator.LongMaxOperator;
 import org.elasticsearch.compute.operator.LongTransformerOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -913,6 +914,23 @@ public class OperatorTests extends ESTestCase {
         var expectedValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, expectedValueGenerator));
         var actualValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, valuesBlock::getDouble));
         assertEquals(expectedValues, actualValues);
+    }
+
+    public void testTopN() {
+        List<Long> values = randomList(0, 5000, ESTestCase::randomLong);
+        List<Long> outputValues = new ArrayList<>();
+        int limit = randomIntBetween(1, 20);
+        Driver driver = new Driver(
+            List.of(new SequenceLongBlockSourceOperator(values), new TopNOperator(0, true, limit), new PageConsumerOperator(page -> {
+                Block block = page.getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    outputValues.add(block.getLong(i));
+                }
+            })),
+            () -> {}
+        );
+        driver.run();
+        assertThat(outputValues.stream().sorted().toList(), equalTo(values.stream().sorted().limit(limit).toList()));
     }
 
     /**

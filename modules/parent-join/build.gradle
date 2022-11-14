@@ -19,3 +19,7 @@ restResources {
     include '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
   }
 }
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("/30_inner_hits/profile fetch", "profile output has changed")
+}

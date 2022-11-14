@@ -40,7 +40,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -216,7 +215,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {

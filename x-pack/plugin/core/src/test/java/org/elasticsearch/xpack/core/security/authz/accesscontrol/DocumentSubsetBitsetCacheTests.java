@@ -347,9 +347,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91471")
     public void testCacheUnderConcurrentAccess() throws Exception {
-        final int concurrentThreads = randomIntBetween(5, 15);
+        final int concurrentThreads = randomIntBetween(5, 8);
         final int numberOfIndices = randomIntBetween(3, 8);
 
         // Force cache evictions by setting the size to be less than the number of distinct queries we search on.
@@ -380,27 +379,39 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 final CountDownLatch start = new CountDownLatch(concurrentThreads);
                 final CountDownLatch end = new CountDownLatch(concurrentThreads);
                 final Set<BitSet> uniqueBitSets = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+                final AtomicReference<Throwable> exceptionInThread = new AtomicReference<>();
                 for (int thread = 0; thread < concurrentThreads; thread++) {
                     threads.submit(() -> {
-                        start.countDown();
-                        start.await(100, TimeUnit.MILLISECONDS);
-                        for (int loop = 0; loop < 15; loop++) {
-                            for (int field = 1; field <= FIELD_COUNT; field++) {
-                                final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + field, "value-" + field);
-                                final TestIndexContext randomContext = randomFrom(contexts);
-                                final Query query = queryBuilder.toQuery(randomContext.searchExecutionContext);
-                                final BitSet bitSet = cache.getBitSet(query, randomContext.leafReaderContext);
-                                assertThat(bitSet, notNullValue());
-                                assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
-                                uniqueBitSets.add(bitSet);
+                        try {
+                            start.countDown();
+                            if (false == start.await(100, TimeUnit.MILLISECONDS)) {
+                                // We still proceed even when some threads are not ready. All threads being ready increases the chance
+                                // of them running concurrently and competing for caching. But this is not guaranteed either way.
+                                logger.info("[{}] out of [{}] worker threads are ready", start.getCount(), concurrentThreads);
                             }
+                            for (int loop = 0; loop < 5; loop++) {
+                                for (int field = 1; field <= FIELD_COUNT; field++) {
+                                    final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + field, "value-" + field);
+                                    final TestIndexContext randomContext = randomFrom(contexts);
+                                    final Query query = queryBuilder.toQuery(randomContext.searchExecutionContext);
+                                    final BitSet bitSet = cache.getBitSet(query, randomContext.leafReaderContext);
+                                    assertThat(bitSet, notNullValue());
+                                    assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
+                                    uniqueBitSets.add(bitSet);
+                                }
+                            }
+                            end.countDown();
+                        } catch (Throwable e) {
+                            logger.warn("caught exception in worker thread", e);
+                            exceptionInThread.compareAndSet(null, e);
                         }
-                        end.countDown();
                         return null;
                     });
                 }
 
-                assertTrue("Query threads did not complete in expected time", end.await(1, TimeUnit.SECONDS));
+                if (false == end.await(1, TimeUnit.SECONDS)) {
+                    fail("Query threads did not complete in expected time. Possible exception [" + exceptionInThread.get() + "]");
+                }
 
                 threads.shutdown();
                 assertTrue("Cleanup thread did not complete in expected time", threads.awaitTermination(3, TimeUnit.SECONDS));

@@ -1013,7 +1013,7 @@ public class TokenServiceTests extends ESTestCase {
                 .realmRef(realmRef)
                 .build(false);
 
-            final SearchHit hit = new SearchHit(randomInt(), "token_" + TokenService.hashTokenString(userToken.getId()), null, null);
+            final SearchHit hit = new SearchHit(randomInt(), "token_" + TokenService.hashTokenString(userToken.getId()));
             BytesReference source = TokenService.createTokenDocument(userToken, storedRefreshToken, clientAuthentication, Instant.now());
             if (refreshTokenStatus != null) {
                 var sourceAsMap = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();

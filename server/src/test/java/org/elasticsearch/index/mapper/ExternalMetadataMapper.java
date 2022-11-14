@@ -31,6 +31,10 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         context.doc().add(new StringField(FIELD_NAME, FIELD_VALUE, Store.YES));
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new ExternalMetadataMapper());
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        throw new UnsupportedOperationException();
+    }
 
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new ExternalMetadataMapper());
 }

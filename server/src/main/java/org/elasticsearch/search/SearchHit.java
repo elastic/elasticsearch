@@ -85,8 +85,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private BytesReference source;
 
-    private Map<String, DocumentField> documentFields;
-    private final Map<String, DocumentField> metaFields;
+    private final Map<String, DocumentField> documentFields = new HashMap<>();
+    private final Map<String, DocumentField> metaFields = new HashMap<>();
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -111,20 +111,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     // used only in tests
     public SearchHit(int docId) {
-        this(docId, null, null, null);
+        this(docId, null);
     }
 
-    public SearchHit(int docId, String id, Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
-        this(docId, id, null, documentFields, metaFields);
+    public SearchHit(int docId, String id) {
+        this(docId, id, null);
     }
 
-    public SearchHit(
-        int nestedTopDocId,
-        String id,
-        NestedIdentity nestedIdentity,
-        Map<String, DocumentField> documentFields,
-        Map<String, DocumentField> metaFields
-    ) {
+    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
         this.docId = nestedTopDocId;
         if (id != null) {
             this.id = new Text(id);
@@ -132,8 +126,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             this.id = null;
         }
         this.nestedIdentity = nestedIdentity;
-        this.documentFields = documentFields == null ? emptyMap() : documentFields;
-        this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
     public SearchHit(StreamInput in) throws IOException {
@@ -155,12 +147,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             explanation = readExplanation(in);
         }
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            documentFields = in.readMap(StreamInput::readString, DocumentField::new);
-            metaFields = in.readMap(StreamInput::readString, DocumentField::new);
+            documentFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
+            metaFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
         } else {
             Map<String, DocumentField> fields = readFields(in);
-            documentFields = new HashMap<>();
-            metaFields = new HashMap<>();
             fields.forEach(
                 (fieldName, docField) -> (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(
                     fieldName,
@@ -437,8 +427,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     * */
     public void setDocumentField(String fieldName, DocumentField field) {
         if (fieldName == null || field == null) return;
-        if (documentFields.size() == 0) this.documentFields = new HashMap<>();
         this.documentFields.put(fieldName, field);
+    }
+
+    public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
+        this.documentFields.putAll(docFields);
+        this.metaFields.putAll(metaFields);
     }
 
     /**
@@ -846,7 +840,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         Map<String, DocumentField> metaFields = get(METADATA_FIELDS, values, Collections.emptyMap());
         Map<String, DocumentField> documentFields = get(DOCUMENT_FIELDS, values, Collections.emptyMap());
 
-        SearchHit searchHit = new SearchHit(-1, id, nestedIdentity, documentFields, metaFields);
+        SearchHit searchHit = new SearchHit(-1, id, nestedIdentity);
+        searchHit.addDocumentFields(documentFields, metaFields);
         String index = get(Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {

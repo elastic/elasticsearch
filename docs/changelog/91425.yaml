@@ -1,5 +1,0 @@
-pr: 91425
-summary: "[WIP] Forecast normalized write load during rollovers"
-area: Allocation
-type: enhancement
-issues: []

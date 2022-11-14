@@ -36,6 +36,7 @@ public class JwtAuthenticator implements Releasable {
     private final RealmConfig realmConfig;
     private final List<JwtFieldValidator> jwtFieldValidators;
     private final JwtSignatureValidator jwtSignatureValidator;
+    private final JwtRealmSettings.TokenType tokenType;
 
     public JwtAuthenticator(
         final RealmConfig realmConfig,
@@ -43,19 +44,12 @@ public class JwtAuthenticator implements Releasable {
         final JwtSignatureValidator.PkcJwkSetReloadNotifier reloadNotifier
     ) {
         this.realmConfig = realmConfig;
-        final TimeValue allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
-        final Clock clock = Clock.systemUTC();
-        this.jwtFieldValidators = List.of(
-            JwtTypeValidator.INSTANCE,
-            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
-            new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
-            new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
-            new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
-            new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false),
-            new JwtDateClaimValidator(clock, "nbf", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true),
-            new JwtDateClaimValidator(clock, "auth_time", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true)
-        );
-
+        this.tokenType = realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE);
+        if (tokenType == JwtRealmSettings.TokenType.ID_TOKEN) {
+            this.jwtFieldValidators = configureFieldValidatorsForIdToken(realmConfig);
+        } else {
+            this.jwtFieldValidators = configureFieldValidatorsForAccessToken(realmConfig);
+        }
         this.jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(realmConfig, sslService, reloadNotifier);
     }
 
@@ -114,9 +108,35 @@ public class JwtAuthenticator implements Releasable {
         jwtSignatureValidator.close();
     }
 
+    public JwtRealmSettings.TokenType getTokenType() {
+        return tokenType;
+    }
+
     // Package private for testing
     JwtSignatureValidator.DelegatingJwtSignatureValidator getJwtSignatureValidator() {
         assert jwtSignatureValidator instanceof JwtSignatureValidator.DelegatingJwtSignatureValidator;
         return (JwtSignatureValidator.DelegatingJwtSignatureValidator) jwtSignatureValidator;
+    }
+
+    private static List<JwtFieldValidator> configureFieldValidatorsForIdToken(RealmConfig realmConfig) {
+        assert realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE) == JwtRealmSettings.TokenType.ID_TOKEN;
+        final TimeValue allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
+        final Clock clock = Clock.systemUTC();
+        return List.of(
+            JwtTypeValidator.INSTANCE,
+            // TODO: mandate "sub" claim once access token support is in place
+            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
+            new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
+            new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
+            new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
+            new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false),
+            new JwtDateClaimValidator(clock, "nbf", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true),
+            new JwtDateClaimValidator(clock, "auth_time", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, true)
+        );
+    }
+
+    private static List<JwtFieldValidator> configureFieldValidatorsForAccessToken(RealmConfig realmConfig) {
+        assert realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE) == JwtRealmSettings.TokenType.ACCESS_TOKEN;
+        throw new UnsupportedOperationException("NYI");
     }
 }

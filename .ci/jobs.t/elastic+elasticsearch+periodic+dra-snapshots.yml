@@ -31,21 +31,21 @@
                 buildReleaseArtifacts \
                 :distribution:docker:assemble \
                 :distribution:generateDependenciesReport
-            
+
             unset VAULT_TOKEN
             set -x
             $WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier=-SNAPSHOT
-            
+
             # we regenerate this file as part of the release manager invocation
             rm $WORKSPACE/build/distributions/elasticsearch-jdbc-${ES_VERSION}-SNAPSHOT.taco.sha512
-            
+
             # Allow other users access to read the artifacts so they are readable in the
             # container
             find $WORKSPACE -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
-  
+
             # Allow other users write access to create checksum files
             find $WORKSPACE -type d -path "*/build/distributions" -exec chmod a+w {} \;
-                    
+
             # Artifacts should be generated
             docker run --rm \
                    --name release-manager \
@@ -61,5 +61,5 @@
                    --workflow "snapshot" \
                    --version "$ES_VERSION" \
                    --artifact-set main \
-                   --dependency https://artifacts-snapshot.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}-SNAPSHOT.json \
-                   --dependency https://artifacts-snapshot.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}-SNAPSHOT.json
+                   --dependency beats:https://artifacts-snapshot.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}-SNAPSHOT.json \
+                   --dependency ml-cpp:https://artifacts-snapshot.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}-SNAPSHOT.json

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -26,31 +25,25 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPoin
 import java.io.IOException;
 import java.util.Map;
 
-public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<CartesianCentroidAggregationBuilder> {
-    public static final String NAME = "cartesian_centroid";
-    public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
-        NAME,
-        MetricAggregatorSupplier.class
-    );
+public class CartesianBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<CartesianBoundsAggregationBuilder> {
+    public static final String NAME = "cartesian_bounds";
+    public static final ValuesSourceRegistry.RegistryKey<CartesianBoundsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, CartesianBoundsAggregatorSupplier.class);
 
-    public static final ObjectParser<CartesianCentroidAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+    public static final ObjectParser<CartesianBoundsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
-        CartesianCentroidAggregationBuilder::new
+        CartesianBoundsAggregationBuilder::new
     );
     static {
-        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        CartesianCentroidAggregatorFactory.registerAggregators(builder);
-    }
-
-    public CartesianCentroidAggregationBuilder(String name) {
+    public CartesianBoundsAggregationBuilder(String name) {
         super(name);
     }
 
-    protected CartesianCentroidAggregationBuilder(
-        CartesianCentroidAggregationBuilder clone,
+    protected CartesianBoundsAggregationBuilder(
+        CartesianBoundsAggregationBuilder clone,
         AggregatorFactories.Builder factoriesBuilder,
         Map<String, Object> metadata
     ) {
@@ -64,13 +57,13 @@ public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregation
 
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new CartesianCentroidAggregationBuilder(this, factoriesBuilder, metadata);
+        return new CartesianBoundsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
-    public CartesianCentroidAggregationBuilder(StreamInput in) throws IOException {
+    public CartesianBoundsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -85,14 +78,14 @@ public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    protected CartesianCentroidAggregatorFactory innerBuild(
+    protected CartesianBoundsAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        MetricAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        return new CartesianCentroidAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        CartesianBoundsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new CartesianBoundsAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

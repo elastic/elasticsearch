@@ -46,7 +46,7 @@ final class CartesianShapeDVAtomicShapeFieldData extends LeafShapeFieldData<Cart
     public CartesianShapeValues getShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
-            final CartesianShapeValues.CartesianShapeValue geoShapeValue = new CartesianShapeValues.CartesianShapeValue();
+            final CartesianShapeValues.CartesianShapeValue shapeValue = new CartesianShapeValues.CartesianShapeValue();
             return new CartesianShapeValues() {
 
                 @Override
@@ -61,8 +61,8 @@ final class CartesianShapeDVAtomicShapeFieldData extends LeafShapeFieldData<Cart
 
                 @Override
                 public CartesianShapeValue value() throws IOException {
-                    geoShapeValue.reset(binaryValues.binaryValue());
-                    return geoShapeValue;
+                    shapeValue.reset(binaryValues.binaryValue());
+                    return shapeValue;
                 }
             };
         } catch (IOException e) {

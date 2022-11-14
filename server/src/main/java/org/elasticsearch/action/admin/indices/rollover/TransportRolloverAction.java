@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -40,7 +41,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -123,7 +123,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
             .docs(true)
-            .indexing(true);
+            .indexing(true)
+            .store(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a
         // "synchronized" block, in that we have a "before" world, where we calculate naming and condition matching, we then enter our
@@ -320,8 +321,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .getIndicesLookup()
                     .get(rolloverRequest.getRolloverTarget());
 
-                final IndexWriteLoad sourceIndexWriteLoad = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
-                    ? IndexWriteLoad.fromStats(rolloverSourceIndex, rolloverTask.statsResponse())
+                final IndexMetadataStats sourceIndexStats = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                    ? IndexMetadataStats.fromStatsResponse(rolloverSourceIndex, rolloverTask.statsResponse())
                     : null;
 
                 // Perform the actual rollover
@@ -334,7 +335,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     Instant.now(),
                     false,
                     false,
-                    sourceIndexWriteLoad
+                    sourceIndexStats
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

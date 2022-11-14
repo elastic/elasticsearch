@@ -63,6 +63,8 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
+import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -78,7 +80,6 @@ import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -103,6 +104,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -2010,7 +2012,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertEquals(searchResponse.getTotalShards(), 4);
     }
 
-    public void testWriteIndexWriteLoadIsStoredAfterRollover() throws Exception {
+    public void testWriteIndexWriteLoadAndAvgShardSizeIsStoredAfterRollover() throws Exception {
         final String dataStreamName = "logs-es";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 1);
@@ -2047,21 +2049,28 @@ public class DataStreamIT extends ESIntegTestCase {
 
         for (Index index : dataStream.getIndices()) {
             final IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            final IndexWriteLoad indexWriteLoad = indexMetadata.getWriteLoad();
+            final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
             if (index.equals(dataStream.getWriteIndex()) == false) {
-                assertThat(indexWriteLoad, is(notNullValue()));
+                assertThat(metadataStats, is(notNullValue()));
+
+                final var averageShardSize = metadataStats.averageShardSize();
+                final OptionalLong averageShardSizeInBytes = averageShardSize.getAverageSizeInBytes();
+                assertThat(averageShardSizeInBytes.isPresent(), is(equalTo(true)));
+                assertThat(averageShardSizeInBytes.getAsLong(), is(greaterThan(0L)));
+
+                final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
                 for (int shardId = 0; shardId < numberOfShards; shardId++) {
                     assertThat(indexWriteLoad.getWriteLoadForShard(shardId).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
                     assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId).getAsLong(), is(greaterThan(0L)));
                 }
             } else {
-                assertThat(indexWriteLoad, is(nullValue()));
+                assertThat(metadataStats, is(nullValue()));
             }
         }
     }
 
-    public void testWriteLoadIsStoredInABestEffort() throws Exception {
+    public void testWriteLoadAndAvgShardSizeIsStoredInABestEffort() throws Exception {
         // This test simulates the scenario where some nodes fail to respond
         // to the IndicesStatsRequest and therefore only a partial view of the
         // write-index write-load is stored during rollover.
@@ -2115,10 +2124,12 @@ public class DataStreamIT extends ESIntegTestCase {
 
         for (Index index : dataStream.getIndices()) {
             final IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            final IndexWriteLoad indexWriteLoad = indexMetadata.getWriteLoad();
+            final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
             if (index.equals(dataStream.getWriteIndex()) == false) {
-                assertThat(indexWriteLoad, is(notNullValue()));
+                assertThat(metadataStats, is(notNullValue()));
+
+                final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
                 // All stats request performed against nodes holding the shard 0 failed
                 assertThat(indexWriteLoad.getWriteLoadForShard(0).isPresent(), is(false));
                 assertThat(indexWriteLoad.getUptimeInMillisForShard(0).isPresent(), is(false));
@@ -2126,10 +2137,66 @@ public class DataStreamIT extends ESIntegTestCase {
                 // At least one of the shard 1 copies responded with stats
                 assertThat(indexWriteLoad.getWriteLoadForShard(1).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
                 assertThat(indexWriteLoad.getUptimeInMillisForShard(1).getAsLong(), is(greaterThan(0L)));
+
+                final var averageShardSize = metadataStats.averageShardSize();
+                assertThat(averageShardSize.numberOfShards(), is(equalTo(1)));
+                final OptionalLong averageShardSizeInBytes = averageShardSize.getAverageSizeInBytes();
+                assertThat(averageShardSizeInBytes.isPresent(), is(equalTo(true)));
+                assertThat(averageShardSizeInBytes.getAsLong(), is(greaterThan(0L)));
             } else {
-                assertThat(indexWriteLoad, is(nullValue()));
+                assertThat(metadataStats, is(nullValue()));
             }
         }
+    }
+
+    public void testShardSizeIsForecastedDuringRollover() throws Exception {
+        final String dataStreamName = "logs-es";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(0, 1);
+        final var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+            .build();
+        DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
+        final var request = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 10; j++) {
+                indexDocs(dataStreamName, randomIntBetween(100, 200));
+            }
+
+            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+        }
+
+        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+        final List<String> dataStreamReadIndices = dataStream.getIndices()
+            .stream()
+            .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
+            .map(Index::getName)
+            .toList();
+
+        final IndicesStatsResponse indicesStatsResponse = client().admin()
+            .indices()
+            .prepareStats(dataStreamReadIndices.toArray(new String[dataStreamReadIndices.size()]))
+            .setStore(true)
+            .get();
+        long expectedTotalSizeInBytes = 0;
+        int shardCount = 0;
+        for (ShardStats shard : indicesStatsResponse.getShards()) {
+            if (shard.getShardRouting().primary() == false) {
+                continue;
+            }
+            expectedTotalSizeInBytes += shard.getStats().getStore().sizeInBytes();
+            shardCount++;
+        }
+
+        final IndexMetadata writeIndexMetadata = clusterState.metadata().index(dataStream.getWriteIndex());
+        final OptionalLong forecastedShardSizeInBytes = writeIndexMetadata.getForecastedShardSizeInBytes();
+        assertThat(forecastedShardSizeInBytes.isPresent(), is(equalTo(true)));
+        assertThat(forecastedShardSizeInBytes.getAsLong(), is(equalTo(expectedTotalSizeInBytes / shardCount)));
     }
 
     static void putComposableIndexTemplate(

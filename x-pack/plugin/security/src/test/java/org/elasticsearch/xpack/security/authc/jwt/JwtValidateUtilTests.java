@@ -16,9 +16,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
-import java.time.Instant;
-import java.util.Date;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -50,51 +47,5 @@ public class JwtValidateUtilTests extends JwtTestCase {
             + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
             + ".";
         assertThat(exp1.getMessage(), is(equalTo(msg1)));
-    }
-
-    public void testValidationOfJwtTimeValues() throws Exception {
-        final int skewSeconds = 1;
-        final Instant instant = Instant.now();
-        final Date now = Date.from(instant);
-        final Date before = Date.from(instant.minusSeconds(skewSeconds));
-        final Date after = Date.from(instant.plusSeconds(skewSeconds));
-
-        // auth_time parameter checks
-        JwtValidateUtil.validateAuthTime((Date) null, now, 0);
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateAuthTime(before, null, 0));
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateAuthTime(before, now, -1));
-        // iat parameter checks
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime((Date) null, now, 0));
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime(before, null, 0));
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime(before, now, -1));
-        // nbf parameter checks
-        JwtValidateUtil.validateNotBeforeTime((Date) null, now, 0);
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateNotBeforeTime(before, null, 0));
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateNotBeforeTime(before, now, -1));
-        // exp parameter checks
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime((Date) null, now, 0));
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(after, null, 0));
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(after, now, -1));
-
-        // validate auth_time
-        JwtValidateUtil.validateAuthTime(before, now, 0);
-        JwtValidateUtil.validateAuthTime(now, now, 0);
-        JwtValidateUtil.validateAuthTime(after, now, skewSeconds);
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateAuthTime(after, now, 0));
-        // validate iat
-        JwtValidateUtil.validateIssuedAtTime(before, now, 0);
-        JwtValidateUtil.validateIssuedAtTime(now, now, 0);
-        JwtValidateUtil.validateIssuedAtTime(after, now, skewSeconds);
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime(after, now, 0));
-        // validate nbf
-        JwtValidateUtil.validateNotBeforeTime(before, now, 0);
-        JwtValidateUtil.validateNotBeforeTime(now, now, 0);
-        JwtValidateUtil.validateNotBeforeTime(after, now, skewSeconds);
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateNotBeforeTime(after, now, 0));
-        // validate exp
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(before, now, 0));
-        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(now, now, 0));
-        JwtValidateUtil.validateExpiredTime(now, now, skewSeconds);
-        JwtValidateUtil.validateExpiredTime(after, now, 0);
     }
 }

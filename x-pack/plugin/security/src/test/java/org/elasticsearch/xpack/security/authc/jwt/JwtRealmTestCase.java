@@ -213,9 +213,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     }
 
     protected void copyIssuerJwksToRealmConfig(final JwtIssuerAndRealm jwtIssuerAndRealm) throws Exception {
-        if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.getJwkSetPathUri() == null)) {
+        if (JwtRealmInspector.isConfiguredJwkSetPkc(jwtIssuerAndRealm.realm)
+            && (JwtRealmInspector.getJwkSetPathUri(jwtIssuerAndRealm.realm) == null)) {
             LOGGER.trace("Updating JwtRealm PKC public JWKSet local file");
-            final Path path = PathUtils.get(jwtIssuerAndRealm.realm.jwkSetPath);
+            final Path path = PathUtils.get(JwtRealmInspector.getJwkSetPath(jwtIssuerAndRealm.realm));
             Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublic);
         }
 
@@ -424,8 +425,13 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomFrom(this.jwtIssuerAndRealms);
         final JwtRealm jwtRealm = jwtIssuerAndRealm.realm;
         assertThat(jwtRealm, is(notNullValue()));
-        assertThat(jwtRealm.allowedIssuer, is(equalTo(jwtIssuerAndRealm.issuer.issuerClaimValue))); // assert equal, don't print both
-        assertThat(jwtIssuerAndRealm.issuer.audiencesClaimValue.stream().anyMatch(jwtRealm.allowedAudiences::contains), is(true));
+        assertThat(JwtRealmInspector.getAllowedIssuer(jwtRealm), is(equalTo(jwtIssuerAndRealm.issuer.issuerClaimValue))); // assert equal,
+                                                                                                                          // don't print
+                                                                                                                          // both
+        assertThat(
+            jwtIssuerAndRealm.issuer.audiencesClaimValue.stream().anyMatch(JwtRealmInspector.getAllowedAudiences(jwtRealm)::contains),
+            is(true)
+        );
         this.printJwtRealmAndIssuer(jwtIssuerAndRealm);
         return jwtIssuerAndRealm;
     }
@@ -561,7 +567,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 assertThat(new TreeSet<>(Arrays.asList(user.roles())), equalTo(new TreeSet<>(Arrays.asList(authenticatedUser.roles()))));
                 if (jwtRealm.delegatedAuthorizationSupport.hasDelegation()) {
                     assertThat(user.metadata(), is(equalTo(authenticatedUser.metadata()))); // delegated authz returns user's metadata
-                } else if (jwtRealm.populateUserMetadata) {
+                } else if (JwtRealmInspector.shouldPopulateUserMetadata(jwtRealm)) {
                     assertThat(authenticatedUser.metadata(), is(not(anEmptyMap()))); // role mapping with flag true returns non-empty
                 } else {
                     assertThat(authenticatedUser.metadata(), is(anEmptyMap())); // role mapping with flag false returns empty
@@ -613,12 +619,12 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             randomBoolean() ? null : jwk.getKeyID(), // kid
             algJwkPair.alg(), // alg
             randomAlphaOfLengthBetween(10, 20), // jwtID
-            jwtIssuerAndRealm.realm.allowedIssuer, // iss
-            jwtIssuerAndRealm.realm.allowedAudiences, // aud
+            JwtRealmInspector.getAllowedIssuer(jwtIssuerAndRealm.realm), // iss
+            JwtRealmInspector.getAllowedAudiences(jwtIssuerAndRealm.realm), // aud
             randomBoolean() ? null : randomBoolean() ? user.principal() : user.principal() + "_" + randomInt(9), // sub claim value
-            jwtIssuerAndRealm.realm.claimParserPrincipal.getClaimName(), // principal claim name
+            JwtRealmInspector.getPrincipalClaimName(jwtIssuerAndRealm.realm), // principal claim name
             user.principal(), // principal claim value
-            jwtIssuerAndRealm.realm.claimParserGroups.getClaimName(), // group claim name
+            JwtRealmInspector.getGroupsClaimName(jwtIssuerAndRealm.realm), // group claim name
             List.of(user.roles()), // group claim value
             Date.from(now.minusSeconds(60 * randomLongBetween(10, 20))), // auth_time
             Date.from(now.minusSeconds(randomBoolean() ? 0 : 60 * randomLongBetween(5, 10))), // iat
@@ -646,37 +652,37 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + "/"
                 + this.jwtIssuerAndRealms.size()
                 + "]: clientType=["
-                + jwtRealm.clientAuthenticationType
+                + JwtRealmInspector.getClientAuthenticationType(jwtRealm)
                 + "], clientSecret=["
-                + jwtRealm.clientAuthenticationSharedSecret
+                + JwtRealmInspector.getClientAuthenticationSharedSecret(jwtRealm)
                 + "], iss=["
-                + jwtRealm.allowedIssuer
+                + JwtRealmInspector.getAllowedIssuer(jwtRealm)
                 + "], aud="
-                + jwtRealm.allowedAudiences
+                + JwtRealmInspector.getAllowedAudiences(jwtRealm)
                 + ", algsHmac="
-                + jwtRealm.allowedJwksAlgsHmac
+                + JwtRealmInspector.getAllowedJwksAlgsHmac(jwtRealm)
                 + ", filteredHmac="
-                + jwtRealm.contentAndJwksAlgsHmac.jwksAlgs().algs()
+                + JwtRealmInspector.getJwksAlgsHmac(jwtRealm).algs()
                 + ", algsPkc="
-                + jwtRealm.allowedJwksAlgsPkc
+                + JwtRealmInspector.getAllowedJwksAlgsPkc(jwtRealm)
                 + ", filteredPkc="
-                + jwtRealm.getJwksAlgsPkc().jwksAlgs().algs()
+                + JwtRealmInspector.getJwksAlgsPkc(jwtRealm).algs()
                 + ", claimPrincipal=["
-                + jwtRealm.claimParserPrincipal.getClaimName()
+                + JwtRealmInspector.getPrincipalClaimName(jwtRealm)
                 + "], claimGroups=["
-                + jwtRealm.claimParserGroups.getClaimName()
+                + JwtRealmInspector.getGroupsClaimName(jwtRealm)
                 + "], authz=["
                 + jwtRealm.delegatedAuthorizationSupport.hasDelegation()
                 + "], meta=["
-                + jwtRealm.populateUserMetadata
+                + JwtRealmInspector.shouldPopulateUserMetadata(jwtRealm)
                 + "], jwkSetPath=["
-                + jwtRealm.jwkSetPath
+                + JwtRealmInspector.getJwkSetPath(jwtRealm)
                 + "]."
         );
-        for (final JWK jwk : jwtRealm.contentAndJwksAlgsHmac.jwksAlgs().jwks()) {
+        for (final JWK jwk : JwtRealmInspector.getJwksAlgsHmac(jwtRealm).jwks()) {
             LOGGER.info("REALM HMAC: jwk=[{}]", jwk);
         }
-        for (final JWK jwk : jwtRealm.getJwksAlgsPkc().jwksAlgs().jwks()) {
+        for (final JWK jwk : JwtRealmInspector.getJwksAlgsPkc(jwtRealm).jwks()) {
             LOGGER.info("REALM PKC: jwk=[{}]", jwk);
         }
     }

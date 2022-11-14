@@ -14,11 +14,14 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -82,10 +85,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
               - match: {test_type.properties.text.analyzer: whitespace}
             """);
 
-        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
 
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
         assertThat(restTestSuite.getSetupSection(), notNullValue());
         if (includeSetup) {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
@@ -196,10 +200,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
              - match:   { _version: 1}
              - match:   { _source: { foo: bar }}""");
 
-        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
 
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
 
         assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
 
@@ -308,10 +313,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                         params:       { bar: 'xxx' }
             """);
 
-        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
 
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
 
         assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
 
@@ -383,7 +389,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
         Exception e = expectThrows(
             ParsingException.class,
-            () -> ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser)
+            () -> ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser)
         );
         assertThat(e.getMessage(), containsString("duplicate test section"));
     }
@@ -406,10 +412,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
               - match: {test_type.properties.text.analyzer: whitespace}
             """);
 
-        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
 
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
         assertThat(restTestSuite.getTestSections().size(), equalTo(1));
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
@@ -420,6 +427,49 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             containsInAnyOrder("windows95", "debian-5")
         );
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getFeatures(), containsInAnyOrder("skip_os"));
+    }
+
+    public void testParseFileWithSingleTestSection() throws Exception {
+        final Path filePath = createTempFile("tyf", ".yml");
+        Files.writeString(filePath, """
+            ---
+            "Index with ID":
+
+             - do:
+                  index:
+                      index:  test-weird-index-中文
+                      type:   weird.type
+                      id:     1
+                      body:   { foo: bar }
+
+             - is_true:   ok""" + "\n");
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(ExecutableSection.XCONTENT_REGISTRY, "api", filePath);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(
+            restTestSuite.getName(),
+            equalTo(filePath.getFileName().toString().substring(0, filePath.getFileName().toString().lastIndexOf('.')))
+        );
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(true));
+        assertThat(restTestSuite.getFile().get(), equalTo(filePath));
+
+        assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
+
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Index with ID"));
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(2));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
+        DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
+        assertThat(doSection.getCatch(), nullValue());
+        assertThat(doSection.getApiCallSection().getApi(), equalTo("index"));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
+        assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(1), instanceOf(IsTrueAssertion.class));
+        IsTrueAssertion trueAssertion = (IsTrueAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(1);
+        assertThat(trueAssertion.getField(), equalTo("ok"));
     }
 
     public void testAddingDoWithoutSkips() {
@@ -435,6 +485,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite(
             "api",
             "name",
+            Optional.empty(),
             SetupSection.EMPTY,
             TeardownSection.EMPTY,
             Collections.singletonList(section)
@@ -582,7 +633,14 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         }
         sections.add(new ClientYamlTestSection(new XContentLocation(0, 0), "section2", SkipSection.EMPTY, doSections));
 
-        ClientYamlTestSuite testSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY, sections);
+        ClientYamlTestSuite testSuite = new ClientYamlTestSuite(
+            "api",
+            "name",
+            Optional.empty(),
+            SetupSection.EMPTY,
+            TeardownSection.EMPTY,
+            sections
+        );
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertEquals(String.format(Locale.ROOT, """
             api/name:
@@ -714,6 +772,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             }
             default -> throw new UnsupportedOperationException();
         }
-        return new ClientYamlTestSuite("api", "name", setupSection, teardownSection, Collections.singletonList(clientYamlTestSection));
+        return new ClientYamlTestSuite(
+            "api",
+            "name",
+            Optional.empty(),
+            setupSection,
+            teardownSection,
+            Collections.singletonList(clientYamlTestSection)
+        );
     }
 }

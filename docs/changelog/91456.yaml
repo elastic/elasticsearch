@@ -1,0 +1,5 @@
+pr: 91456
+summary: Fix corrupted Metadata from index and alias having the same name
+area: Cluster Coordination
+type: bug
+issues: []

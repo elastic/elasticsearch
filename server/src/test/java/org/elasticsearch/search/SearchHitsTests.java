@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Predicate;
 
 public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchHits> {
@@ -227,9 +226,7 @@ public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchH
     }
 
     public void testToXContent() throws IOException {
-        SearchHit[] hits = new SearchHit[] {
-            new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap()),
-            new SearchHit(2, "id2", Collections.emptyMap(), Collections.emptyMap()) };
+        SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2") };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
@@ -253,10 +250,7 @@ public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchH
 
     public void testFromXContentWithShards() throws IOException {
         for (boolean withExplanation : new boolean[] { true, false }) {
-            final SearchHit[] hits = new SearchHit[] {
-                new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(2, "id2", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(10, "id10", Collections.emptyMap(), Collections.emptyMap()) };
+            final SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2"), new SearchHit(10, "id10") };
 
             for (SearchHit hit : hits) {
                 String index = randomAlphaOfLengthBetween(5, 10);

@@ -45,7 +45,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -360,19 +362,37 @@ public final class TimeSeriesRestDriver {
     }
 
     @SuppressWarnings("unchecked")
-    public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
+    public static Integer getNumberOfPrimarySegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
-        Map<String, Object> responseEntity = XContentHelper.convertToMap(
+        final Map<String, Object> originalResponseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),
             false
         );
-        responseEntity = (Map<String, Object>) responseEntity.get("indices");
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "segments response for {}: {}",
+                index,
+                originalResponseEntity.keySet()
+                    .stream()
+                    .map(key -> key + "=" + originalResponseEntity.get(key))
+                    .collect(Collectors.joining(", ", "{", "}"))
+            );
+        }
+        Map<String, Object> responseEntity = (Map<String, Object>) originalResponseEntity.get("indices");
         responseEntity = (Map<String, Object>) responseEntity.get(index);
         responseEntity = (Map<String, Object>) responseEntity.get("shards");
         List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
-        return (Integer) shards.get(0).get("num_search_segments");
+        // We want to mamke sure to get the primary shard because there is a chance the replica doesn't have data yet:
+        Optional<Map<String, Object>> shardOptional = shards.stream()
+            .filter(shard -> ((Map<String, Object>) shard.get("routing")).get("primary").equals(true))
+            .findAny();
+        if (shardOptional.isPresent()) {
+            return (Integer) shardOptional.get().get("num_search_segments");
+        } else {
+            throw new RuntimeException("No primary shard found for index " + index);
+        }
     }
 
     public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {

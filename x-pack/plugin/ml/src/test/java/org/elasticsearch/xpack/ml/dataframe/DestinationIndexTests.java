@@ -294,22 +294,22 @@ public class DestinationIndexTests extends ESTestCase {
 
         String errorMessage = "";
         switch (expectedError) {
-            case NONE : {
+            case NONE: {
                 break;
             }
-            case INDEX_SIMILARITY : {
+            case INDEX_SIMILARITY: {
                 errorMessage = "cannot merge settings because of differences for index\\.similarity; specified as "
                     + "\\[\\{\"default\":\"(bm25|boolean)\"}] in index \\[index_\\d]; specified as "
                     + "\\[\\{\"default\":\"(bm25|boolean)\"}] in index \\[index_\\d]";
                 break;
             }
-            case INDEX_ANALYSIS_FILTER : {
+            case INDEX_ANALYSIS_FILTER: {
                 errorMessage = "cannot merge settings because of differences for index\\.analysis\\.filter\\.en-stem-filter; specified as "
                     + "\\[\\{\"name\":\"light_english\",\"type\":\"(stemmer|foobarbaz)\"}] in index \\[index_\\d]; specified as"
                     + " \\[\\{\"name\":\"light_english\",\"type\":\"(stemmer|foobarbaz)\"}] in index \\[index_\\d]";
                 break;
             }
-            case INDEX_ANALYSIS_ANALYZER : {
+            case INDEX_ANALYSIS_ANALYZER: {
                 errorMessage = "cannot merge settings because of differences for "
                     + "index\\.analysis\\.analyzer\\.iq_text_delimiter; specified as "
                     + "\\[\\{\"filter\":\\[\"delimiter\",\"cjk_width\",\"lowercase\",(\"asciifolding\",)?"
@@ -318,7 +318,7 @@ public class DestinationIndexTests extends ESTestCase {
                     + "\"en-stop-words-filter\",\"en-stem-filter\"],\"tokenizer\":\"whitespace\"}] in index \\[index_\\d]";
                 break;
             }
-            default : {
+            default: {
                 assertThat("Unexpected error case " + expectedError, Matchers.is(false));
                 break;
             }

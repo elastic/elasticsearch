@@ -31,7 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * This get the stats of the health API from every node
+ * This class collects the stats of the health API from every node
  */
 public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Response> {
 

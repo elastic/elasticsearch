@@ -109,11 +109,12 @@ public class HealthApiStats {
             for (HealthIndicatorResult indicator : response.getIndicators()) {
                 if (indicator.status() != HealthStatus.GREEN) {
                     counters.inc(indicatorLabel.apply(indicator.status(), indicator.name()));
-                    indicators.computeIfAbsent(status, k -> ConcurrentHashMap.newKeySet()).add(indicator.name());
+                    indicators.computeIfAbsent(indicator.status(), k -> ConcurrentHashMap.newKeySet()).add(indicator.name());
                     if (indicator.diagnosisList() != null) {
                         for (Diagnosis diagnosis : indicator.diagnosisList()) {
                             counters.inc(diagnosisLabel.apply(indicator.status(), diagnosis.definition().getUniqueId()));
-                            diagnoses.computeIfAbsent(status, k -> ConcurrentHashMap.newKeySet()).add(diagnosis.definition().getUniqueId());
+                            diagnoses.computeIfAbsent(indicator.status(), k -> ConcurrentHashMap.newKeySet())
+                                .add(diagnosis.definition().getUniqueId());
                         }
                     }
                 }

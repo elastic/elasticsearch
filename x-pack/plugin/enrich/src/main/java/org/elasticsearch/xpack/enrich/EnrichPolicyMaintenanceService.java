@@ -158,20 +158,20 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             .values()
             .stream()
             .filter(indexMetadata -> indexMetadata.getIndex().getName().startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE))
-            .filter(indexMetadata -> shouldRemoveIndex(indexMetadata, policies, inflightPolicyExecutionIndices))
+            .filter(indexMetadata -> indexUsedByPolicy(indexMetadata, policies, inflightPolicyExecutionIndices) == false)
             .map(IndexMetadata::getIndex)
             .map(Index::getName)
             .toArray(String[]::new);
         deleteIndices(removeIndices);
     }
 
-    private boolean shouldRemoveIndex(IndexMetadata indexMetadata, Map<String, EnrichPolicy> policies, Set<String> inflightPolicyIndices) {
+    private boolean indexUsedByPolicy(IndexMetadata indexMetadata, Map<String, EnrichPolicy> policies, Set<String> inflightPolicyIndices) {
         String indexName = indexMetadata.getIndex().getName();
         logger.debug("Checking if should remove enrich index [{}]", indexName);
         // First ignore the index entirely if it is in the inflightPolicyIndices set as it is actively being worked on
         if (inflightPolicyIndices.contains(indexName)) {
             logger.debug("Enrich index [{}] was spared since it is reserved for an active policy execution.", indexName);
-            return false;
+            return true;
         }
         // Find the policy on the index
         MappingMetadata mappingMetadata = indexMetadata.mapping();
@@ -181,20 +181,20 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         if (policyName == null || policies.containsKey(policyName) == false) {
             // No corresponding policy. Index should be marked for removal.
             logger.debug("Enrich index [{}] does not correspond to any existing policy. Found policy name [{}]", indexName, policyName);
-            return true;
+            return false;
         }
         // Check if index is currently linked to an alias
         final String aliasName = EnrichPolicy.getBaseName(policyName);
         Map<String, AliasMetadata> aliasMetadata = indexMetadata.getAliases();
         if (aliasMetadata == null) {
             logger.debug("Enrich index [{}] is not marked as a live index since it has no alias information", indexName);
-            return true;
+            return false;
         }
         boolean hasAlias = aliasMetadata.containsKey(aliasName);
         // Index is not currently published to the enrich alias. Should be marked for removal.
         if (hasAlias == false) {
             logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);
-            return true;
+            return false;
         }
         logger.debug(
             "Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
@@ -202,7 +202,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             policyName,
             aliasName
         );
-        return false;
+        return true;
     }
 
     private void deleteIndices(String[] removeIndices) {

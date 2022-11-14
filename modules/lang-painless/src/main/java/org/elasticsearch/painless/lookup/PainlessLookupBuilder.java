@@ -9,6 +9,7 @@
 package org.elasticsearch.painless.lookup;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
@@ -261,11 +262,11 @@ public final class PainlessLookupBuilder {
     }
 
     private static IllegalArgumentException lookupException(String formatText, Object... args) {
-        return new IllegalArgumentException(String.format(formatText, args));
+        return new IllegalArgumentException(Strings.format(formatText, args));
     }
 
     private static IllegalArgumentException lookupException(Throwable cause, String formatText, Object... args) {
-        return new IllegalArgumentException(String.format(formatText, args), cause);
+        return new IllegalArgumentException(Strings.format(formatText, args), cause);
     }
 
     public void addPainlessClass(Class<?> clazz, Map<Class<?>, Object> annotations) {
@@ -489,7 +490,7 @@ public final class PainlessLookupBuilder {
             augmentedClass = loadClass(
                 classLoader,
                 augmentedCanonicalClassName,
-                () -> String.format(
+                () -> Strings.format(
                     "augmented class [%s] not found for method [[%s], [%s], %s]",
                     augmentedCanonicalClassName, targetCanonicalClassName, methodName, canonicalTypeNameParameters)
             );
@@ -718,7 +719,7 @@ public final class PainlessLookupBuilder {
             augmentedClass = loadClass(
                 classLoader,
                 augmentedCanonicalClassName,
-                () -> String.format(
+                () -> Strings.format(
                     "augmented class [%s] not found for field [[%s], [%s]",
                     augmentedCanonicalClassName, targetCanonicalClassName, fieldName)
             );

@@ -34,7 +34,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -502,20 +504,47 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         throws IOException {
 
         SetOnce<List<?>> result = new SetOnce<>();
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue)));
-        withLuceneIndex(mapperService, iw -> { iw.addDocument(doc.rootDoc()); }, iw -> {
-            SearchLookup lookup = new SearchLookup(
-                mapperService::fieldType,
-                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
-                (ctx, docid) -> Source.fromBytes(doc.source())
-            );
-            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
-            IndexSearcher searcher = newSearcher(iw);
-            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            valueFetcher.setNextReader(context);
-            result.set(valueFetcher.fetchValues(lookup.getSource(context, 0), 0, new ArrayList<>()));
-        });
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
+            iw -> {
+                SearchLookup lookup = new SearchLookup(
+                    mapperService::fieldType,
+                    fieldDataLookup(mapperService),
+                    SourceProvider.fromStoredFields()
+                );
+                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
+                IndexSearcher searcher = newSearcher(iw);
+                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+                Source source = lookup.getSource(context, 0);
+                valueFetcher.setNextReader(context);
+                result.set(valueFetcher.fetchValues(source, 0, new ArrayList<>()));
+            }
+        );
         return result.get();
+    }
+
+    protected final void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher)
+        throws IOException {
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", sourceValue))).rootDoc()); },
+            iw -> {
+                IndexSearcher searcher = newSearcher(iw);
+                MappedFieldType ft = mapperService.fieldType("field");
+                SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic()
+                    ? (ctx, doc) -> { throw new IllegalArgumentException("Can't load source in scripts in synthetic mode"); }
+                    : SourceProvider.fromStoredFields();
+                SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
+                IndexFieldData<?> sfd = ft.fielddataBuilder(
+                    new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                ).build(null, null);
+                LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+                DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
+                sff.setNextDocId(0);
+                assertThat(sff.toScriptDocValues(), dvMatcher);
+            }
+        );
     }
 
     private class UpdateCheck {
@@ -782,11 +811,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(
-            inv -> fieldDataLookup(mapperService.mappingLookup()::sourcePaths).apply(
-                ft,
-                () -> { throw new UnsupportedOperationException(); },
-                fdt
-            )
+            inv -> fieldDataLookup(mapperService).apply(ft, () -> { throw new UnsupportedOperationException(); }, fdt)
         );
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);

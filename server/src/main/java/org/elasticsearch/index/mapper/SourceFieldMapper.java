@@ -275,4 +275,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
     }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

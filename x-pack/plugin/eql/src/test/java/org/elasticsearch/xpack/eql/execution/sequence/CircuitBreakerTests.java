@@ -301,8 +301,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 emptyMap(),
                 new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
                 TimeValue.timeValueDays(5)
-            ),
-            x -> Collections.emptySet()
+            )
         );
         IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, Collections::emptySet);
         EqlSession eqlSession = new EqlSession(

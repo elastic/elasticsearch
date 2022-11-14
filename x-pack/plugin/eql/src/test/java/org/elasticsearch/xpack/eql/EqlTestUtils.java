@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
-import java.util.Collections;
-
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -53,8 +51,7 @@ public final class EqlTestUtils {
         123,
         "",
         new TaskId("test", 123),
-        null,
-        x -> Collections.emptySet()
+        null
     );
 
     public static EqlConfiguration randomConfiguration() {
@@ -71,8 +68,7 @@ public final class EqlTestUtils {
             randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
-            randomTask(),
-            x -> Collections.emptySet()
+            randomTask()
         );
     }
 

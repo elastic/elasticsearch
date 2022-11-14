@@ -44,7 +44,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
         int len = valuesBlock.getPositionCount();
         for (int i = 0; i < len; i++) {
             int groupId = (int) groupIdBlock.getLong(i);
-            s.set(s.getOrDefault(groupId) + 1, groupId);
+            s.increment(1, groupId);
         }
     }
 
@@ -60,7 +60,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
             final LongArrayState s = state;
             for (int i = 0; i < positions; i++) {
                 int groupId = (int) groupIdBlock.getLong(i);
-                s.set(s.getOrDefault(groupId) + tmpState.get(i), groupId);
+                s.increment(tmpState.get(i), groupId);
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

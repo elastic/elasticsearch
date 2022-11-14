@@ -197,7 +197,7 @@ remote 8.x cluster.
 include::{es-repo-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]
 
 IMPORTANT: For the {ref}/eql-search-api.html[EQL search API] specific limitations apply,
-see {ref}/eql-search-api.html#run-eql-search-across-clusters[Run an EQL search across clusters]
+see {ref}/eql.html#run-eql-search-across-clusters[Run an EQL search across clusters]
 
 For example, a local 8.0 cluster can search a remote 7.17 or any remote 8.x
 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8

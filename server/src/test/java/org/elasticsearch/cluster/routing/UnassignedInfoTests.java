@@ -244,6 +244,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         IndexRoutingTable originalRoutingTable,
         IndexRoutingTable finalRoutingTable
     ) {
+        final var shardCountChanged = originalRoutingTable.size() != finalRoutingTable.size()
+            || originalRoutingTable.shard(0).size() != finalRoutingTable.shard(0).size();
+        if (shardCountChanged) {
+            assertThat(expectedUnassignedReason, equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
+        }
+
         boolean foundAnyNodeIds = false;
         for (int shardId = 0; shardId < finalRoutingTable.size(); shardId++) {
             final var previousShardRoutingTable = originalRoutingTable.shard(shardId);
@@ -261,13 +267,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 final var lastAllocatedNodeId = shard.unassignedInfo().getLastAllocatedNodeId();
                 if (lastAllocatedNodeId == null) {
                     // restoring an index may change the number of shards/replicas so no guarantee that lastAllocatedNodeId is populated
-                    assertThat(expectedUnassignedReason, equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
+                    assertTrue(shardCountChanged);
                 } else {
                     foundAnyNodeIds = true;
                     assertThat(previousNodes, hasItem(lastAllocatedNodeId));
                 }
             }
         }
+
         // both original and restored index must have at least one shard tho
         assertTrue(foundAnyNodeIds);
     }

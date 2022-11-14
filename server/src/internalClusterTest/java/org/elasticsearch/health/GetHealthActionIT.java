@@ -219,8 +219,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     .toList();
                 Counters mergedCounters = Counters.merge(countersPerNode);
                 assertThat(mergedCounters.get("invocations.total"), equalTo(4L));
-                assertThat(mergedCounters.get("invocations.verbose_true"), equalTo(0L));
-                assertThat(mergedCounters.get("invocations.verbose_false"), equalTo(0L));
+                assertThat(mergedCounters.get("invocations.verbose_true"), equalTo(2L));
+                assertThat(mergedCounters.get("invocations.verbose_false"), equalTo(2L));
                 assertThat(
                     mergedCounters.get("invocations.verbose_true") + mergedCounters.get("invocations.verbose_false"),
                     equalTo(mergedCounters.get("invocations.total"))

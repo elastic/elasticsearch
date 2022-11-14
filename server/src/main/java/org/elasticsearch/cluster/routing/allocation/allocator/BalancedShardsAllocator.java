@@ -89,7 +89,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
         1.0f,
-        0.0f,
+        1.0f,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -548,31 +548,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 );
                             }
                             break;
-                        }
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(
-                                "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}] delta: [{}]",
-                                maxNode.getNodeId(),
-                                weights[highIdx],
-                                minNode.getNodeId(),
-                                weights[lowIdx],
-                                delta
-                            );
-                        }
-                        if (delta <= 1.0f) {
-                            /*
-                             * prevent relocations that only swap the weights of the two nodes. a relocation must bring us closer to the
-                             * balance if we only achieve the same delta the relocation is useless
-                             *
-                             * NB this comment above was preserved from an earlier version but doesn't obviously describe the code today. We
-                             * already know that lessThan(delta, threshold) == false and threshold defaults to 1.0, so by default we never
-                             * hit this case anyway.
-                             */
-                            logger.trace(
-                                "Couldn't find shard to relocate from node [{}] to node [{}]",
-                                maxNode.getNodeId(),
-                                minNode.getNodeId()
-                            );
                         } else if (tryRelocateShard(minNode, maxNode, index)) {
                             /*
                              * TODO we could be a bit smarter here, we don't need to fully sort necessarily

@@ -100,7 +100,8 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                         .map(
                             indicator -> Iterators.concat(
                                 // having the indicator name printed here prevents us from flat mapping all
-                                // indicators however the outcome of chunked indicator results is the same
+                                // indicators however the affected resources which are the O(indices) fields are
+                                // flat mapped over all diagnoses within the indicator
                                 Iterators.single((ToXContent) (builder, params) -> builder.field(indicator.name())),
                                 indicator.toXContentChunked()
                             )

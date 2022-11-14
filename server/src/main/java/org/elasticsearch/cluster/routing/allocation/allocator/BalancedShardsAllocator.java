@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -806,7 +807,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * process. In short, this method recreates the status-quo in the cluster.
          */
         private Map<String, ModelNode> buildModelFromAssigned() {
-            Map<String, ModelNode> nodes = new HashMap<>();
+            Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
                 ModelNode node = new ModelNode(rn);
                 nodes.put(rn.nodeId(), node);
@@ -1096,12 +1097,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static class ModelNode implements Iterable<ModelIndex> {
-        private final Map<String, ModelIndex> indices = new HashMap<>();
-        private int numShards = 0;
         private final RoutingNode routingNode;
+        private final Map<String, ModelIndex> indices;
+        private int numShards = 0;
 
         ModelNode(RoutingNode routingNode) {
             this.routingNode = routingNode;
+            this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
         }
 
         public ModelIndex getIndex(String indexName) {

@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation testArtifact(project(xpackModule('core')))
   javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   javaRestTestImplementation "com.google.guava:guava:${versions.jimfs_guava}"
 }
@@ -29,10 +29,8 @@ tasks.register("copyIdpFiles", Sync) {
   }
 }
 
-project.sourceSets.javaRestTest.output.dir(outputDir, builtBy: [copyIdpFiles])
-
 tasks.named("javaRestTest").configure {
-  dependsOn tasks.named("copyIdpFiles")
+  classpath += files(tasks.named("copyIdpFiles"))
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
 }
 

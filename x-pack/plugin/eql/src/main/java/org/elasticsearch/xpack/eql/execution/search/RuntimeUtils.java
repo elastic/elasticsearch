@@ -22,13 +22,17 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
+import org.elasticsearch.xpack.eql.querydsl.container.CompositeAggRef;
 import org.elasticsearch.xpack.eql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.eql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.HitExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
@@ -123,6 +127,17 @@ public final class RuntimeUtils {
             extractors.add(createExtractor(fe, cfg));
         }
         return extractors;
+    }
+
+    public static BucketExtractor createBucketExtractor(FieldExtraction ref) {
+        if (ref instanceof CompositeAggRef aggRef) {
+            return new CompositeKeyExtractor(aggRef.key(), false);
+        } else if (ref instanceof ComputedRef computedRef) {
+            Pipe proc = computedRef.processor();
+            String hitName = Expressions.name(proc.expression());
+            return new ComputingExtractor(proc.asProcessor(), hitName);
+        }
+        throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }
 
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
@@ -224,6 +239,17 @@ public final class RuntimeUtils {
 
             source.query(bool);
         }
+        return source;
+    }
+
+    public static SearchSourceBuilder wrapAsFilter(SearchSourceBuilder source) {
+        QueryBuilder query = source.query();
+        BoolQueryBuilder bool = boolQuery();
+        if (query != null) {
+            bool.filter(query);
+        }
+
+        source.query(bool);
         return source;
     }
 }

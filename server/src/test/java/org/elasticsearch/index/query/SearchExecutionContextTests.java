@@ -104,7 +104,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testFailIfFieldMappingNotFound() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));

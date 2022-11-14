@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
@@ -107,16 +108,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float writeLoadBalanceFactor;
     private volatile float threshold;
 
+    private final WriteLoadForecaster writeLoadForecaster;
+
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), WriteLoadForecaster.DEFAULT);
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
+    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
         watchSetting(settings, clusterSettings, INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
         watchSetting(settings, clusterSettings, SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
         watchSetting(settings, clusterSettings, WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
         watchSetting(settings, clusterSettings, THRESHOLD_SETTING, value -> this.threshold = value);
+        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
@@ -133,7 +137,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return;
         }
         final WeightFunction weightFunction = new WeightFunction(indexBalanceFactor, shardBalanceFactor, writeLoadBalanceFactor);
-        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
@@ -142,7 +146,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
         WeightFunction weightFunction = new WeightFunction(indexBalanceFactor, shardBalanceFactor, writeLoadBalanceFactor);
-        Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         if (shard.unassigned()) {
@@ -269,8 +273,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * A {@link Balancer}
      */
     public static class Balancer {
-        private final Logger logger;
         private final Map<String, ModelNode> nodes;
+        private final WriteLoadForecaster writeLoadForecaster;
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
         private final WeightFunction weight;
@@ -281,23 +285,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final double avgWriteLoadPerNode;
         private final NodeSorter sorter;
 
-        public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
-            this.logger = logger;
+        public Balancer(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation, WeightFunction weight, float threshold) {
+            this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
             this.weight = weight;
             this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
-            avgWriteLoadPerNode = getTotalWriteLoad(metadata) / routingNodes.size();
+            avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
         }
 
-        private static double getTotalWriteLoad(Metadata metadata) {
+        private static double getTotalWriteLoad(WriteLoadForecaster writeLoadForecaster, Metadata metadata) {
             double writeLoad = 0.0;
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
-                writeLoad += indexMetadata.getForecastedWriteLoad().orElse(0.0);
+                writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
             }
             return writeLoad;
         }
@@ -392,7 +396,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Makes a decision about moving a single shard to a different node to form a more
-         * optimally balanced cluster.  This method is invoked from the cluster allocation
+         * optimally balanced cluster. This method is invoked from the cluster allocation
          * explain API only.
          */
         private MoveDecision decideRebalance(final ShardRouting shard) {
@@ -736,13 +740,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Makes a decision on whether to move a started shard to another node.  The following rules apply
+         * Makes a decision on whether to move a started shard to another node. The following rules apply
          * to the {@link MoveDecision} return object:
          *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
-         *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES.  All other fields in the object will be null.
+         *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES. All other fields in the object will be null.
          *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getAllocationDecision()} will be
-         *      populated with the decision of moving to another node.  If {@link MoveDecision#forceMove()} ()} returns {@code true}, then
+         *      populated with the decision of moving to another node. If {@link MoveDecision#forceMove()} ()} returns {@code true}, then
          *      {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
@@ -843,7 +847,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Map<String, ModelNode> buildModelFromAssigned() {
             Map<String, ModelNode> nodes = new HashMap<>();
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(metadata, rn);
+                ModelNode node = new ModelNode(writeLoadForecaster, metadata, rn);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -985,9 +989,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Make a decision for allocating an unassigned shard.  This method returns a two values in a tuple: the
+         * Make a decision for allocating an unassigned shard. This method returns a two values in a tuple: the
          * first value is the {@link Decision} taken to allocate the unassigned shard, the second value is the
-         * {@link ModelNode} representing the node that the shard should be assigned to.  If the decision returned
+         * {@link ModelNode} representing the node that the shard should be assigned to. If the decision returned
          * is of type {@link Type#NO}, then the assigned node will be null.
          */
         private AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard) {
@@ -1139,10 +1143,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private double writeLoad = 0.0;
+        private final WriteLoadForecaster writeLoadForecaster;
         private final Metadata metadata;
         private final RoutingNode routingNode;
 
-        ModelNode(Metadata metadata, RoutingNode routingNode) {
+        ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, RoutingNode routingNode) {
+            this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
             this.routingNode = routingNode;
         }
@@ -1182,7 +1188,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
-            writeLoad += metadata.index(shard.index()).getForecastedWriteLoad().orElse(0.0);
+            writeLoad += writeLoadForecaster.getForecastedWriteLoad(metadata.index(shard.index())).orElse(0.0);
             numShards++;
         }
 
@@ -1194,7 +1200,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
-            writeLoad -= metadata.index(shard.index()).getForecastedWriteLoad().orElse(0.0);
+            writeLoad -= writeLoadForecaster.getForecastedWriteLoad(metadata.index(shard.index())).orElse(0.0);
             numShards--;
         }
 

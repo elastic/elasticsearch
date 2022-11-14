@@ -196,10 +196,9 @@ public class HealthIndicatorResultTests extends ESTestCase {
         diagnosisList.add(diagnosis2);
         HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);
 
-        // expecting 8 chunks
-        // -> each Diagnosis yields 3 chunks => 6 chunks from both diagnosis
+        // -> each Diagnosis yields 5 chunks => 10 chunks from both diagnosis
         // -> HealthIndicatorResult surrounds the diagnosis list by 2 chunks
-        int chunksExpected = 8;
+        int chunksExpected = 12;
         var iterator = result.toXContentChunked();
         int chunksSeen = 0;
         while (iterator.hasNext()) {

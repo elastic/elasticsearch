@@ -60,7 +60,7 @@ public interface ClusterPlugin {
         return Collections.emptyMap();
     }
 
-    default Collection<WriteLoadForecaster> createWriteLoadHandler(
+    default Collection<WriteLoadForecaster> createWriteLoadForecasters(
         ThreadPool threadPool,
         Settings settings,
         ClusterSettings clusterSettings

@@ -1244,7 +1244,7 @@ public class Node implements Closeable {
     private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         final List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
         final List<WriteLoadForecaster> writeLoadForecasters = clusterPlugins.stream()
-            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadHandler(threadPool, settings, clusterSettings).stream())
+            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream())
             .toList();
 
         if (writeLoadForecasters.isEmpty()) {

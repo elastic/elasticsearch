@@ -50,7 +50,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     }
 
     @Override
-    public Collection<WriteLoadForecaster> createWriteLoadHandler(
+    public Collection<WriteLoadForecaster> createWriteLoadForecasters(
         ThreadPool threadPool,
         Settings settings,
         ClusterSettings clusterSettings

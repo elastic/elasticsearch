@@ -16,20 +16,28 @@ import org.elasticsearch.script.field.Field;
 
 import java.util.Iterator;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+
 public abstract class DenseVectorDocValuesField extends AbstractScriptFieldFactory<DenseVector>
     implements
         Field<DenseVector>,
         DocValuesScriptFieldFactory,
         DenseVectorScriptDocValues.DenseVectorSupplier {
     protected final String name;
+    protected final ElementType elementType;
 
-    public DenseVectorDocValuesField(String name) {
+    public DenseVectorDocValuesField(String name, ElementType elementType) {
         this.name = name;
+        this.elementType = elementType;
     }
 
     @Override
     public String getName() {
         return name;
+    }
+
+    public ElementType getElementType() {
+        return elementType;
     }
 
     @Override

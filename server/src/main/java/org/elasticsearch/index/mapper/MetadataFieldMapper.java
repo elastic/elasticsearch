@@ -155,7 +155,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new MapperParsingException(
-            "Field [" + name() + "] is a metadata field and cannot be added inside" + " a document. Use the index API request parameters."
+            "Field [" + name() + "] is a metadata field and cannot be added inside a document. Use the index API request parameters."
         );
     }
 
@@ -173,4 +173,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         // do nothing
     }
 
+    @Override
+    public abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader();
 }

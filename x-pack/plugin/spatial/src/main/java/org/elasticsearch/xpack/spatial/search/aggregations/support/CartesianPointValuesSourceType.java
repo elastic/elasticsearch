@@ -71,7 +71,7 @@ public class CartesianPointValuesSourceType implements Writeable, ValuesSourceTy
             public SortedNumericDocValues sortedNumericDocValues(LeafReaderContext context) {
                 final long xi = XYEncodingUtils.encode((float) missing.getX());
                 final long yi = XYEncodingUtils.encode((float) missing.getY());
-                long encoded = yi | xi << 32;
+                long encoded = (yi & 0xFFFFFFFFL) | xi << 32;
                 return MissingValues.replaceMissing(pointValuesSource.sortedNumericDocValues(context), encoded);
             }
 

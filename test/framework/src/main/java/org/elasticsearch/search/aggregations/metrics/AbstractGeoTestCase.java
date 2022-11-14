@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -20,7 +19,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -33,14 +31,13 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
-    protected static final String SINGLE_VALUED_FIELD_NAME = "geo_value";
-    protected static final String MULTI_VALUED_FIELD_NAME = "geo_values";
+    protected static final String SINGLE_VALUED_FIELD_NAME = "spatial_value";
+    protected static final String MULTI_VALUED_FIELD_NAME = "spatial_values";
     protected static final String NUMBER_FIELD_NAME = "l_values";
     protected static final String UNMAPPED_IDX_NAME = "idx_unmapped";
     protected static final String IDX_NAME = "idx";
@@ -48,15 +45,29 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static final String DATELINE_IDX_NAME = "dateline_idx";
     protected static final String HIGH_CARD_IDX_NAME = "high_card_idx";
     protected static final String IDX_ZERO_NAME = "idx_zero";
+    protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
+    // These fields need to be static because they are shared between test instances using SuiteScopeTestCase
     protected static int numDocs;
     protected static int numUniqueGeoPoints;
-    protected static GeoPoint[] singleValues, multiValues;
-    protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid,
+    protected static SpatialPoint[] singleValues, multiValues;
+    protected static SpatialPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid,
         unmappedCentroid;
     protected static Map<String, Integer> expectedDocCountsForGeoHash = null;
-    protected static Map<String, GeoPoint> expectedCentroidsForGeoHash = null;
-    protected static final double GEOHASH_TOLERANCE = 1E-5D;
+    protected static Map<String, SpatialPoint> expectedCentroidsForGeoHash = null;
+
+    // These methods allow various implementations of SpatialPoint to be tested (eg. GeoPoint and CartesianPoint)
+    protected abstract String fieldTypeName();
+
+    protected abstract SpatialPoint makePoint(double x, double y);
+
+    protected abstract SpatialPoint randomPoint();
+
+    protected abstract void resetX(SpatialPoint point, double x);
+
+    protected abstract void resetY(SpatialPoint point, double y);
+
+    protected abstract SpatialPoint reset(SpatialPoint point, double x, double y);
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -64,9 +75,9 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         assertAcked(
             prepareCreate(IDX_NAME).setMapping(
                 SINGLE_VALUED_FIELD_NAME,
-                "type=geo_point",
+                "type=" + fieldTypeName(),
                 MULTI_VALUED_FIELD_NAME,
-                "type=geo_point",
+                "type=" + fieldTypeName(),
                 NUMBER_FIELD_NAME,
                 "type=long",
                 "tag",
@@ -74,37 +85,37 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             )
         );
 
-        singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
-        singleBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
-        multiTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
-        multiBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
-        singleCentroid = new GeoPoint(0, 0);
-        multiCentroid = new GeoPoint(0, 0);
-        unmappedCentroid = new GeoPoint(0, 0);
+        singleTopLeft = makePoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+        singleBottomRight = makePoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+        multiTopLeft = makePoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+        multiBottomRight = makePoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+        singleCentroid = makePoint(0, 0);
+        multiCentroid = makePoint(0, 0);
+        unmappedCentroid = makePoint(0, 0);
 
         numDocs = randomIntBetween(6, 20);
         numUniqueGeoPoints = randomIntBetween(1, numDocs);
         expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
         expectedCentroidsForGeoHash = new HashMap<>(numDocs * 2);
 
-        singleValues = new GeoPoint[numUniqueGeoPoints];
+        singleValues = new SpatialPoint[numUniqueGeoPoints];
         for (int i = 0; i < singleValues.length; i++) {
-            singleValues[i] = RandomGeoGenerator.randomPoint(random());
+            singleValues[i] = randomPoint();
             updateBoundsTopLeft(singleValues[i], singleTopLeft);
             updateBoundsBottomRight(singleValues[i], singleBottomRight);
         }
 
-        multiValues = new GeoPoint[numUniqueGeoPoints];
+        multiValues = new SpatialPoint[numUniqueGeoPoints];
         for (int i = 0; i < multiValues.length; i++) {
-            multiValues[i] = RandomGeoGenerator.randomPoint(random());
+            multiValues[i] = randomPoint();
             updateBoundsTopLeft(multiValues[i], multiTopLeft);
             updateBoundsBottomRight(multiValues[i], multiBottomRight);
         }
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
-        GeoPoint singleVal;
-        final GeoPoint[] multiVal = new GeoPoint[2];
+        SpatialPoint singleVal;
+        final SpatialPoint[] multiVal = new SpatialPoint[2];
         double newMVLat, newMVLon;
         for (int i = 0; i < numDocs; i++) {
             singleVal = singleValues[i % numUniqueGeoPoints];
@@ -114,15 +125,15 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                 client().prepareIndex(IDX_NAME)
                     .setSource(
                         jsonBuilder().startObject()
-                            .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
+                            .array(SINGLE_VALUED_FIELD_NAME, singleVal.getX(), singleVal.getY())
                             .startArray(MULTI_VALUED_FIELD_NAME)
                             .startArray()
-                            .value(multiVal[0].lon())
-                            .value(multiVal[0].lat())
+                            .value(multiVal[0].getX())
+                            .value(multiVal[0].getY())
                             .endArray()
                             .startArray()
-                            .value(multiVal[1].lon())
-                            .value(multiVal[1].lat())
+                            .value(multiVal[1].getX())
+                            .value(multiVal[1].getY())
                             .endArray()
                             .endArray()
                             .field(NUMBER_FIELD_NAME, i)
@@ -130,26 +141,28 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                             .endObject()
                     )
             );
-            singleCentroid = singleCentroid.reset(
-                singleCentroid.lat() + (singleVal.lat() - singleCentroid.lat()) / (i + 1),
-                singleCentroid.lon() + (singleVal.lon() - singleCentroid.lon()) / (i + 1)
+            singleCentroid = reset(
+                singleCentroid,
+                singleCentroid.getX() + (singleVal.getX() - singleCentroid.getX()) / (i + 1),
+                singleCentroid.getY() + (singleVal.getY() - singleCentroid.getY()) / (i + 1)
             );
-            newMVLat = (multiVal[0].lat() + multiVal[1].lat()) / 2d;
-            newMVLon = (multiVal[0].lon() + multiVal[1].lon()) / 2d;
-            multiCentroid = multiCentroid.reset(
-                multiCentroid.lat() + (newMVLat - multiCentroid.lat()) / (i + 1),
-                multiCentroid.lon() + (newMVLon - multiCentroid.lon()) / (i + 1)
+            newMVLat = (multiVal[0].getY() + multiVal[1].getY()) / 2d;
+            newMVLon = (multiVal[0].getX() + multiVal[1].getX()) / 2d;
+            multiCentroid = reset(
+                multiCentroid,
+                multiCentroid.getX() + (newMVLon - multiCentroid.getX()) / (i + 1),
+                multiCentroid.getY() + (newMVLat - multiCentroid.getY()) / (i + 1)
             );
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()));
 
         assertAcked(
             prepareCreate(DATELINE_IDX_NAME).setMapping(
                 SINGLE_VALUED_FIELD_NAME,
-                "type=geo_point",
+                "type=" + fieldTypeName(),
                 MULTI_VALUED_FIELD_NAME,
-                "type=geo_point",
+                "type=" + fieldTypeName(),
                 NUMBER_FIELD_NAME,
                 "type=long",
                 "tag",
@@ -157,19 +170,19 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             )
         );
 
-        GeoPoint[] geoValues = new GeoPoint[5];
-        geoValues[0] = new GeoPoint(38, 178);
-        geoValues[1] = new GeoPoint(12, -179);
-        geoValues[2] = new GeoPoint(-24, 170);
-        geoValues[3] = new GeoPoint(32, -175);
-        geoValues[4] = new GeoPoint(-11, 178);
+        SpatialPoint[] geoValues = new SpatialPoint[5];
+        geoValues[0] = makePoint(178, 38);
+        geoValues[1] = makePoint(-179, 12);
+        geoValues[2] = makePoint(170, -24);
+        geoValues[3] = makePoint(-175, 32);
+        geoValues[4] = makePoint(178, -11);
 
         for (int i = 0; i < 5; i++) {
             builders.add(
                 client().prepareIndex(DATELINE_IDX_NAME)
                     .setSource(
                         jsonBuilder().startObject()
-                            .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].lon(), geoValues[i].lat())
+                            .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].getX(), geoValues[i].getY())
                             .field(NUMBER_FIELD_NAME, i)
                             .field("tag", "tag" + i)
                             .endObject()
@@ -180,9 +193,9 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
                 .setMapping(
                     SINGLE_VALUED_FIELD_NAME,
-                    "type=geo_point",
+                    "type=" + fieldTypeName(),
                     MULTI_VALUED_FIELD_NAME,
-                    "type=geo_point",
+                    "type=" + fieldTypeName(),
                     NUMBER_FIELD_NAME,
                     "type=long,store=true",
                     "tag",
@@ -196,15 +209,15 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                 client().prepareIndex(HIGH_CARD_IDX_NAME)
                     .setSource(
                         jsonBuilder().startObject()
-                            .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
+                            .array(SINGLE_VALUED_FIELD_NAME, singleVal.getX(), singleVal.getY())
                             .startArray(MULTI_VALUED_FIELD_NAME)
                             .startArray()
-                            .value(multiValues[i % numUniqueGeoPoints].lon())
-                            .value(multiValues[i % numUniqueGeoPoints].lat())
+                            .value(multiValues[i % numUniqueGeoPoints].getX())
+                            .value(multiValues[i % numUniqueGeoPoints].getY())
                             .endArray()
                             .startArray()
-                            .value(multiValues[(i + 1) % numUniqueGeoPoints].lon())
-                            .value(multiValues[(i + 1) % numUniqueGeoPoints].lat())
+                            .value(multiValues[(i + 1) % numUniqueGeoPoints].getX())
+                            .value(multiValues[(i + 1) % numUniqueGeoPoints].getY())
                             .endArray()
                             .endArray()
                             .field(NUMBER_FIELD_NAME, i)
@@ -219,7 +232,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             client().prepareIndex(IDX_ZERO_NAME)
                 .setSource(jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject())
         );
-        assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -250,8 +263,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         assertThat(totalHits, equalTo(2000L));
     }
 
-    private void updateGeohashBucketsCentroid(final GeoPoint location) {
-        String hash = Geohash.stringEncode(location.lon(), location.lat(), Geohash.PRECISION);
+    private void updateGeohashBucketsCentroid(final SpatialPoint location) {
+        String hash = Geohash.stringEncode(location.getX(), location.getY(), Geohash.PRECISION);
         for (int precision = Geohash.PRECISION; precision > 0; --precision) {
             final String h = hash.substring(0, precision);
             expectedDocCountsForGeoHash.put(h, expectedDocCountsForGeoHash.getOrDefault(h, 0) + 1);
@@ -259,46 +272,32 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         }
     }
 
-    private GeoPoint updateHashCentroid(String hash, final GeoPoint location) {
-        GeoPoint centroid = expectedCentroidsForGeoHash.getOrDefault(hash, null);
+    private SpatialPoint updateHashCentroid(String hash, final SpatialPoint location) {
+        SpatialPoint centroid = expectedCentroidsForGeoHash.getOrDefault(hash, null);
         if (centroid == null) {
-            return new GeoPoint(location.lat(), location.lon());
+            return makePoint(location.getX(), location.getY());
         }
         final int docCount = expectedDocCountsForGeoHash.get(hash);
-        final double newLon = centroid.lon() + (location.lon() - centroid.lon()) / docCount;
-        final double newLat = centroid.lat() + (location.lat() - centroid.lat()) / docCount;
-        return centroid.reset(newLat, newLon);
+        final double newLon = centroid.getX() + (location.getX() - centroid.getX()) / docCount;
+        final double newLat = centroid.getY() + (location.getY() - centroid.getY()) / docCount;
+        return reset(centroid, newLon, newLat);
     }
 
-    private void updateBoundsBottomRight(GeoPoint geoPoint, GeoPoint currentBound) {
-        if (geoPoint.lat() < currentBound.lat()) {
-            currentBound.resetLat(geoPoint.lat());
+    private void updateBoundsBottomRight(SpatialPoint point, SpatialPoint currentBound) {
+        if (point.getY() < currentBound.getY()) {
+            resetY(currentBound, point.getY());
         }
-        if (geoPoint.lon() > currentBound.lon()) {
-            currentBound.resetLon(geoPoint.lon());
-        }
-    }
-
-    private void updateBoundsTopLeft(GeoPoint geoPoint, GeoPoint currentBound) {
-        if (geoPoint.lat() > currentBound.lat()) {
-            currentBound.resetLat(geoPoint.lat());
-        }
-        if (geoPoint.lon() < currentBound.lon()) {
-            currentBound.resetLon(geoPoint.lon());
+        if (point.getX() > currentBound.getX()) {
+            resetX(currentBound, point.getX());
         }
     }
 
-    protected void assertSameCentroid(SpatialPoint centroid, SpatialPoint expectedCentroid) {
-        String[] names = centroid.getClass() == GeoPoint.class ? new String[] { "longitude", "latitude" } : new String[] { "x", "y" };
-        assertThat(
-            "Mismatching value for '" + names[0] + "' field of centroid",
-            centroid.getX(),
-            closeTo(expectedCentroid.getX(), GEOHASH_TOLERANCE)
-        );
-        assertThat(
-            "Mismatching value for '" + names[1] + "' field of centroid",
-            centroid.getY(),
-            closeTo(expectedCentroid.getY(), GEOHASH_TOLERANCE)
-        );
+    private void updateBoundsTopLeft(SpatialPoint point, SpatialPoint currentBound) {
+        if (point.getY() > currentBound.getY()) {
+            resetY(currentBound, point.getY());
+        }
+        if (point.getX() < currentBound.getX()) {
+            resetX(currentBound, point.getX());
+        }
     }
 }

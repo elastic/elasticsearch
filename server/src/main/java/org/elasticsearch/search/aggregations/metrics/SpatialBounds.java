@@ -8,9 +8,21 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
  * An aggregation that computes a bounding box in which all documents of the current bucket are.
  */
-public interface GeoBounds extends SpatialBounds<GeoPoint> {}
+public interface SpatialBounds<T extends SpatialPoint> extends Aggregation {
+
+    /**
+     * Get the top-left location of the bounding box.
+     */
+    T topLeft();
+
+    /**
+     * Get the bottom-right location of the bounding box.
+     */
+    T bottomRight();
+}

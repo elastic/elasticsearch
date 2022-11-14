@@ -515,7 +515,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 return null;
             }
             final var previousNodes = new ArrayList<String>(previousShardRoutingTable.size());
-            previousNodes.add(primaryNode);
+            previousNodes.add(primaryNode); // primary is recreated first, so re-use its location
             for (final var assignedShard : previousShardRoutingTable.assignedShards()) {
                 final var currentNodeId = assignedShard.currentNodeId();
                 assert currentNodeId != null;

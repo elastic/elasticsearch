@@ -273,6 +273,13 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                     assertThat(previousNodes, hasItem(lastAllocatedNodeId));
                 }
             }
+            if (shardCountChanged == false) {
+                assertNotNull(previousShardRoutingTable);
+                assertThat(
+                    shardRoutingTable.primaryShard().unassignedInfo().getLastAllocatedNodeId(),
+                    equalTo(previousShardRoutingTable.primaryShard().currentNodeId())
+                );
+            }
         }
 
         // both original and restored index must have at least one shard tho

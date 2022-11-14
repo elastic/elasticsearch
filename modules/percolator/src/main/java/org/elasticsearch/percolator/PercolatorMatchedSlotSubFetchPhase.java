@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,6 +68,11 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
                 this.ctx = readerContext;
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override

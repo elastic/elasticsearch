@@ -768,4 +768,21 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
     }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromSource() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createMapperService(
+            syntheticSourceFieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
+        );
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
 }

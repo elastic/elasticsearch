@@ -801,7 +801,7 @@ The EQL search API supports <<modules-cross-cluster-search,cross-cluster
 search>> with <<remote-clusters,remote clusters>> v 7.17.8+,
 and limited to <<ccs-supported-configurations>>.
 However, if local node has version prior to 7.17.8 or 8.5.2, <<remote-clusters,remote clusters>>
-must use the same {es} version to run <<modules-cross-cluster-search,cross-cluster
+must be the same {es} version to run <<modules-cross-cluster-search,cross-cluster
 search>>.
 
 The following <<cluster-update-settings,cluster update settings>> request

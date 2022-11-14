@@ -102,6 +102,10 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
     }
 
     private static NodesRemovalPrevalidation.Result randomResult() {
-        return new NodesRemovalPrevalidation.Result(randomBoolean(), randomAlphaOfLengthBetween(0, 1000));
+        return new NodesRemovalPrevalidation.Result(
+            randomBoolean(),
+            randomFrom(NodesRemovalPrevalidation.Reason.values()),
+            randomAlphaOfLengthBetween(0, 1000)
+        );
     }
 }

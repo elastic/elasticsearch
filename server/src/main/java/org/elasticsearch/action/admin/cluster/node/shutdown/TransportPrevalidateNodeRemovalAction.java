@@ -165,7 +165,14 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
                 List<NodeResult> nodesResults = requestNodes.stream()
-                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
+                    .map(
+                        dn -> new NodeResult(
+                            dn.getName(),
+                            dn.getId(),
+                            dn.getExternalId(),
+                            new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_INDICES, "")
+                        )
+                    )
                     .toList();
                 listener.onResponse(
                     new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(true, "cluster status is not RED", nodesResults))
@@ -186,7 +193,14 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .collect(Collectors.toSet());
                 if (redNonSSIndices.isEmpty()) {
                     List<NodeResult> nodeResults = requestNodes.stream()
-                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
+                        .map(
+                            dn -> new NodeResult(
+                                dn.getName(),
+                                dn.getId(),
+                                dn.getExternalId(),
+                                new Result(true, NodesRemovalPrevalidation.Reason.RED_INDICES_ARE_SEARCHABLE_SNAPSHOT, "")
+                            )
+                        )
                         .toList();
                     listener.onResponse(
                         new PrevalidateNodeRemovalResponse(
@@ -237,10 +251,11 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         for (NodeCheckShardsOnDataPathResponse nodeResponse : response.getNodes()) {
             Result result;
             if (nodeResponse.getShardIds().isEmpty()) {
-                result = new Result(true, "");
+                result = new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_INDICES, "");
             } else {
                 result = new Result(
                     false,
+                    NodesRemovalPrevalidation.Reason.MAY_CONTAIN_RED_SHARD_COPY,
                     Strings.format("node contains copies of the following red shards: %s", nodeResponse.getShardIds())
                 );
             }
@@ -260,31 +275,36 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     node.getName(),
                     node.getId(),
                     node.getExternalId(),
-                    new Result(false, Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage()))
+                    new Result(
+                        false,
+                        NodesRemovalPrevalidation.Reason.NO_RESPONSE_FROM_NODE,
+                        Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage())
+                    )
                 )
             );
         }
         // determine overall result from the node results.
-        Result prevalidationResult;
+
         Set<String> unsafeNodeRemovals = response.getNodes()
             .stream()
             .filter(r -> r.getShardIds().isEmpty() == false)
             .map(r -> r.getNode().getId())
             .collect(Collectors.toSet());
         if (unsafeNodeRemovals.isEmpty() == false) {
-            prevalidationResult = new Result(
+            return new NodesRemovalPrevalidation(
                 false,
-                Strings.format("nodes with the following IDs contain copies of red shards: %s", unsafeNodeRemovals)
+                Strings.format("nodes with the following IDs contain copies of red shards: %s", unsafeNodeRemovals),
+                nodeResults
             );
-        } else if (response.failures().isEmpty() == false) {
-            Set<String> unknownNodeRemovals = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.toSet());
-            prevalidationResult = new Result(
-                false,
-                Strings.format("cannot prevalidate removal of nodes with the following IDs: %s", unknownNodeRemovals)
-            );
-        } else {
-            prevalidationResult = new Result(true, "");
         }
-        return new NodesRemovalPrevalidation(prevalidationResult.isSafe(), prevalidationResult.message(), nodeResults);
+        if (response.failures().isEmpty() == false) {
+            Set<String> unknownNodeRemovals = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.toSet());
+            return new NodesRemovalPrevalidation(
+                false,
+                Strings.format("cannot prevalidate removal of nodes with the following IDs: %s", unknownNodeRemovals),
+                nodeResults
+            );
+        }
+        return new NodesRemovalPrevalidation(true, "", nodeResults);
     }
 }

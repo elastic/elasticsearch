@@ -405,12 +405,7 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true,
     "invocations": {
-      "total": 0,
-      "verbose_true": 0,
-      "verbose_false": 0
-    },
-    "statuses": {
-      "green": 0
+      "total": 0
     }
   }
 }

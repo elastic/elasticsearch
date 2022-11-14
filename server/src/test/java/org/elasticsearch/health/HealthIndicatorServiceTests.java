@@ -90,7 +90,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
             }
 
             @Override
-            public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+            public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
                 return null;
             }
         };

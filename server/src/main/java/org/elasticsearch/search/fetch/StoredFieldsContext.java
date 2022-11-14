@@ -31,7 +31,7 @@ public class StoredFieldsContext implements Writeable {
     public static final String _NONE_ = "_none_";
 
     private final List<String> fieldNames;
-    private boolean fetchFields;
+    private final boolean fetchFields;
 
     private StoredFieldsContext(boolean fetchFields) {
         this.fetchFields = fetchFields;
@@ -141,6 +141,10 @@ public class StoredFieldsContext implements Writeable {
                 builder.endArray();
             }
         }
+    }
+
+    public static StoredFieldsContext metadataOnly() {
+        return new StoredFieldsContext(true);
     }
 
     public static StoredFieldsContext fromList(List<String> fieldNames) {

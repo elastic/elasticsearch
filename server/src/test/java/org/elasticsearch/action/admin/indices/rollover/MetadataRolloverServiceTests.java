@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -546,7 +547,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 metConditions,
                 Instant.now(),
                 randomBoolean(),
-                false
+                false,
+                null
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -612,7 +614,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 metConditions,
                 Instant.now(),
                 randomBoolean(),
-                false
+                false,
+                null
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -682,7 +685,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             null,
             createIndexService,
             metadataIndexAliasesService,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
         );
 
         String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;
@@ -695,7 +699,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             null,
             Instant.now(),
             randomBoolean(),
-            true
+            true,
+            null
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;
@@ -735,7 +740,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 metConditions,
                 Instant.now(),
                 false,
-                randomBoolean()
+                randomBoolean(),
+                null
             )
         );
         assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + dataStream.getName() + "]"));

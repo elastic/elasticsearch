@@ -694,7 +694,7 @@ public class RBACEngine implements AuthorizationEngine {
         final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
             for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
-                indicesPrivileges.add(toIndicesPrivileges(indicesGroup));
+                indicesPrivileges.addAll(toIndicesPrivileges(indicesGroup));
             }
         }
 
@@ -723,28 +723,29 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private static RoleDescriptor.IndicesPrivileges toIndicesPrivileges(IndicesPermission.Group indicesGroup) {
+    private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(IndicesPermission.Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
-        // TODO in order to ensure this holds, we can update CompositeRoleStore to *not* merge remote index privileges by index name
-        assert queries.size() <= 1 : "indices group for remote indices permission cannot contain more than one DLS query";
-        final BytesReference queryBytes = queries.stream().findAny().orElse(null);
-
-        final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder();
-        builder.indices(indicesGroup.indices())
-            .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
-            .privileges(indicesGroup.privilege().name())
-            .query(queryBytes);
-
-        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = getFieldGrantExcludeGroups(indicesGroup);
-        // TODO in order to ensure this holds, we can update CompositeRoleStore to *not* merge remote index privileges by index name
-        assert fieldSecurity.size() <= 1
-            : "indices group for remote indices permission cannot contain more than one FLS permissions definition";
-        if (false == fieldSecurity.isEmpty()) {
-            builder.grantedFields(fieldSecurity.iterator().next().getGrantedFields());
-            builder.deniedFields(fieldSecurity.iterator().next().getExcludedFields());
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
+        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+        // We need to force at least one iteration even if there is no FLS/DLS, so we use Collections.singleton(null) in the loops below
+        // if either FLS or DLS is not specified
+        for (BytesReference query : (queries.isEmpty() ? Collections.<BytesReference>singleton(null) : queries)) {
+            for (FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup : (fieldGrantExcludeGroups.isEmpty()
+                ? Collections.<FieldPermissionsDefinition.FieldGrantExcludeGroup>singleton(null)
+                : fieldGrantExcludeGroups)) {
+                final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(indicesGroup.indices())
+                    .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
+                    .privileges(indicesGroup.privilege().name())
+                    .query(query);
+                if (fieldGrantExcludeGroup != null) {
+                    builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields())
+                        .deniedFields(fieldGrantExcludeGroup.getExcludedFields());
+                }
+                indicesPrivileges.add(builder.build());
+            }
         }
-
-        return builder.build();
+        return indicesPrivileges;
     }
 
     static GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {

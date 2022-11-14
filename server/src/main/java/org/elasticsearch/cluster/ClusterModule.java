@@ -398,7 +398,6 @@ public class ClusterModule extends AbstractModule {
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
-        bind(DesiredBalanceShardsAllocator.class).toInstance(desiredBalanceShardsAllocator);
     }
 
     public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {

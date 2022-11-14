@@ -11,7 +11,9 @@ package org.elasticsearch.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -19,8 +21,6 @@ import org.elasticsearch.action.admin.cluster.configuration.TransportClearVoting
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
-import org.elasticsearch.action.admin.cluster.desiredbalance.GetDesiredBalanceAction;
-import org.elasticsearch.action.admin.cluster.desiredbalance.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.TransportDeleteDesiredNodesAction;
@@ -566,6 +566,7 @@ public class ActionModule extends AbstractModule {
         actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
         actions.register(ClearVotingConfigExclusionsAction.INSTANCE, TransportClearVotingConfigExclusionsAction.class);
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
+        actions.register(GetDesiredBalanceAction.INSTANCE, TransportGetDesiredBalanceAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
@@ -708,8 +709,6 @@ public class ActionModule extends AbstractModule {
         actions.register(UpdateHealthInfoCacheAction.INSTANCE, UpdateHealthInfoCacheAction.TransportAction.class);
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
-        actions.register(GetDesiredBalanceAction.INSTANCE, TransportGetDesiredBalanceAction.class);
-
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -736,6 +735,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesUsageAction());
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
+        registerHandler.accept(new RestGetDesiredBalanceAction());
         registerHandler.accept(new RestClusterStatsAction());
         registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
@@ -891,8 +891,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDesiredNodesAction());
         registerHandler.accept(new RestUpdateDesiredNodesAction());
         registerHandler.accept(new RestDeleteDesiredNodesAction());
-
-        registerHandler.accept(new RestGetDesiredBalanceAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

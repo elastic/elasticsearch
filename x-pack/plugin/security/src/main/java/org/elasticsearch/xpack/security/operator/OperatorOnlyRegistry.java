@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.desiredbalance.GetDesiredBalanceAction;
+import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;

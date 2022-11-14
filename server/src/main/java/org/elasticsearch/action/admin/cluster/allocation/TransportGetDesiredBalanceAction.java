@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.action.admin.cluster.desiredbalance;
+package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -35,7 +36,7 @@ import java.util.Map;
 
 public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAction<DesiredBalanceRequest, DesiredBalanceResponse> {
 
-    private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
+    private final ShardsAllocator shardsAllocator;
 
     @Inject
     public TransportGetDesiredBalanceAction(
@@ -44,7 +45,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredBalanceShardsAllocator desiredBalanceShardsAllocator
+        DesiredBalanceShardsAllocator shardsAllocator
     ) {
         super(
             GetDesiredBalanceAction.NAME,
@@ -57,7 +58,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             DesiredBalanceResponse::from,
             ThreadPool.Names.SAME
         );
-        this.desiredBalanceShardsAllocator = desiredBalanceShardsAllocator;
+        this.shardsAllocator = shardsAllocator;
     }
 
     @Override
@@ -77,6 +78,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             return;
         }
 
+        DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = (DesiredBalanceShardsAllocator) shardsAllocator;
         DesiredBalance latestDesiredBalance = desiredBalanceShardsAllocator.getDesiredBalance();
         if (latestDesiredBalance == null) {
             listener.onFailure(new ResourceNotFoundException("Desired balance is not computed yet"));

@@ -5,8 +5,9 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.action.admin.cluster.desiredbalance;
+package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;

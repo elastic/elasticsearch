@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -91,17 +90,11 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
     protected NodeCheckShardsOnDataPathResponse nodeOperation(NodeCheckShardsOnDataPathRequest request, Task task) {
         Set<ShardId> localShards = new HashSet<>();
         ShardPath shardPath = null;
-        Set<ShardId> lockedShards = nodeEnv.lockedShards();
+
         for (ShardId shardId : request.getShardIDs()) {
-            // If the shard is open, no need to check it again (trying to open it would fail anyway).
-            if (lockedShards.contains(shardId)) {
-                localShards.add(shardId);
-                continue;
-            }
             try {
                 shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, null);
                 if (shardPath != null) {
-                    Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
                     localShards.add(shardId);
                 }
             } catch (IOException e) {

@@ -30,22 +30,8 @@ setup:
             number_of_replicas: 0
 
   - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "index": {"_id": "1"}}'
-          - '{  "field": "foo" }'
-          - '{ "index": {"_id": "2"}}'
-          - '{ "field": "foo 2" }'
-          - '{ "index": {"_id": "3"}}'
-          - '{ "field": "foo 3" }'
-          - '{ "index": {"_id": "4"}}'
-          - '{ "field": "foo 4" }'
-          - '{ "index": {"_id": "5"}}'
-          - '{ "field": "bar" }'
-  - do:
       _internal.get_desired_balance: { }
+
   - gte: { stats.computation_submitted: 0 }
   - gte: { stats.computation_executed: 0 }
   - gte: { stats.computation_converged: 0 }
@@ -76,22 +62,8 @@ setup:
             number_of_replicas: 1
 
   - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "index": {"_id": "1"}}'
-          - '{  "field": "foo" }'
-          - '{ "index": {"_id": "2"}}'
-          - '{ "field": "foo 2" }'
-          - '{ "index": {"_id": "3"}}'
-          - '{ "field": "foo 3" }'
-          - '{ "index": {"_id": "4"}}'
-          - '{ "field": "foo 4" }'
-          - '{ "index": {"_id": "5"}}'
-          - '{ "field": "bar" }'
-  - do:
       _internal.get_desired_balance: { }
+
   - gte: { stats.computation_submitted: 0 }
   - gte: { stats.computation_executed: 0 }
   - gte: { stats.computation_converged: 0 }

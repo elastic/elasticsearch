@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
@@ -113,7 +114,12 @@ public final class DatabaseNodeService implements Closeable {
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
+    public void initialize(
+        String nodeId,
+        ResourceWatcherService resourceWatcher,
+        IngestService ingestServiceArg,
+        ClusterService clusterService
+    ) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
@@ -150,8 +156,8 @@ public final class DatabaseNodeService implements Closeable {
             Files.createDirectories(geoipTmpDirectory);
         }
         LOGGER.debug("initialized database node service, using geoip-databases directory [{}]", geoipTmpDirectory);
-        ingestServiceArg.addIngestClusterStateListener(this::checkDatabases);
         this.ingestService = ingestServiceArg;
+        clusterService.addListener(event -> checkDatabases(event.state()));
     }
 
     public DatabaseReaderLazyLoader getDatabase(String name) {

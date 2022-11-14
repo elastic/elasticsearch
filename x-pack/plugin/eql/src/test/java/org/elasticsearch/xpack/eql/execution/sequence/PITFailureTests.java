@@ -90,8 +90,7 @@ public class PITFailureTests extends ESTestCase {
                     emptyMap(),
                     new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
                     TimeValue.timeValueDays(5)
-                ),
-                x -> emptySet()
+                )
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
             CircuitBreaker cb = new NoopCircuitBreaker("testcb");

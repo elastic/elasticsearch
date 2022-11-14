@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -27,12 +26,9 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.startsWith;
 
 public class VerifierTests extends ESTestCase {
@@ -473,44 +469,11 @@ public class VerifierTests extends ESTestCase {
             123,
             "",
             new TaskId("test", 123),
-            null,
-            versionIncompatibleClusters
+            null
         );
         Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
         return analyzer.analyze(preAnalyzer.preAnalyze(new EqlParser().createStatement("any where true"), resolution));
-    }
-
-    public void testRemoteClusterVersionCheck() {
-        assertNotNull(analyzeWithVerifierFunction(x -> emptySet()));
-
-        Set<String> clusters = new TreeSet<>() {
-            {
-                add("one");
-            }
-        };
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
-        assertTrue(
-            e.getMessage()
-                .contains(
-                    "the following remote cluster is incompatible, being on a version different than local "
-                        + "cluster's ["
-                        + Version.CURRENT
-                        + "]: [one]"
-                )
-        );
-
-        clusters.add("two");
-        e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
-        assertTrue(
-            e.getMessage()
-                .contains(
-                    "the following remote clusters are incompatible, being on a version different than local "
-                        + "cluster's ["
-                        + Version.CURRENT
-                        + "]: [one, two]"
-                )
-        );
     }
 
     public void testIgnoredTimestampAndTiebreakerInSamples() {

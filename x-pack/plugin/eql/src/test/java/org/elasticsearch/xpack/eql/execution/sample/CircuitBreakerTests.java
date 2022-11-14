@@ -167,8 +167,8 @@ public class CircuitBreakerTests extends ESTestCase {
 
     private Sample mockSample() {
         List<SearchHit> searchHits = new ArrayList<>();
-        searchHits.add(new SearchHit(1, String.valueOf(1), null, null));
-        searchHits.add(new SearchHit(2, String.valueOf(2), null, null));
+        searchHits.add(new SearchHit(1, String.valueOf(1)));
+        searchHits.add(new SearchHit(2, String.valueOf(2)));
         return new Sample(new SequenceKey(randomAlphaOfLength(10)), searchHits);
     }
 

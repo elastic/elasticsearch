@@ -41,7 +41,7 @@ public class SampleIteratorTests extends ESTestCase {
         }
         List<SearchHit> searchHits = new ArrayList<>(docIds.length);
         for (Integer docId : docIds) {
-            searchHits.add(new SearchHit(docId, docId.toString(), null, null));
+            searchHits.add(new SearchHit(docId, docId.toString()));
         }
 
         return searchHits;

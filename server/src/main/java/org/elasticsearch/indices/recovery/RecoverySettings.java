@@ -698,14 +698,9 @@ public class RecoverySettings {
      * Whether the node bandwidth recovery settings are set.
      */
     public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
-        final List<String> nonDefaults = NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
+        return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .map(Setting::getKey)
-            .toList();
-        if (nonDefaults.size() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size()) {
-            return true;
-        } else {
-            return false;
-        }
+            .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();
     }
 }

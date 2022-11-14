@@ -32,11 +32,11 @@ import static org.hamcrest.Matchers.greaterThan;
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
 
-    private Tuple<Long, Long> testThrottledRepository(String throttleSnapshot, String throttleRestore, boolean compressRepo) {
+    private Tuple<Long, Long> testThrottledRepository(String maxSnapshotBytesPerSec, String maxRestoreBytesPerSec, boolean compressRepo) {
         logger.info(
-            "--> testing throttled repository (throttleSnapshot=[{}], throttleRestore=[{}], compressRepo=[{}])",
-            throttleSnapshot,
-            throttleRestore,
+            "--> testing throttled repository (maxSnapshotBytesPerSec=[{}], maxRestoreBytesPerSec=[{}], compressRepo=[{}])",
+            maxSnapshotBytesPerSec,
+            maxRestoreBytesPerSec,
             compressRepo
         );
         createRepository(
@@ -46,8 +46,8 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 .put("location", randomRepoPath())
                 .put("compress", compressRepo)
                 .put("chunk_size", randomIntBetween(1000, 4000), ByteSizeUnit.BYTES)
-                .put("max_snapshot_bytes_per_sec", throttleSnapshot)
-                .put("max_restore_bytes_per_sec", throttleRestore)
+                .put("max_snapshot_bytes_per_sec", maxSnapshotBytesPerSec)
+                .put("max_restore_bytes_per_sec", maxRestoreBytesPerSec)
         );
         createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
         RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
@@ -132,9 +132,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
     )
     public void testWarningSpeedOverRecovery() throws Exception {
         boolean nodeBandwidthSettingsSet = randomBoolean();
-        Settings.Builder primaryNodeSettings = Settings.builder()
-            .put(nodeSettings(0, Settings.EMPTY))
-            .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100m");
+        Settings.Builder primaryNodeSettings = Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100m");
         if (nodeBandwidthSettingsSet) {
             primaryNodeSettings = primaryNodeSettings.put(NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.getKey(), "100m")
                 .put(NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.getKey(), "100m")

@@ -407,7 +407,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
         snapshotRateLimiter = getSnapshotRateLimiter();
-        restoreRateLimiter = getSnapshotRestoreRateLimiter();
+        restoreRateLimiter = getRestoreRateLimiter();
         readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
@@ -659,7 +659,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .anyMatch(setting -> incomingSettings.hasValue(setting.getKey()));
         if (updatedSettings.equals(previousSettings) == false || recoverySpeedAffected) {
             snapshotRateLimiter = getSnapshotRateLimiter();
-            restoreRateLimiter = getSnapshotRestoreRateLimiter();
+            restoreRateLimiter = getRestoreRateLimiter();
         }
 
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
@@ -1698,7 +1698,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
     }
 
-    private RateLimiter getSnapshotRestoreRateLimiter() {
+    private RateLimiter getRestoreRateLimiter() {
         return getRateLimiter(restoreRateLimiter, metadata.settings(), MAX_RESTORE_BYTES_PER_SEC, true);
     }
 

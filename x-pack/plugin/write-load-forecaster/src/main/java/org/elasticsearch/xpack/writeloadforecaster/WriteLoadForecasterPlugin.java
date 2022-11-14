@@ -15,6 +15,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collection;
@@ -49,7 +50,11 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     }
 
     @Override
-    public Collection<WriteLoadForecaster> createWriteLoadHandler(Settings settings, ClusterSettings clusterSettings) {
-        return List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, settings, clusterSettings));
+    public Collection<WriteLoadForecaster> createWriteLoadHandler(
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
+        return List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, threadPool, settings, clusterSettings));
     }
 }

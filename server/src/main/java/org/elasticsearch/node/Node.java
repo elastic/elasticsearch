@@ -567,7 +567,11 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
-            final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(settings, clusterService.getClusterSettings());
+            final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,
@@ -1237,10 +1241,10 @@ public class Node implements Closeable {
         return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
     }
 
-    private WriteLoadForecaster getWriteLoadForecaster(Settings settings, ClusterSettings clusterSettings) {
+    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         final List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
         final List<WriteLoadForecaster> writeLoadForecasters = clusterPlugins.stream()
-            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadHandler(settings, clusterSettings).stream())
+            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadHandler(threadPool, settings, clusterSettings).stream())
             .toList();
 
         if (writeLoadForecasters.isEmpty()) {

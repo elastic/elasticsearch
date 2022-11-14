@@ -29,6 +29,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
@@ -43,7 +44,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -57,7 +57,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
     @Before
     public void ensureValidLicense() {
-        FakeLicenseWriteLoadForecasterPlugin.setHasValidLicense(true);
+        setHasValidLicense(true);
     }
 
     public void testWriteLoadForecastGetsPopulatedDuringRollovers() throws Exception {
@@ -70,7 +70,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         final OptionalDouble indexMetadataForecastedWriteLoad = writeIndexMetadata.getForecastedWriteLoad();
         assertThat(indexMetadataForecastedWriteLoad.isPresent(), is(equalTo(true)));
-        assertThat(indexMetadataForecastedWriteLoad.getAsDouble(), is(greaterThanOrEqualTo(0.0)));
+        assertThat(indexMetadataForecastedWriteLoad.getAsDouble(), is(greaterThan(0.0)));
 
         final WriteLoadForecaster writeLoadForecaster = internalCluster().getCurrentMasterNodeInstance(WriteLoadForecaster.class);
         final OptionalDouble forecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
@@ -78,14 +78,14 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertThat(forecastedWriteLoad.isPresent(), is(equalTo(true)));
         assertThat(forecastedWriteLoad.getAsDouble(), is(equalTo(indexMetadataForecastedWriteLoad.getAsDouble())));
 
-        FakeLicenseWriteLoadForecasterPlugin.setHasValidLicense(false);
+        setHasValidLicense(false);
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
     }
 
     public void testWriteLoadForecastDoesNotGetPopulatedWithInvalidLicense() throws Exception {
-        FakeLicenseWriteLoadForecasterPlugin.setHasValidLicense(false);
+        setHasValidLicense(false);
 
         final String dataStreamName = "logs-es";
         setUpDataStreamWriteDocsAndRollover(dataStreamName);
@@ -113,7 +113,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         final OptionalDouble indexMetadataForecastedWriteLoad = writeIndexMetadata.getForecastedWriteLoad();
         assertThat(indexMetadataForecastedWriteLoad.isPresent(), is(equalTo(true)));
-        assertThat(indexMetadataForecastedWriteLoad.getAsDouble(), is(greaterThanOrEqualTo(0.0)));
+        assertThat(indexMetadataForecastedWriteLoad.getAsDouble(), is(greaterThan(0.0)));
 
         final WriteLoadForecaster writeLoadForecaster = internalCluster().getCurrentMasterNodeInstance(WriteLoadForecaster.class);
         final OptionalDouble forecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
@@ -122,7 +122,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertThat(forecastedWriteLoad.getAsDouble(), is(equalTo(writeLoadForecastOverride)));
         assertThat(forecastedWriteLoad.getAsDouble(), is(not(equalTo(indexMetadataForecastedWriteLoad.getAsDouble()))));
 
-        FakeLicenseWriteLoadForecasterPlugin.setHasValidLicense(false);
+        setHasValidLicense(false);
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
@@ -198,12 +198,20 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         client().bulk(bulkRequest).actionGet();
     }
 
+    private void setHasValidLicense(boolean hasValidLicense) {
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            for (var writeLoadForecasterPlugin : pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class)) {
+                writeLoadForecasterPlugin.setHasValidLicense(hasValidLicense);
+            }
+        }
+    }
+
     public static class FakeLicenseWriteLoadForecasterPlugin extends WriteLoadForecasterPlugin {
-        private static final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
+        private final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
 
         public FakeLicenseWriteLoadForecasterPlugin() {}
 
-        static void setHasValidLicense(boolean validLicense) {
+        void setHasValidLicense(boolean validLicense) {
             hasValidLicense.set(validLicense);
         }
 

@@ -18,11 +18,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalDouble;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.forecastIndexWriteLoad;
@@ -32,10 +37,22 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class LicensedWriteLoadForecasterTests extends ESTestCase {
+    ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
     public void testWriteLoadForecastIsAddedToWriteIndex() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
-        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, maxIndexAge);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final String dataStreamName = "logs-es";
@@ -72,15 +89,15 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final IndexMetadata writeIndex = updatedMetadataBuilder.getSafe(dataStream.getWriteIndex());
 
-        final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        final OptionalDouble forecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
 
-        assertThat(forecastedWriteLoadForShard.isPresent(), is(true));
-        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(greaterThan(0.0)));
+        assertThat(forecastedWriteLoad.isPresent(), is(true));
+        assertThat(forecastedWriteLoad.getAsDouble(), is(greaterThan(0.0)));
 
         hasValidLicense.set(false);
 
-        final OptionalDouble forecastedWriteLoadForShardAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
-        assertThat(forecastedWriteLoadForShardAfterLicenseChange.isPresent(), is(false));
+        final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(false));
     }
 
     public void testUptimeIsUsedToWeightWriteLoad() {
@@ -117,7 +134,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
 
-        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, maxIndexAge);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
 
         final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
@@ -126,16 +143,16 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final IndexMetadata writeIndex = updatedMetadataBuilder.getSafe(dataStream.getWriteIndex());
 
-        final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        final OptionalDouble forecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
 
-        assertThat(forecastedWriteLoadForShard.isPresent(), is(true));
-        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(equalTo(14.4)));
+        assertThat(forecastedWriteLoad.isPresent(), is(true));
+        assertThat(forecastedWriteLoad.getAsDouble(), is(equalTo(14.4)));
     }
 
     public void testForecastedWriteLoadIsOverriddenBySetting() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
-        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, maxIndexAge);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final String dataStreamName = "logs-es";
@@ -173,15 +190,15 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final IndexMetadata writeIndex = updatedMetadataBuilder.getSafe(dataStream.getWriteIndex());
 
-        final OptionalDouble forecastedWriteLoadForShard = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        final OptionalDouble forecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
 
-        assertThat(forecastedWriteLoadForShard.isPresent(), is(true));
-        assertThat(forecastedWriteLoadForShard.getAsDouble(), is(equalTo(0.6)));
+        assertThat(forecastedWriteLoad.isPresent(), is(true));
+        assertThat(forecastedWriteLoad.getAsDouble(), is(equalTo(0.6)));
 
         hasValidLicense.set(false);
 
-        final OptionalDouble forecastedWriteLoadForShardAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
-        assertThat(forecastedWriteLoadForShardAfterLicenseChange.isPresent(), is(false));
+        final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
+        assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(false));
     }
 
     public void testWriteLoadForecast() {
@@ -271,7 +288,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
     public void testGetIndicesWithinMaxAgeRange() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
-        final LicensedWriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, maxIndexAge);
+        final LicensedWriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final int numberOfBackingIndicesOlderThanMinAge = randomIntBetween(0, 10);

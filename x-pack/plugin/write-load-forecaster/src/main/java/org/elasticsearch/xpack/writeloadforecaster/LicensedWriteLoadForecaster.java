@@ -18,6 +18,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexWriteLoad;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Objects;
@@ -34,15 +35,23 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         Setting.Property.Dynamic
     );
     private final BooleanSupplier hasValidLicense;
+    private final ThreadPool threadPool;
     private volatile TimeValue maxIndexAge;
 
-    LicensedWriteLoadForecaster(BooleanSupplier hasValidLicense, Settings settings, ClusterSettings clusterSettings) {
-        this(hasValidLicense, MAX_INDEX_AGE_SETTING.get(settings));
+    LicensedWriteLoadForecaster(
+        BooleanSupplier hasValidLicense,
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
+        this(hasValidLicense, threadPool, MAX_INDEX_AGE_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_INDEX_AGE_SETTING, this::setMaxIndexAgeSetting);
     }
 
-    LicensedWriteLoadForecaster(BooleanSupplier hasValidLicense, TimeValue maxIndexAge) {
+    // exposed for tests only
+    LicensedWriteLoadForecaster(BooleanSupplier hasValidLicense, ThreadPool threadPool, TimeValue maxIndexAge) {
         this.hasValidLicense = hasValidLicense;
+        this.threadPool = threadPool;
         this.maxIndexAge = maxIndexAge;
     }
 
@@ -105,21 +114,20 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     // Visible for testing
     List<Index> getIndicesWithinMaxAgeRange(DataStream dataStream, Metadata.Builder metadata) {
         final List<Index> dataStreamIndices = dataStream.getIndices();
+        final long currentTimeMillis = threadPool.absoluteTimeInMillis();
         // Consider at least 1 index (including the write index) for cases where rollovers happen less often than maxIndexAge
         int firstIndexWithinAgeRange = Math.max(dataStreamIndices.size() - 2, 0);
         for (int i = 0; i < dataStreamIndices.size(); i++) {
             Index index = dataStreamIndices.get(i);
             final IndexMetadata indexMetadata = metadata.getSafe(index);
-            final long indexAge = System.currentTimeMillis() - indexMetadata.getCreationDate();
+            final long indexAge = currentTimeMillis - indexMetadata.getCreationDate();
             if (indexAge < maxIndexAge.getMillis()) {
                 // We need to consider the previous index too in order to cover the entire max-index-age range.
                 firstIndexWithinAgeRange = i == 0 ? 0 : i - 1;
                 break;
             }
         }
-        return firstIndexWithinAgeRange == 0
-            ? dataStreamIndices
-            : dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
+        return dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
     }
 
     @Override

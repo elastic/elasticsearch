@@ -20,7 +20,53 @@ setup:
   - match: { routing_table: {} }
 
 ---
-"Test get desired balance":
+"Test get desired balance for single shard":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": {"_id": "1"}}'
+          - '{  "field": "foo" }'
+          - '{ "index": {"_id": "2"}}'
+          - '{ "field": "foo 2" }'
+          - '{ "index": {"_id": "3"}}'
+          - '{ "field": "foo 3" }'
+          - '{ "index": {"_id": "4"}}'
+          - '{ "field": "foo 4" }'
+          - '{ "index": {"_id": "5"}}'
+          - '{ "field": "bar" }'
+  - do:
+      _internal.get_desired_balance: { }
+  - gte: { stats.computation_submitted: 0 }
+  - gte: { stats.computation_executed: 0 }
+  - gte: { stats.computation_converged: 0 }
+  - gte: { stats.computation_iterations: 0 }
+  - gte: { stats.computation_converged_index: 0 }
+  - gte: { stats.computation_time_in_millis: 0 }
+  - gte: { stats.reconciliation_time_in_millis: 0 }
+
+  - match: { routing_table.test.0.current.0.state: 'STARTED' }
+  - match: { routing_table.test.0.current.0.shard_id: 0 }
+  - match: { routing_table.test.0.current.0.index: test }
+  - is_true: 'routing_table.test.0.current.0.node_is_desired'
+  - is_false: 'routing_table.test.0.current.0.relocating_node'
+  - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
+  - match: { routing_table.test.0.desired.total: 1 }
+  - gte: { routing_table.test.0.desired.unassigned: 0 }
+  - gte: { routing_table.test.0.desired.ignored: 0 }
+  - is_true: 'routing_table.test.0.desired.node_ids'
+
+---
+"Test get desired balance for multiple shards and replicas":
   - do:
       indices.create:
         index: test

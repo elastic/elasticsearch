@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -110,8 +111,6 @@ public class ClusterModule extends AbstractModule {
     private final AllocationService allocationService;
     private final List<ClusterPlugin> clusterPlugins;
     private final MetadataDeleteIndexService metadataDeleteIndexService;
-    private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
-
     // pkg private for tests
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
@@ -130,17 +129,13 @@ public class ClusterModule extends AbstractModule {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
-        this.desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            new BalancedShardsAllocator(settings, clusterService.getClusterSettings(), writeLoadForecaster),
-            threadPool,
-            clusterService,
-            this::reconcile
-        );
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
+            threadPool,
             clusterPlugins,
-            desiredBalanceShardsAllocator,
+            clusterService,
+            this::reconcile,
             writeLoadForecaster
         );
         this.clusterService = clusterService;
@@ -349,13 +344,23 @@ public class ClusterModule extends AbstractModule {
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
+        ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
-        DesiredBalanceShardsAllocator desiredBalanceShardsAllocator,
+        ClusterService clusterService,
+        DesiredBalanceReconcilerAction reconciler,
         WriteLoadForecaster writeLoadForecaster
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster));
-        allocators.put(DESIRED_BALANCE_ALLOCATOR, () -> desiredBalanceShardsAllocator);
+        allocators.put(
+            DESIRED_BALANCE_ALLOCATOR,
+            () -> new DesiredBalanceShardsAllocator(
+                new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster),
+                threadPool,
+                clusterService,
+                reconciler
+            )
+        );
 
         for (ClusterPlugin plugin : clusterPlugins) {
             plugin.getShardsAllocators(settings, clusterSettings).forEach((k, v) -> {

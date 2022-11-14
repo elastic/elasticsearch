@@ -45,7 +45,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredBalanceShardsAllocator shardsAllocator
+        ShardsAllocator shardsAllocator
     ) {
         super(
             GetDesiredBalanceAction.NAME,

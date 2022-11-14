@@ -15,10 +15,15 @@ import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
+ * This class tracks the health api calls and counts the statuses that have been encountered along with the unhealthy indicators and
+ * diagnoses. An example of what the stats look like is seen below. The stats are exposed via the xpack usage api for telemetry.
  * {
  *   "invocations": {
  *     "total": 22,
@@ -28,27 +33,35 @@ import java.util.function.Function;
  *   "statuses": {
  *     "green": 10,
  *     "yellow": 4,
- *     "red": 8
+ *     "red": 8,
+ *     "values": ["green", "yellow", "red"]
  *   },
  *   "indicators": {
  *     "red" : {
  *       "master_stability": 2,
  *       "ilm":2,
- *       "slm": 4
+ *       "slm": 4,
+ *       "values": ["master_stability", "ilm", "slm"]
  *     },
  *     "yellow": {
  *       "disk": 1,
  *       "shards_availability": 1,
- *       "master_stability": 2
+ *       "master_stability": 2,
+ *       "values": ["disk", "shards_availability", "master_stability"]
  *     }
  *   },
  *   "diagnoses": {
  *     "red": {
  *       "elasticsearch:health:shards_availability:primary_unassigned": 1,
- *       "elasticsearch:health:disk:add_disk_capacity_master_nodes": 3
+ *       "elasticsearch:health:disk:add_disk_capacity_master_nodes": 3,
+ *       "values": [
+ *         "elasticsearch:health:shards_availability:primary_unassigned",
+ *         "elasticsearch:health:disk:add_disk_capacity_master_nodes"
+ *       ]
  *     },
  *     "yellow": {
- *       "elasticsearch:health:disk:add_disk_capacity_data_nodes": 1
+ *       "elasticsearch:health:disk:add_disk_capacity_data_nodes": 1,
+ *       "values": ["elasticsearch:health:disk:add_disk_capacity_data_nodes"]
  *     }
  *   }
  * }
@@ -70,6 +83,9 @@ public class HealthApiStats {
         diagnosis
     );
 
+    private final Set<HealthStatus> statuses = ConcurrentHashMap.newKeySet();
+    private final Map<HealthStatus, Set<String>> indicators = new ConcurrentHashMap<>();
+    private final Map<HealthStatus, Set<String>> diagnoses = new ConcurrentHashMap<>();
     private final Counters counters = new Counters(TOTAL_INVOCATIONS);
 
     public HealthApiStats() {}
@@ -86,15 +102,18 @@ public class HealthApiStats {
             : response.getIndicators().stream().map(HealthIndicatorResult::status).findFirst().orElse(null);
         if (status != null) {
             counters.inc(statusLabel.apply(status));
+            statuses.add(status);
         }
 
-        if (response.getStatus() != HealthStatus.GREEN) {
+        if (status != HealthStatus.GREEN) {
             for (HealthIndicatorResult indicator : response.getIndicators()) {
                 if (indicator.status() != HealthStatus.GREEN) {
                     counters.inc(indicatorLabel.apply(indicator.status(), indicator.name()));
+                    indicators.computeIfAbsent(status, k -> ConcurrentHashMap.newKeySet()).add(indicator.name());
                     if (indicator.diagnosisList() != null) {
                         for (Diagnosis diagnosis : indicator.diagnosisList()) {
                             counters.inc(diagnosisLabel.apply(indicator.status(), diagnosis.definition().getUniqueId()));
+                            diagnoses.computeIfAbsent(status, k -> ConcurrentHashMap.newKeySet()).add(diagnosis.definition().getUniqueId());
                         }
                     }
                 }
@@ -108,5 +127,17 @@ public class HealthApiStats {
 
     public Counters getCounters() {
         return counters;
+    }
+
+    public Map<HealthStatus, Set<String>> getIndicators() {
+        return Map.copyOf(indicators);
+    }
+
+    public Map<HealthStatus, Set<String>> getDiagnoses() {
+        return Map.copyOf(diagnoses);
+    }
+
+    public Set<HealthStatus> getStatuses() {
+        return Set.copyOf(statuses);
     }
 }

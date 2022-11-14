@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.metrics.Counters;
+import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCase<HealthApiFeatureSetUsage> {
 
@@ -20,12 +25,10 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
         return new HealthApiFeatureSetUsage(
             true,
             true,
-            Map.of(
-                "invocations",
-                Map.of("total", randomNonNegativeLong(), "verbose_true", randomNonNegativeLong()),
-                "indicators",
-                Map.of("red", Map.of("ilm", 10))
-            )
+            randomCounters(),
+            Set.of(randomFrom(HealthStatus.values())),
+            Map.of(HealthStatus.RED, Set.of(DiskHealthIndicatorService.NAME, StableMasterHealthIndicatorService.NAME)),
+            Map.of()
         );
     }
 
@@ -39,4 +42,15 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
         return HealthApiFeatureSetUsage::new;
     }
 
+    private Counters randomCounters() {
+        Counters counters = new Counters();
+        for (int i = 0; i < randomInt(20); i++) {
+            if (randomBoolean()) {
+                counters.inc(randomAlphaOfLength(10), randomInt(20));
+            } else {
+                counters.inc(randomAlphaOfLength(10) + "." + randomAlphaOfLength(10), randomInt(20));
+            }
+        }
+        return counters;
+    }
 }

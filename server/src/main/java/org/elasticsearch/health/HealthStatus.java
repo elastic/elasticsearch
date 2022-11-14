@@ -9,6 +9,7 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
@@ -27,6 +28,10 @@ public enum HealthStatus implements Writeable {
 
     HealthStatus(byte value) {
         this.value = value;
+    }
+
+    public static HealthStatus read(StreamInput in) throws IOException {
+        return in.readEnum(HealthStatus.class);
     }
 
     @Override

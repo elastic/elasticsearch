@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -23,9 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
-
-import java.util.List;
-import java.util.Objects;
 
 /**
  * This action provides the health api stats of the cluster.
@@ -69,13 +65,14 @@ public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAct
         HealthApiStatsAction.Request statsRequest = new HealthApiStatsAction.Request();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.execute(HealthApiStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r -> {
-            List<Counters> countersPerNode = r.getNodes()
-                .stream()
-                .map(HealthApiStatsAction.Response.Node::getStats)
-                .filter(Objects::nonNull)
-                .toList();
-            Counters mergedCounters = Counters.merge(countersPerNode);
-            HealthApiFeatureSetUsage usage = new HealthApiFeatureSetUsage(true, true, mergedCounters.toNestedMap());
+            HealthApiFeatureSetUsage usage = new HealthApiFeatureSetUsage(
+                true,
+                true,
+                r.getStats(),
+                r.getStatuses(),
+                r.getIndicators(),
+                r.getDiagnoses()
+            );
             preservingListener.onResponse(new XPackUsageFeatureResponse(usage));
         }, preservingListener::onFailure));
     }

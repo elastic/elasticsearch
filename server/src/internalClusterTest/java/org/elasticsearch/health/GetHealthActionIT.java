@@ -35,10 +35,11 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -210,31 +211,33 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
             // Check health api stats
             {
-                List<Counters> countersPerNode = client.execute(HealthApiStatsAction.INSTANCE, new HealthApiStatsAction.Request())
-                    .get()
-                    .getNodes()
-                    .stream()
-                    .map(HealthApiStatsAction.Response.Node::getStats)
-                    .filter(Objects::nonNull)
-                    .toList();
-                Counters mergedCounters = Counters.merge(countersPerNode);
-                assertThat(mergedCounters.get("invocations.total"), equalTo(4L));
-                assertThat(mergedCounters.get("invocations.verbose_true"), equalTo(2L));
-                assertThat(mergedCounters.get("invocations.verbose_false"), equalTo(2L));
+                HealthApiStatsAction.Response response = client.execute(HealthApiStatsAction.INSTANCE, new HealthApiStatsAction.Request())
+                    .get();
+                Counters stats = response.getStats();
+                assertThat(stats.get("invocations.total"), equalTo(4L));
+                assertThat(stats.get("invocations.verbose_true"), equalTo(2L));
+                assertThat(stats.get("invocations.verbose_false"), equalTo(2L));
                 assertThat(
-                    mergedCounters.get("invocations.verbose_true") + mergedCounters.get("invocations.verbose_false"),
-                    equalTo(mergedCounters.get("invocations.total"))
+                    stats.get("invocations.verbose_true") + stats.get("invocations.verbose_false"),
+                    equalTo(stats.get("invocations.total"))
                 );
                 HealthStatus mostSevereHealthStatus = HealthStatus.merge(
                     Stream.of(ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus)
                 );
-                assertThat(mergedCounters.get("statuses." + mostSevereHealthStatus.xContentValue()), greaterThanOrEqualTo(2L));
-                assertThat(mergedCounters.get("statuses." + ilmIndicatorStatus.xContentValue()), greaterThanOrEqualTo(2L));
+                assertThat(stats.get("statuses." + mostSevereHealthStatus.xContentValue()), greaterThanOrEqualTo(2L));
+                assertThat(stats.get("statuses." + ilmIndicatorStatus.xContentValue()), greaterThanOrEqualTo(2L));
                 String label = "indicators." + ilmIndicatorStatus.xContentValue() + ".ilm";
                 if (ilmIndicatorStatus != HealthStatus.GREEN) {
-                    assertThat(mergedCounters.get(label), greaterThanOrEqualTo(4L));
+                    assertThat(stats.get(label), greaterThanOrEqualTo(4L));
                 } else {
-                    expectThrows(IllegalArgumentException.class, () -> mergedCounters.get(label));
+                    expectThrows(IllegalArgumentException.class, () -> stats.get(label));
+                }
+                Set<HealthStatus> expectedStatuses = new HashSet<>();
+                expectedStatuses.add(ilmIndicatorStatus);
+                expectedStatuses.add(mostSevereHealthStatus);
+                assertThat(response.getStatuses(), equalTo(expectedStatuses));
+                if (mostSevereHealthStatus != HealthStatus.GREEN || ilmIndicatorStatus != HealthStatus.GREEN) {
+                    assertThat(response.getIndicators().isEmpty(), equalTo(mostSevereHealthStatus == HealthStatus.GREEN));
                 }
             }
 

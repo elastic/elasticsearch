@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -141,10 +142,11 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
         }
 
         public static class Node extends BaseNodeResponse {
+            @Nullable
             private Counters stats;
-            private Set<HealthStatus> statuses;
-            private Map<HealthStatus, Set<String>> indicators;
-            private Map<HealthStatus, Set<String>> diagnoses;
+            private Set<HealthStatus> statuses = Set.of();
+            private Map<HealthStatus, Set<String>> indicators = Map.of();
+            private Map<HealthStatus, Set<String>> diagnoses = Map.of();
 
             public Node(StreamInput in) throws IOException {
                 super(in);

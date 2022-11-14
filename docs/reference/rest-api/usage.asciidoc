@@ -401,7 +401,7 @@ GET /_xpack/usage
     "enabled" : true,
     "indices_count" : 0
   },
-  "health" : {
+  "health_api" : {
     "available" : true,
     "enabled" : true,
     "invocations": {

@@ -24,10 +24,10 @@ setup:
   - do:
       xpack.usage: {}
 
-  - match: { health.available: true }
-  - match: { health.enabled: true }
-  - match: { health.invocations.total: 2 }
-  - match: { health.invocations.verbose_true: 2 }
-  - match: { health.statuses.red: 1 }
-  - match: { health.statuses.green: 1 }
-  - match: { health.indicators.red.shards_availability: 1 }
+  - match: { health_api.available: true }
+  - match: { health_api.enabled: true }
+  - match: { health_api.invocations.total: 2 }
+  - match: { health_api.invocations.verbose_true: 2 }
+  - match: { health_api.statuses.red: 1 }
+  - match: { health_api.statuses.green: 1 }
+  - match: { health_api.indicators.red.shards_availability: 1 }

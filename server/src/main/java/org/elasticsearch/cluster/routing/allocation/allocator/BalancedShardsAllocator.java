@@ -597,7 +597,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 delta
                             );
                         }
-                        if (localThreshold <= 1.0f) {
+                        if (delta <= localThreshold) {
                             /*
                              * prevent relocations that only swap the weights of the two nodes. a relocation must bring us closer to the
                              * balance if we only achieve the same delta the relocation is useless

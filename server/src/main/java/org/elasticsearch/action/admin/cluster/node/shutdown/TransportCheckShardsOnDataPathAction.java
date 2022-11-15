@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -36,7 +35,9 @@ import java.util.Set;
 
 /**
  * Given a set of shard IDs, checks which of those shards have a matching directory in the local data path.
- * This is used by {@link PrevalidateNodeRemovalAction} as an indication that the node may contain some copy of the shard.
+ * This is used by {@link PrevalidateNodeRemovalAction} as an indication that the node may contain some copy
+ * of the shard. The response contains a subset of the request shard IDs which are in the cluster state of this
+ * node and have a matching shard path on the local data path.
  */
 public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
     CheckShardsOnDataPathRequest,
@@ -108,9 +109,8 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
                 if (indexMetadata != null) {
                     customDataPath = new IndexSettings(indexMetadata, settings).customDataPath();
                 } else {
-                    // Fail the request on this node since the index is not in the cluster state
+                    // The index is not known to this node. This shouldn't happen, but it can be safely ignored for this operation.
                     logger.warn("node doesn't have metadata for the index [{}]", shardId.getIndex());
-                    throw new ElasticsearchException("node doesn't have metadata for index " + shardId.getIndex());
                 }
                 shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
                 if (shardPath != null) {
@@ -118,7 +118,7 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
                 }
             } catch (IOException e) {
                 final String path = shardPath != null ? shardPath.resolveIndex().toString() : "";
-                logger.debug(() -> String.format(Locale.ROOT, "error loading shard path for shard [%s]", shardId), e);
+                logger.error(() -> String.format(Locale.ROOT, "error loading shard path for shard [%s]", shardId), e);
             }
         }
         return new NodeCheckShardsOnDataPathResponse(transportService.getLocalNode(), localShards);

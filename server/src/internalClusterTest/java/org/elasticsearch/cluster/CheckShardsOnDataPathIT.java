@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.shutdown.CheckShardsOnDataPathRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.CheckShardsOnDataPathResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodeCheckShardsOnDataPathResponse;
@@ -24,9 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.oneOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CheckShardsOnDataPathIT extends ESIntegTestCase {
@@ -55,20 +52,10 @@ public class CheckShardsOnDataPathIT extends ESIntegTestCase {
         CheckShardsOnDataPathRequest req = new CheckShardsOnDataPathRequest(shardIdsToCheck, node1Id, node2Id);
         CheckShardsOnDataPathResponse resp = client().execute(TransportCheckShardsOnDataPathAction.TYPE, req).get();
         var nodeResponses = resp.getNodes();
-        var nodeFailures = resp.failures();
-        if (includeUnknownShardId) {
-            assertTrue(nodeResponses.isEmpty());
-            assertThat(nodeFailures.size(), equalTo(2));
-            for (FailedNodeException exception: nodeFailures) {
-                assertThat(exception.nodeId(), oneOf(node1Id, node2Id));
-                assertThat(exception.getDetailedMessage(), containsString("node doesn't have metadata for index"));
-            }
-        } else {
-            assertThat(nodeResponses.size(), equalTo(2));
-            assertTrue(resp.failures().isEmpty());
-            for (NodeCheckShardsOnDataPathResponse nodeResponse : nodeResponses) {
-                assertThat(nodeResponse.getShardIds(), equalTo(shardIds));
-            }
+        assertThat(nodeResponses.size(), equalTo(2));
+        assertTrue(resp.failures().isEmpty());
+        for (NodeCheckShardsOnDataPathResponse nodeResponse : nodeResponses) {
+            assertThat(nodeResponse.getShardIds(), equalTo(shardIds));
         }
     }
 }

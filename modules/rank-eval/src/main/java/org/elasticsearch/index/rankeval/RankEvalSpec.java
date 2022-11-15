@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -133,13 +132,13 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RankEvalSpec, SearchUsageHolder> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER = new ConstructingObjectParser<>(
         "rank_eval",
         a -> new RankEvalSpec((List<RatedRequest>) a[0], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2])
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), RatedRequest::fromXContent, REQUESTS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedRequest.fromXContent(p), REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseMetric(p), METRIC_FIELD);
         PARSER.declareObjectArray(
             ConstructingObjectParser.optionalConstructorArg(),
@@ -157,8 +156,8 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         return metric;
     }
 
-    public static RankEvalSpec parse(XContentParser parser, SearchUsageHolder searchUsageHolder) {
-        return PARSER.apply(parser, searchUsageHolder);
+    public static RankEvalSpec parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     static class ScriptWithId {

@@ -15,7 +15,6 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
-import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,11 +29,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
 
-    private final SearchUsageHolder searchUsageHolder;
-
-    public RestReindexAction(SearchUsageHolder searchUsageHolder) {
+    public RestReindexAction() {
         super(ReindexAction.INSTANCE);
-        this.searchUsageHolder = searchUsageHolder;
     }
 
     @Override
@@ -62,7 +58,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
         ReindexRequest internal;
         try (XContentParser parser = request.contentParser()) {
-            internal = ReindexRequest.fromXContent(parser, searchUsageHolder);
+            internal = ReindexRequest.fromXContent(parser);
         }
 
         if (request.hasParam("scroll")) {

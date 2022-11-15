@@ -18,7 +18,6 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,11 +34,8 @@ public abstract class AbstractBulkByQueryRestHandler<
     Request extends AbstractBulkByScrollRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    private final SearchUsageHolder searchUsageHolder;
-
-    protected AbstractBulkByQueryRestHandler(A action, SearchUsageHolder searchUsageHolder) {
+    protected AbstractBulkByQueryRestHandler(A action) {
         super(action);
-        this.searchUsageHolder = searchUsageHolder;
     }
 
     protected void parseInternalRequest(
@@ -62,8 +58,7 @@ public abstract class AbstractBulkByQueryRestHandler<
                 restRequest,
                 parser,
                 namedWriteableRegistry,
-                sizeConsumer,
-                searchUsageHolder
+                sizeConsumer
             );
         }
 

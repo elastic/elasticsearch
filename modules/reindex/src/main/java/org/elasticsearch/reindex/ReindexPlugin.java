@@ -79,9 +79,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return Arrays.asList(
-            new RestReindexAction(restController.getSearchUsageHolder()),
-            new RestUpdateByQueryAction(restController.getSearchUsageHolder()),
-            new RestDeleteByQueryAction(restController.getSearchUsageHolder()),
+            new RestReindexAction(),
+            new RestUpdateByQueryAction(),
+            new RestDeleteByQueryAction(),
             new RestRethrottleAction(nodesInCluster)
         );
     }

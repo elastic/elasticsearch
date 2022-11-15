@@ -18,7 +18,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -120,7 +119,7 @@ public class RankEvalSpecTests extends ESTestCase {
         RankEvalSpec testItem = createTestItem();
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(shuffled))) {
-            RankEvalSpec parsedItem = RankEvalSpec.parse(parser, new UsageService().getSearchUsageHolder());
+            RankEvalSpec parsedItem = RankEvalSpec.parse(parser);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -135,7 +134,7 @@ public class RankEvalSpecTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             Exception exception = expectThrows(
                 Exception.class,
-                () -> RankEvalSpec.parse(parser, new UsageService().getSearchUsageHolder())
+                () -> RankEvalSpec.parse(parser)
             );
             assertThat(exception.getMessage(), containsString("[rank_eval] failed to parse field"));
         }

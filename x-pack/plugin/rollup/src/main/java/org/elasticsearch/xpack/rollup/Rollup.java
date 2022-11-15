@@ -130,7 +130,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return Arrays.asList(
-            new RestRollupSearchAction(restController.getSearchUsageHolder()),
+            new RestRollupSearchAction(),
             new RestPutRollupJobAction(),
             new RestStartRollupJobAction(),
             new RestStopRollupJobAction(),

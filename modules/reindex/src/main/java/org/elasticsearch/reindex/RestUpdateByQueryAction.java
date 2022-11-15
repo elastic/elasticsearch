@@ -16,7 +16,6 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.usage.SearchUsageHolder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,8 +27,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
-    public RestUpdateByQueryAction(SearchUsageHolder searchUsageHolder) {
-        super(UpdateByQueryAction.INSTANCE, searchUsageHolder);
+    public RestUpdateByQueryAction() {
+        super(UpdateByQueryAction.INSTANCE);
     }
 
     @Override

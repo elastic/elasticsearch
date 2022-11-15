@@ -20,7 +20,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -116,7 +115,7 @@ public class RatedRequestsTests extends ESTestCase {
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
 
-            RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, new UsageService().getSearchUsageHolder());
+            RatedRequest parsedItem = RatedRequest.fromXContent(itemParser);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -131,7 +130,7 @@ public class RatedRequestsTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             Throwable exception = expectThrows(
                 XContentParseException.class,
-                () -> RatedRequest.fromXContent(parser, new UsageService().getSearchUsageHolder())
+                () -> RatedRequest.fromXContent(parser)
             );
             if (exception.getCause() != null) {
                 assertThat(exception.getMessage(), containsString("[request] failed to parse field"));
@@ -363,7 +362,7 @@ public class RatedRequestsTests extends ESTestCase {
               ]
             }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, querySpecString)) {
-            RatedRequest specification = RatedRequest.fromXContent(parser, new UsageService().getSearchUsageHolder());
+            RatedRequest specification = RatedRequest.fromXContent(parser);
             assertEquals("my_qa_query", specification.getId());
             assertNotNull(specification.getEvaluationRequest());
             List<RatedDocument> ratedDocs = specification.getRatedDocs();

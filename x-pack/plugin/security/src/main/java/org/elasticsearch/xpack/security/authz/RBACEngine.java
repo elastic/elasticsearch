@@ -785,7 +785,7 @@ public class RBACEngine implements AuthorizationEngine {
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
-                return false;
+                return predicate.test(name);
             }
             // We check the parent data stream first if there is one. For testing requested indices, this is most likely
             // more efficient than checking the index name first because we recommend grant privileges over data stream

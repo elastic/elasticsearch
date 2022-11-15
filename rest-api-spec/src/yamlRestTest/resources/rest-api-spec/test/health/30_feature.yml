@@ -1,8 +1,8 @@
 ---
 "cluster health test drilling down into a feature":
   - skip:
-      version: "- 8.3.99"
-      reason: "health drilldown was only added in 8.3.0, and master_is_stable in 8.4.0"
+      version: "- 8.5.99"
+      reason: "the verbose parameter was only added in 8.6"
 
   - do:
       _internal.health:
@@ -17,7 +17,7 @@
   - do:
       _internal.health:
         feature: master_is_stable
-        explain: false
+        verbose: false
 
   - is_true: cluster_name
   - match:   { indicators.master_is_stable.status: "green" }

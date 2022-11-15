@@ -585,6 +585,74 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         stopDeployment(modelId, true);
     }
 
+    public void testStopWithModelAliasUsedDeploymentByIngestProcessor() throws IOException {
+        String modelId = "test_stop_model_alias_used_deployment_by_ingest_processor";
+        String modelAlias = "used_model_alias";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+
+        client().performRequest(putPipeline("my_pipeline", formatted("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }""", modelAlias)));
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot stop deployment for model [test_stop_model_alias_used_deployment_by_ingest_processor] as it has a "
+                    + "model_alias [used_model_alias] that is still referenced"
+                    + " by ingest processors; use force to stop the deployment"
+            )
+        );
+        stopDeployment(modelId, true);
+    }
+
+    public void testInferenceProcessorWithModelAlias() throws IOException {
+        String modelId = "test_model_alias_infer";
+        String modelAlias = "pytorch_model_alias";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+
+        String source = formatted("""
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "%s"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """, modelAlias);
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("\"ml\":{\"inference\":{\"predicted_value\":[[1.0,1.0]]"),
+                containsString(modelId),
+                not(containsString("warning"))
+            )
+        );
+    }
+
     public void testPipelineWithBadProcessor() throws IOException {
         String model = "deployed";
         createPassThroughModel(model);

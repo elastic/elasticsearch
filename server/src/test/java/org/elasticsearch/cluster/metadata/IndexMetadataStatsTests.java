@@ -28,7 +28,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
-import java.util.OptionalLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -89,10 +88,9 @@ public class IndexMetadataStatsTests extends ESTestCase {
         assertThat(indexWriteLoadFromStats.getWriteLoadForShard(2).isPresent(), is(equalTo(false)));
         assertThat(indexWriteLoadFromStats.getUptimeInMillisForShard(2).isPresent(), is(equalTo(false)));
 
-        final OptionalLong averageShardSize = indexMetadataStats.averageShardSize().getAverageSizeInBytes();
-        assertThat(averageShardSize.isPresent(), is(equalTo(true)));
+        final long averageShardSize = indexMetadataStats.averageShardSize().getAverageSizeInBytes();
         // (shard_0 = 15 + shard_1 = 30) / 2
-        assertThat(averageShardSize.getAsLong(), is(equalTo(22L)));
+        assertThat(averageShardSize, is(equalTo(22L)));
 
         assertThat(IndexMetadataStats.fromStatsResponse(indexMetadata, null), is(nullValue()));
     }

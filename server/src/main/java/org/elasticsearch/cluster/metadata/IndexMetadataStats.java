@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.OptionalLong;
 
 public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize averageShardSize)
     implements
@@ -141,6 +140,10 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_COUNT_FIELD);
         }
 
+        public AverageShardSize {
+            assert numberOfShards > 0;
+        }
+
         AverageShardSize(StreamInput in) throws IOException {
             this(in.readLong(), in.readInt());
         }
@@ -162,8 +165,8 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
             return PARSER.parse(parser, null);
         }
 
-        public OptionalLong getAverageSizeInBytes() {
-            return numberOfShards == 0 ? OptionalLong.empty() : OptionalLong.of(totalSizeInBytes / numberOfShards);
+        public long getAverageSizeInBytes() {
+            return totalSizeInBytes / numberOfShards;
         }
     }
 }

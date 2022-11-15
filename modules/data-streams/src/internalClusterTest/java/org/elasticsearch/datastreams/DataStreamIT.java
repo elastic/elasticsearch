@@ -2055,9 +2055,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertThat(metadataStats, is(notNullValue()));
 
                 final var averageShardSize = metadataStats.averageShardSize();
-                final OptionalLong averageShardSizeInBytes = averageShardSize.getAverageSizeInBytes();
-                assertThat(averageShardSizeInBytes.isPresent(), is(equalTo(true)));
-                assertThat(averageShardSizeInBytes.getAsLong(), is(greaterThan(0L)));
+                assertThat(averageShardSize.getAverageSizeInBytes(), is(greaterThan(0L)));
 
                 final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
                 for (int shardId = 0; shardId < numberOfShards; shardId++) {
@@ -2140,9 +2138,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
                 final var averageShardSize = metadataStats.averageShardSize();
                 assertThat(averageShardSize.numberOfShards(), is(equalTo(1)));
-                final OptionalLong averageShardSizeInBytes = averageShardSize.getAverageSizeInBytes();
-                assertThat(averageShardSizeInBytes.isPresent(), is(equalTo(true)));
-                assertThat(averageShardSizeInBytes.getAsLong(), is(greaterThan(0L)));
+
+                assertThat(averageShardSize.getAverageSizeInBytes(), is(greaterThan(0L)));
             } else {
                 assertThat(metadataStats, is(nullValue()));
             }

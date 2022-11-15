@@ -75,25 +75,19 @@ public class WriteAckDelay implements Consumer<Runnable> {
         }
     }
 
-    private static class CompletionTask implements Runnable {
-
-        private final ArrayList<Runnable> tasks;
-
-        public CompletionTask(ArrayList<Runnable> tasks) {
-            this.tasks = tasks;
-        }
+    private record CompletionTask(ArrayList<Runnable> tasks) implements Runnable {
 
         @Override
-        public void run() {
-            for (Runnable task : tasks) {
-                try {
-                    task.run();
-                } catch (Exception e) {
-                    logger.error("unexpected exception while completing write task after delay", e);
+            public void run() {
+                for (Runnable task : tasks) {
+                    try {
+                        task.run();
+                    } catch (Exception e) {
+                        logger.error("unexpected exception while completing write task after delay", e);
+                    }
                 }
             }
         }
-    }
 
     public static WriteAckDelay create(Settings settings, ThreadPool threadPool) {
         TimeValue timeValue = WRITE_ACK_DELAY_INTERVAL.get(settings);

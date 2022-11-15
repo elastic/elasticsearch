@@ -120,7 +120,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     ) {
         try {
             String nodeId = nodeEnvironment.nodeId();
-            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get());
+            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get(), clusterService);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

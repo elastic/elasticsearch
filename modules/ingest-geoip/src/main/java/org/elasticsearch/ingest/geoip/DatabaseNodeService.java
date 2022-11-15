@@ -25,6 +25,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
@@ -190,6 +191,10 @@ public final class DatabaseNodeService implements Closeable {
     }
 
     void checkDatabases(ClusterState state) {
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         DiscoveryNode localNode = state.nodes().getLocalNode();
         if (localNode.isIngestNode() == false) {
             return;

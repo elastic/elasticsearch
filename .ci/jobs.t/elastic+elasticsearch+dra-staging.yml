@@ -1,7 +1,7 @@
 ---
 - job:
-      name: elastic+elasticsearch+%BRANCH%+periodic+dra-staging
-      workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+dra-staging
+      name: elastic+elasticsearch+%BRANCH%+dra-staging
+      workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+dra-staging
       display-name: "elastic / elasticsearch # %BRANCH% - DRA staging"
       description: "Publishing Daily Releasable Artifacts (DRAs) of Elasticsearch %BRANCH% staging.\n"
       node: "ubuntu-20.04"

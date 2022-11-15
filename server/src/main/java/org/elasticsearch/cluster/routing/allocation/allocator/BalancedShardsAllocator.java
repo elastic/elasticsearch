@@ -301,9 +301,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private static double getTotalWriteLoad(WriteLoadForecaster writeLoadForecaster, Metadata metadata) {
             double writeLoad = 0.0;
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
-                writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+                writeLoad += getIndexWriteLoad(writeLoadForecaster, indexMetadata);
             }
             return writeLoad;
+        }
+
+        private static double getIndexWriteLoad(WriteLoadForecaster writeLoadForecaster, IndexMetadata indexMetadata) {
+            var shardWriteLoad = writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            return shardWriteLoad * indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
         }
 
         /**
@@ -332,7 +337,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public double writeLoad(String index) {
-            return writeLoadForecaster.getForecastedWriteLoad(metadata.index(index)).orElse(0.0);
+            return getIndexWriteLoad(writeLoadForecaster, metadata.index(index));
         }
 
         /**

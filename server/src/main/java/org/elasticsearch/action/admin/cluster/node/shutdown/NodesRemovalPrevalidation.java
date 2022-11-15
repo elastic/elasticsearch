@@ -127,7 +127,7 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
 
         private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
             "nodes_removal_prevalidation_result",
-            objects -> new Result((boolean) objects[0], Reason.fromString((String) objects[1]), (String) objects[1])
+            objects -> new Result((boolean) objects[0], Reason.fromString((String) objects[1]), (String) objects[2])
         );
 
         static {

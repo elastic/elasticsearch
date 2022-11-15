@@ -26,6 +26,8 @@ import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -649,6 +651,40 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(1L, sectionsUsage.get("rescore").longValue());
         assertEquals(1L, sectionsUsage.get("collapse").longValue());
         assertEquals(1L, sectionsUsage.get("aggs").longValue());
+    }
+
+    public void testOnlyQueriesAreTracked() throws IOException {
+        //Decay functions are named xcontents, like queries. We want to double check that out of all
+        //the named xcontent types, only queries are tracked in the queries section.
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(
+            new FunctionScoreQueryBuilder(
+                new MatchQueryBuilder("field", "value"),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(
+                        QueryBuilders.termQuery("field", "value"),
+                        new LinearDecayFunctionBuilder("field", 1f, 1f, 1f)
+                    ) }
+            )
+        );
+
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        assertEquals(0, searchUsageHolder.getSearchUsageStats().getTotalSearchCount());
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(searchSourceBuilder))) {
+            new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder);
+        }
+
+        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        assertEquals(1, searchUsageStats.getTotalSearchCount());
+        Map<String, Long> queryUsage = searchUsageStats.getQueryUsage();
+        assertEquals(3, queryUsage.size());
+        assertEquals(1L, queryUsage.get("function_score").longValue());
+        assertEquals(1L, queryUsage.get("match").longValue());
+        assertEquals(1L, queryUsage.get("term").longValue());
+        Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
+        assertEquals(1, sectionsUsage.size());
+        assertEquals(1L, sectionsUsage.get("query").longValue());
     }
 
     public void testSearchTotalUsageCollection() throws IOException {

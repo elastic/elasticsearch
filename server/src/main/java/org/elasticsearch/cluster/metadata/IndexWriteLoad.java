@@ -6,16 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -67,36 +62,6 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
             shardsWriteLoad.stream().mapToDouble(shardLoad -> shardLoad).toArray(),
             shardsUptimeInMillis.stream().mapToLong(shardUptime -> shardUptime).toArray()
         );
-    }
-
-    @Nullable
-    public static IndexWriteLoad fromStats(IndexMetadata indexMetadata, @Nullable IndicesStatsResponse indicesStatsResponse) {
-        if (indicesStatsResponse == null) {
-            return null;
-        }
-
-        final IndexStats indexStats = indicesStatsResponse.getIndex(indexMetadata.getIndex().getName());
-        if (indexStats == null) {
-            return null;
-        }
-
-        final int numberOfShards = indexMetadata.getNumberOfShards();
-        final var indexWriteLoadBuilder = IndexWriteLoad.builder(numberOfShards);
-        final var indexShards = indexStats.getIndexShards();
-        for (IndexShardStats indexShardsStats : indexShards.values()) {
-            final var shardStats = Arrays.stream(indexShardsStats.getShards())
-                .filter(stats -> stats.getShardRouting().primary())
-                .findFirst()
-                // Fallback to a replica if for some reason we couldn't find the primary stats
-                .orElse(indexShardsStats.getAt(0));
-            final var indexingShardStats = shardStats.getStats().getIndexing().getTotal();
-            indexWriteLoadBuilder.withShardWriteLoad(
-                shardStats.getShardRouting().id(),
-                indexingShardStats.getWriteLoad(),
-                indexingShardStats.getTotalActiveTimeInMillis()
-            );
-        }
-        return indexWriteLoadBuilder.build();
     }
 
     private final double[] shardWriteLoad;

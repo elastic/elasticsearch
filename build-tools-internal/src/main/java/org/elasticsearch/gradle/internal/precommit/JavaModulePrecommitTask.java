@@ -137,7 +137,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
                             throw new GradleException(
                                 String.format(
                                     Locale.ROOT,
-                                    "Expected provides {} in module %s with provides {}.",
+                                    "Expected provides %s in module %s with provides %s.",
                                     service,
                                     mref.descriptor().name(),
                                     mref.descriptor().provides()

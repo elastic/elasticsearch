@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.support.replication;
+package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,11 +39,11 @@ public class WriteAckDelay implements Consumer<Runnable> {
     private static final Logger logger = LogManager.getLogger(WriteAckDelay.class);
     private final ThreadPool threadPool;
     private final ConcurrentLinkedQueue<Runnable> writeCallbacks = new ConcurrentLinkedQueue<>();
-    private final long writeDelayIntervalNanos;
+    private final TimeValue writeDelayInterval;
     private final long writeDelayRandomnessBound;
 
     public WriteAckDelay(long writeDelayIntervalNanos, long writeDelayRandomnessBound, ThreadPool threadPool) {
-        this.writeDelayIntervalNanos = writeDelayIntervalNanos;
+        this.writeDelayInterval = TimeValue.timeValueNanos(writeDelayIntervalNanos);
         this.writeDelayRandomnessBound = writeDelayRandomnessBound;
         this.threadPool = threadPool;
         this.threadPool.scheduleWithFixedDelay(
@@ -71,7 +71,14 @@ public class WriteAckDelay implements Consumer<Runnable> {
             }
 
             long delayRandomness = Randomness.get().nextLong(writeDelayRandomnessBound);
-            threadPool.schedule(new CompletionTask(tasks), TimeValue.timeValueNanos(delayRandomness), ThreadPool.Names.GENERIC);
+            TimeValue randomDelay = TimeValue.timeValueNanos(delayRandomness);
+            logger.trace(
+                "scheduling write ack completion task will complete {} writes after interval of {} with additional random delay of {}",
+                tasks.size(),
+                writeDelayInterval,
+                randomDelay
+            );
+            threadPool.schedule(new CompletionTask(tasks), randomDelay, ThreadPool.Names.GENERIC);
         }
     }
 

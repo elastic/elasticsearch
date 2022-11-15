@@ -413,7 +413,7 @@ public final class IndicesPermission {
             totalResourceCount += resource.size();
         }
 
-        final boolean overallGranted = isActionGranted(action, resources);
+        final boolean overallGranted = isActionGranted(action, resources.values());
 
         final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = buildIndicesAccessControl(
             action,
@@ -539,50 +539,43 @@ public final class IndicesPermission {
      * Returns {@code true} if action is granted for all {@code requestedResources}.
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
-    private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
+    private boolean isActionGranted(String action, Collection<IndexResource> requestedResources) {
+        return requestedResources.stream().allMatch(resource -> isActionGranted(action, resource));
+    }
 
+    /**
+     * Checks if the permission (via the groups) grants the action on the requested index resource.
+     */
+    private boolean isActionGranted(String action, IndexResource resource) {
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
-
-        for (IndexResource resource : requestedResources.values()) {
-            // true if ANY group covers the given index AND the given action
-            boolean granted = false;
-            // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for
-            // an index or an alias (but not for a data stream)
-            boolean bwcGrantMappingUpdate = false;
-            final List<Runnable> bwcDeprecationLogActions = new ArrayList<>();
-
-            for (Group group : groups) {
-                // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
-                if (resource.checkIndex(group)) {
-                    if (group.checkAction(action)) {
-                        // If action is granted we don't have to check for BWC and can stop at first granting group.
-                        granted = true;
-                        break;
-                    } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
-                        // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
-                        // outside of the privilege definition
-                        if (false == resource.isPartOfDataStream()) {
-                            bwcGrantMappingUpdate = true;
-                            logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
-                        }
+        boolean granted = false;
+        // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for
+        // an index or an alias (but not for a data stream)
+        boolean bwcGrantMappingUpdate = false;
+        final List<Runnable> bwcDeprecationLogActions = new ArrayList<>();
+        for (Group group : groups) {
+            // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
+            if (resource.checkIndex(group)) {
+                if (group.checkAction(action)) {
+                    // If action is granted we don't have to check for BWC and can stop at first granting group.
+                    granted = true;
+                    break;
+                } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
+                    // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
+                    // outside of the privilege definition
+                    if (false == resource.isPartOfDataStream()) {
+                        bwcGrantMappingUpdate = true;
+                        logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
                     }
                 }
             }
-
-            if (false == granted && bwcGrantMappingUpdate) {
-                // the action is granted only due to the deprecated behaviour of certain privileges
-                granted = true;
-                bwcDeprecationLogActions.forEach(Runnable::run);
-            }
-
-            if (granted == false) {
-                // We stop and return at first not granted resource.
-                return false;
-            }
         }
-
-        // None of the above resources were rejected.
-        return true;
+        if (false == granted && bwcGrantMappingUpdate) {
+            // the action is granted only due to the deprecated behaviour of certain privileges
+            granted = true;
+            bwcDeprecationLogActions.forEach(Runnable::run);
+        }
+        return granted;
     }
 
     private void logDeprecatedBwcPrivilegeUsage(

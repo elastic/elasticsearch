@@ -45,7 +45,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", compressRepo)
-                .put("chunk_size", randomIntBetween(1000, 8000), ByteSizeUnit.BYTES)
+                .put("chunk_size", randomIntBetween(1000, 4000), ByteSizeUnit.BYTES)
                 .put("max_snapshot_bytes_per_sec", maxSnapshotBytesPerSec)
                 .put("max_restore_bytes_per_sec", maxRestoreBytesPerSec)
         );
@@ -105,14 +105,14 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             if (throttleRestoreViaRecovery) assertThat(restorePauseViaRecovery, greaterThan(0L));
         }
 
-        // Throttle snapshot and/or restore separately with 8kb rate limit, which is much less than half of the potential recovery rate
+        // Throttle snapshot and/or restore separately with 5kb rate limit, which is much less than half of the potential recovery rate
         // limit. For this reason, we assert that the separately throttled speeds incur a pause time which is at least double of the
         // pause time detected in the recovery-only throttling run above.
         boolean throttleSnapshot = randomBoolean();
         boolean throttleRestore = randomBoolean();
 
         if (throttleSnapshot || throttleRestore) {
-            Tuple<Long, Long> pauses = testThrottledRepository(throttleSnapshot ? "8k" : "0", throttleRestore ? "8k" : "0", compressRepo);
+            Tuple<Long, Long> pauses = testThrottledRepository(throttleSnapshot ? "5k" : "0", throttleRestore ? "5k" : "0", compressRepo);
             long snapshotPause = pauses.v1();
             long restorePause = pauses.v2();
             if (throttleSnapshot) {

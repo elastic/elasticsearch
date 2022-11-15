@@ -336,15 +336,6 @@ public class MetadataRolloverService {
             shardCount += averageShardSize.numberOfShards();
         }
 
-        // Clear the previous forecast
-        if (dataStream.getIndices().size() > 1) {
-            final Index previousWriteIndex = dataStream.getIndices().get(dataStream.getIndices().size() - 2);
-            final IndexMetadata previousWriteIndexMetadata = metadata.getSafe(previousWriteIndex);
-            final IndexMetadata.Builder previousWriteIndexMetadataBuilder = IndexMetadata.builder(previousWriteIndexMetadata)
-                .shardSizeInBytesForecast(null);
-            metadata.put(previousWriteIndexMetadataBuilder.build(), false);
-        }
-
         if (shardCount == 0) {
             return metadata;
         }

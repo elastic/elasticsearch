@@ -2218,8 +2218,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final Metadata metadata = clusterState.getMetadata();
-        final DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
 
         final List<String> dataStreamReadIndices = dataStream.getIndices()
             .stream()
@@ -2242,20 +2241,10 @@ public class DataStreamIT extends ESIntegTestCase {
             shardCount++;
         }
 
-        final IndexMetadata writeIndexMetadata = metadata.index(dataStream.getWriteIndex());
+        final IndexMetadata writeIndexMetadata = clusterState.metadata().index(dataStream.getWriteIndex());
         final OptionalLong forecastedShardSizeInBytes = writeIndexMetadata.getForecastedShardSizeInBytes();
         assertThat(forecastedShardSizeInBytes.isPresent(), is(equalTo(true)));
         assertThat(forecastedShardSizeInBytes.getAsLong(), is(equalTo(expectedTotalSizeInBytes / shardCount)));
-
-        // Ensure that previous forecasts are cleared after rollover
-        for (Index dataStreamIndex : dataStream.getIndices()) {
-            if (dataStreamIndex.equals(dataStream.getWriteIndex())) {
-                continue;
-            }
-
-            final IndexMetadata indexMetadata = metadata.getIndexSafe(dataStreamIndex);
-            assertThat(indexMetadata.getForecastedShardSizeInBytes().isPresent(), is(equalTo(false)));
-        }
     }
 
     static void putComposableIndexTemplate(

@@ -184,13 +184,15 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
             Arrays.fill(uptimeInMillis, UNKNOWN_UPTIME);
         }
 
-        public void withShardWriteLoad(int shardId, double load, long uptimeInMillis) {
+        public Builder withShardWriteLoad(int shardId, double load, long uptimeInMillis) {
             if (shardId >= this.shardWriteLoad.length) {
                 throw new IllegalArgumentException();
             }
 
             this.shardWriteLoad[shardId] = load;
             this.uptimeInMillis[shardId] = uptimeInMillis;
+
+            return this;
         }
 
         public IndexWriteLoad build() {

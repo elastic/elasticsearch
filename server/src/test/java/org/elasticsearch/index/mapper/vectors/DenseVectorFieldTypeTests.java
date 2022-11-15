@@ -87,7 +87,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertNotNull(fft.fielddataBuilder(fdc));
 
         DenseVectorFieldType bft = createByteFieldType();
-        expectThrows(IllegalArgumentException.class, () -> bft.fielddataBuilder(fdc));
+        FieldDataContext bdc = new FieldDataContext("test", () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        assertNotNull(bft.fielddataBuilder(bdc));
     }
 
     public void testDocValueFormat() {

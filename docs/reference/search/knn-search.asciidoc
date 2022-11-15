@@ -97,10 +97,33 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 [[knn-search-api-request-body]]
 ==== {api-request-body-title}
 
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+
 `knn`::
 (Required, object) 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 
+`k`::
+(Required, integer) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
+
+`num_candidates`::
+(Required, integer) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+
+`query_vector`::
+(Required, array of floats)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+====
 
 include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]

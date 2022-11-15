@@ -352,7 +352,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
         assertEquals(5, stats.getTotalSearchCount());
-        assertEquals(3, stats.getQueryUsage().size());
+        assertEquals(4, stats.getQueryUsage().size());
         assertEquals(1, stats.getQueryUsage().get("match").longValue());
         assertEquals(2, stats.getQueryUsage().get("term").longValue());
         assertEquals(1, stats.getQueryUsage().get("range").longValue());

@@ -11,7 +11,7 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +38,6 @@ public class RestGetHealthAction extends BaseRestHandler {
         String indicatorName = request.param("indicator");
         boolean verbose = request.paramAsBoolean(VERBOSE_PARAM, true);
         GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, verbose);
-        return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

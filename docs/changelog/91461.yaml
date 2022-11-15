@@ -1,0 +1,5 @@
+pr: 91461
+summary: Datastream unavailable exception metadata
+area: Infra/Core
+type: bug
+issues: []

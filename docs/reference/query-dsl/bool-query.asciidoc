@@ -169,3 +169,9 @@ GET /_search
   }
 }
 ----
+
+NOTE: This functionality reruns each named query on every hit in a search
+response. Typically, this adds a small overhead to a request. However, using
+computationally expensive named queries on a large number of hits may add
+significant overhead. For example, named queries in combination with a
+`top_hits` aggregation on many buckets may lead to longer response times.

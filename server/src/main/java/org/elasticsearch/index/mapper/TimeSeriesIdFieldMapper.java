@@ -155,6 +155,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
+
     /**
      * Decode the {@code _tsid} into a human readable map.
      */

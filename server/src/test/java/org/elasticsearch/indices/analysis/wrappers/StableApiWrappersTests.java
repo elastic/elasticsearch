@@ -197,7 +197,7 @@ public class StableApiWrappersTests extends ESTestCase {
         assertThat(charFilterFactory.name(), equalTo("TestCharFilterFactory"));
     }
 
-    @NamedComponent(name = "DefaultConstrAnalyzerFactory")
+    @NamedComponent("DefaultConstrAnalyzerFactory")
     public static class DefaultConstrAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
 
         public DefaultConstrAnalyzerFactory(int x) {}
@@ -209,7 +209,7 @@ public class StableApiWrappersTests extends ESTestCase {
 
     }
 
-    @NamedComponent(name = "TestAnalyzerFactory")
+    @NamedComponent("TestAnalyzerFactory")
     public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
 
         @Override
@@ -219,7 +219,7 @@ public class StableApiWrappersTests extends ESTestCase {
 
     }
 
-    @NamedComponent(name = "TestTokenizerFactory")
+    @NamedComponent("TestTokenizerFactory")
     public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
 
         @Override
@@ -228,7 +228,7 @@ public class StableApiWrappersTests extends ESTestCase {
         }
     }
 
-    @NamedComponent(name = "TestTokenFilterFactory")
+    @NamedComponent("TestTokenFilterFactory")
     public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
 
         @Override
@@ -253,7 +253,7 @@ public class StableApiWrappersTests extends ESTestCase {
         }
     }
 
-    @NamedComponent(name = "TestCharFilterFactory")
+    @NamedComponent("TestCharFilterFactory")
     public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
 
         @Override

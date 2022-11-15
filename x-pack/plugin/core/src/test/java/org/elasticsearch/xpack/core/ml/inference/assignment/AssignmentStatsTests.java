@@ -50,7 +50,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 10000000)),
             Instant.now(),
-            nodeStatsList
+            nodeStatsList,
+            randomFrom(Priority.values())
         );
     }
 
@@ -144,7 +145,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomFrom(RoutingState.values()),
                     randomBoolean() ? null : "a good reason"
                 )
-            )
+            ),
+            randomFrom(Priority.values())
         );
         InferenceStats stats = existingStats.getOverallInferenceStats();
         assertThat(stats.getModelId(), equalTo(modelId));
@@ -162,7 +164,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
-            List.of()
+            List.of(),
+            randomFrom(Priority.values())
         );
         InferenceStats stats = existingStats.getOverallInferenceStats();
         assertThat(stats.getModelId(), equalTo(modelId));
@@ -191,7 +194,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomFrom(RoutingState.values()),
                     randomBoolean() ? null : "a good reason"
                 )
-            )
+            ),
+            randomFrom(Priority.values())
         );
         InferenceStats stats = existingStats.getOverallInferenceStats();
         assertThat(stats.getModelId(), equalTo(modelId));

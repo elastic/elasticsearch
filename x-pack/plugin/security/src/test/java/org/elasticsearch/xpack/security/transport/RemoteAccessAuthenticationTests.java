@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
@@ -17,21 +18,26 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class RemoteAccessAuthenticationTests extends ESTestCase {
 
-    public void test() throws IOException {
-        RoleDescriptor expected = RoleDescriptorTests.randomRoleDescriptor();
-        var encoded = RemoteAccessAuthentication.encode(
-            AuthenticationTestHelper.builder().build(),
-            new RoleDescriptorsIntersection(List.of(Set.of(expected)))
+    public void testEncodeDecodeRoundtrip() throws IOException {
+        final Set<RoleDescriptor> expectedRoleDescriptors = Set.of(
+            RoleDescriptorTests.randomRoleDescriptor(),
+            RoleDescriptorTests.randomRoleDescriptor()
         );
-        System.out.println(encoded);
-        var decoded = RemoteAccessAuthentication.decode(encoded);
-        System.out.println(decoded);
+        final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
 
-        var bytes = decoded.roleDescriptorsBytesList().iterator().next().iterator().next();
-        var actual = new RoleDescriptor(bytes.streamInput());
-        System.out.println(actual);
+        final RemoteAccessAuthentication decoded = RemoteAccessAuthentication.decode(
+            RemoteAccessAuthentication.encode(expectedAuthentication, new RoleDescriptorsIntersection(List.of(expectedRoleDescriptors)))
+        );
+
+        assertThat(decoded.authentication(), equalTo(expectedAuthentication));
+        assertThat(
+            RemoteAccessAuthentication.parseRoleDescriptorBytes(decoded.roleDescriptorsBytesIntersection().iterator().next()),
+            equalTo(expectedRoleDescriptors)
+        );
     }
 
 }

@@ -698,9 +698,9 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
 
-        // The role names matter for caching on the fulfilling cluster, when constructing the role cache key. A role descriptor can only
-        // store one name, whereas the role may have multiple names. To work around this, we will include the complete list of role names
-        // in the role descriptor metadata, and simply use the first name for the role descriptor as a place-holder.
+        // A role descriptor can only store one name, whereas the role may have multiple names. To work around this, we will include the
+        // complete list of role names in the role descriptor metadata, and simply use the first name for the role descriptor as a
+        // place-holder.
         final String roleDescriptorName = Arrays.stream(role.names()).iterator().next();
         listener.onResponse(
             new RoleDescriptorsIntersection(
@@ -713,7 +713,7 @@ public class RBACEngine implements AuthorizationEngine {
                             null,
                             null,
                             null,
-                            // The fulfilling cluster should rely on this metadata field to construct the role key for caching
+                            // The fulfilling cluster should rely on this metadata field for auditing role names
                             Map.of("_role_names", role.names()),
                             null
                         )

@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class SearchUsageStatsIT extends ESIntegTestCase {
 
     @Override
@@ -35,8 +35,6 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
     }
 
     public void testSearchUsageStats() throws IOException {
-        internalCluster().startNode();
-        ensureStableCluster(1);
         {
             SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
             assertEquals(0, stats.getTotalSearchCount());

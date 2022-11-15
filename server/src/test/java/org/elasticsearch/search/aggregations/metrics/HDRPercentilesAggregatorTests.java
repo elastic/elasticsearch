@@ -13,13 +13,9 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
@@ -188,30 +184,14 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType,
         String fieldName
     ) throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                buildIndex.accept(indexWriter);
-            }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                PercentilesAggregationBuilder builder;
-                // TODO this randomization path should be removed when the old settings are removed
-                if (randomBoolean()) {
-                    builder = new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
-                } else {
-                    PercentilesConfig hdr = new PercentilesConfig.Hdr();
-                    builder = new PercentilesAggregationBuilder("test").field(fieldName).percentilesConfig(hdr);
-                }
-
-                HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator.asCollector());
-                aggregator.postCollection();
-                verify.accept((InternalHDRPercentiles) aggregator.buildAggregation(0L));
-
-            }
+        // TODO this randomization path should be removed when the old settings are removed
+        PercentilesAggregationBuilder builder;
+        if (randomBoolean()) {
+            builder = new PercentilesAggregationBuilder("test").field(fieldName).method(PercentilesMethod.HDR);
+        } else {
+            PercentilesConfig hdr = new PercentilesConfig.Hdr();
+            builder = new PercentilesAggregationBuilder("test").field(fieldName).percentilesConfig(hdr);
         }
+        testCase(buildIndex, agg -> verify.accept((InternalHDRPercentiles) agg), new AggTestConfig(builder, fieldType).withQuery(query));
     }
 }

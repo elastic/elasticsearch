@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -281,12 +280,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
 
-        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
+        InternalAvg avg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
 
         assertEquals(4, avg.getValue(), 0);
         assertEquals(3, avg.getCount(), 0);
@@ -542,12 +536,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        Terms terms = (Terms) aggregator.buildTopLevel();
+        Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(terms);
         List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertNotNull(buckets);

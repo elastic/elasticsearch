@@ -453,7 +453,6 @@ final class FaceIJK {
         // adjust the face of each vertex as appropriate and introduce
         // edge-crossing vertices as needed
         final CellBoundary boundary = new CellBoundary();
-        // FaceIJK lastFijk = null;
         final CoordIJK scratch = new CoordIJK(0, 0, 0);
         final FaceIJK fijk = new FaceIJK(this.face, scratch);
         final int[][] coord = isResolutionClassIII ? VERTEX_CLASSIII : VERTEX_CLASSII;

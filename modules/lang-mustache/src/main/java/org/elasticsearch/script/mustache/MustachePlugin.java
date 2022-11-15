@@ -56,7 +56,7 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return Arrays.asList(
-            new RestSearchTemplateAction(restController.getSearchUsageHolder()),
+            new RestSearchTemplateAction(),
             new RestMultiSearchTemplateAction(settings),
             new RestRenderSearchTemplateAction()
         );

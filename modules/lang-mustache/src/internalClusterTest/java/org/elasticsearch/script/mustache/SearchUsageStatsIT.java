@@ -48,13 +48,14 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
                 {
                   "source": {
                     "query": {
-                      "match": {
+                      "{{query_type}}": {
                         "message" : "{{query_string}}"
                       }
                     }
                   },
                   "params": {
-                    "query_string": "text query"
+                    "query_string": "text query",
+                    "query_type" : "match"
                   }
                 }
                 """);

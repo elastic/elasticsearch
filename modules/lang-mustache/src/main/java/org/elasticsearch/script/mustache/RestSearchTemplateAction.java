@@ -15,7 +15,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,12 +29,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
 
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
-
-    private final SearchUsageHolder searchUsageHolder;
-
-    public RestSearchTemplateAction(SearchUsageHolder searchUsageHolder) {
-        this.searchUsageHolder = searchUsageHolder;
-    }
 
     @Override
     public List<Route> routes() {
@@ -67,8 +60,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request,
             null,
             client.getNamedWriteableRegistry(),
-            size -> searchRequest.source().size(size),
-            searchUsageHolder
+            size -> searchRequest.source().size(size)
         );
 
         // Creates the search template request

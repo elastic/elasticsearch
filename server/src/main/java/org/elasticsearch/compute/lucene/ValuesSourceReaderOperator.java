@@ -15,6 +15,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorFactory;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -212,91 +214,9 @@ public class ValuesSourceReaderOperator implements Operator {
     private void resetDocValues() {
         try {
             if (CoreValuesSourceType.NUMERIC.equals(lastValuesSourceType) || CoreValuesSourceType.DATE.equals(lastValuesSourceType)) {
-                ValuesSource.Numeric numericVS = (ValuesSource.Numeric) lastValuesSource;
-                if (numericVS.isFloatingPoint()) {
-                    // Extract double values
-                    SortedNumericDoubleValues sortedNumericDocValues = numericVS.doubleValues(lastLeafReaderContext);
-                    final NumericDoubleValues numericDocValues = FieldData.unwrapSingleton(sortedNumericDocValues);
-                    this.docValuesCollector = new DocValuesCollector() {
-                        private double[] values;
-                        private int positionCount;
-                        private int i;
-
-                        /**
-                         * Store docID internally because class {@link NumericDoubleValues} does not support
-                         * a docID() method.
-                         */
-                        private int docID = -1;
-
-                        @Override
-                        public void initBlock(int positionCount) {
-                            this.i = 0;
-                            this.positionCount = positionCount;
-                            this.values = new double[positionCount];
-                        }
-
-                        @Override
-                        public int docID() {
-                            return docID;
-                        }
-
-                        @Override
-                        public void collect(int doc) throws IOException {
-                            if (numericDocValues.advanceExact(doc) == false) {
-                                throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
-                            }
-                            values[i++] = numericDocValues.doubleValue();
-                            docID = doc;
-                        }
-
-                        @Override
-                        public Block createBlock() {
-                            Block block = new DoubleArrayBlock(values, positionCount);
-                            // Set values[] to null to protect from overwriting this memory by subsequent calls to collect()
-                            // without calling initBlock() first
-                            values = null;
-                            return block;
-                        }
-                    };
-                } else {
-                    // Extract long values
-                    SortedNumericDocValues sortedNumericDocValues = numericVS.longValues(lastLeafReaderContext);
-                    final NumericDocValues numericDocValues = DocValues.unwrapSingleton(sortedNumericDocValues);
-                    this.docValuesCollector = new DocValuesCollector() {
-                        private long[] values;
-                        private int positionCount;
-                        private int i;
-
-                        @Override
-                        public void initBlock(int positionCount) {
-                            this.values = new long[positionCount];
-                            this.positionCount = positionCount;
-                            this.i = 0;
-                        }
-
-                        @Override
-                        public int docID() {
-                            return numericDocValues.docID();
-                        }
-
-                        @Override
-                        public void collect(int doc) throws IOException {
-                            if (numericDocValues.advanceExact(doc) == false) {
-                                throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
-                            }
-                            values[i++] = numericDocValues.longValue();
-                        }
-
-                        @Override
-                        public Block createBlock() {
-                            Block block = new LongArrayBlock(values, positionCount);
-                            // Set values[] to null to protect from overwriting this memory by subsequent calls to collect()
-                            // without calling initBlock() first
-                            values = null;
-                            return block;
-                        }
-                    };
-                }
+                resetNumericField((ValuesSource.Numeric) lastValuesSource);
+            } else if (CoreValuesSourceType.KEYWORD.equals(lastValuesSourceType)) {
+                resetKeywordField((ValuesSource.Bytes) lastValuesSource);
             } else {
                 throw new IllegalArgumentException("Field type [" + lastValuesSourceType.typeName() + "] is not supported");
             }
@@ -304,6 +224,128 @@ public class ValuesSourceReaderOperator implements Operator {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private void resetNumericField(ValuesSource.Numeric numericVS) throws IOException {
+        if (numericVS.isFloatingPoint()) {
+            // Extract double values
+            SortedNumericDoubleValues sortedNumericDocValues = numericVS.doubleValues(lastLeafReaderContext);
+            final NumericDoubleValues numericDocValues = FieldData.unwrapSingleton(sortedNumericDocValues);
+            this.docValuesCollector = new DocValuesCollector() {
+                private double[] values;
+                private int positionCount;
+                private int i;
+
+                /**
+                 * Store docID internally because class {@link NumericDoubleValues} does not support
+                 * a docID() method.
+                 */
+                private int docID = -1;
+
+                @Override
+                public void initBlock(int positionCount) {
+                    this.i = 0;
+                    this.positionCount = positionCount;
+                    this.values = new double[positionCount];
+                }
+
+                @Override
+                public int docID() {
+                    return docID;
+                }
+
+                @Override
+                public void collect(int doc) throws IOException {
+                    if (numericDocValues.advanceExact(doc) == false) {
+                        throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
+                    }
+                    values[i++] = numericDocValues.doubleValue();
+                    docID = doc;
+                }
+
+                @Override
+                public Block createBlock() {
+                    Block block = new DoubleArrayBlock(values, positionCount);
+                    // Set values[] to null to protect from overwriting this memory by subsequent calls to collect()
+                    // without calling initBlock() first
+                    values = null;
+                    return block;
+                }
+            };
+        } else {
+            // Extract long values
+            SortedNumericDocValues sortedNumericDocValues = numericVS.longValues(lastLeafReaderContext);
+            final NumericDocValues numericDocValues = DocValues.unwrapSingleton(sortedNumericDocValues);
+            this.docValuesCollector = new DocValuesCollector() {
+                private long[] values;
+                private int positionCount;
+                private int i;
+
+                @Override
+                public void initBlock(int positionCount) {
+                    this.values = new long[positionCount];
+                    this.positionCount = positionCount;
+                    this.i = 0;
+                }
+
+                @Override
+                public int docID() {
+                    return numericDocValues.docID();
+                }
+
+                @Override
+                public void collect(int doc) throws IOException {
+                    if (numericDocValues.advanceExact(doc) == false) {
+                        throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
+                    }
+                    values[i++] = numericDocValues.longValue();
+                }
+
+                @Override
+                public Block createBlock() {
+                    Block block = new LongArrayBlock(values, positionCount);
+                    // Set values[] to null to protect from overwriting this memory by subsequent calls to collect()
+                    // without calling initBlock() first
+                    values = null;
+                    return block;
+                }
+            };
+        }
+    }
+
+    private void resetKeywordField(ValuesSource.Bytes bytesVS) throws IOException {
+        final SortedBinaryDocValues binaryDV = bytesVS.bytesValues(lastLeafReaderContext);
+        this.docValuesCollector = new DocValuesCollector() {
+            private BytesRefArrayBlock.Builder builder;
+            private int docID = -1;
+
+            @Override
+            public void initBlock(int positionCount) {
+                builder = BytesRefArrayBlock.builder(positionCount);
+            }
+
+            @Override
+            public int docID() {
+                return docID;
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                if (binaryDV.advanceExact(doc) == false) {
+                    throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
+                }
+                docID = doc;
+                if (binaryDV.docValueCount() != 1) {
+                    throw new IllegalStateException("multi-values not supported for now, could not read doc [" + doc + "]");
+                }
+                builder.append(binaryDV.nextValue());
+            }
+
+            @Override
+            public Block createBlock() {
+                return builder.build();
+            }
+        };
     }
 
     @Override

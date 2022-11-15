@@ -26,13 +26,13 @@ public class WriteAckDelay implements Consumer<Runnable> {
 
     public static final Setting<TimeValue> WRITE_ACK_DELAY_INTERVAL = timeSetting(
         "indices.write_ack_delay_interval",
-        TimeValue.timeValueMillis(0),
+        TimeValue.timeValueMillis(100),
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> WRITE_ACK_DELAY_RANDOMNESS_BOUND = timeSetting(
         "indices.write_ack_delay_randomness_bound",
-        TimeValue.timeValueMillis(100),
+        TimeValue.timeValueMillis(70),
         Setting.Property.NodeScope
     );
 

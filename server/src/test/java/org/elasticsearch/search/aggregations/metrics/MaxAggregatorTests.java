@@ -892,6 +892,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value");
 
+        /*
         AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
@@ -900,12 +901,12 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         Max max = (Max) aggregator.buildAggregation(0L);
 
+         */
+        Max max = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+
         assertEquals(10.0, max.value(), 0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
-
-        // Test that an aggregation not using a script does get cached
-        assertTrue(context.isCacheable());
 
         multiReader.close();
         directory.close();
@@ -938,38 +939,20 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
-        MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        Max max = (Max) aggregator.buildAggregation(0L);
+        Max max = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
 
         assertEquals(10.0, max.value(), 0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
-        // Test that an aggregation using a script does not get cached
-        assertTrue(context.isCacheable());
-
         aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
-        context = createAggregationContext(indexSearcher, null, fieldType);
-        aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        max = (Max) aggregator.buildAggregation(0L);
+        max = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType).withShouldBeCached(false));
 
         assertTrue(max.value() >= 0.0);
         assertTrue(max.value() <= 1.0);
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
-
-        // Test that an aggregation using a nondeterministic script does not get cached
-        assertFalse(context.isCacheable());
 
         multiReader.close();
         directory.close();

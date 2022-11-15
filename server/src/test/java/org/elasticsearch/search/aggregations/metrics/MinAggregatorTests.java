@@ -603,9 +603,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
-                createAggregator(aggregationBuilder, context);
-                assertTrue(context.isCacheable());
+                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+                    createAggregator(aggregationBuilder, context);
+                    assertTrue(context.isCacheable());
+                }
             }
         }
     }
@@ -629,13 +630,15 @@ public class MinAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
-                createAggregator(nonDeterministicAggregationBuilder, context);
-                assertFalse(context.isCacheable());
+                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+                    createAggregator(nonDeterministicAggregationBuilder, context);
+                    assertFalse(context.isCacheable());
+                }
 
-                context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
-                createAggregator(aggregationBuilder, context);
-                assertTrue(context.isCacheable());
+                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+                    createAggregator(aggregationBuilder, context);
+                    assertTrue(context.isCacheable());
+                }
             }
         }
     }

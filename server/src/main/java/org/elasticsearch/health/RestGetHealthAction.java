@@ -11,6 +11,8 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;

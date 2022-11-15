@@ -100,8 +100,8 @@ public class WriteAckDelay implements Consumer<Runnable> {
     }
 
     /**
-     * Creates a potential WriteAckDelay object based on settings. If indices.write_ack_delay_interval is <= 0
-     * null will be returned.
+     * Creates a potential WriteAckDelay object based on settings. If indices.write_ack_delay_interval is less
+     * than or equal to 0 null will be returned.
      */
     public static WriteAckDelay create(Settings settings, ThreadPool threadPool) {
         if (WRITE_ACK_DELAY_INTERVAL.get(settings).nanos() <= 0) {

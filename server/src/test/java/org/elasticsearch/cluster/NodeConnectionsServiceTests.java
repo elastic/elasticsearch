@@ -574,6 +574,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
+        public BoundTransportAddress boundRemoteAccessAddress() {
+            return null;
+        }
+
+        @Override
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
             return null;
         }

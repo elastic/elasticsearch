@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_ACCESS_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_ACCESS_PREFIX;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_ACCESS_PROFILE;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public final class ProfileConfigurations {
@@ -28,6 +31,8 @@ public final class ProfileConfigurations {
             if (profileName.equals(TransportSettings.DEFAULT_PROFILE)) {
                 // don't attempt to parse ssl settings from the profile;
                 // profiles need to be killed with fire
+                // We don't need to check the Remote Access profile here; when remote access settings are validated, we check that there are
+                // no direct usages of the profile
                 if (settings.getByPrefix("transport.profiles.default.xpack.security.ssl.").isEmpty()) {
                     continue;
                 } else {
@@ -37,12 +42,17 @@ public final class ProfileConfigurations {
                     );
                 }
             }
+
             SslConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));
             profileConfiguration.put(profileName, configuration);
         }
 
         assert profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false;
         profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, defaultConfiguration);
+        if (REMOTE_ACCESS_ENABLED.get(settings)) {
+            assert profileConfiguration.containsKey(REMOTE_ACCESS_PROFILE) == false;
+            profileConfiguration.put(REMOTE_ACCESS_PROFILE, sslService.getSSLConfiguration(REMOTE_ACCESS_PREFIX + "ssl"));
+        }
         return profileConfiguration;
     }
 }

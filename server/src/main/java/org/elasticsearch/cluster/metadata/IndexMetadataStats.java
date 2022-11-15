@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.OptionalLong;
 
 public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize averageShardSize)
@@ -52,6 +53,11 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
 
     public IndexMetadataStats(StreamInput in) throws IOException {
         this(new IndexWriteLoad(in), new AverageShardSize(in));
+    }
+
+    public IndexMetadataStats {
+        Objects.requireNonNull(indexWriteLoad, "Expected a non null index write load");
+        Objects.requireNonNull(averageShardSize, "Expected a non null average shard size");
     }
 
     @Override

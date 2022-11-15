@@ -374,7 +374,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                     .build()
             )
-            .stats(new IndexMetadataStats(indexWriteLoad, 0, 0))
+            .stats(indexWriteLoad == null ? null : new IndexMetadataStats(indexWriteLoad, 0, 0))
             .creationDate(createdAt)
             .build();
     }

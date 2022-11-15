@@ -241,7 +241,14 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
-            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new NumberFieldMapper(
+                name,
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                context.isSourceSynthetic(),
+                this
+            );
         }
     }
 
@@ -1648,8 +1655,16 @@ public class NumberFieldMapper extends FieldMapper {
     private final MetricType metricType;
     private boolean allowMultipleValues;
     private final Version indexCreatedVersion;
+    private final boolean storeMalformedFields;
 
-    private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    private NumberFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean storeMalformedFields,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
@@ -1667,6 +1682,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.metricType = builder.metric.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.storeMalformedFields = storeMalformedFields;
     }
 
     boolean coerce() {
@@ -1692,11 +1708,11 @@ public class NumberFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
         try {
-            value = value(context.parser(), type, nullValue, coerce());
+            value = value(context.parser());
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
-                if (context.isSyntheticSource()) {
+                if (storeMalformedFields) {
                     // Save a copy of the field so synthetic source can load it
                     context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
                 }
@@ -1711,27 +1727,32 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     /**
-     * Read the value at the current position of the parser.
+     * Read the value at the current position of the parser. For numeric fields
+     * this is called by {@link #parseCreateField} but it is public so it can
+     * be used by other fields that want to share the behavior of numeric fields.
      * @throws IllegalArgumentException if there was an error parsing the value from the json
      * @throws IOException if there was any other IO error
      */
-    private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
-        throws IllegalArgumentException, IOException {
-
+    public Number value(XContentParser parser) throws IllegalArgumentException, IOException {
         final Token currentToken = parser.currentToken();
         if (currentToken == Token.VALUE_NULL) {
             return nullValue;
         }
-        if (coerce && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
+        if (coerce() && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
         if (currentToken == Token.START_OBJECT) {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
-        return numberType.parse(parser, coerce);
+        return type.parse(parser, coerce());
     }
 
-    private void indexValue(DocumentParserContext context, Number numericValue) {
+    /**
+     * Index a value for this field. For numeric fields this is called by
+     * {@link #parseCreateField} but it is public so it can be used by other
+     * fields that want to share the behavior of numeric fields.
+     */
+    public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }

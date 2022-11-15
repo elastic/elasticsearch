@@ -174,8 +174,8 @@ public abstract class MappedFieldType {
         return null;
     }
 
-    /** Returns true if the field is aggregatable.
-     *
+    /**
+     * Returns true if the field is aggregatable.
      */
     public boolean isAggregatable() {
         return hasDocValues();

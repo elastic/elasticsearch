@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.CrossClusterService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 import java.util.Collection;
@@ -52,6 +53,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private final RoleProviders roleProviders;
     private final ApiKeyService apiKeyService;
     private final ServiceAccountService serviceAccountService;
+    private final CrossClusterService crossClusterService;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
@@ -60,6 +62,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     public RoleDescriptorStore(
         RoleProviders roleProviders,
         ApiKeyService apiKeyService,
+        CrossClusterService crossClusterService,
         ServiceAccountService serviceAccountService,
         Cache<String, Boolean> negativeLookupCache,
         XPackLicenseState licenseState,
@@ -68,6 +71,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         this.roleProviders = roleProviders;
         this.apiKeyService = Objects.requireNonNull(apiKeyService);
+        this.crossClusterService = Objects.requireNonNull(crossClusterService);
         this.serviceAccountService = Objects.requireNonNull(serviceAccountService);
         this.licenseState = Objects.requireNonNull(licenseState);
         this.threadContext = threadContext;
@@ -130,6 +134,19 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
             return rolesRetrievalResult;
         }));
+    }
+
+    @Override
+    public void resolveCrossClusterRoleReference(
+        RoleReference.CrossClusterRoleReference crossClusterRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        final List<RoleDescriptor> roleDescriptors = crossClusterService.parseRoleDescriptorsBytes(
+            crossClusterRoleReference.getRoleDescriptorsBytes()
+        );
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        listener.onResponse(rolesRetrievalResult);
     }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {

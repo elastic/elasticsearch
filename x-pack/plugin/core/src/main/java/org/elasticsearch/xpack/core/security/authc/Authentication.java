@@ -387,6 +387,13 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
+     * Whether the effective user is a Cross Cluster credential.
+     */
+    public boolean isCrossCluster() {
+        return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER;
+    }
+
+    /**
      * Whether the authentication can run-as another user
      */
     public boolean supportsRunAs(@Nullable AnonymousUser anonymousUser) {

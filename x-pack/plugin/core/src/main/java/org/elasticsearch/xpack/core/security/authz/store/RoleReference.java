@@ -180,6 +180,52 @@ public interface RoleReference {
     }
 
     /**
+     * Referencing Cross Cluster role descriptors. It is a list of 1-2 QC role descriptors and 2 FC role descriptors (3-4 total).
+     */
+    final class CrossClusterRoleReference implements RoleReference {
+
+        private final String qcId;
+        private final String fcId;
+        private final BytesReference roleDescriptorsBytes;
+        private RoleKey cacheKey = null;
+
+        public CrossClusterRoleReference(final String qcId, final String fcId, final BytesReference roleDescriptorsBytes) {
+            this.qcId = qcId;
+            this.fcId = fcId;
+            this.roleDescriptorsBytes = roleDescriptorsBytes;
+        }
+
+        @Override
+        public RoleKey id() {
+            // Hashing can be expensive. memorize the result in case the method is called multiple times.
+            if (this.cacheKey == null) {
+                final String roleDescriptorsHash = MessageDigests.toHexString(
+                    MessageDigests.digest(this.roleDescriptorsBytes, MessageDigests.sha256())
+                );
+                this.cacheKey = new RoleKey(Set.of("crossCluster:" + roleDescriptorsHash), "crossCluster");
+            }
+            return this.cacheKey;
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveCrossClusterRoleReference(this, listener);
+        }
+
+        public String getQcId() {
+            return this.qcId;
+        }
+
+        public String getFcId() {
+            return this.fcId;
+        }
+
+        public BytesReference getRoleDescriptorsBytes() {
+            return this.roleDescriptorsBytes;
+        }
+    }
+
+    /**
      * The type of one set of API key roles.
      */
     enum ApiKeyRoleType {

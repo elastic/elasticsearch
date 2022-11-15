@@ -26,8 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_FC_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_QC_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
@@ -234,26 +233,16 @@ public class Subject {
             return null;
         }
         final String fcPrincipal = user.principal();
-        final BytesReference qcRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_QC_ROLE_DESCRIPTORS_KEY);
-        final BytesReference fcRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_FC_ROLE_DESCRIPTORS_KEY);
+        final BytesReference qcRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_ROLE_DESCRIPTORS_KEY);
         if (isEmptyRoleDescriptorsBytes(qcRoleDescriptorsBytes)) {
-            throw new ElasticsearchSecurityException("no QC role descriptors found for Cross Cluster");
-        } else if (isEmptyRoleDescriptorsBytes(fcRoleDescriptorsBytes)) {
-            throw new ElasticsearchSecurityException("no FC role descriptors found for Cross Cluster");
+            throw new ElasticsearchSecurityException("no role descriptors found for Cross Cluster");
         }
-        // Reuse RoleReferenceIntersection = QC ApiKeyRoleReference + FC ApiKeyRoleReference
-        // TODO Other options? Create dedicated CrossClusterRoleReference or make ApiKeyRoleReference more generic?
-        final RoleReference.ApiKeyRoleReference qcRoleDescriptorsReference = new RoleReference.ApiKeyRoleReference(
+        final RoleReference.CrossClusterRoleReference roleDescriptorsReference = new RoleReference.CrossClusterRoleReference(
             fcPrincipal,
-            qcRoleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.ASSIGNED // TODO New type (DERIVED, INTERSECTED)?
-        );
-        final RoleReference.ApiKeyRoleReference fcRoleDescriptorsReference = new RoleReference.ApiKeyRoleReference(
             fcPrincipal,
-            fcRoleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.LIMITED_BY
+            qcRoleDescriptorsBytes
         );
-        return new RoleReferenceIntersection(qcRoleDescriptorsReference, fcRoleDescriptorsReference);
+        return new RoleReferenceIntersection(roleDescriptorsReference);
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

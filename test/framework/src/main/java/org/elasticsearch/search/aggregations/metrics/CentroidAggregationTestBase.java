@@ -103,26 +103,15 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
         CentroidAggregation geoCentroid = global.getAggregations().get(aggName());
+        InternalAggregation agg = (InternalAggregation) global;
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName()));
-        assertThat((CentroidAggregation) ((InternalAggregation) global).getProperty(aggName()), sameInstance(geoCentroid));
+        assertThat((CentroidAggregation) agg.getProperty(aggName()), sameInstance(geoCentroid));
         assertSameCentroid(geoCentroid.centroid(), singleCentroid);
-        assertThat(
-            ((SpatialPoint) ((InternalAggregation) global).getProperty(aggName() + ".value")).getY(),
-            closeTo(singleCentroid.getY(), GEOHASH_TOLERANCE)
-        );
-        assertThat(
-            ((SpatialPoint) ((InternalAggregation) global).getProperty(aggName() + ".value")).getX(),
-            closeTo(singleCentroid.getX(), GEOHASH_TOLERANCE)
-        );
-        assertThat(
-            (double) ((InternalAggregation) global).getProperty(aggName() + "." + coordinateName("y")),
-            closeTo(singleCentroid.getY(), GEOHASH_TOLERANCE)
-        );
-        assertThat(
-            (double) ((InternalAggregation) global).getProperty(aggName() + "." + coordinateName("x")),
-            closeTo(singleCentroid.getX(), GEOHASH_TOLERANCE)
-        );
+        assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getY(), singleCentroid.getY());
+        assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getX(), singleCentroid.getX());
+        assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("y")), singleCentroid.getY());
+        assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("x")), singleCentroid.getX());
         assertEquals(numDocs, (long) ((InternalAggregation) global).getProperty(aggName() + ".count"));
     }
 
@@ -153,6 +142,12 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     /** Override this if the spatial data needs custom normalization (eg. cartesian) */
     protected double normalize(double value) {
         return value;
+    }
+
+    protected void assertSimilarValue(double a, double b) {
+        a = normalize(a);
+        b = normalize(b);
+        assertThat(a, closeTo(b, tolerance(a, b)));
     }
 
     protected void assertSameCentroid(SpatialPoint centroid, SpatialPoint expectedCentroid) {

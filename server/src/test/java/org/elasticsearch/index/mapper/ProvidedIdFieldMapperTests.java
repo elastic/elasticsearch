@@ -50,7 +50,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testEnableFieldData() throws IOException {
-
         boolean[] enabled = new boolean[1];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
@@ -78,7 +77,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    fieldDataLookup(mapperService),
                     new SourceLookup.ReaderSourceProvider()
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);

@@ -2071,10 +2071,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Class<?> valueType;
         Object constant;
 
-        if (numeric.endsWith("d") || numeric.endsWith("D")) {
-            if (radix != 10) {
-                throw userNumericNode.createError(new IllegalStateException("Illegal tree structure."));
-            }
+        if (radix != 16 && (numeric.endsWith("d") || numeric.endsWith("D"))) {
+            assert radix == 10;     // should only be normal int/long
 
             try {
                 constant = Double.parseDouble(numeric.substring(0, numeric.length() - 1));
@@ -2082,10 +2080,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             } catch (NumberFormatException exception) {
                 throw userNumericNode.createError(new IllegalArgumentException("Invalid double constant [" + numeric + "]."));
             }
-        } else if (numeric.endsWith("f") || numeric.endsWith("F")) {
-            if (radix != 10) {
-                throw userNumericNode.createError(new IllegalStateException("Illegal tree structure."));
-            }
+        } else if (radix != 16 && (numeric.endsWith("f") || numeric.endsWith("F"))) {
+            assert radix == 10;     // should only be normal int/long
 
             try {
                 constant = Float.parseFloat(numeric.substring(0, numeric.length() - 1));

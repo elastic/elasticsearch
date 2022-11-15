@@ -109,8 +109,7 @@ public class RefreshIT extends ESIntegTestCase {
         );
         ensureGreen(index);
         AtomicBoolean stopped = new AtomicBoolean();
-        // Thread[] threads = new Thread[between(1, 4)];
-        Thread[] threads = new Thread[2];
+         Thread[] threads = new Thread[between(2, 4)];
         AtomicInteger docID = new AtomicInteger();
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {

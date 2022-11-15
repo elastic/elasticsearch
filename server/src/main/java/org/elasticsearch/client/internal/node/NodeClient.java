@@ -148,6 +148,11 @@ public class NodeClient extends AbstractClient {
         return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, true);
     }
 
+    @Override
+    public String getRemoteClusterAliasForConnection(Transport.Connection connection) {
+        return remoteClusterService.getRemoteClusterAliasForConnection(connection);
+    }
+
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
     }

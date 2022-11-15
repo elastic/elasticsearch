@@ -370,6 +370,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
     }
 
+    public String getRemoteClusterAliasForConnection(Transport.Connection connection) {
+        return getConnections().stream()
+            .filter(rcc -> rcc.getConnection(connection.getNode()) == connection)
+            .map(rcc -> rcc.getConnectionInfo().getClusterAlias())
+            .findFirst()
+            .orElse(null);
+    }
+
     /**
      * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link DiscoveryNode}
      * function on success.
@@ -445,24 +453,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             threadPool,
             clusterAlias,
             transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false
-        );
-    }
-
-    public Client getClusterAliasSettingRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
-        if (transportService.getRemoteClusterService().isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
-            );
-        }
-        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
-            throw new NoSuchRemoteClusterException(clusterAlias);
-        }
-        return new RemoteClusterAwareClient.RemoteClusterAliasSettingClient(
-            settings,
-            threadPool,
-            transportService,
-            clusterAlias,
-            ensureConnected
         );
     }
 

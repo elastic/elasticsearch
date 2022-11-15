@@ -548,11 +548,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            Client remoteClusterClient = remoteClusterService.getClusterAliasSettingRemoteClusterClient(
-                threadPool,
-                clusterAlias,
-                false == skipUnavailable
-            );
+            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
@@ -625,11 +621,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     totalClusters,
                     listener
                 );
-                Client remoteClusterClient = remoteClusterService.getClusterAliasSettingRemoteClusterClient(
-                    threadPool,
-                    clusterAlias,
-                    false == skipUnavailable
-                );
+                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
@@ -697,11 +689,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-            Client clusterClient = remoteClusterService.getClusterAliasSettingRemoteClusterClient(
-                threadPool,
-                clusterAlias,
-                false == skipUnavailable
-            );
+            Client clusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(indicesOptions)
                 .local(true)

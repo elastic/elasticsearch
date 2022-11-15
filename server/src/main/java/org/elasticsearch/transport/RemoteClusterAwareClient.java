@@ -12,16 +12,11 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.function.Supplier;
 
 final class RemoteClusterAwareClient extends AbstractClient {
 
@@ -94,31 +89,9 @@ final class RemoteClusterAwareClient extends AbstractClient {
         return remoteClusterService.getRemoteClusterClient(threadPool(), remoteClusterAlias);
     }
 
-    static class RemoteClusterAliasSettingClient extends FilterClient {
-        private final String clusterAlias;
-
-        RemoteClusterAliasSettingClient(
-            final Settings settings,
-            final ThreadPool threadPool,
-            final TransportService service,
-            final String clusterAlias,
-            final boolean ensureConnected
-        ) {
-            super(new RemoteClusterAwareClient(settings, threadPool, service, clusterAlias, ensureConnected));
-            this.clusterAlias = clusterAlias;
-        }
-
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
-            try (var ignored = in().threadPool().getThreadContext().newStoredContext()) {
-                threadPool().getThreadContext().putTransient(RemoteClusterService.REMOTE_CLUSTER_ALIAS_TRANSIENT_NAME, clusterAlias);
-                super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-            }
-        }
+    @Override
+    public String getRemoteClusterAliasForConnection(Transport.Connection connection) {
+        return remoteClusterService.getRemoteClusterAliasForConnection(connection);
     }
+
 }

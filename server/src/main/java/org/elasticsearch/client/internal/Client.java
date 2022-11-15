@@ -56,6 +56,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 
@@ -425,6 +426,10 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
     default Client getRemoteClusterClient(String clusterAlias) {
+        throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
+    }
+
+    default String getRemoteClusterAliasForConnection(Transport.Connection connection) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
     }
 }

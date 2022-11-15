@@ -595,6 +595,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return handlers.retrieveAll(rawPath, paramsSupplier);
     }
 
+    /**
+     * Returns the holder for search usage statistics, to be used to track search usage when parsing
+     * incoming search requests from the relevant REST endpoints. This is exposed for plugins that
+     * expose search functionalities which need to contribute to the search usage statistics.
+     */
     public SearchUsageHolder getSearchUsageHolder() {
         return usageService.getSearchUsageHolder();
     }

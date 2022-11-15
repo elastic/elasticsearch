@@ -26,7 +26,7 @@ public class WriteAckDelay implements Consumer<Runnable> {
 
     public static final Setting<TimeValue> WRITE_ACK_DELAY_INTERVAL = timeSetting(
         "indices.write_ack_delay_interval",
-        TimeValue.timeValueMillis(100),
+        TimeValue.ZERO,
         Setting.Property.NodeScope
     );
 
@@ -90,8 +90,7 @@ public class WriteAckDelay implements Consumer<Runnable> {
         }
 
     public static WriteAckDelay create(Settings settings, ThreadPool threadPool) {
-        TimeValue timeValue = WRITE_ACK_DELAY_INTERVAL.get(settings);
-        if (timeValue.getNanos() <= 0) {
+        if (WRITE_ACK_DELAY_INTERVAL.get(settings).nanos() <= 0) {
             return null;
         } else {
             return new WriteAckDelay(

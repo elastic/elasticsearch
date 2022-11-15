@@ -104,7 +104,7 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
                 indexingShardStats.getWriteLoad(),
                 indexingShardStats.getTotalActiveTimeInMillis()
             );
-            totalSizeInBytes += commonStats.getStore().sizeInBytes();
+            totalSizeInBytes += commonStats.getDocs().getTotalSizeInBytes();
             shardsTookIntoAccountForSizeAvg++;
         }
 
@@ -157,8 +157,7 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
         }
 
         public OptionalLong getAverageSizeInBytes() {
-            long value = totalSizeInBytes / numberOfShards;
-            return numberOfShards == 0 ? OptionalLong.empty() : OptionalLong.of(value);
+            return numberOfShards == 0 ? OptionalLong.empty() : OptionalLong.of(totalSizeInBytes / numberOfShards);
         }
     }
 }

@@ -2166,6 +2166,12 @@ public class DataStreamIT extends ESIntegTestCase {
                 indexDocs(dataStreamName, randomIntBetween(100, 200));
             }
 
+            // Ensure that we get a stable size to compare against the expected size
+            assertThat(
+                client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get().getSuccessfulShards(),
+                is(greaterThanOrEqualTo(numberOfShards))
+            );
+
             assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         }
 
@@ -2189,7 +2195,7 @@ public class DataStreamIT extends ESIntegTestCase {
             if (shard.getShardRouting().primary() == false) {
                 continue;
             }
-            expectedTotalSizeInBytes += shard.getStats().getStore().sizeInBytes();
+            expectedTotalSizeInBytes += shard.getStats().getDocs().getTotalSizeInBytes();
             shardCount++;
         }
 

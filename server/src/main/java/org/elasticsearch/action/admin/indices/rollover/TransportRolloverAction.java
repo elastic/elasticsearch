@@ -123,8 +123,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
             .docs(true)
-            .indexing(true)
-            .store(true);
+            .indexing(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a
         // "synchronized" block, in that we have a "before" world, where we calculate naming and condition matching, we then enter our

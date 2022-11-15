@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -118,7 +118,7 @@ public class IndexMetadataStatsTests extends ESTestCase {
         shardRouting = ShardRoutingHelper.moveToStarted(shardRouting);
 
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getStore().add(new StoreStats(sizeInBytes, sizeInBytes, 0L));
+        commonStats.getDocs().add(new DocsStats(1, 0, sizeInBytes));
         commonStats.getIndexing()
             .getTotal()
             .add(

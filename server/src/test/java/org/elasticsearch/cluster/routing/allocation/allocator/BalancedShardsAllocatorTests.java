@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -125,7 +126,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 .build()
         );
 
-        var reroutedState = allocationService.reroute(clusterState, "test");
+        var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
 
         for (ShardRouting relocatingShard : RoutingNodesHelper.shardsWithState(reroutedState.getRoutingNodes(), RELOCATING)) {
             assertThat(

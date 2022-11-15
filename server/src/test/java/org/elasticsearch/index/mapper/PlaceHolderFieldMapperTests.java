@@ -64,7 +64,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
         }, iw -> {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
-                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                fieldDataLookup(mapperService),
                 new SourceLookup.ReaderSourceProvider()
             );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);

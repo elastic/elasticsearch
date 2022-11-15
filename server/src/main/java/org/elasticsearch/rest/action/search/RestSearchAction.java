@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -128,21 +127,6 @@ public class RestSearchAction extends BaseRestHandler {
         NamedWriteableRegistry namedWriteableRegistry,
         IntConsumer setSize
     ) throws IOException {
-        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, (r, sr) -> {});
-    }
-
-    /**
-     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request. This variation
-     * allows the caller to specify if wait_for_checkpoints functionality is supported.
-     */
-    public static void parseSearchRequest(
-        SearchRequest searchRequest,
-        RestRequest request,
-        XContentParser requestContentParser,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IntConsumer setSize,
-        BiConsumer<RestRequest, SearchRequest> extraParamParser
-    ) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
             deprecationLogger.compatibleCritical("search_with_types", TYPES_DEPRECATION_MESSAGE);
@@ -204,8 +188,6 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.paramAsBoolean("force_synthetic_source", false)) {
             searchRequest.setForceSyntheticSource(true);
         }
-
-        extraParamParser.accept(request, searchRequest);
     }
 
     /**

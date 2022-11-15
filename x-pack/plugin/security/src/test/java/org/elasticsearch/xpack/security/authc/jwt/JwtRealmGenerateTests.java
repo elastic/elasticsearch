@@ -129,12 +129,12 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             randomBoolean() ? null : algJwkPairHmac.jwk().getKeyID(), // kid
             algJwkPairHmac.alg(), // alg
             null, // jwtID
-            jwtIssuerAndRealm.realm().allowedIssuer, // iss
-            jwtIssuerAndRealm.realm().allowedAudiences, // aud
+            JwtRealmInspector.getAllowedIssuer(jwtIssuerAndRealm.realm()), // iss
+            JwtRealmInspector.getAllowedAudiences(jwtIssuerAndRealm.realm()), // aud
             user.principal(), // sub claim value
-            jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
+            JwtRealmInspector.getPrincipalClaimName(jwtIssuerAndRealm.realm()), // principal claim name
             user.principal(), // principal claim value
-            jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
+            JwtRealmInspector.getGroupsClaimName(jwtIssuerAndRealm.realm()), // group claim name
             List.of("security_test_role"), // group claim value
             null, // auth_time
             DATE_2000_1_1, // iat
@@ -221,12 +221,12 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             randomBoolean() ? null : algJwkPairPkc.jwk().getKeyID(), // kid
             algJwkPairPkc.alg(), // alg
             null, // jwtID
-            jwtIssuerAndRealm.realm().allowedIssuer, // iss
-            jwtIssuerAndRealm.realm().allowedAudiences, // aud
+            JwtRealmInspector.getAllowedIssuer(jwtIssuerAndRealm.realm()), // iss
+            JwtRealmInspector.getAllowedAudiences(jwtIssuerAndRealm.realm()), // aud
             user.principal(), // sub
-            jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
+            JwtRealmInspector.getPrincipalClaimName(jwtIssuerAndRealm.realm()), // principal claim name
             user.principal(), // principal claim value
-            jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
+            JwtRealmInspector.getGroupsClaimName(jwtIssuerAndRealm.realm()), // group claim name
             null, // group claim value
             null, // auth_time
             DATE_2000_1_1, // iat
@@ -327,12 +327,12 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             randomBoolean() ? null : algJwkPairHmac.jwk().getKeyID(), // kid
             algJwkPairHmac.alg(), // alg
             null, // jwtID
-            jwtIssuerAndRealm.realm().allowedIssuer, // iss
-            jwtIssuerAndRealm.realm().allowedAudiences, // aud
+            JwtRealmInspector.getAllowedIssuer(jwtIssuerAndRealm.realm()), // iss
+            JwtRealmInspector.getAllowedAudiences(jwtIssuerAndRealm.realm()), // aud
             user.principal(), // sub claim value
-            jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
+            JwtRealmInspector.getPrincipalClaimName(jwtIssuerAndRealm.realm()), // principal claim name
             "user2@something.example.com", // principal claim value
-            jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
+            JwtRealmInspector.getGroupsClaimName(jwtIssuerAndRealm.realm()), // group claim name
             null, // group claim value
             null, // auth_time
             DATE_2000_1_1, // iat
@@ -424,12 +424,12 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             randomBoolean() ? null : selectedHmac.jwk().getKeyID(), // kid
             selectedHmac.alg(), // alg
             null, // jwtID
-            jwtIssuerAndRealm.realm().allowedIssuer, // iss
-            jwtIssuerAndRealm.realm().allowedAudiences, // aud
+            JwtRealmInspector.getAllowedIssuer(jwtIssuerAndRealm.realm()), // iss
+            JwtRealmInspector.getAllowedAudiences(jwtIssuerAndRealm.realm()), // aud
             user.principal(), // sub claim value
-            jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
+            JwtRealmInspector.getPrincipalClaimName(jwtIssuerAndRealm.realm()), // principal claim name
             randomFrom(jwtIssuer.principals.keySet()), // principal claim value
-            jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
+            JwtRealmInspector.getGroupsClaimName(jwtIssuerAndRealm.realm()), // group claim name
             null, // group claim value
             null, // auth_time
             DATE_2000_1_1, // iat

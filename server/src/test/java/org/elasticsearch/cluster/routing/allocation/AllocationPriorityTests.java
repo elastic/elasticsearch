@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -75,9 +76,9 @@ public class AllocationPriorityTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         assertEquals(2, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size());
         assertEquals(highPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(0).getIndexName());
         assertEquals(highPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(1).getIndexName());

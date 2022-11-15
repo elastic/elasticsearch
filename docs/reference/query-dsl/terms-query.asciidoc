@@ -7,7 +7,9 @@
 Returns documents that contain one or more *exact* terms in a provided field.
 
 The `terms` query is the same as the <<query-dsl-term-query, `term` query>>,
-except you can search for multiple values.
+except you can search for multiple values. A document will match if it contains
+at least one of the terms. To search for documents that contain more than one
+matching term, use the <<query-dsl-terms-set-query, `terms_set` query>>.
 
 [[terms-query-ex-request]]
 ==== Example request

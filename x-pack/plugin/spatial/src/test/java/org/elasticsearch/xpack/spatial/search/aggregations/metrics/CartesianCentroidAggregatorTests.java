@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
@@ -102,7 +101,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             CartesianPoint expectedCentroid = new CartesianPoint(0, 0);
             CartesianPoint[] singleValues = new CartesianPoint[numUniqueCartesianPoints];
             for (int i = 0; i < singleValues.length; i++) {
-                Point point = ESTestCase.randomValueOtherThanMany(this::extremePoint, () -> ShapeTestUtils.randomPoint(false));
+                Point point = ShapeTestUtils.randomPointNotExtreme(false);
                 singleValues[i] = new CartesianPoint(point.getX(), point.getY());
             }
             for (int i = 0; i < numDocs; i++) {
@@ -127,7 +126,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             CartesianPoint expectedCentroid = new CartesianPoint(0, 0);
             CartesianPoint[] multiValues = new CartesianPoint[numUniqueCartesianPoints];
             for (int i = 0; i < multiValues.length; i++) {
-                Point point = ESTestCase.randomValueOtherThanMany(this::extremePoint, () -> ShapeTestUtils.randomPoint(false));
+                Point point = ShapeTestUtils.randomPointNotExtreme(false);
                 multiValues[i] = new CartesianPoint(point.getX(), point.getY());
             }
             final CartesianPoint[] multiVal = new CartesianPoint[2];
@@ -184,17 +183,6 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             // For very large numbers the floating point error is worse for large counts
             return tolerance > 1e25 ? tolerance * count : tolerance;
         }
-    }
-
-    /**
-     * Since cartesian centroid is stored in Float values, and calculations perform averages over many,
-     * We cannot support points at the very edge of the range.
-     * TODO: Consider whether this should be implemented in ShapeTestUtils itself for more tests
-     */
-    private boolean extremePoint(Point point) {
-        double max = Float.MAX_VALUE / 100;
-        double min = -Float.MAX_VALUE / 100;
-        return point.getLon() > max || point.getLon() < min || point.getLat() > max || point.getLat() < min;
     }
 
     @Override

@@ -1,5 +1,5 @@
 pr: 91329
-summary: Allow configuring readiness host
+summary: Bind the readiness service to the wildcard address
 area: Infra/Core
 type: enhancement
 issues:

@@ -29,7 +29,6 @@ public class WriteAckDelayIT extends ESIntegTestCase {
     }
 
     public void testIndexWithWriteDelayEnabled() throws Exception {
-        Exception firstError = null;
         createIndex("test");
         int numOfDocs = randomIntBetween(100, 400);
         logger.info("indexing [{}] docs", numOfDocs);
@@ -42,7 +41,7 @@ public class WriteAckDelayIT extends ESIntegTestCase {
         int numOfChecks = randomIntBetween(8, 12);
         for (int j = 0; j < numOfChecks; j++) {
             try {
-                logger.debug("running search with all types");
+                logger.debug("running search");
                 SearchResponse response = client().prepareSearch("test").get();
                 if (response.getHits().getTotalHits().value != numOfDocs) {
                     final String message = "Count is "
@@ -55,33 +54,9 @@ public class WriteAckDelayIT extends ESIntegTestCase {
                     fail(message);
                 }
             } catch (Exception e) {
-                logger.error("search for all docs types failed", e);
-                if (firstError == null) {
-                    firstError = e;
-                }
+                logger.error("search failed", e);
+                throw e;
             }
-            try {
-                logger.debug("running search with a specific type");
-                SearchResponse response = client().prepareSearch("test").get();
-                if (response.getHits().getTotalHits().value != numOfDocs) {
-                    final String message = "Count is "
-                        + response.getHits().getTotalHits().value
-                        + " but "
-                        + numOfDocs
-                        + " was expected. "
-                        + ElasticsearchAssertions.formatShardStatus(response);
-                    logger.error("{}. search response: \n{}", message, response);
-                    fail(message);
-                }
-            } catch (Exception e) {
-                logger.error("search for all docs of a specific type failed", e);
-                if (firstError == null) {
-                    firstError = e;
-                }
-            }
-        }
-        if (firstError != null) {
-            fail(firstError.getMessage());
         }
     }
 }

@@ -21,7 +21,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -139,6 +142,11 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         public ActionRequestValidationException validate() {
             return null;
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
     }
 
     public static class TransportAction extends org.elasticsearch.action.support.TransportAction<Request, Response> {
@@ -163,6 +171,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
+            assert task instanceof CancellableTask;
             healthService.getHealth(
                 client,
                 request.indicatorName,

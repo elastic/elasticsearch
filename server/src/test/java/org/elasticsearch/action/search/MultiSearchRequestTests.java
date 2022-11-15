@@ -263,7 +263,7 @@ public class MultiSearchRequestTests extends ESTestCase {
 
         MultiSearchRequest request = new MultiSearchRequest();
         RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true, (searchRequest, parser) -> {
-            searchRequest.source(SearchSourceBuilder.fromXContent(parser, false, new UsageService().getSearchUsageHolder()));
+            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder()));
             request.add(searchRequest);
         });
         return request;
@@ -310,7 +310,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(
                     p,
                     false,
                     new UsageService().getSearchUsageHolder()

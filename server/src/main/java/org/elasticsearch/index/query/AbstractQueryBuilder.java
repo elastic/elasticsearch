@@ -333,8 +333,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                     }
                 }
                 T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
-                queryNameConsumer.accept(name);
                 if (categoryClass.equals(QueryBuilder.class)) {
+                    queryNameConsumer.accept(name);
                     nestedDepth--;
                 }
                 return namedObject;

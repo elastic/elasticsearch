@@ -826,7 +826,10 @@ Number of indices using the built-in analyzer in selected nodes.
 `search`::
 (object)
 Contains usage statistics about search requests submitted to selected nodes
-that acted as coordinator during the search execution.
+that acted as coordinator during the search execution. Search requests are
+tracked when they are successfully parsed, regardless of their results:
+requests that yield errors after parsing contribute to the usage stats, as
+well as requests that don't access any data.
 
 +
 .Properties of `search` objects
@@ -834,7 +837,8 @@ that acted as coordinator during the search execution.
 =====
 `total`::
 (integer)
-Total number of incoming search requests
+Total number of incoming search requests. Search requests that don't specify a
+request body are not counted.
 
 `queries`::
 (object)

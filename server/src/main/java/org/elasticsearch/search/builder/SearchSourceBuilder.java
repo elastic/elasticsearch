@@ -113,27 +113,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
 
     /**
-     * Parsed the body of an incoming search request without tracking search usage statistics: suitable for API that use search
-     * internally, which are not expected to contribute to search usage statistics
-     */
-    public static SearchSourceBuilder fromXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser, checkTrailingTokens);
-        return builder;
-    }
-
-    /**
-     * Parses the body of an incoming search request. Suitable for API that expose core search functionalities which contribute
-     * to search usage statistics.
-     */
-    public static SearchSourceBuilder fromXContent(XContentParser parser, boolean checkTrailingTokens, SearchUsageHolder searchUsageHolder)
-        throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser, checkTrailingTokens, searchUsageHolder);
-        return builder;
-    }
-
-    /**
      * A static factory method to construct a new search source.
      */
     public static SearchSourceBuilder searchSource() {
@@ -1157,33 +1136,30 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
-     * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser, boolean, SearchUsageHolder)} if you have normal defaults.
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
      *
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      * @param searchUsageHolder holder for the search usage statistics
      */
-    public void parseXContent(XContentParser parser, boolean checkTrailingTokens, SearchUsageHolder searchUsageHolder) throws IOException {
-        parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage);
+    public SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens, SearchUsageHolder searchUsageHolder)
+        throws IOException {
+        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage);
     }
 
     /**
-     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
-     * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser, boolean, SearchUsageHolder)} if you have normal defaults.
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
      * This variant does not record search features usage. Most times the variant that accepts a {@link SearchUsageHolder} and records
      * usage stats into it is the one to use.
      *
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      */
-    public void parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
-        parseXContent(parser, checkTrailingTokens, s -> {});
+    public SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
+        return parseXContent(parser, checkTrailingTokens, s -> {});
     }
 
-    private void parseXContent(XContentParser parser, boolean checkTrailingTokens, Consumer<SearchUsage> searchUsageConsumer)
+    private SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens, Consumer<SearchUsage> searchUsageConsumer)
         throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -1431,6 +1407,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         searchUsageConsumer.accept(searchUsage);
+        return this;
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {

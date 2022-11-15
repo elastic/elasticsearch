@@ -147,7 +147,7 @@ public class RestSearchAction extends BaseRestHandler {
      * @param searchRequest the search request that will hold what gets parsed
      * @param request the rest request to read from
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
-     *        parameter
+     *        parameter, will be null when there is no request body to parse
      * @param namedWriteableRegistry the registry of named writeables
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      * @param searchUsageHolder the holder of search usage stats
@@ -155,7 +155,7 @@ public class RestSearchAction extends BaseRestHandler {
     public static void parseSearchRequest(
         SearchRequest searchRequest,
         RestRequest request,
-        XContentParser requestContentParser,
+        @Nullable XContentParser requestContentParser,
         NamedWriteableRegistry namedWriteableRegistry,
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder

@@ -134,6 +134,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return versions;
     }
 
+    public SearchUsageStats getSearchUsageStats() {
+        return searchUsageStats;
+    }
+
     static final class Fields {
         static final String COUNT = "count";
     }

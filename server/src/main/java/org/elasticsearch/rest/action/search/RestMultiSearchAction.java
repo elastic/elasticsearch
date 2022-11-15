@@ -134,7 +134,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
-            searchRequest.source(SearchSourceBuilder.fromXContent(parser, false, searchUsageHolder));
+            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, searchUsageHolder));
             RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             if (searchRequest.pointInTimeBuilder() != null) {
                 RestSearchAction.preparePointInTime(searchRequest, restRequest, namedWriteableRegistry);

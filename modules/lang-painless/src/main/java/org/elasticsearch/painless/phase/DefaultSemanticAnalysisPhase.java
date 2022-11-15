@@ -240,8 +240,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         List<Class<?>> typeParameters = localFunction.getTypeParameters();
         FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
 
-        for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
-            Class<?> typeParameter = localFunction.getTypeParameters().get(index);
+        for (int index = 0; index < typeParameters.size(); ++index) {
+            Class<?> typeParameter = typeParameters.get(index);
             String parameterName = userFunctionNode.getParameterNames().get(index);
             functionScope.defineVariable(userFunctionNode.getLocation(), typeParameter, parameterName, false);
         }
@@ -455,8 +455,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         SBlock userBlockNode = userWhileNode.getBlockNode();
         boolean continuous = false;
 
-        if (userConditionNode instanceof EBooleanConstant) {
-            continuous = ((EBooleanConstant) userConditionNode).getBool();
+        if (userConditionNode instanceof EBooleanConstant bc) {
+            continuous = bc.getBool();
 
             if (continuous == false) {
                 throw userWhileNode.createError(new IllegalArgumentException("extraneous while loop"));
@@ -518,8 +518,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         boolean continuous;
 
-        if (userConditionNode instanceof EBooleanConstant) {
-            continuous = ((EBooleanConstant) userConditionNode).getBool();
+        if (userConditionNode instanceof EBooleanConstant bc) {
+            continuous = bc.getBool();
 
             if (continuous == false) {
                 throw userDoNode.createError(new IllegalArgumentException("extraneous do-while loop"));
@@ -547,8 +547,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (userInitializerNode != null) {
             if (userInitializerNode instanceof SDeclBlock) {
                 visit(userInitializerNode, semanticScope);
-            } else if (userInitializerNode instanceof AExpression) {
-                checkedVisit((AExpression) userInitializerNode, semanticScope);
+            } else if (userInitializerNode instanceof AExpression ae) {
+                checkedVisit(ae, semanticScope);
             } else {
                 throw userForNode.createError(new IllegalStateException("illegal tree structure"));
             }
@@ -564,8 +564,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             checkedVisit(userConditionNode, semanticScope);
             decorateWithCast(userConditionNode, semanticScope);
 
-            if (userConditionNode instanceof EBooleanConstant) {
-                continuous = ((EBooleanConstant) userConditionNode).getBool();
+            if (userConditionNode instanceof EBooleanConstant bc) {
+                continuous = bc.getBool();
 
                 if (continuous == false) {
                     throw userForNode.createError(new IllegalArgumentException("extraneous for loop"));
@@ -1851,9 +1851,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         scriptScope.putDecoration(userNewObjNode, new StandardPainlessConstructor(constructor));
         scriptScope.markNonDeterministic(constructor.annotations().containsKey(NonDeterministicAnnotation.class));
 
-        Class<?>[] types = new Class<?>[constructor.typeParameters().size()];
-        constructor.typeParameters().toArray(types);
-
         if (constructor.typeParameters().size() != userArgumentsSize) {
             throw userNewObjNode.createError(
                 new IllegalArgumentException(
@@ -1873,7 +1870,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             AExpression userArgumentNode = userArgumentNodes.get(i);
 
             semanticScope.setCondition(userArgumentNode, Read.class);
-            semanticScope.putDecoration(userArgumentNode, new TargetType(types[i]));
+            semanticScope.putDecoration(userArgumentNode, new TargetType(constructor.typeParameters().get(i)));
             semanticScope.setCondition(userArgumentNode, Internal.class);
             checkedVisit(userArgumentNode, semanticScope);
             decorateWithCast(userArgumentNode, semanticScope);
@@ -1975,32 +1972,32 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             semanticScope.setUsesInstanceMethod();
             semanticScope.putDecoration(userCallLocalNode, new StandardLocalFunction(localFunction));
 
-            typeParameters = new ArrayList<>(localFunction.getTypeParameters());
+            typeParameters = localFunction.getTypeParameters();
             valueType = localFunction.getReturnType();
         } else if (thisMethod != null) {
             semanticScope.setUsesInstanceMethod();
             semanticScope.putDecoration(userCallLocalNode, new ThisPainlessMethod(thisMethod));
 
             scriptScope.markNonDeterministic(thisMethod.annotations().containsKey(NonDeterministicAnnotation.class));
-            typeParameters = new ArrayList<>(thisMethod.typeParameters());
+            typeParameters = thisMethod.typeParameters();
             valueType = thisMethod.returnType();
         } else if (importedMethod != null) {
             semanticScope.putDecoration(userCallLocalNode, new StandardPainlessMethod(importedMethod));
 
             scriptScope.markNonDeterministic(importedMethod.annotations().containsKey(NonDeterministicAnnotation.class));
-            typeParameters = new ArrayList<>(importedMethod.typeParameters());
+            typeParameters = importedMethod.typeParameters();
             valueType = importedMethod.returnType();
         } else if (classBinding != null) {
             semanticScope.putDecoration(userCallLocalNode, new StandardPainlessClassBinding(classBinding));
             semanticScope.putDecoration(userCallLocalNode, new StandardConstant(classBindingOffset));
 
             scriptScope.markNonDeterministic(classBinding.annotations().containsKey(NonDeterministicAnnotation.class));
-            typeParameters = new ArrayList<>(classBinding.typeParameters());
+            typeParameters = classBinding.typeParameters();
             valueType = classBinding.returnType();
         } else if (instanceBinding != null) {
             semanticScope.putDecoration(userCallLocalNode, new StandardPainlessInstanceBinding(instanceBinding));
 
-            typeParameters = new ArrayList<>(instanceBinding.typeParameters());
+            typeParameters = instanceBinding.typeParameters();
             valueType = instanceBinding.returnType();
         } else {
             throw new IllegalStateException("Illegal tree structure.");
@@ -2546,7 +2543,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             }
 
             SemanticScope.Variable captured = semanticScope.getVariable(location, symbol);
-            semanticScope.putDecoration(userFunctionRefNode, new CapturesDecoration(Collections.singletonList(captured)));
+            semanticScope.putDecoration(userFunctionRefNode, new CapturesDecoration(List.of(captured)));
 
             if (captured.type().isPrimitive()) {
                 semanticScope.setCondition(userFunctionRefNode, CaptureBox.class);

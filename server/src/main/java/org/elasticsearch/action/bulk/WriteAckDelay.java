@@ -24,12 +24,14 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 public class WriteAckDelay implements Consumer<Runnable> {
 
+    // Controls the interval in which write acknowledgement scheduled task will be executed
     public static final Setting<TimeValue> WRITE_ACK_DELAY_INTERVAL = timeSetting(
         "indices.write_ack_delay_interval",
         TimeValue.ZERO,
         Setting.Property.NodeScope
     );
 
+    // Controls a max time bound after which the write acknowledgements will be completed after the scheduling task runs
     public static final Setting<TimeValue> WRITE_ACK_DELAY_RANDOMNESS_BOUND = timeSetting(
         "indices.write_ack_delay_randomness_bound",
         TimeValue.timeValueMillis(70),
@@ -73,7 +75,7 @@ public class WriteAckDelay implements Consumer<Runnable> {
             long delayRandomness = Randomness.get().nextLong(writeDelayRandomnessBound);
             TimeValue randomDelay = TimeValue.timeValueNanos(delayRandomness);
             logger.trace(
-                "scheduling write ack completion task will complete {} writes after interval of {} with additional random delay of {}",
+                "scheduling write ack completion task [{} writes; {} interval; {} random delay]",
                 tasks.size(),
                 writeDelayInterval,
                 randomDelay
@@ -86,6 +88,7 @@ public class WriteAckDelay implements Consumer<Runnable> {
 
         @Override
         public void run() {
+            logger.trace("completing {} writes", tasks.size());
             for (Runnable task : tasks) {
                 try {
                     task.run();
@@ -96,6 +99,10 @@ public class WriteAckDelay implements Consumer<Runnable> {
         }
     }
 
+    /**
+     * Creates a potential WriteAckDelay object based on settings. If indices.write_ack_delay_interval is <= 0
+     * null will be returned.
+     */
     public static WriteAckDelay create(Settings settings, ThreadPool threadPool) {
         if (WRITE_ACK_DELAY_INTERVAL.get(settings).nanos() <= 0) {
             return null;

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -14,47 +14,49 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class IndexWriteLoadSerializationTests extends AbstractXContentSerializingTestCase<IndexWriteLoad> {
+public class IndexMetadataStatsSerializationTests extends AbstractXContentSerializingTestCase<IndexMetadataStats> {
 
     @Override
-    protected IndexWriteLoad doParseInstance(XContentParser parser) throws IOException {
-        return IndexWriteLoad.fromXContent(parser);
+    protected IndexMetadataStats doParseInstance(XContentParser parser) throws IOException {
+        return IndexMetadataStats.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<IndexWriteLoad> instanceReader() {
-        return IndexWriteLoad::new;
+    protected Writeable.Reader<IndexMetadataStats> instanceReader() {
+        return IndexMetadataStats::new;
     }
 
     @Override
-    protected IndexWriteLoad createTestInstance() {
+    protected IndexMetadataStats createTestInstance() {
         final int numberOfShards = randomIntBetween(1, 10);
         final var indexWriteLoad = IndexWriteLoad.builder(numberOfShards);
         for (int i = 0; i < numberOfShards; i++) {
             indexWriteLoad.withShardWriteLoad(i, randomDoubleBetween(1, 10, true), randomLongBetween(1, 1000));
         }
-        return indexWriteLoad.build();
+        return new IndexMetadataStats(indexWriteLoad.build(), randomLongBetween(1024, 10240), randomIntBetween(1, 4));
     }
 
     @Override
-    protected IndexWriteLoad mutateInstance(IndexWriteLoad instance) throws IOException {
+    protected IndexMetadataStats mutateInstance(IndexMetadataStats originalStats) throws IOException {
+        final IndexWriteLoad originalWriteLoad = originalStats.writeLoad();
+
         final int newNumberOfShards;
-        if (instance.numberOfShards() > 1 && randomBoolean()) {
-            newNumberOfShards = randomIntBetween(1, instance.numberOfShards() - 1);
+        if (originalWriteLoad.numberOfShards() > 1 && randomBoolean()) {
+            newNumberOfShards = randomIntBetween(1, originalWriteLoad.numberOfShards() - 1);
         } else {
-            newNumberOfShards = instance.numberOfShards() + randomIntBetween(1, 5);
+            newNumberOfShards = originalWriteLoad.numberOfShards() + randomIntBetween(1, 5);
         }
         final var indexWriteLoad = IndexWriteLoad.builder(newNumberOfShards);
         for (int i = 0; i < newNumberOfShards; i++) {
-            boolean existingShard = i < instance.numberOfShards();
+            boolean existingShard = i < originalWriteLoad.numberOfShards();
             double shardLoad = existingShard && randomBoolean()
-                ? instance.getWriteLoadForShard(i).getAsDouble()
+                ? originalWriteLoad.getWriteLoadForShard(i).getAsDouble()
                 : randomDoubleBetween(0, 128, true);
             long uptimeInMillis = existingShard && randomBoolean()
-                ? instance.getUptimeInMillisForShard(i).getAsLong()
+                ? originalWriteLoad.getUptimeInMillisForShard(i).getAsLong()
                 : randomNonNegativeLong();
             indexWriteLoad.withShardWriteLoad(i, shardLoad, uptimeInMillis);
         }
-        return indexWriteLoad.build();
+        return new IndexMetadataStats(indexWriteLoad.build(), randomLongBetween(1024, 10240), randomIntBetween(1, 4));
     }
 }

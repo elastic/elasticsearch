@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -63,6 +65,12 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM);
+
+    private final SearchUsageHolder searchUsageHolder;
+
+    public RestSearchAction(SearchUsageHolder searchUsageHolder) {
+        this.searchUsageHolder = searchUsageHolder;
+    }
 
     @Override
     public String getName() {
@@ -104,7 +112,7 @@ public class RestSearchAction extends BaseRestHandler {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
+            parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize, searchUsageHolder)
         );
 
         return channel -> {
@@ -116,8 +124,11 @@ public class RestSearchAction extends BaseRestHandler {
     /**
      * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
      *
+     * @param searchRequest the search request that will hold what gets parsed
+     * @param request the rest request to read from
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
+     * @param namedWriteableRegistry the registry of named writeables
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      */
     public static void parseSearchRequest(
@@ -126,6 +137,28 @@ public class RestSearchAction extends BaseRestHandler {
         XContentParser requestContentParser,
         NamedWriteableRegistry namedWriteableRegistry,
         IntConsumer setSize
+    ) throws IOException {
+        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, null);
+    }
+
+    /**
+     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
+     *
+     * @param searchRequest the search request that will hold what gets parsed
+     * @param request the rest request to read from
+     * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
+     *        parameter, will be null when there is no request body to parse
+     * @param namedWriteableRegistry the registry of named writeables
+     * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
+     * @param searchUsageHolder the holder of search usage stats
+     */
+    public static void parseSearchRequest(
+        SearchRequest searchRequest,
+        RestRequest request,
+        @Nullable XContentParser requestContentParser,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IntConsumer setSize,
+        @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
@@ -137,7 +170,11 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            searchRequest.source().parseXContent(requestContentParser, true);
+            if (searchUsageHolder == null) {
+                searchRequest.source().parseXContent(requestContentParser, true);
+            } else {
+                searchRequest.source().parseXContent(requestContentParser, true, searchUsageHolder);
+            }
         }
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());

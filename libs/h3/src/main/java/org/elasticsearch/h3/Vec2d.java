@@ -152,8 +152,6 @@ final class Vec2d {
 
         // find theta as an azimuth
         theta = posAngleRads(faceAxesAzRadsCII[face][0] - theta);
-        // lon = 0.555560649834939
-        // lat = 1.2030547183008669
         // now find the point at (r,theta) from the face center
         return geoAzDistanceRads(faceCenterGeo[face], theta, r);
     }

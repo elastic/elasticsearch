@@ -403,7 +403,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
-    private volatile boolean nodeBandwidthSettingsExist;
+    private final boolean nodeBandwidthSettingsExist;
     private volatile int maxConcurrentSnapshotFileDownloads;
     private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
 
@@ -491,6 +491,7 @@ public class RecoverySettings {
         }
 
         final long availableBytesPerSec = Math.min(readBytesPerSec, writeBytesPerSec);
+        assert nodeBandwidthSettingsExist ^ (availableBytesPerSec == 0L);
 
         long maxBytesPerSec;
         if (availableBytesPerSec == 0L                                      // no node recovery bandwidths
@@ -700,7 +701,6 @@ public class RecoverySettings {
     public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
         return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
-            .map(Setting::getKey)
             .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();
     }
 }

@@ -89,7 +89,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
     public static final Setting<Float> WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.load",
+        "cluster.routing.allocation.balance.write_load",
         0.0f,
         0.0f,
         Property.Dynamic,

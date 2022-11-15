@@ -42,11 +42,11 @@ public class WriteAckDelay implements Consumer<Runnable> {
     private final ThreadPool threadPool;
     private final ConcurrentLinkedQueue<Runnable> writeCallbacks = new ConcurrentLinkedQueue<>();
     private final TimeValue writeDelayInterval;
-    private final long writeDelayRandomnessBound;
+    private final long writeDelayRandomnessBoundMillis;
 
-    public WriteAckDelay(long writeDelayIntervalNanos, long writeDelayRandomnessBound, ThreadPool threadPool) {
+    public WriteAckDelay(long writeDelayIntervalNanos, long writeDelayRandomnessBoundMillis, ThreadPool threadPool) {
         this.writeDelayInterval = TimeValue.timeValueNanos(writeDelayIntervalNanos);
-        this.writeDelayRandomnessBound = writeDelayRandomnessBound;
+        this.writeDelayRandomnessBoundMillis = writeDelayRandomnessBoundMillis;
         this.threadPool = threadPool;
         this.threadPool.scheduleWithFixedDelay(
             new ScheduleTask(),
@@ -72,8 +72,8 @@ public class WriteAckDelay implements Consumer<Runnable> {
                 }
             }
 
-            long delayRandomness = Randomness.get().nextLong(writeDelayRandomnessBound);
-            TimeValue randomDelay = TimeValue.timeValueNanos(delayRandomness);
+            long delayRandomness = Randomness.get().nextLong(writeDelayRandomnessBoundMillis) + 1;
+            TimeValue randomDelay = TimeValue.timeValueMillis(delayRandomness);
             logger.trace(
                 "scheduling write ack completion task [{} writes; {} interval; {} random delay]",
                 tasks.size(),
@@ -109,7 +109,7 @@ public class WriteAckDelay implements Consumer<Runnable> {
         } else {
             return new WriteAckDelay(
                 WRITE_ACK_DELAY_INTERVAL.get(settings).nanos(),
-                WRITE_ACK_DELAY_RANDOMNESS_BOUND.get(settings).nanos(),
+                WRITE_ACK_DELAY_RANDOMNESS_BOUND.get(settings).millis(),
                 threadPool
             );
         }

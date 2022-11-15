@@ -11,7 +11,6 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -42,7 +41,7 @@ public class RestGetHealthAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetHealthAction.INSTANCE,
             getHealthRequest,
-            new RestToXContentListener<>(channel)
+            new RestChunkedToXContentListener<>(channel)
         );
     }
 }

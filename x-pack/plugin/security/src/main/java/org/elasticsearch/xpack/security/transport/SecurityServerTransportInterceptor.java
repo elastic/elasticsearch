@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -241,7 +242,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
+                    RemoteAccessAuthentication.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
                     threadContext.putHeader(
                         REMOTE_ACCESS_CREDENTIAL_HEADER,
                         remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias)

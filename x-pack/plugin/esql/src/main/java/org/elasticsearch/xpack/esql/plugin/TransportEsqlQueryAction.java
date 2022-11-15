@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -62,7 +61,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             // TODO: plug-in security
             null,
             clusterService.getClusterName().value(),
-            x -> Collections.emptySet(),
             request.pragmas()
         );
         planExecutor.newSession(configuration).execute(request, wrap(r -> {

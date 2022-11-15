@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.time.ZoneOffset;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -305,7 +304,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private Analyzer newAnalyzer(IndexResolution indexResolution) {
-        Configuration configuration = new Configuration(ZoneOffset.UTC, null, null, x -> Collections.emptySet());
+        Configuration configuration = new Configuration(ZoneOffset.UTC, null, null);
         return new Analyzer(indexResolution, new EsqlFunctionRegistry(), new Verifier(), configuration);
     }
 

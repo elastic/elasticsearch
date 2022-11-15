@@ -532,7 +532,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_7_10_0;
 
-    static final Version WRITE_LOAD_ADDED = Version.V_8_6_0;
+    static final Version STATS_AND_FORECAST_ADDED = Version.V_8_6_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -1429,6 +1429,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final IndexLongFieldRange timestampRange;
         private final IndexMetadataStats stats;
         private final Double indexWriteLoadForecast;
+        private final Long shardSizeInBytesForecast;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1464,6 +1465,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             timestampRange = after.timestampRange;
             stats = after.stats;
             indexWriteLoadForecast = after.writeLoadForecast;
+            shardSizeInBytesForecast = after.shardSizeInBytesForecast;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1514,12 +1516,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isSystem = false;
             }
             timestampRange = IndexLongFieldRange.readFrom(in);
-            if (in.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
+            if (in.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 stats = in.readOptionalWriteable(IndexMetadataStats::new);
                 indexWriteLoadForecast = in.readOptionalDouble();
+                shardSizeInBytesForecast = in.readOptionalLong();
             } else {
                 stats = null;
                 indexWriteLoadForecast = null;
+                shardSizeInBytesForecast = null;
             }
         }
 
@@ -1551,9 +1555,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeBoolean(isSystem);
             }
             timestampRange.writeTo(out);
-            if (out.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
+            if (out.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 out.writeOptionalWriteable(stats);
                 out.writeOptionalDouble(indexWriteLoadForecast);
+                out.writeOptionalLong(shardSizeInBytesForecast);
             }
         }
 
@@ -1583,6 +1588,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.timestampRange(timestampRange);
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
+            builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
             return builder.build();
         }
     }
@@ -1645,9 +1651,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
 
-        if (in.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
+        if (in.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
             builder.stats(in.readOptionalWriteable(IndexMetadataStats::new));
             builder.indexWriteLoadForecast(in.readOptionalDouble());
+            builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
         return builder.build();
     }
@@ -1690,9 +1697,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeBoolean(isSystem);
         }
         timestampRange.writeTo(out);
-        if (out.getVersion().onOrAfter(WRITE_LOAD_ADDED)) {
+        if (out.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
+            out.writeOptionalLong(shardSizeInBytesForecast);
         }
     }
 

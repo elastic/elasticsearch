@@ -32,6 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
@@ -430,7 +431,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * Tests a filter that needs the cache to be fast.
      */
     public void testPhraseFilter() throws IOException {
-        MappedFieldType ft = new TextFieldMapper.TextFieldType("test");
+        MappedFieldType ft = new TextFieldMapper.TextFieldType("test", randomBoolean());
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
             new KeyedFilter("q1", new MatchPhraseQueryBuilder("test", "will find me").slop(0))
@@ -501,7 +502,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filters1.getBucketByKey("q1").getDocCount(), equalTo(1L));
         },
             new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))), ft)
-                .withQuery(Queries.newNonNestedFilter())
+                .withQuery(Queries.newNonNestedFilter(Version.CURRENT))
         );
         testCase(buildIndex, result -> {
             InternalFilters filters = (InternalFilters) result;
@@ -509,7 +510,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
         },
             new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())), ft).withQuery(
-                Queries.newNonNestedFilter()
+                Queries.newNonNestedFilter(Version.CURRENT)
             )
         );
     }

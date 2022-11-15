@@ -17,10 +17,8 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.MemoizedSupplier;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -71,6 +69,11 @@ public class SourceLookup implements Source, Map<String, Object> {
         return sourceProvider.sourceAsBytes();
     }
 
+    @Override
+    public Source filter(SourceFilter sourceFilter) {
+        return sourceFilter.filterMap(this);
+    }
+
     /**
      * Checks if the source has been deserialized as a {@link Map} of java objects.
      */
@@ -94,27 +97,6 @@ public class SourceLookup implements Source, Map<String, Object> {
      */
     public List<Object> extractRawValuesWithoutCaching(String path) {
         return sourceProvider.extractRawValuesWithoutCaching(path);
-    }
-
-    /**
-     * For the provided path, return its value in the source.
-     *
-     * Both array and object values can be returned.
-     *
-     * @param path the value's path in the source.
-     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
-     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
-     *
-     * @return the value associated with the path in the source or 'null' if the path does not exist.
-     */
-    @Override
-    public Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, source(), nullValue);
-    }
-
-    @Override
-    public Map<String, Object> filter(FetchSourceContext context) {
-        return context.getFilter().apply(source());
     }
 
     private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
@@ -244,24 +226,20 @@ public class SourceLookup implements Source, Map<String, Object> {
 
         @Override
         public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-            //
+            // nothing to do
         }
     }
 
     /**
      * Provider for source using a given map and optional content type.
      */
-    public static class MapSourceProvider implements SourceProvider {
-        private Map<String, Object> source;
-        private XContentType sourceContentType;
+    private static class MapSourceProvider implements SourceProvider {
+        private final Map<String, Object> source;
+        private final XContentType sourceContentType;
 
-        public MapSourceProvider(Map<String, Object> source) {
+        private MapSourceProvider(Map<String, Object> source) {
             this.source = source;
-        }
-
-        public MapSourceProvider(Map<String, Object> source, @Nullable XContentType sourceContentType) {
-            this.source = source;
-            this.sourceContentType = sourceContentType;
+            this.sourceContentType = XContentType.JSON;
         }
 
         @Override

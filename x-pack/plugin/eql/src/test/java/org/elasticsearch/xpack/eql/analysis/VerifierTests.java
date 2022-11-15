@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -14,8 +13,11 @@ import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
+import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -24,12 +26,9 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.startsWith;
 
 public class VerifierTests extends ESTestCase {
@@ -158,7 +157,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testOptionalFieldsUnsupported() {
-        assertEquals("1:1: extraneous input '?' expecting {'any', 'join', 'sequence', STRING, IDENTIFIER}", errorParsing("?x where true"));
+        assertEquals(
+            "1:1: extraneous input '?' expecting {'any', 'join', 'sample', 'sequence', STRING, IDENTIFIER}",
+            errorParsing("?x where true")
+        );
     }
 
     // Test valid/supported queries
@@ -467,43 +469,21 @@ public class VerifierTests extends ESTestCase {
             123,
             "",
             new TaskId("test", 123),
-            null,
-            versionIncompatibleClusters
+            null
         );
         Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
         return analyzer.analyze(preAnalyzer.preAnalyze(new EqlParser().createStatement("any where true"), resolution));
     }
 
-    public void testRemoteClusterVersionCheck() {
-        assertNotNull(analyzeWithVerifierFunction(x -> emptySet()));
+    public void testIgnoredTimestampAndTiebreakerInSamples() {
+        LogicalPlan plan = accept("sample by hostname [any where true] [any where true]");
 
-        Set<String> clusters = new TreeSet<>() {
-            {
-                add("one");
-            }
-        };
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
-        assertTrue(
-            e.getMessage()
-                .contains(
-                    "the following remote cluster is incompatible, being on a version different than local "
-                        + "cluster's ["
-                        + Version.CURRENT
-                        + "]: [one]"
-                )
-        );
-
-        clusters.add("two");
-        e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
-        assertTrue(
-            e.getMessage()
-                .contains(
-                    "the following remote clusters are incompatible, being on a version different than local "
-                        + "cluster's ["
-                        + Version.CURRENT
-                        + "]: [one, two]"
-                )
-        );
+        Sample sample = (Sample) plan.children().get(0);
+        assertEquals(2, sample.queries().size());
+        for (KeyedFilter query : sample.queries()) {
+            assertTrue(query.timestamp() instanceof EmptyAttribute);
+            assertTrue(query.tiebreaker() instanceof EmptyAttribute);
+        }
     }
 }

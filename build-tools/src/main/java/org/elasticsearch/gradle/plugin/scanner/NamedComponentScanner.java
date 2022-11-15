@@ -31,8 +31,8 @@ public class NamedComponentScanner {
             "Lorg/elasticsearch/plugin/api/NamedComponent;"/*NamedComponent.class*/,
             (classname, map) -> new AnnotationVisitor(Opcodes.ASM9) {
                 @Override
-                public void visit(String name, Object value) {
-                    assert name.equals("name");
+                public void visit(String key, Object value) {
+                    assert key.equals("value");
                     assert value instanceof String;
                     map.put(value.toString(), classname);
                 }

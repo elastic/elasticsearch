@@ -11,6 +11,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -493,7 +494,7 @@ public final class IndicesPermission {
             if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
                 fieldPermissions = indexFieldPermissions.size() == 1
                     ? indexFieldPermissions.iterator().next()
-                    : fieldPermissionsCache.getFieldPermissions(indexFieldPermissions);
+                    : fieldPermissionsCache.union(indexFieldPermissions);
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
@@ -608,6 +609,7 @@ public final class IndicesPermission {
         private final String[] indices;
         private final StringMatcher indexNameMatcher;
         private final Supplier<Automaton> indexNameAutomaton;
+        // TODO: Use FieldPermissionsDefinition instead of FieldPermissions. The former is a better counterpart to query
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
         // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
@@ -687,6 +689,22 @@ public final class IndicesPermission {
                 && privilege == IndexPrivilege.ALL
                 && query == null
                 && false == fieldPermissions.hasFieldLevelSecurity();
+        }
+
+        @Override
+        public String toString() {
+            return "Group{"
+                + "privilege="
+                + privilege
+                + ", indices="
+                + Strings.arrayToCommaDelimitedString(indices)
+                + ", fieldPermissions="
+                + fieldPermissions
+                + ", query="
+                + query
+                + ", allowRestrictedIndices="
+                + allowRestrictedIndices
+                + '}';
         }
     }
 

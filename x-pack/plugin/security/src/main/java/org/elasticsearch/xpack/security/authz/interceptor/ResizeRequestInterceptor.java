@@ -74,15 +74,13 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                     if (authzResult.isGranted()) {
                         listener.onResponse(null);
                     } else {
-                        if (authzResult.isAuditable()) {
-                            auditTrail.accessDenied(
-                                extractRequestId(threadContext),
-                                requestInfo.getAuthentication(),
-                                requestInfo.getAction(),
-                                request,
-                                authorizationInfo
-                            );
-                        }
+                        auditTrail.accessDenied(
+                            extractRequestId(threadContext),
+                            requestInfo.getAuthentication(),
+                            requestInfo.getAction(),
+                            request,
+                            authorizationInfo
+                        );
                         listener.onFailure(
                             Exceptions.authorizationError(
                                 "Resizing an index is not allowed when the target index " + "has more permissions than the source index"

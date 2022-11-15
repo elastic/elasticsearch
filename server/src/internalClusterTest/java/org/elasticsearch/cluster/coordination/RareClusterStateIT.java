@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
@@ -105,7 +106,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 routingTable.addAsRecovery(updatedState.metadata().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
-                return allocationService.reroute(updatedState, "reroute");
+                return allocationService.reroute(updatedState, "reroute", ActionListener.noop());
             }
 
             @Override
@@ -154,23 +155,26 @@ public class RareClusterStateIT extends ESIntegTestCase {
     private PlainActionFuture<Void> ensureNoPendingMasterTasks() {
         var future = new PlainActionFuture<Void>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(30)) {
+            .submitUnbatchedStateUpdateTask(
+                "ensureNoPendingMasterTasks",
+                new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(30)) {
 
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return currentState;
-                }
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    future.onResponse(null);
-                }
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        future.onResponse(null);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    future.onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        future.onFailure(e);
+                    }
                 }
-            });
+            );
         return future;
     }
 
@@ -370,6 +374,19 @@ public class RareClusterStateIT extends ESIntegTestCase {
             DocumentMapper mapper = mapperService.documentMapper();
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field"));
+        });
+
+        // If the put-mapping commit messages arrive out-of-order then the earlier one is acked (with a CoordinationStateRejectedException)
+        // prematurely, bypassing the disruption. Wait for the commit messages to arrive everywhere before proceeding:
+        assertBusy(() -> {
+            long minVersion = Long.MAX_VALUE;
+            long maxVersion = Long.MIN_VALUE;
+            for (final var coordinator : internalCluster().getInstances(Coordinator.class)) {
+                final var clusterStateVersion = coordinator.getApplierState().version();
+                minVersion = Math.min(minVersion, clusterStateVersion);
+                maxVersion = Math.max(maxVersion, clusterStateVersion);
+            }
+            assertEquals(minVersion, maxVersion);
         });
 
         final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();

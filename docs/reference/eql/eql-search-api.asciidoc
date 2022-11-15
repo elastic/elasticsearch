@@ -47,8 +47,8 @@ or alias.
 
 * See <<eql-required-fields>>.
 
-* experimental:[] For cross-cluster search, some limitations apply to local and remote
-{es} version, see <<run-eql-search-across-clusters>>. For security, see <<remote-clusters-security>>.
+* experimental:[] For cross-cluster search, the local and remote clusters must
+use the same {es} version if they have versions prior to 7.17.7 (included) or prior to 8.5.1 (included). For security, see <<remote-clusters-security>>.
 
 [[eql-search-api-limitations]]
 ===== Limitations

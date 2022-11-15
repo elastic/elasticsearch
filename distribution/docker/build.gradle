@@ -472,6 +472,8 @@ boolean isArchitectureSupported(Architecture architecture) {
   return serviceProvider.get().dockerAvailability.supportedArchitectures().contains(architecture)
 }
 
+def exportDockerImages = tasks.register("exportDockerImages")
+
 /*
  * The export subprojects write out the generated Docker images to disk, so
  * that they can be easily reloaded, for example into a VM for distribution testing
@@ -504,7 +506,7 @@ subprojects { Project subProject ->
     final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
-    tasks.register(exportTaskName, LoggedExec) {
+    def exportTask = tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable = 'docker'
       outputs.file(tarFile)
@@ -515,6 +517,10 @@ subprojects { Project subProject ->
 
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { isArchitectureSupported(architecture) }
+    }
+
+    exportDockerImages.configure {
+      dependsOn exportTask
     }
 
     artifacts.add('default', file(tarFile)) {

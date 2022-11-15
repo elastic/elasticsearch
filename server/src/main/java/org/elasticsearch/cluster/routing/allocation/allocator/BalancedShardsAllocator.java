@@ -12,6 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -40,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,6 +52,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -95,6 +100,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
+    public static final Setting<Float> DISK_USAGE_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.disk_usage",
+        0.0f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
         1.0f,
@@ -106,21 +118,35 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
     private volatile float writeLoadBalanceFactor;
+    private volatile float diskUsageBalanceFactor;
     private volatile float threshold;
 
     private final WriteLoadForecaster writeLoadForecaster;
+    private final ClusterInfoService clusterInfoService;
 
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), WriteLoadForecaster.DEFAULT);
+        this(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            WriteLoadForecaster.DEFAULT,
+            EmptyClusterInfoService.INSTANCE
+        );
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
+    public BalancedShardsAllocator(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        WriteLoadForecaster writeLoadForecaster,
+        ClusterInfoService clusterInfoService
+    ) {
         watchSetting(settings, clusterSettings, INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
         watchSetting(settings, clusterSettings, SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
         watchSetting(settings, clusterSettings, WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
+        watchSetting(settings, clusterSettings, DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
         watchSetting(settings, clusterSettings, THRESHOLD_SETTING, value -> this.threshold = value);
         this.writeLoadForecaster = writeLoadForecaster;
+        this.clusterInfoService = clusterInfoService;
     }
 
     private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
@@ -136,8 +162,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
-        final WeightFunction weightFunction = new WeightFunction(indexBalanceFactor, shardBalanceFactor, writeLoadBalanceFactor);
-        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
+        final WeightFunction weightFunction = new WeightFunction(
+            indexBalanceFactor,
+            shardBalanceFactor,
+            writeLoadBalanceFactor,
+            diskUsageBalanceFactor
+        );
+        final Balancer balancer = new Balancer(writeLoadForecaster, clusterInfoService, allocation, weightFunction, threshold);
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
@@ -145,8 +176,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
-        WeightFunction weightFunction = new WeightFunction(indexBalanceFactor, shardBalanceFactor, writeLoadBalanceFactor);
-        Balancer balancer = new Balancer(writeLoadForecaster, allocation, weightFunction, threshold);
+        WeightFunction weightFunction = new WeightFunction(
+            indexBalanceFactor,
+            shardBalanceFactor,
+            writeLoadBalanceFactor,
+            diskUsageBalanceFactor
+        );
+        Balancer balancer = new Balancer(writeLoadForecaster, clusterInfoService, allocation, weightFunction, threshold);
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         if (shard.unassigned()) {
@@ -246,26 +282,31 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float theta0;
         private final float theta1;
         private final float theta2;
+        private final float theta3;
 
-        WeightFunction(float indexBalance, float shardBalance, float writeLoadBalance) {
-            float sum = indexBalance + shardBalance + writeLoadBalance;
+        WeightFunction(float indexBalance, float shardBalance, float writeLoadBalance, float diskUsageBalance) {
+            float sum = indexBalance + shardBalance + writeLoadBalance + diskUsageBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
             theta0 = shardBalance / sum;
             theta1 = indexBalance / sum;
             theta2 = writeLoadBalance / sum;
+            theta3 = diskUsageBalance / sum;
         }
 
         float weight(Balancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
             final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNode());
-            return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad;
+            // TODO: can this overflow?
+            final float diskUsage = (float) (node.diskUsageInBytes() - balancer.avgDiskUsageInBytesPerNode());
+            return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad + theta3 * diskUsage;
         }
 
         float minWeightDelta(Balancer balancer, String index) {
-            return theta0 * 1 + theta1 * 1 + theta2 * (float) balancer.getShardWriteLoad(index);
+            return theta0 * 1 + theta1 * 1 + theta2 * (float) balancer.getShardWriteLoad(index) + theta3 * (float) balancer
+                .diskUsageInBytesPerShard(index);
         }
     }
 
@@ -283,17 +324,27 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Metadata metadata;
         private final float avgShardsPerNode;
         private final double avgWriteLoadPerNode;
+        private final double avgDiskUsageInBytesPerNode;
         private final NodeSorter sorter;
+        private final ClusterInfoService clusterInfoService;
 
-        public Balancer(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation, WeightFunction weight, float threshold) {
+        public Balancer(
+            WriteLoadForecaster writeLoadForecaster,
+            ClusterInfoService clusterInfoService,
+            RoutingAllocation allocation,
+            WeightFunction weight,
+            float threshold
+        ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
             this.weight = weight;
             this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
+            this.clusterInfoService = clusterInfoService;
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
             avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
+            avgDiskUsageInBytesPerNode = ((double) getTotalDiskUsageInBytes(clusterInfoService, metadata) / routingNodes.size());
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
         }
@@ -308,7 +359,48 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private static double getIndexWriteLoad(WriteLoadForecaster writeLoadForecaster, IndexMetadata indexMetadata) {
             var shardWriteLoad = writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            return shardWriteLoad * indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
+            return shardWriteLoad * numberOfCopies(indexMetadata);
+        }
+
+        private static long getTotalDiskUsageInBytes(ClusterInfoService clusterInfoService, Metadata metadata) {
+            long totalDiskUsageInBytes = 0;
+            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+                totalDiskUsageInBytes += getIndexDiskUsageInBytes(clusterInfoService, indexMetadata);
+            }
+            return totalDiskUsageInBytes;
+        }
+
+        private static long getIndexDiskUsageInBytes(ClusterInfoService clusterInfoService, IndexMetadata indexMetadata) {
+            OptionalLong forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
+            final long indexDiskUsageInBytes;
+            if (forecastedShardSizeInBytes.isPresent()) {
+                indexDiskUsageInBytes = forecastedShardSizeInBytes.getAsLong() * numberOfCopies(indexMetadata);
+            } else {
+                long totalSizeInBytes = 0;
+                int shardCount = 0;
+                ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
+                for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+                    for (Boolean primary : List.of(true, false)) {
+                        Long shardSize = clusterInfo.getShardSize(new ShardId(indexMetadata.getIndex(), shardId), primary);
+                        if (shardSize != null) {
+                            totalSizeInBytes += shardSize;
+                            shardCount++;
+                        }
+                    }
+                }
+
+                // TODO: Should we go through the cluster info service and compute the average in this case?
+                if (shardCount != numberOfCopies(indexMetadata)) {
+                    indexDiskUsageInBytes = shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
+                } else {
+                    indexDiskUsageInBytes = totalSizeInBytes;
+                }
+            }
+            return indexDiskUsageInBytes;
+        }
+
+        private static int numberOfCopies(IndexMetadata indexMetadata) {
+            return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
         }
 
         private double getShardWriteLoad(String index) {
@@ -338,6 +430,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public double avgWriteLoadPerNode() {
             return avgWriteLoadPerNode;
+        }
+
+        public double avgDiskUsageInBytesPerNode() {
+            return avgDiskUsageInBytesPerNode;
+        }
+
+        public double diskUsageInBytesPerShard(String index) {
+            return metadata.index(index).getForecastedShardSizeInBytes().orElse(0);
         }
 
         /**
@@ -1142,6 +1242,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private double writeLoad = 0.0;
+        private double diskUsageInBytes = 0.0;
         private final WriteLoadForecaster writeLoadForecaster;
         private final Metadata metadata;
         private final RoutingNode routingNode;
@@ -1177,6 +1278,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return writeLoad;
         }
 
+        public double diskUsageInBytes() {
+            return diskUsageInBytes;
+        }
+
         public int highestPrimary(String index) {
             ModelIndex idx = indices.get(index);
             if (idx != null) {
@@ -1187,7 +1292,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
-            writeLoad += writeLoadForecaster.getForecastedWriteLoad(metadata.index(shard.index())).orElse(0.0);
+            IndexMetadata indexMetadata = metadata.index(shard.index());
+            writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            diskUsageInBytes += indexMetadata.getForecastedShardSizeInBytes().orElse(0);
             numShards++;
         }
 
@@ -1199,7 +1306,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
-            writeLoad -= writeLoadForecaster.getForecastedWriteLoad(metadata.index(shard.index())).orElse(0.0);
+            IndexMetadata indexMetadata = metadata.index(shard.index());
+            writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            diskUsageInBytes -= indexMetadata.getForecastedShardSizeInBytes().orElse(0);
             numShards--;
         }
 

@@ -196,6 +196,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING,
+        BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.THRESHOLD_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,

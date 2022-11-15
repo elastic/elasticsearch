@@ -114,8 +114,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalTDigestPercentiles> verify
     ) throws IOException {
-        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number")
-            .method(PercentilesMethod.TDIGEST);
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
 
         MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap());
         testCase(buildIndex, verify, new AggTestConfig(builder, fieldType).withQuery(query));

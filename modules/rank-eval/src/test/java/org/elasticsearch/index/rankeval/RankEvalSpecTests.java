@@ -132,10 +132,7 @@ public class RankEvalSpecTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            Exception exception = expectThrows(
-                Exception.class,
-                () -> RankEvalSpec.parse(parser)
-            );
+            Exception exception = expectThrows(Exception.class, () -> RankEvalSpec.parse(parser));
             assertThat(exception.getMessage(), containsString("[rank_eval] failed to parse field"));
         }
     }

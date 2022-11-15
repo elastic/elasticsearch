@@ -158,8 +158,7 @@ public class RestSearchAction extends BaseRestHandler {
         XContentParser requestContentParser,
         NamedWriteableRegistry namedWriteableRegistry,
         IntConsumer setSize,
-        @Nullable
-        SearchUsageHolder searchUsageHolder
+        @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");

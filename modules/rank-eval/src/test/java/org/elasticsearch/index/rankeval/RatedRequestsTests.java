@@ -128,10 +128,7 @@ public class RatedRequestsTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            Throwable exception = expectThrows(
-                XContentParseException.class,
-                () -> RatedRequest.fromXContent(parser)
-            );
+            Throwable exception = expectThrows(XContentParseException.class, () -> RatedRequest.fromXContent(parser));
             if (exception.getCause() != null) {
                 assertThat(exception.getMessage(), containsString("[request] failed to parse field"));
                 exception = exception.getCause();

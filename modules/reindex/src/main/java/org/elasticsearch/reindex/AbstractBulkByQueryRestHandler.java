@@ -53,13 +53,7 @@ public abstract class AbstractBulkByQueryRestHandler<
             IntConsumer sizeConsumer = restRequest.getRestApiVersion() == RestApiVersion.V_7
                 ? size -> setMaxDocsFromSearchSize(internal, size)
                 : size -> failOnSizeSpecified();
-            RestSearchAction.parseSearchRequest(
-                searchRequest,
-                restRequest,
-                parser,
-                namedWriteableRegistry,
-                sizeConsumer
-            );
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, namedWriteableRegistry, sizeConsumer);
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));

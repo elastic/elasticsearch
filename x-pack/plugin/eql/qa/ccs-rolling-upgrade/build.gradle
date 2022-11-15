@@ -20,7 +20,7 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.17.8")) { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.

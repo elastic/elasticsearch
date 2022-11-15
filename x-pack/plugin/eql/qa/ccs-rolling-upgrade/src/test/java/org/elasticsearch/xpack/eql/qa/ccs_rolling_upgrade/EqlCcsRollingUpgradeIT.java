@@ -19,9 +19,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,7 +47,45 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
     private static final Logger LOGGER = LogManager.getLogger(EqlCcsRollingUpgradeIT.class);
     private static final String CLUSTER_ALIAS = "remote_cluster";
 
-    record Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {}
+    protected static class Node {
+        public final String id;
+        public final String name;
+        public final Version version;
+        public final String transportAddress;
+        public final String httpAddress;
+        public final Map<String, Object> attributes;
+
+        Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {
+            this.id = id;
+            this.name = name;
+            this.version = version;
+            this.transportAddress = transportAddress;
+            this.httpAddress = httpAddress;
+            this.attributes = attributes;
+        }
+
+        @Override
+        public String toString() {
+            return "Node{"
+                + "id='"
+                + id
+                + '\''
+                + ", name='"
+                + name
+                + '\''
+                + ", version="
+                + version
+                + ", transportAddress='"
+                + transportAddress
+                + '\''
+                + ", httpAddress='"
+                + httpAddress
+                + '\''
+                + ", attributes="
+                + attributes
+                + '}';
+        }
+    }
 
     static List<Node> getNodes(RestClient restClient) throws IOException {
         Response response = restClient.performRequest(new Request("GET", "_nodes"));
@@ -118,6 +158,17 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Updates the cluster with the provided settings (as persistent settings)
+     **/
+    public static void updateClusterSettings(RestClient client, Settings settings) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        String entity = "{ \"persistent\":" + Strings.toString(settings) + "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
+        assertOK(response);
+    }
+
     static RestHighLevelClient newLocalClient() {
         final List<HttpHost> hosts = parseHosts("tests.rest.cluster");
         final int index = random().nextInt(hosts.size());
@@ -188,4 +239,40 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
             deleteIndex(remoteClient.getLowLevelClient(), remoteIndex);
         }
     }
+
+    public static void createIndex(RestClient client, String name, Settings settings, String mapping, String aliases) throws IOException {
+        Request request = new Request("PUT", "/" + name);
+        String entity = "{";
+        if (settings != null) {
+            entity += "\"settings\": " + Strings.toString(settings);
+            if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+                expectSoftDeletesWarning(request, name);
+            }
+        }
+        if (mapping != null) {
+            if (settings != null) {
+                entity += ",";
+            }
+            if (mapping.trim().startsWith("{")) {
+                entity += "\"mappings\" : " + mapping + "";
+            } else {
+                entity += "\"mappings\" : {" + mapping + "}";
+            }
+        }
+        if (aliases != null) {
+            if (settings != null || mapping != null) {
+                entity += ",";
+            }
+            entity += "\"aliases\": {" + aliases + "}";
+        }
+        entity += "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
+    }
+
+    protected static void refresh(RestClient client, String index) throws IOException {
+        Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
+        Response response = client.performRequest(refreshRequest);
+    }
+
 }

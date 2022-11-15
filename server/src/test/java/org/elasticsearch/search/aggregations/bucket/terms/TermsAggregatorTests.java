@@ -1796,7 +1796,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     AggregationExecutionException e = expectThrows(
                         AggregationExecutionException.class,
-                        () -> createAggregator(termsAgg, indexSearcher, fieldType)
+                        () -> searchAndReduce(indexSearcher, new AggTestConfig(termsAgg, fieldType))
                     );
                     assertEquals(
                         "Invalid aggregation order path [script]. The provided aggregation [script] "

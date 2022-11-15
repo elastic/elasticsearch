@@ -3083,7 +3083,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             List<Releasable> releasables = new ArrayList<>();
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), keywordField("term-field"), longField("time"));
+                AggregationContext context = createAggregationContext(
+                    indexSearcher,
+                    new MatchAllDocsQuery(),
+                    keywordField("term-field"),
+                    longField("time")
+                );
                 releasables.add(context);
 
                 CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
@@ -3095,7 +3100,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     .subAggregation(compositeBuilder);
                 // should not throw
                 createAggregator(goodParentFilter, context);
-
 
                 RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
                     .subAggregation(compositeBuilder);
@@ -3112,10 +3116,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     .field("time")
                     .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
 
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> createAggregator(badParent, context)
-                );
+                expectThrows(IllegalArgumentException.class, () -> createAggregator(badParent, context));
 
             } finally {
                 Releasables.close(releasables);

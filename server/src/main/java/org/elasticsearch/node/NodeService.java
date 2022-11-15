@@ -175,6 +175,7 @@ public class NodeService implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(indicesService);
+        searchTransportService.close();
     }
 
     /**

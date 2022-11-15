@@ -41,6 +41,14 @@ public class PlainIterator<T> implements Iterable<T>, Countable {
         }
     }
 
+    public T peekNextOrNull() {
+        if (index == elements.size()) {
+            return null;
+        } else {
+            return elements.get(index);
+        }
+    }
+
     @Override
     public int size() {
         return elements.size();

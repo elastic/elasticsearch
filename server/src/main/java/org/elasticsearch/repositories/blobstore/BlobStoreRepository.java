@@ -152,7 +152,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.SETTINGS_AFFECTING_MAX_BYTES_PER_SEC;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -654,10 +653,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Settings previousSettings = metadata.settings();
         metadata = getRepoMetadata(state);
         final Settings updatedSettings = metadata.settings();
-        final Settings incomingSettings = state.metadata().settings();
-        boolean recoverySpeedAffected = SETTINGS_AFFECTING_MAX_BYTES_PER_SEC.stream()
-            .anyMatch(setting -> incomingSettings.hasValue(setting.getKey()));
-        if (updatedSettings.equals(previousSettings) == false || recoverySpeedAffected) {
+        if (updatedSettings.equals(previousSettings) == false) {
             snapshotRateLimiter = getSnapshotRateLimiter();
             restoreRateLimiter = getRestoreRateLimiter();
         }

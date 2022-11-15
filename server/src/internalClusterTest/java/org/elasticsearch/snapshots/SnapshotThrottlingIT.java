@@ -149,8 +149,8 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "repository [test-repo] has a rate limit [max_snapshot_bytes_per_sec=90mb] per second which is above "
-                    + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=50mb] per second, thus the repository "
+                "repository [test-repo] has a rate limit [max_snapshot_bytes_per_sec=1gb] per second which is above "
+                    + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );
             if (nodeBandwidthSettingsSet) snapshotExpectation.setExpectSeen();
@@ -160,8 +160,8 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot restore speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "repository [test-repo] has a rate limit [max_restore_bytes_per_sec=80mb] per second which is above "
-                    + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=50mb] per second, thus the repository "
+                "repository [test-repo] has a rate limit [max_restore_bytes_per_sec=2gb] per second which is above "
+                    + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );
             mockLogAppender.addExpectation(restoreExpectation);
@@ -171,14 +171,9 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "fs",
                 Settings.builder()
                     .put("location", randomRepoPath())
-                    .put("max_snapshot_bytes_per_sec", "90m")
-                    .put("max_restore_bytes_per_sec", "80m")
+                    .put("max_snapshot_bytes_per_sec", "1g")
+                    .put("max_restore_bytes_per_sec", "2g")
             );
-
-            admin().cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "50m"))
-                .get();
 
             deleteRepository("test-repo");
             mockLogAppender.assertAllExpectationsMatched();

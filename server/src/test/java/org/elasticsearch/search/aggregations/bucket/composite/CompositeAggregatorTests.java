@@ -44,6 +44,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -85,6 +87,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -3077,27 +3080,33 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
                 indexWriter.addDocument(document);
             }
+            List<Releasable> releasables = new ArrayList<>();
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), keywordField("term-field"), longField("time"));
+                releasables.add(context);
+
                 CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
                     "composite",
                     List.of(new TermsValuesSourceBuilder("term").field("term-field"))
                 );
+
                 FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
                     .subAggregation(compositeBuilder);
                 // should not throw
-                createAggregator(goodParentFilter, indexSearcher, keywordField("term-field"));
+                createAggregator(goodParentFilter, context);
+
 
                 RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
                     .subAggregation(compositeBuilder);
 
                 // Should not throw
-                createAggregator(goodParentRandom, indexSearcher, keywordField("term-field"));
+                createAggregator(goodParentRandom, context);
 
                 RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
                     .subAggregation(goodParentFilter);
                 // Should not throw
-                createAggregator(goodParentRandomFilter, indexSearcher, keywordField("term-field"));
+                createAggregator(goodParentRandomFilter, context);
 
                 DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
                     .field("time")
@@ -3105,8 +3114,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> createAggregator(badParent, indexSearcher, keywordField("term-field"), longField("time"))
+                    () -> createAggregator(badParent, context)
                 );
+
+            } finally {
+                Releasables.close(releasables);
             }
         }
     }

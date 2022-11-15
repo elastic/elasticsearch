@@ -54,7 +54,7 @@ public final class IndicesPermission {
 
     private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
 
-    private final Map<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private final Map<String, IndexMatcherPredicate> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final RestrictedIndices restrictedIndices;
     private final Group[] groups;
@@ -126,7 +126,7 @@ public final class IndicesPermission {
      * @return A predicate that will match all the indices that this permission
      * has the privilege for executing the given action on.
      */
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+    public IndexMatcherPredicate allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, this::buildIndexMatcherPredicateForAction);
     }
 
@@ -134,7 +134,7 @@ public final class IndicesPermission {
         return hasFieldOrDocumentLevelSecurity;
     }
 
-    private Predicate<IndexAbstraction> buildIndexMatcherPredicateForAction(String action) {
+    private IndexMatcherPredicate buildIndexMatcherPredicateForAction(String action) {
         final Set<String> ordinaryIndices = new HashSet<>();
         final Set<String> restrictedIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
@@ -159,10 +159,42 @@ public final class IndicesPermission {
         }
         final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
         final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return indexAbstraction -> nameMatcher.test(indexAbstraction.getName())
-            || (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
-                && (indexAbstraction.getParentDataStream() == null)
-                && bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
+        return new IndexMatcherPredicate(nameMatcher, bwcSpecialCaseMatcher);
+    }
+
+    public static final class IndexMatcherPredicate {
+        private final Predicate<IndexAbstraction> indexAbstractionPredicate;
+        private final Predicate<String> indexNamePredicate;
+
+        private IndexMatcherPredicate(StringMatcher nameMatcher, StringMatcher bwcSpecialCaseMatcher) {
+            this(
+                indexAbstraction -> nameMatcher.test(indexAbstraction.getName())
+                    || (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                        && (indexAbstraction.getParentDataStream() == null)
+                        && bwcSpecialCaseMatcher.test(indexAbstraction.getName())),
+                indexName -> nameMatcher.test(indexName) || bwcSpecialCaseMatcher.test(indexName)
+            );
+        }
+
+        private IndexMatcherPredicate(Predicate<IndexAbstraction> indexAbstractionPredicate, Predicate<String> indexNamePredicate) {
+            this.indexAbstractionPredicate = indexAbstractionPredicate;
+            this.indexNamePredicate = indexNamePredicate;
+        }
+
+        public boolean test(IndexAbstraction indexAbstraction) {
+            return this.indexAbstractionPredicate.test(indexAbstraction);
+        }
+
+        public boolean test(String indexName) {
+            return this.indexNamePredicate.test(indexName);
+        }
+
+        public IndexMatcherPredicate and(IndexMatcherPredicate other) {
+            return new IndexMatcherPredicate(
+                this.indexAbstractionPredicate.and(other.indexAbstractionPredicate),
+                this.indexNamePredicate.and(other.indexNamePredicate)
+            );
+        }
     }
 
     /**

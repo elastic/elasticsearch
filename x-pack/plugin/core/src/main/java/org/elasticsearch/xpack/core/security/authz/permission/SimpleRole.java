@@ -28,7 +28,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
 public class SimpleRole implements Role {
 
@@ -97,7 +96,7 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+    public IndicesPermission.IndexMatcherPredicate allowedIndicesMatcher(String action) {
         return indices.allowedIndicesMatcher(action);
     }
 

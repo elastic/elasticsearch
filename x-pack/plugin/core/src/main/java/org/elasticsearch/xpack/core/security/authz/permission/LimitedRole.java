@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
@@ -123,8 +122,8 @@ public final class LimitedRole implements Role {
      * action on.
      */
     @Override
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        Predicate<IndexAbstraction> predicate = baseRole.indices().allowedIndicesMatcher(action);
+    public IndicesPermission.IndexMatcherPredicate allowedIndicesMatcher(String action) {
+        IndicesPermission.IndexMatcherPredicate predicate = baseRole.indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedByRole.indices().allowedIndicesMatcher(action));
         return predicate;
     }

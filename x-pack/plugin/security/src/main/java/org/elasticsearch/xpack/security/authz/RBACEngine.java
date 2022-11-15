@@ -751,7 +751,7 @@ public class RBACEngine implements AuthorizationEngine {
         Map<String, IndexAbstraction> lookup,
         Supplier<Consumer<Collection<String>>> timerSupplier
     ) {
-        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
+        IndicesPermission.IndexMatcherPredicate predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();

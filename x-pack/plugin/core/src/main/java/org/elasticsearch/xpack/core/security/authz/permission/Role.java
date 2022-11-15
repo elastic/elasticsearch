@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 public interface Role {
 
@@ -64,7 +63,7 @@ public interface Role {
      * @return A predicate that will match all the indices that this role
      * has the privilege for executing the given action on.
      */
-    Predicate<IndexAbstraction> allowedIndicesMatcher(String action);
+    IndicesPermission.IndexMatcherPredicate allowedIndicesMatcher(String action);
 
     /**
      * Returns an {@link Automaton} that matches all action names allowed for the given index

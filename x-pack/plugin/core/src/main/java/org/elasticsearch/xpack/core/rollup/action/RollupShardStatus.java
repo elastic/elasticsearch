@@ -87,15 +87,6 @@ public class RollupShardStatus implements Task.Status {
         this.numFailed = numFailed;
     }
 
-    public RollupShardStatus(ShardId shardId, AtomicLong numReceived, AtomicLong numSent, AtomicLong numIndexed, AtomicLong numFailed) {
-        this.shardId = shardId;
-        this.rollupStart = System.currentTimeMillis();
-        this.numReceived = numReceived;
-        this.numSent = numSent;
-        this.numIndexed = numIndexed;
-        this.numFailed = numFailed;
-    }
-
     public static RollupShardStatus fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }

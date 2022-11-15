@@ -1215,7 +1215,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                    searchUsage.trackSectionUsage(_SOURCE_FIELD.getPreferredName());
+                    if (fetchSourceContext.includes().length > 0 || fetchSourceContext.fetchSource() == false) {
+                        searchUsage.trackSectionUsage(_SOURCE_FIELD.getPreferredName());
+                    }
                 } else if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     storedFieldsContext = StoredFieldsContext.fromXContent(
                         SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(),

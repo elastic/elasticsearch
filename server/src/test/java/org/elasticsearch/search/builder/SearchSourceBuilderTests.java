@@ -637,7 +637,11 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
               "_source" : []
             }
             """);
-
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "_source" : true
+            }
+            """);
         assertParseFailureNotTracked(searchUsageHolder, """
             {
               "_script_fields" : {}

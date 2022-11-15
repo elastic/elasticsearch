@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BinaryMathNode;
@@ -46,7 +47,7 @@ import java.util.function.Consumer;
 public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyingVisitor {
 
     private static RuntimeException unaryError(String type, String operation, String constant) {
-        return new IllegalStateException(String.format(
+        return new IllegalStateException(Strings.format(
             "constant folding error: unexpected type [%s] for unary operation [%s] on constant [%s]",
             type, operation, constant));
     }
@@ -64,7 +65,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
     }
 
     private static RuntimeException error(String type, String opType, String operation, String constant1, String constant2) {
-        return new IllegalStateException(String.format(
+        return new IllegalStateException(Strings.format(
             "constant folding error: unexpected type [%s] for %s operation [%s] on constants [%s] and [%s]",
             type, opType, operation, constant1, constant2));
     }

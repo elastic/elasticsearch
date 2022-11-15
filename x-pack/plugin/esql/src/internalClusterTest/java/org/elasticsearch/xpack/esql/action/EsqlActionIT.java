@@ -45,6 +45,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 @Experimental
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -365,6 +366,44 @@ public class EsqlActionIT extends ESIntegTestCase {
             assertEquals(avg.getAsDouble(), (double) results.values().get(0).get(0), 0.01d);
         } else {
             assertEquals(Double.NaN, (double) results.values().get(0).get(0), 0.01d);
+        }
+    }
+
+    public void testExtractFields() throws Exception {
+        String indexName = "test_extract_fields";
+        ElasticsearchAssertions.assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .setMapping("val", "type=long", "tag", "type=keyword")
+                .get()
+        );
+        int numDocs = randomIntBetween(1, 100);
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        record Doc(long val, String tag) {
+
+        }
+        List<Doc> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            Doc d = new Doc(i, "tag-" + randomIntBetween(1, 100));
+            docs.add(d);
+            indexRequests.add(
+                client().prepareIndex().setIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag))
+            );
+        }
+        indexRandom(true, randomBoolean(), indexRequests);
+        int limit = randomIntBetween(1, 1); // TODO: increase the limit after resolving the limit issue
+        String command = "from test_extract_fields | sort val | limit " + limit;
+        EsqlQueryResponse results = run(command);
+        logger.info(results);
+        assertThat(results.values(), hasSize(Math.min(limit, numDocs)));
+        assertThat(results.columns().get(3).name(), equalTo("val"));
+        assertThat(results.columns().get(4).name(), equalTo("tag"));
+        for (int i = 0; i < results.values().size(); i++) {
+            List<Object> values = results.values().get(i);
+            assertThat(values.get(3), equalTo(docs.get(i).val));
+            assertThat(values.get(4), equalTo(docs.get(i).tag));
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -78,7 +79,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 List<Object> row = new ArrayList<>(page.getBlockCount());
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     Block block = page.getBlock(b);
-                    row.add(block.getObject(i));
+                    Object val = block.getObject(i);
+                    // TODO: Should we do the conversion in Block#getObject instead?
+                    // Or should we add a new method that returns a human representation to Block.
+                    if (val instanceof BytesRef bytes) {
+                        row.add(bytes.utf8ToString());
+                    } else {
+                        row.add(val);
+                    }
                 }
                 result.add(row);
             }

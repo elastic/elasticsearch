@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -581,6 +584,140 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testEmptySectionsAreNotTracked() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        assertParseFailureNotTracked(searchUsageHolder, """
+            {
+              "query" : {}
+            }
+            """);
+        assertParseFailureNotTracked(searchUsageHolder, """
+            {
+              "post_filter" : {}
+            }
+            """);
+        assertParseFailureNotTracked(searchUsageHolder, """
+            {
+              "knn" : {}
+            }
+            """);
+        assertParseFailureNotTracked(searchUsageHolder, """
+            {
+              "rescore" : {}
+            }
+            """);
+        assertParseFailureNotTracked(searchUsageHolder, """
+            {
+              "pit" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "slice" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "collapse" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "ext" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "_source" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "_source" : []
+            }
+            """);
+
+        assertParseFailureNotTracked(searchUsageHolder, """
+            {
+              "_script_fields" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "stored_fields" : []
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "docvalue_fields" : []
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "fields" : []
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "indices_boost" : []
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "suggest" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "highlight" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "runtime_mappings" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "aggs" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "aggregations" : {}
+            }
+            """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "stats" : []
+            }
+            """);
+        assertParseFailureNotTracked(searchUsageHolder, """
+            {
+              "search_after" : []
+            }
+            """);
+    }
+
+    private void assertSectionNotTracked(SearchUsageHolder searchUsageHolder, String request) throws IOException {
+        long totalSearch = searchUsageHolder.getSearchUsageStats().getTotalSearchCount();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request)) {
+            new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder);
+            assertEquals(totalSearch + 1, searchUsageHolder.getSearchUsageStats().getTotalSearchCount());
+            assertEquals(0, searchUsageHolder.getSearchUsageStats().getSectionsUsage().size());
+        }
+    }
+
+    private void assertParseFailureNotTracked(SearchUsageHolder searchUsageHolder, String request) throws IOException {
+        long totalSearch = searchUsageHolder.getSearchUsageStats().getTotalSearchCount();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request)) {
+            expectThrows(Exception.class, () -> new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder));
+            assertEquals(totalSearch, searchUsageHolder.getSearchUsageStats().getTotalSearchCount());
+            assertEquals(0, searchUsageHolder.getSearchUsageStats().getSectionsUsage().size());
+        }
+    }
+
     public void testSearchSectionsUsageCollection() throws IOException {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(
@@ -596,7 +733,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.trackTotalHits(true);
         searchSourceBuilder.fetchSource(false);
         searchSourceBuilder.fetchField("field");
-        searchSourceBuilder.runtimeMappings(Collections.emptyMap());
+        // these are not correct runtime mappings but they are counted compared to empty object
+        searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
         searchSourceBuilder.knnSearch(new KnnSearchBuilder("field", new float[] {}, 2, 5));
         searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("pitid"));
         searchSourceBuilder.docValueField("field");
@@ -608,12 +746,37 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.collapse(new CollapseBuilder("field"));
         searchSourceBuilder.addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
         searchSourceBuilder.version(true);
-        searchSourceBuilder.suggest(new SuggestBuilder());
+        searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion("name", new TermSuggestionBuilder("field")));
         searchSourceBuilder.minScore(10);
         searchSourceBuilder.timeout(new TimeValue(1000, TimeUnit.MILLISECONDS));
         searchSourceBuilder.stats(Collections.singletonList("test"));
         searchSourceBuilder.scriptField("name", new Script("id"));
-        searchSourceBuilder.ext(Collections.emptyList());
+        searchSourceBuilder.ext(Collections.singletonList(new SearchExtBuilder() {
+            @Override
+            public int hashCode() {
+                return 0;
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                return false;
+            }
+
+            @Override
+            public String getWriteableName() {
+                return null;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                return null;
+            }
+        }));
         searchSourceBuilder.searchAfter(new Object[] { "test" });
 
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
@@ -631,7 +794,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(1L, queryUsage.get("match").longValue());
         assertEquals(1L, queryUsage.get("query_string").longValue());
         Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
-        assertEquals(19, sectionsUsage.size());
+        assertEquals(20, sectionsUsage.size());
         assertEquals(1L, sectionsUsage.get("query").longValue());
         assertEquals(1L, sectionsUsage.get("knn").longValue());
         assertEquals(1L, sectionsUsage.get("terminate_after").longValue());
@@ -642,6 +805,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(1L, sectionsUsage.get("slice").longValue());
         assertEquals(1L, sectionsUsage.get("stats").longValue());
         assertEquals(1L, sectionsUsage.get("stored_fields").longValue());
+        assertEquals(1L, sectionsUsage.get("runtime_mappings").longValue());
         assertEquals(1L, sectionsUsage.get("script_fields").longValue());
         assertEquals(1L, sectionsUsage.get("_source").longValue());
         assertEquals(1L, sectionsUsage.get("pit").longValue());
@@ -654,8 +818,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testOnlyQueriesAreTracked() throws IOException {
-        //Decay functions are named xcontents, like queries. We want to double check that out of all
-        //the named xcontent types, only queries are tracked in the queries section.
+        // Decay functions are named xcontents, like queries. We want to double check that out of all
+        // the named xcontent types, only queries are tracked in the queries section.
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(
             new FunctionScoreQueryBuilder(

@@ -108,8 +108,9 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
                 if (indexMetadata != null) {
                     customDataPath = new IndexSettings(indexMetadata, settings).customDataPath();
                 } else {
+                    // Fail the request on this node since the index is not in the cluster state
                     logger.warn("node doesn't have metadata for the index [{}]", shardId.getIndex());
-                    throw new ElasticsearchException("node doesn't have meta data for index " + shardId.getIndex());
+                    throw new ElasticsearchException("node doesn't have metadata for index " + shardId.getIndex());
                 }
                 shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
                 if (shardPath != null) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.shutdown.CheckShardsOnDataPathRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.CheckShardsOnDataPathResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodeCheckShardsOnDataPathResponse;
@@ -23,7 +24,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CheckShardsOnDataPathIT extends ESIntegTestCase {
@@ -45,17 +48,27 @@ public class CheckShardsOnDataPathIT extends ESIntegTestCase {
         String node1Id = internalCluster().clusterService(node1).localNode().getId();
         String node2Id = internalCluster().clusterService(node2).localNode().getId();
         Set<ShardId> shardIdsToCheck = new HashSet<>(shardIds);
-        int unknownShardIds = randomIntBetween(0, 3);
-        for (int i = 0; i < unknownShardIds; i++) {
+        boolean includeUnknownShardId = randomBoolean();
+        if (includeUnknownShardId) {
             shardIdsToCheck.add(new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)));
         }
         CheckShardsOnDataPathRequest req = new CheckShardsOnDataPathRequest(shardIdsToCheck, node1Id, node2Id);
         CheckShardsOnDataPathResponse resp = client().execute(TransportCheckShardsOnDataPathAction.TYPE, req).get();
         var nodeResponses = resp.getNodes();
-        assertThat(nodeResponses.size(), equalTo(2));
-        assertTrue(resp.failures().isEmpty());
-        for (NodeCheckShardsOnDataPathResponse nodeResponse : nodeResponses) {
-            assertThat(nodeResponse.getShardIds(), equalTo(shardIds));
+        var nodeFailures = resp.failures();
+        if (includeUnknownShardId) {
+            assertTrue(nodeResponses.isEmpty());
+            assertThat(nodeFailures.size(), equalTo(2));
+            for (FailedNodeException exception: nodeFailures) {
+                assertThat(exception.nodeId(), oneOf(node1Id, node2Id));
+                assertThat(exception.getDetailedMessage(), containsString("node doesn't have metadata for index"));
+            }
+        } else {
+            assertThat(nodeResponses.size(), equalTo(2));
+            assertTrue(resp.failures().isEmpty());
+            for (NodeCheckShardsOnDataPathResponse nodeResponse : nodeResponses) {
+                assertThat(nodeResponse.getShardIds(), equalTo(shardIds));
+            }
         }
     }
 }

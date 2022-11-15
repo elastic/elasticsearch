@@ -473,6 +473,7 @@ boolean isArchitectureSupported(Architecture architecture) {
 }
 
 def exportDockerImages = tasks.register("exportDockerImages")
+def exportCompressedDockerImages = tasks.register("exportCompressedDockerImages")
 
 /*
  * The export subprojects write out the generated Docker images to disk, so
@@ -514,13 +515,27 @@ subprojects { Project subProject ->
         "-o",
         tarFile,
         "elasticsearch${base.suffix}:${architecture.classifier}"
-
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { isArchitectureSupported(architecture) }
     }
 
     exportDockerImages.configure {
       dependsOn exportTask
+    }
+
+    def compressExportTask = tasks.register(taskName("compress", architecture, base, 'DockerImageExport'), Tar) {
+      it.from(project.tarTree(tarFile))
+      archiveExtension = 'tar.gz'
+      it.setCompression(Compression.GZIP)
+      it.getArchiveBaseName().set("elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-image")
+      it.getArchiveVersion().set("")
+      it.getArchiveClassifier().set(architecture == Architecture.AARCH64 ? 'aarch64' : '')
+      it.getDestinationDirectory().set(new File(project.parent.buildDir, 'distributions'))
+      it.dependsOn(exportTask)
+    }
+
+    exportCompressedDockerImages.configure {
+      dependsOn compressExportTask
     }
 
     artifacts.add('default', file(tarFile)) {

@@ -29,7 +29,7 @@
                 -Ddra.artifacts.dependency.ml-cpp=${ML_CPP_BUILD_ID} \
                 -Dcsv=$WORKSPACE/build/distributions/dependencies-${ES_VERSION}-SNAPSHOT.csv \
                 buildReleaseArtifacts \
-                exportDockerImages \
+                exportCompressedDockerImages \
                 :distribution:generateDependenciesReport
 
             unset VAULT_TOKEN

@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.usage.SearchUsageHolder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +31,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestFleetSearchAction extends BaseRestHandler {
+
+    private final SearchUsageHolder searchUsageHolder;
+
+    public RestFleetSearchAction(SearchUsageHolder searchUsageHolder) {
+        this.searchUsageHolder = searchUsageHolder;
+    }
 
     @Override
     public String getName() {
@@ -58,7 +65,14 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            RestSearchAction.parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize);
+            RestSearchAction.parseSearchRequest(
+                searchRequest,
+                request,
+                parser,
+                client.getNamedWriteableRegistry(),
+                setSize,
+                searchUsageHolder
+            );
             String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
             final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
             for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {

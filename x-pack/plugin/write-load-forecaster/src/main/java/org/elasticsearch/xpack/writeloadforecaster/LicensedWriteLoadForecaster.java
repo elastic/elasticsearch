@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.writeloadforecaster;
 
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
+import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -17,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -74,7 +75,9 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         final List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange = getIndicesWithinMaxAgeRange(dataStream, metadata).stream()
             .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
             .map(metadata::getSafe)
-            .map(IndexMetadata::getWriteLoad)
+            .map(IndexMetadata::getStats)
+            .filter(Objects::nonNull)
+            .map(IndexMetadataStats::writeLoad)
             .filter(Objects::nonNull)
             .toList();
 

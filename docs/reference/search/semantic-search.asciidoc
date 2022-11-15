@@ -101,7 +101,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 <<query-dsl,Query DSL>>.
 
 `text_embedding_config`::
-(Object, optional) Override certain setting of the text embedding model's configuration
+(Object, optional) Override certain setting of the text embedding model's 
+configuration.
++
 .Properties of text_embedding inference
 [%collapsible%open]
 =====

@@ -263,7 +263,7 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        module.setDirectoryWrapper(new DirectoryWrapper());
+        module.setDirectoryWrapper(new TestDirectoryWrapper());
 
         final IndexService indexService = newIndexService(module);
         assertSame(indexService.getEngineFactory(), module.getEngineFactory());
@@ -695,7 +695,7 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    private static final class DirectoryWrapper implements CheckedFunction<Directory, Directory, IOException> {
+    private static final class TestDirectoryWrapper implements IndexModule.DirectoryWrapper {
         @Override
         public Directory apply(Directory directory) {
             return new WrappedDirectory(directory);

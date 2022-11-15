@@ -142,10 +142,17 @@ public final class IndexModule {
         Property.IndexScope
     );
 
+    /**
+     * {@link Directory} wrappers allow to apply a function to the Lucene directory instances
+     * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
+     */
+    @FunctionalInterface
+    public interface DirectoryWrapper extends CheckedFunction<Directory, Directory, IOException> {}
+
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private final SetOnce<CheckedFunction<Directory, Directory, IOException>> indexDirectoryWrapper = new SetOnce<>();
+    private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
@@ -358,7 +365,7 @@ public final class IndexModule {
      *
      * @param wrapper the wrapping function
      */
-    public void setDirectoryWrapper(CheckedFunction<Directory, Directory, IOException> wrapper) {
+    public void setDirectoryWrapper(DirectoryWrapper wrapper) {
         ensureNotFrozen();
         this.indexDirectoryWrapper.set(Objects.requireNonNull(wrapper));
     }
@@ -549,7 +556,7 @@ public final class IndexModule {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
         }
-        final CheckedFunction<Directory, Directory, IOException> directoryWrapper = this.indexDirectoryWrapper.get();
+        final DirectoryWrapper directoryWrapper = this.indexDirectoryWrapper.get();
         assert frozen.get() : "IndexModule configuration not frozen";
         if (directoryWrapper != null) {
             return (idxSettings, shardPath) -> directoryWrapper.apply(factory.newDirectory(idxSettings, shardPath));

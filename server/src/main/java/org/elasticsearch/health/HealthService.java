@@ -8,14 +8,15 @@
 
 package org.elasticsearch.health;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -44,10 +45,10 @@ public class HealthService {
      * Detail map key that contains the reasons a result was marked as UNKNOWN
      */
     private static final String REASON = "reasons";
-    private static final Logger logger = LogManager.getLogger(HealthService.class);
 
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
+    private final ThreadPool threadPool;
 
     /**
      * Creates a new HealthService.
@@ -62,10 +63,12 @@ public class HealthService {
      */
     public HealthService(
         List<HealthIndicatorService> preflightHealthIndicatorServices,
-        List<HealthIndicatorService> healthIndicatorServices
+        List<HealthIndicatorService> healthIndicatorServices,
+        ThreadPool threadPool
     ) {
         this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
         this.healthIndicatorServices = healthIndicatorServices;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -105,24 +108,53 @@ public class HealthService {
                 @Override
                 public void onResponse(FetchHealthInfoCacheAction.Response response) {
                     HealthInfo healthInfo = response.getHealthInfo();
-                    validateResultsAndNotifyListener(
+                    // fork off to the management pool as calculating the indicators can run for longer than is acceptable
+                    // on a transport thread in case of large numbers of indices
+                    ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable = calculateFilteredIndicatorsRunnable(
                         indicatorName,
-                        Stream.concat(filteredPreflightResults, filteredIndicators.map(service -> service.calculate(explain, healthInfo)))
-                            .toList(),
+                        healthInfo,
+                        explain,
                         listener
                     );
+
+                    try {
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(calculateFilteredIndicatorsRunnable);
+                    } catch (EsRejectedExecutionException e) {
+                        calculateFilteredIndicatorsRunnable.onRejection(e);
+                    }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    validateResultsAndNotifyListener(
+                    // fork off to the management pool as calculating the indicators can run for longer than is acceptable
+                    // on a transport thread in case of large numbers of indices
+                    ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable = calculateFilteredIndicatorsRunnable(
                         indicatorName,
-                        Stream.concat(
-                            filteredPreflightResults,
-                            filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
-                        ).toList(),
+                        HealthInfo.EMPTY_HEALTH_INFO,
+                        explain,
                         listener
                     );
+                    try {
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(calculateFilteredIndicatorsRunnable);
+                    } catch (EsRejectedExecutionException esRejectedExecutionException) {
+                        calculateFilteredIndicatorsRunnable.onRejection(esRejectedExecutionException);
+                    }
+                }
+
+                private ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable(
+                    String indicatorName,
+                    HealthInfo healthInfo,
+                    boolean explain,
+                    ActionListener<List<HealthIndicatorResult>> listener
+                ) {
+                    return ActionRunnable.wrap(listener, l -> {
+                        List<HealthIndicatorResult> results = Stream.concat(
+                            filteredPreflightResults,
+                            filteredIndicators.map(service -> service.calculate(explain, healthInfo))
+                        ).toList();
+
+                        validateResultsAndNotifyListener(indicatorName, results, l);
+                    });
                 }
             });
 

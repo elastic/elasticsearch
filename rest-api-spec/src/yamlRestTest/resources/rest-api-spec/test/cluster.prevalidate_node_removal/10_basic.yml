@@ -28,7 +28,7 @@
 
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
-  - match: { error.reason: "Validation Failed: 1: request must contain node names, or IDs, or external IDs;" }
+  - match: { error.reason: "Validation Failed: 1: request must contain one of the parameters 'names', 'ids', or 'external_ids';" }
 ---
 "Prevalidation with more than one query parameter":
   - skip:
@@ -42,7 +42,7 @@
 
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
-  - match: { error.reason: "Validation Failed: 1: request must contain only one of the parameters node names, or IDs, or external IDs;" }
+  - match: { error.reason: "Validation Failed: 1: request must contain only one of the parameters 'names', 'ids', or 'external_ids';" }
 ---
 "Prevalidation with non-existing node":
   - skip:

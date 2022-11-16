@@ -23,8 +23,9 @@ import java.util.stream.Stream;
 public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<PrevalidateNodeRemovalRequest> {
 
     public static final String VALIDATION_ERROR_MSG_ONLY_ONE_QUERY_PARAM =
-        "request must contain only one of the parameters node names, or IDs, or external IDs";
-    public static final String VALIDATION_ERROR_MSG_NO_QUERY_PARAM = "request must contain node names, or IDs, or external IDs";
+        "request must contain only one of the parameters 'names', 'ids', or 'external_ids'";
+    public static final String VALIDATION_ERROR_MSG_NO_QUERY_PARAM =
+        "request must contain one of the parameters 'names', 'ids', or 'external_ids'";
 
     private final String[] names;
     private final String[] ids;
@@ -48,21 +49,9 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (names == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeStringArray(names);
-        }
-        if (ids == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeStringArray(ids);
-        }
-        if (externalIds == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeStringArray(externalIds);
-        }
+        out.writeStringArray(names);
+        out.writeStringArray(ids);
+        out.writeStringArray(externalIds);
         out.writeTimeValue(timeout);
     }
 
@@ -71,12 +60,12 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         var nonEmptyParams = Stream.of(names, ids, externalIds).filter(a -> a != null && a.length > 0).toList();
         if (nonEmptyParams.isEmpty()) {
             var e = new ActionRequestValidationException();
-            e.addValidationError("request must contain node names, or IDs, or external IDs");
+            e.addValidationError(VALIDATION_ERROR_MSG_NO_QUERY_PARAM);
             return e;
         }
         if (nonEmptyParams.size() > 1) {
             var e = new ActionRequestValidationException();
-            e.addValidationError("request must contain only one of the parameters node names, or IDs, or external IDs");
+            e.addValidationError(VALIDATION_ERROR_MSG_ONLY_ONE_QUERY_PARAM);
             return e;
         }
         return null;

@@ -21,10 +21,23 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DocCountFieldMapperTests extends MapperServiceTestCase {
+public class DocCountFieldMapperTests extends MetadataMapperTestCase {
 
     private static final String CONTENT_TYPE = DocCountFieldMapper.CONTENT_TYPE;
     private static final String DOC_COUNT_FIELD = DocCountFieldMapper.NAME;
+
+    @Override
+    protected String fieldName() {
+        return DocCountFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testParseValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));

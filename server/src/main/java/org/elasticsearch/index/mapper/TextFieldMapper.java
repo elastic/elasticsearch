@@ -1027,13 +1027,7 @@ public class TextFieldMapper extends FieldMapper {
 
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
-        public ConstantScoreTextFieldType(
-            String name,
-            boolean indexed,
-            boolean stored,
-            TextSearchInfo tsi,
-            Map<String, String> meta
-        ) {
+        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
             super(name, indexed, stored, tsi, false, null, meta);
         }
 

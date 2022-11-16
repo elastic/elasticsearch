@@ -90,6 +90,10 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static User randomInternalUser() {
+        return ESTestCase.randomFrom(INTERNAL_USERS);
+    }
+
     public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
         return new User(
             username,

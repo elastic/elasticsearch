@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -17,9 +19,12 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 
 import java.io.IOException;
@@ -109,6 +114,49 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 )
             )
         );
+    }
+
+    public void testRetrieveRemoteAccessRoleDescriptorsIntersectionForInternalUser() throws InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final String nodeName = internalCluster().getRandomNodeName();
+        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
+        final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .internal(randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser))
+            .build();
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
+        if (randomBoolean()) {
+            authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                concreteClusterAlias,
+                authentication.getEffectiveSubject(),
+                ActionTestUtils.assertNoFailureListener(roleDescriptorsIntersection -> {
+                    actual.set(roleDescriptorsIntersection);
+                    latch.countDown();
+                })
+            );
+        } else {
+            // This is set during authentication; since we are not authenticating set it explicitly as it's required for the `authorize`
+            // call below
+            AuditUtil.generateRequestId(threadContext);
+            // Authorize to populate thread context with authz info
+            ActionListener<Void> authzListener = ActionTestUtils.assertNoFailureListener(ignored -> {
+                authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                    concreteClusterAlias,
+                    authentication.getEffectiveSubject(),
+                    ActionTestUtils.assertNoFailureListener(roleDescriptorsIntersection -> {
+                        actual.set(roleDescriptorsIntersection);
+                        latch.countDown();
+                    })
+                );
+            });
+            authzService.authorize(authentication, AuthenticateAction.INSTANCE.name(), AuthenticateRequest.INSTANCE, authzListener);
+        }
+
+        latch.await();
+        assertThat(actual.get(), equalTo(RoleDescriptorsIntersection.EMPTY));
     }
 
 }

@@ -208,8 +208,17 @@ public class AuthorizationService {
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
+        if (SystemUser.is(subject.getUser())) {
+            final String message = "the user ["
+                + subject.getUser().principal()
+                + "] is the system user and we should never try to retrieve its remote access roles descriptors";
+            assert false : message;
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
+
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        final AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
+        final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
         if (authorizationInfo != null) {
             authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
                 remoteClusterAlias,
@@ -217,7 +226,7 @@ public class AuthorizationService {
                 wrapPreservingContext(listener, threadContext)
             );
         } else {
-            assert isInternal(subject.getUser()) : "authorization info expected to be in context for all users other than internal users";
+            assert isInternal(subject.getUser()) : "authorization info must be in thread context for all users other than internal users";
             authorizationEngine.resolveAuthorizationInfo(subject, ActionListener.wrap(resolvedAuthzInfo -> {
                 authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
                     remoteClusterAlias,

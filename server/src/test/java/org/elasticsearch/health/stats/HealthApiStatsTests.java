@@ -29,8 +29,8 @@ public class HealthApiStatsTests extends ESTestCase {
 
     public void testEmptyCounters() {
         HealthApiStats healthApiStats = new HealthApiStats();
-        assertThat(healthApiStats.getCounters().get("invocations.total"), equalTo(0L));
-        Map<String, Object> metricMap = healthApiStats.getCounters().toNestedMap();
+        assertThat(healthApiStats.getStats().get("invocations.total"), equalTo(0L));
+        Map<String, Object> metricMap = healthApiStats.getStats().toNestedMap();
         assertThat(metricMap.containsKey("statuses"), equalTo(false));
         assertThat(metricMap.containsKey("indicators"), equalTo(false));
         assertThat(metricMap.containsKey("diagnoses"), equalTo(false));
@@ -49,11 +49,11 @@ public class HealthApiStatsTests extends ESTestCase {
             GetHealthAction.Response response = new GetHealthAction.Response(ClusterName.DEFAULT, indicators, true);
 
             healthApiStats.track(false, response);
-            assertThat(healthApiStats.getCounters().get("invocations.total"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("invocations.verbose_false"), equalTo(1L));
-            expectThrows(IllegalArgumentException.class, () -> healthApiStats.getCounters().get("invocations.verbose_true"));
-            assertThat(healthApiStats.getCounters().get("statuses.green"), equalTo(1L));
-            Map<String, Object> metricMap = healthApiStats.getCounters().toNestedMap();
+            assertThat(healthApiStats.getStats().get("invocations.total"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("invocations.verbose_false"), equalTo(1L));
+            expectThrows(IllegalArgumentException.class, () -> healthApiStats.getStats().get("invocations.verbose_true"));
+            assertThat(healthApiStats.getStats().get("statuses.green"), equalTo(1L));
+            Map<String, Object> metricMap = healthApiStats.getStats().toNestedMap();
             assertThat(((Map<String, Object>) metricMap.get("statuses")).size(), equalTo(1));
             assertThat(metricMap.containsKey("indicators"), equalTo(false));
             assertThat(metricMap.containsKey("diagnoses"), equalTo(false));
@@ -70,13 +70,13 @@ public class HealthApiStatsTests extends ESTestCase {
             GetHealthAction.Response response = new GetHealthAction.Response(ClusterName.DEFAULT, indicators, true);
 
             healthApiStats.track(true, response);
-            assertThat(healthApiStats.getCounters().get("invocations.total"), equalTo(2L));
-            assertThat(healthApiStats.getCounters().get("invocations.verbose_true"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("invocations.verbose_false"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.green"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.yellow"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("indicators.yellow.shards_availability"), equalTo(1L));
-            Map<String, Object> metricMap = healthApiStats.getCounters().toNestedMap();
+            assertThat(healthApiStats.getStats().get("invocations.total"), equalTo(2L));
+            assertThat(healthApiStats.getStats().get("invocations.verbose_true"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("invocations.verbose_false"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.green"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.yellow"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("indicators.yellow.shards_availability"), equalTo(1L));
+            Map<String, Object> metricMap = healthApiStats.getStats().toNestedMap();
             assertThat(metricMap.containsKey("diagnoses"), equalTo(false));
             assertThat(healthApiStats.getStatuses(), equalTo(Set.of(GREEN, YELLOW)));
             assertThat(healthApiStats.getIndicators().get(YELLOW), equalTo(Set.of("shards_availability")));
@@ -92,21 +92,21 @@ public class HealthApiStatsTests extends ESTestCase {
             GetHealthAction.Response response = new GetHealthAction.Response(ClusterName.DEFAULT, indicators, true);
 
             healthApiStats.track(true, response);
-            assertThat(healthApiStats.getCounters().get("invocations.total"), equalTo(3L));
-            assertThat(healthApiStats.getCounters().get("invocations.verbose_true"), equalTo(2L));
-            assertThat(healthApiStats.getCounters().get("invocations.verbose_false"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.green"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.yellow"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("indicators.yellow.shards_availability"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("indicators.yellow.disk"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.red"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("indicators.red.shards_availability"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("invocations.total"), equalTo(3L));
+            assertThat(healthApiStats.getStats().get("invocations.verbose_true"), equalTo(2L));
+            assertThat(healthApiStats.getStats().get("invocations.verbose_false"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.green"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.yellow"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("indicators.yellow.shards_availability"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("indicators.yellow.disk"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.red"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("indicators.red.shards_availability"), equalTo(1L));
             assertThat(
-                healthApiStats.getCounters().get("diagnoses.yellow.elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"),
+                healthApiStats.getStats().get("diagnoses.yellow.elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"),
                 equalTo(1L)
             );
             assertThat(
-                healthApiStats.getCounters().get("diagnoses.red.elasticsearch:health:shards_availability:diagnosis:primary_unassigned"),
+                healthApiStats.getStats().get("diagnoses.red.elasticsearch:health:shards_availability:diagnosis:primary_unassigned"),
                 equalTo(1L)
             );
             assertThat(healthApiStats.getStatuses(), equalTo(Set.of(GREEN, YELLOW, RED)));
@@ -131,26 +131,26 @@ public class HealthApiStatsTests extends ESTestCase {
             GetHealthAction.Response response = new GetHealthAction.Response(ClusterName.DEFAULT, indicators, true);
 
             healthApiStats.track(true, response);
-            assertThat(healthApiStats.getCounters().get("invocations.total"), equalTo(4L));
-            assertThat(healthApiStats.getCounters().get("invocations.verbose_true"), equalTo(3L));
-            assertThat(healthApiStats.getCounters().get("invocations.verbose_false"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.green"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.yellow"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("indicators.yellow.disk"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("indicators.yellow.shards_availability"), equalTo(1L));
-            assertThat(healthApiStats.getCounters().get("statuses.red"), equalTo(2L));
-            assertThat(healthApiStats.getCounters().get("indicators.red.shards_availability"), equalTo(2L));
-            assertThat(healthApiStats.getCounters().get("indicators.red.disk"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("invocations.total"), equalTo(4L));
+            assertThat(healthApiStats.getStats().get("invocations.verbose_true"), equalTo(3L));
+            assertThat(healthApiStats.getStats().get("invocations.verbose_false"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.green"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.yellow"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("indicators.yellow.disk"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("indicators.yellow.shards_availability"), equalTo(1L));
+            assertThat(healthApiStats.getStats().get("statuses.red"), equalTo(2L));
+            assertThat(healthApiStats.getStats().get("indicators.red.shards_availability"), equalTo(2L));
+            assertThat(healthApiStats.getStats().get("indicators.red.disk"), equalTo(1L));
             assertThat(
-                healthApiStats.getCounters().get("diagnoses.yellow.elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"),
+                healthApiStats.getStats().get("diagnoses.yellow.elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"),
                 equalTo(1L)
             );
             assertThat(
-                healthApiStats.getCounters().get("diagnoses.red.elasticsearch:health:shards_availability:diagnosis:primary_unassigned"),
+                healthApiStats.getStats().get("diagnoses.red.elasticsearch:health:shards_availability:diagnosis:primary_unassigned"),
                 equalTo(2L)
             );
             assertThat(
-                healthApiStats.getCounters().get("diagnoses.red.elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"),
+                healthApiStats.getStats().get("diagnoses.red.elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"),
                 equalTo(1L)
             );
             assertThat(healthApiStats.getStatuses(), equalTo(Set.of(GREEN, YELLOW, RED)));

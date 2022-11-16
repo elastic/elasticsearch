@@ -78,7 +78,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 .orElseThrow(() -> new NoSuchElementException("Indicator [" + name + "] is not found"));
         }
 
-        public List<HealthIndicatorResult> getIndicators() {
+        public List<HealthIndicatorResult> getIndicatorResults() {
             return indicators;
         }
 

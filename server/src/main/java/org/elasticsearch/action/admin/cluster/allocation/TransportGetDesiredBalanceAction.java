@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,7 +37,8 @@ import java.util.Map;
 
 public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAction<DesiredBalanceRequest, DesiredBalanceResponse> {
 
-    private final ShardsAllocator shardsAllocator;
+    @Nullable
+    private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
 
     @Inject
     public TransportGetDesiredBalanceAction(
@@ -58,7 +60,9 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             DesiredBalanceResponse::from,
             ThreadPool.Names.MANAGEMENT
         );
-        this.shardsAllocator = shardsAllocator;
+        this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator
+            ? (DesiredBalanceShardsAllocator) shardsAllocator
+            : null;
     }
 
     @Override
@@ -69,7 +73,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ActionListener<DesiredBalanceResponse> listener
     ) throws Exception {
         String allocatorName = ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.get(state.metadata().settings());
-        if (allocatorName.equals(ClusterModule.DESIRED_BALANCE_ALLOCATOR) == false) {
+        if (allocatorName.equals(ClusterModule.DESIRED_BALANCE_ALLOCATOR) == false || desiredBalanceShardsAllocator == null) {
             listener.onFailure(
                 new ResourceNotFoundException(
                     "Expected the shard balance allocator to be `desired_balance`, but got `" + allocatorName + "`"
@@ -78,7 +82,6 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             return;
         }
 
-        DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = (DesiredBalanceShardsAllocator) shardsAllocator;
         DesiredBalance latestDesiredBalance = desiredBalanceShardsAllocator.getDesiredBalance();
         if (latestDesiredBalance == null) {
             listener.onFailure(new ResourceNotFoundException("Desired balance is not computed yet"));

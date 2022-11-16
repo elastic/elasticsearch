@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBui
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -90,6 +91,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -1682,7 +1684,7 @@ public class RBACEngineTests extends ESTestCase {
                                 null,
                                 null,
                                 null,
-                                Map.of("_role_names", role.names()),
+                                Map.of(AuthenticationField.REMOTE_ACCESS_ROLE_NAMES_KEY, Arrays.stream(role.names()).toList()),
                                 null
                             )
                         )

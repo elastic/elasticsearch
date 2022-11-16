@@ -701,7 +701,9 @@ public class RBACEngine implements AuthorizationEngine {
         // A role descriptor can only store one name, whereas the role may have multiple names. To work around this, we will include the
         // complete list of role names in the role descriptor metadata, and simply use the first name for the role descriptor as a
         // place-holder.
-        final String roleDescriptorName = Arrays.stream(role.names()).iterator().next();
+        final List<String> roleNames = Arrays.stream(role.names()).toList();
+        assert false == roleNames.isEmpty() : "must have at least one role name";
+        final String roleDescriptorName = roleNames.iterator().next();
         listener.onResponse(
             new RoleDescriptorsIntersection(
                 List.of(
@@ -714,7 +716,7 @@ public class RBACEngine implements AuthorizationEngine {
                             null,
                             null,
                             // The fulfilling cluster should rely on this metadata field for auditing role names
-                            Map.of("_role_names", role.names()),
+                            Map.of(AuthenticationField.REMOTE_ACCESS_ROLE_NAMES_KEY, roleNames),
                             null
                         )
                     )
@@ -723,7 +725,7 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(IndicesPermission.Group indicesGroup) {
+    private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
         final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();

@@ -1,9 +1,9 @@
 ---
 - job:
-    name: elastic+elasticsearch+%BRANCH%+periodic+dra-snapshot
-    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+dra-snapshot
-    display-name: "elastic / elasticsearch # %BRANCH% - DRA snapshot"
-    description: "Publishing Daily Releasable Artifacts (DRAs) of Elasticsearch %BRANCH% snapshots.\n"
+    name: elastic+elasticsearch+%BRANCH%+dra-snapshot
+    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+dra-staging
+    display-name: "elastic / elasticsearch # %BRANCH% - DRA staging"
+    description: "Publishing Daily Releasable Artifacts (DRAs) of Elasticsearch %BRANCH% staging.\n"
     node: "ubuntu-20.04"
     builders:
       - inject:
@@ -13,7 +13,7 @@
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
             #!/usr/local/bin/runbld --redirect-stderr
-            WORKFLOW="SNAPSHOT"
+            WORKFLOW="STAGING"
             ES_VERSION=$(cat build-tools-internal/version.properties \
                   | grep elasticsearch \
                   | sed "s/elasticsearch *= *//g")

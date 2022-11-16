@@ -566,10 +566,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // then even though the node we are examining has a better weight and may make the cluster balance
                     // more even, it doesn't make sense to execute the heavyweight operation of relocating a shard unless
                     // the gains make it worth it, as defined by the threshold
-                    boolean deltaAboveThreshold = lessThan(currentDelta, threshold) == false;
+                    final float localThreshold = sorter.minWeightDelta() * threshold;
+                    boolean deltaAboveThreshold = lessThan(currentDelta, localThreshold) == false;
                     // calculate the delta of the weights of the two nodes if we were to add the shard to the
                     // node in question and move it away from the node that currently holds it.
-                    boolean betterWeightWithShardAdded = nodeWeight + 1.0f < currentWeight;
+                    boolean betterWeightWithShardAdded = nodeWeight + localThreshold < currentWeight;
                     rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the

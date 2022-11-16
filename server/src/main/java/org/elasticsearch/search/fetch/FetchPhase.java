@@ -201,14 +201,7 @@ public class FetchPhase {
         SourceLoader.Leaf sourceLoader
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
-            return prepareNonNestedHitContext(
-                requiresSource,
-                profiler,
-                leafStoredFieldLoader,
-                docId,
-                subReaderContext,
-                sourceLoader
-            );
+            return prepareNonNestedHitContext(requiresSource, profiler, leafStoredFieldLoader, docId, subReaderContext, sourceLoader);
         } else {
             return prepareNestedHitContext(
                 context,

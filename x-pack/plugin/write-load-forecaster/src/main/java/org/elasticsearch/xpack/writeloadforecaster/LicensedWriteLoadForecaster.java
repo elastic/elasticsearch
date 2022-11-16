@@ -27,6 +27,8 @@ import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.function.BooleanSupplier;
 
+import static org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING;
+
 class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     public static final Setting<TimeValue> MAX_INDEX_AGE_SETTING = Setting.timeSetting(
         "write_load_forecaster.max_index_age",
@@ -72,6 +74,8 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             return metadata;
         }
 
+        clearPreviousForecast(dataStream, metadata);
+
         final List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange = getIndicesWithinMaxAgeRange(dataStream, metadata).stream()
             .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
             .map(metadata::getSafe)
@@ -91,6 +95,22 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         metadata.put(IndexMetadata.builder(writeIndex).indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble()).build(), false);
 
         return metadata;
+    }
+
+    private void clearPreviousForecast(DataStream dataStream, Metadata.Builder metadata) {
+        if (dataStream.getIndices().size() > 1) {
+            final Index previousWriteIndex = dataStream.getIndices().get(dataStream.getIndices().size() - 2);
+            final IndexMetadata previousWriteIndexMetadata = metadata.getSafe(previousWriteIndex);
+            final IndexMetadata.Builder previousWriteIndexMetadataBuilder = IndexMetadata.builder(previousWriteIndexMetadata)
+                .indexWriteLoadForecast(null);
+            if (previousWriteIndexMetadata.getSettings().hasValue(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey())) {
+                Settings.Builder previousWriteIndexSettings = Settings.builder().put(previousWriteIndexMetadata.getSettings());
+                previousWriteIndexSettings.remove(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey());
+                previousWriteIndexMetadataBuilder.settings(previousWriteIndexSettings);
+                previousWriteIndexMetadataBuilder.settingsVersion(previousWriteIndexMetadata.getSettingsVersion() + 1);
+            }
+            metadata.put(previousWriteIndexMetadataBuilder.build(), false);
+        }
     }
 
     // Visible for testing
@@ -140,10 +160,8 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             return OptionalDouble.empty();
         }
 
-        if (WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING.exists(indexMetadata.getSettings())) {
-            Double overrideWriteLoadForecast = WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING.get(
-                indexMetadata.getSettings()
-            );
+        if (OVERRIDE_WRITE_LOAD_FORECAST_SETTING.exists(indexMetadata.getSettings())) {
+            Double overrideWriteLoadForecast = OVERRIDE_WRITE_LOAD_FORECAST_SETTING.get(indexMetadata.getSettings());
             return OptionalDouble.of(overrideWriteLoadForecast);
         }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -78,6 +79,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final Consumer<Runnable> postWriteAction;
 
     @Inject
     public TransportShardBulkAction(
@@ -111,6 +113,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.postWriteAction = WriteAckDelay.create(settings, threadPool);
     }
 
     @Override
@@ -149,7 +152,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary));
+        }), listener, threadPool, executor(primary), postWriteAction);
     }
 
     @Override
@@ -172,6 +175,32 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         ThreadPool threadPool,
         String executorName
+    ) {
+        performOnPrimary(
+            request,
+            primary,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            listener,
+            threadPool,
+            executorName,
+            null
+        );
+    }
+
+    public static void performOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool,
+        String executorName,
+        @Nullable Consumer<Runnable> postWriteAction
     ) {
         new ActionRunnable<>(listener) {
 
@@ -246,7 +275,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getLocationToSync(),
                         null,
                         context.getPrimary(),
-                        logger
+                        logger,
+                        postWriteAction
                     )
                 );
             }
@@ -520,7 +550,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final long startBulkTime = System.nanoTime();
             final Translog.Location location = performOnReplica(request, replica);
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
-            return new WriteReplicaResult<>(request, location, null, replica, logger);
+            return new WriteReplicaResult<>(request, location, null, replica, logger, postWriteAction);
         });
     }
 

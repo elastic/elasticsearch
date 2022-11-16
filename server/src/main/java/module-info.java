@@ -59,6 +59,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
     exports org.elasticsearch.action.admin.cluster.node.info;
     exports org.elasticsearch.action.admin.cluster.node.reload;
+    exports org.elasticsearch.action.admin.cluster.node.shutdown;
     exports org.elasticsearch.action.admin.cluster.node.stats;
     exports org.elasticsearch.action.admin.cluster.node.tasks.cancel;
     exports org.elasticsearch.action.admin.cluster.node.tasks.get;

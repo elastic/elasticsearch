@@ -162,87 +162,85 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         Metadata metadata = clusterState.metadata();
         DiscoveryNodes clusterNodes = clusterState.getNodes();
-        switch (clusterStateHealth.getStatus()) {
-            case GREEN, YELLOW -> {
-                List<NodeResult> nodesResults = requestNodes.stream()
-                    .map(
-                        dn -> new NodeResult(
-                            dn.getName(),
-                            dn.getId(),
-                            dn.getExternalId(),
-                            new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_INDICES, "")
-                        )
+        if (clusterStateHealth.getStatus() == ClusterHealthStatus.GREEN || clusterStateHealth.getStatus() == ClusterHealthStatus.YELLOW) {
+            List<NodeResult> nodesResults = requestNodes.stream()
+                .map(
+                    dn -> new NodeResult(
+                        dn.getName(),
+                        dn.getId(),
+                        dn.getExternalId(),
+                        new Result(true, NodesRemovalPrevalidation.Reason.NON_RED_CLUSTER_STATUS, "")
                     )
-                    .toList();
-                listener.onResponse(
-                    new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(true, "cluster status is not RED", nodesResults))
-                );
-            }
-            case RED -> {
-                Set<String> redIndices = clusterStateHealth.getIndices()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> entry.getValue().getStatus() == ClusterHealthStatus.RED)
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
-                // If all red indices are searchable snapshot indices, it is safe to remove any node.
-                Set<String> redNonSSIndices = redIndices.stream()
-                    .map(metadata::index)
-                    .filter(i -> i.isSearchableSnapshot() == false)
-                    .map(im -> im.getIndex().getName())
-                    .collect(Collectors.toSet());
-                if (redNonSSIndices.isEmpty()) {
-                    List<NodeResult> nodeResults = requestNodes.stream()
-                        .map(
-                            dn -> new NodeResult(
-                                dn.getName(),
-                                dn.getId(),
-                                dn.getExternalId(),
-                                new Result(true, NodesRemovalPrevalidation.Reason.RED_INDICES_ARE_SEARCHABLE_SNAPSHOT, "")
-                            )
-                        )
-                        .toList();
-                    listener.onResponse(
-                        new PrevalidateNodeRemovalResponse(
-                            new NodesRemovalPrevalidation(true, "all red indices are searchable snapshot indices", nodeResults)
-                        )
-                    );
-                } else {
-                    // Reach out to the nodes to find out whether they contain copies of the red non-searchable-snapshot indices
-                    Set<ShardId> redShards = clusterStateHealth.getIndices()
-                        .entrySet()
+                )
+                .toList();
+            listener.onResponse(
+                new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(true, "cluster status is not RED", nodesResults))
+            );
+            return;
+        }
+        // RED cluster state
+        Set<String> redIndices = clusterStateHealth.getIndices()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().getStatus() == ClusterHealthStatus.RED)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        // If all red indices are searchable snapshot indices, it is safe to remove any node.
+        Set<String> redNonSSIndices = redIndices.stream()
+            .map(metadata::index)
+            .filter(i -> i.isSearchableSnapshot() == false)
+            .map(im -> im.getIndex().getName())
+            .collect(Collectors.toSet());
+        if (redNonSSIndices.isEmpty()) {
+            List<NodeResult> nodeResults = requestNodes.stream()
+                .map(
+                    dn -> new NodeResult(
+                        dn.getName(),
+                        dn.getId(),
+                        dn.getExternalId(),
+                        new Result(true, NodesRemovalPrevalidation.Reason.RED_INDICES_ARE_SEARCHABLE_SNAPSHOT, "")
+                    )
+                )
+                .toList();
+            listener.onResponse(
+                new PrevalidateNodeRemovalResponse(
+                    new NodesRemovalPrevalidation(true, "all red indices are searchable snapshot indices", nodeResults)
+                )
+            );
+        } else {
+            // Reach out to the nodes to find out whether they contain copies of the red non-searchable-snapshot indices
+            Set<ShardId> redShards = clusterStateHealth.getIndices()
+                .entrySet()
+                .stream()
+                .filter(indexHealthEntry -> redNonSSIndices.contains(indexHealthEntry.getKey()))
+                .map(Map.Entry::getValue) // ClusterHealthIndex of red non-searchable-snapshot indices
+                .flatMap(
+                    redIndexHealth -> redIndexHealth.getShards()
+                        .values()
                         .stream()
-                        .filter(indexHealthEntry -> redNonSSIndices.contains(indexHealthEntry.getKey()))
-                        .map(Map.Entry::getValue) // ClusterHealthIndex of red non-searchable-snapshot indices
-                        .flatMap(
-                            redIndexHealth -> redIndexHealth.getShards()
-                                .values()
-                                .stream()
-                                .filter(shardHealth -> shardHealth.getStatus() == ClusterHealthStatus.RED)
-                                .map(redShardHealth -> Tuple.tuple(redIndexHealth.getIndex(), redShardHealth))
-                        ) // (Index, ClusterShardHealth) of all red shards
-                        .map(
-                            redIndexShardHealthTuple -> new ShardId(
-                                metadata.index(redIndexShardHealthTuple.v1()).getIndex(),
-                                redIndexShardHealthTuple.v2().getShardId()
-                            )
-                        ) // Convert to ShardId
-                        .collect(Collectors.toSet());
-                    var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-                    var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, nodeIds).timeout(request.timeout());
-                    client.execute(TransportCheckShardsOnDataPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(CheckShardsOnDataPathResponse response) {
-                            listener.onResponse(new PrevalidateNodeRemovalResponse(createPrevalidationResult(clusterNodes, response)));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                        .filter(shardHealth -> shardHealth.getStatus() == ClusterHealthStatus.RED)
+                        .map(redShardHealth -> Tuple.tuple(redIndexHealth.getIndex(), redShardHealth))
+                ) // (Index, ClusterShardHealth) of all red shards
+                .map(
+                    redIndexShardHealthTuple -> new ShardId(
+                        metadata.index(redIndexShardHealthTuple.v1()).getIndex(),
+                        redIndexShardHealthTuple.v2().getShardId()
+                    )
+                ) // Convert to ShardId
+                .collect(Collectors.toSet());
+            var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
+            var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, nodeIds).timeout(request.timeout());
+            client.execute(TransportCheckShardsOnDataPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(CheckShardsOnDataPathResponse response) {
+                    listener.onResponse(new PrevalidateNodeRemovalResponse(createPrevalidationResult(clusterNodes, response)));
                 }
-            }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 
@@ -251,7 +249,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         for (NodeCheckShardsOnDataPathResponse nodeResponse : response.getNodes()) {
             Result result;
             if (nodeResponse.getShardIds().isEmpty()) {
-                result = new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_INDICES, "");
+                result = new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_ON_NODE, "");
             } else {
                 result = new Result(
                     false,
@@ -284,7 +282,6 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             );
         }
         // determine overall result from the node results.
-
         Set<String> unsafeNodeRemovals = response.getNodes()
             .stream()
             .filter(r -> r.getShardIds().isEmpty() == false)
@@ -293,7 +290,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         if (unsafeNodeRemovals.isEmpty() == false) {
             return new NodesRemovalPrevalidation(
                 false,
-                Strings.format("nodes with the following IDs contain copies of red shards: %s", unsafeNodeRemovals),
+                Strings.format("removal of the following nodes might not be safe: %s", unsafeNodeRemovals),
                 nodeResults
             );
         }

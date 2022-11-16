@@ -28,7 +28,7 @@ public class NodeCheckShardsOnDataPathRequest extends TransportRequest {
 
     public NodeCheckShardsOnDataPathRequest(StreamInput in) throws IOException {
         super(in);
-        this.shardIds = in.readSet(ShardId::new);
+        this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
     }
 
     @Override

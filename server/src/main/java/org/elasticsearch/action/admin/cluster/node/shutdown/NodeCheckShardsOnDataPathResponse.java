@@ -24,12 +24,12 @@ public class NodeCheckShardsOnDataPathResponse extends BaseNodeResponse {
 
     protected NodeCheckShardsOnDataPathResponse(DiscoveryNode node, Set<ShardId> shardIds) {
         super(node);
-        this.shardIds = Set.copyOf(shardIds);
+        this.shardIds = Set.copyOf(Objects.requireNonNull(shardIds));
     }
 
     protected NodeCheckShardsOnDataPathResponse(StreamInput in) throws IOException {
         super(in);
-        shardIds = in.readSet(ShardId::new);
+        shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
     }
 
     @Override

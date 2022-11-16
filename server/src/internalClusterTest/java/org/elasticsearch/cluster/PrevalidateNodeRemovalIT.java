@@ -17,11 +17,12 @@ import org.elasticsearch.action.admin.cluster.node.shutdown.TransportCheckShards
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -31,9 +32,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -65,10 +68,13 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         }
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build()).get();
         assertTrue(resp.getPrevalidation().isSafe());
+        assertThat(resp.getPrevalidation().message(), equalTo("cluster status is not RED"));
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertNotNull(nodeResult);
         assertThat(nodeResult.name(), equalTo(nodeName));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NON_RED_CLUSTER_STATUS));
+        assertThat(nodeResult.result().message(), equalTo(""));
         assertTrue(nodeResult.result().isSafe());
         // Enforce a replica to get unassigned
         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node1));
@@ -76,37 +82,45 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalRequest req2 = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp2 = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req2).get();
         assertTrue(resp2.getPrevalidation().isSafe());
+        assertThat(resp2.getPrevalidation().message(), equalTo("cluster status is not RED"));
         assertThat(resp2.getPrevalidation().nodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult2 = resp2.getPrevalidation().nodes().get(0);
         assertNotNull(nodeResult2);
         assertThat(nodeResult2.name(), equalTo(node2));
         assertTrue(nodeResult2.result().isSafe());
+        assertThat(nodeResult2.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NON_RED_CLUSTER_STATUS));
+        assertThat(nodeResult2.result().message(), equalTo(""));
     }
 
     // Test that in case the nodes that are being prevalidated do not contain copies of any of the
     // red shards, their removal is considered to be safe.
     public void testNodeRemovalFromRedClusterWithNoLocalShardCopy() throws Exception {
         internalCluster().startMasterOnlyNode();
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        String nodeWithIndex = internalCluster().startDataOnlyNode();
+        List<String> otherNodes = internalCluster().startDataOnlyNodes(randomIntBetween(1, 3));
         // Create an index pinned to one node, and then stop that node so the index is RED.
         String indexName = "test-idx";
         createIndex(
             indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put("index.routing.allocation.require._name", node1).build()
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put("index.routing.allocation.require._name", nodeWithIndex)
+                .build()
         );
         ensureYellow(indexName);
-        internalCluster().stopNode(node1);
+        internalCluster().stopNode(nodeWithIndex);
         ensureRed(indexName);
-        // With a RED non-searchable-snapshot index, node removal is potentially unsafe
-        // since that node might have the last copy of the unassigned index.
-        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
+        String[] otherNodeNames = otherNodes.toArray(new String[otherNodes.size()]);
+        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(otherNodeNames).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertTrue(resp.getPrevalidation().isSafe());
-        assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
-        NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
-        assertThat(nodeResult.name(), equalTo(node2));
-        assertTrue(nodeResult.result().isSafe());
+        assertThat(resp.getPrevalidation().message(), equalTo(""));
+        assertThat(resp.getPrevalidation().nodes().size(), equalTo(otherNodes.size()));
+        for (NodesRemovalPrevalidation.NodeResult nodeResult : resp.getPrevalidation().nodes()) {
+            assertThat(nodeResult.name(), oneOf(otherNodeNames));
+            assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_ON_NODE));
+            assertTrue(nodeResult.result().isSafe());
+        }
     }
 
     public void testNodeRemovalFromRedClusterWithLocalShardCopy() throws Exception {
@@ -146,19 +160,19 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         // Ensure that node1 still has data for the unassigned index
         NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class, node1);
         Index index = internalCluster().clusterService().state().metadata().index(indexName).getIndex();
-        assertTrue("local index shards not found", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
+        ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, new ShardId(index, 0), "");
+        assertNotNull("local index shards not found", shardPath);
+        // Prevalidate removal of node1
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node1).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         String node1Id = internalCluster().clusterService(node1).localNode().getId();
         assertFalse(resp.getPrevalidation().isSafe());
-        assertThat(
-            resp.getPrevalidation().message(),
-            equalTo("nodes with the following IDs contain copies of red shards: [" + node1Id + "]")
-        );
+        assertThat(resp.getPrevalidation().message(), equalTo("removal of the following nodes might not be safe: [" + node1Id + "]"));
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertThat(nodeResult.name(), equalTo(node1));
         assertFalse(nodeResult.result().isSafe());
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.MAY_CONTAIN_RED_SHARD_COPY));
         assertThat(nodeResult.result().message(), equalTo("node contains copies of the following red shards: [[" + indexName + "][0]]"));
     }
 
@@ -200,6 +214,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertThat(nodeResult.name(), equalTo(node2));
         assertFalse(nodeResult.result().isSafe());
         assertThat(nodeResult.result().message(), startsWith("failed contacting the node"));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NO_RESPONSE_FROM_NODE));
     }
 
     private void ensureRed(String indexName) throws Exception {

@@ -1257,13 +1257,28 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> assertScriptDocValues(mapper, "foo", equalTo(List.of("foo"))));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "fetching values from a text field [field] is not yet supported because synthetic _source is "
-                    + "enabled and the field doesn't create stored fields"
-            )
-        );
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").field("doc_values", false).field("store", true).endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
     }
 }

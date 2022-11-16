@@ -55,7 +55,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
@@ -92,7 +94,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testBalanceByShardLoad() {
 
-        var smallIndices = IntStream.range(1, randomIntBetween(2, 5))
+        var smallIndices = IntStream.range(1, randomIntBetween(3, 5))
             .mapToObj(i -> IndexMetadata.builder("small-index-" + i))
             .map(builder -> builder.settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .map(builder -> builder.indexWriteLoadForecast(randomIngestLoad(2.0)));
@@ -105,7 +107,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         var clusterState = stateWithIndices(Stream.concat(smallIndices, Stream.of(heavyIndex)).toList());
 
-        WriteLoadForecaster writeLoadForecaster = new WriteLoadForecaster() {
+        var testWriteLoadForecaster = new WriteLoadForecaster() {
             @Override
             public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
                 throw new UnsupportedOperationException("Not required for test");
@@ -121,16 +123,17 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocator = new BalancedShardsAllocator(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            writeLoadForecaster,
+            testWriteLoadForecaster,
             EmptyClusterInfoService.INSTANCE
         );
         var allocation = createRoutingAllocation(clusterState);
         allocator.allocate(allocation);
 
+        assertThat(allocation.metadata().getTotalNumberOfShards(), allOf(greaterThanOrEqualTo(3), lessThanOrEqualTo(5)));
         for (RoutingNode routingNode : allocation.routingNodes()) {
             var nodeIngestLoad = 0.0;
             for (ShardRouting shardRouting : routingNode) {
-                nodeIngestLoad += writeLoadForecaster.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
+                nodeIngestLoad += testWriteLoadForecaster.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
                     .orElse(0.0);
             }
             assertThat(nodeIngestLoad, lessThanOrEqualTo(8.0 + 2.0));

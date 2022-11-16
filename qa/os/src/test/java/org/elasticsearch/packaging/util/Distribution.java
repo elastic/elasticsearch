@@ -8,6 +8,8 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.elasticsearch.Version;
+
 import java.nio.file.Path;
 import java.util.Locale;
 
@@ -38,7 +40,6 @@ public class Distribution {
         }
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
-        this.hasJdk = filename.contains("no-jdk") == false;
         String tmpVersion = filename.split("-", 3)[1];
         if (packaging == Packaging.DEB) {
             tmpVersion = tmpVersion.replace(".deb", "");
@@ -46,6 +47,7 @@ public class Distribution {
             tmpVersion = tmpVersion.replace(".rpm", "");
         }
         this.baseVersion = tmpVersion;
+        this.hasJdk = isDocker() || (filename.contains("no-jdk") == false && Version.fromString(baseVersion).onOrAfter(Version.V_7_0_0));
         this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
     }
 

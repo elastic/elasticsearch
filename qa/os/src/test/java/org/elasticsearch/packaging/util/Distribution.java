@@ -47,7 +47,7 @@ public class Distribution {
             tmpVersion = tmpVersion.replace(".rpm", "");
         }
         this.baseVersion = tmpVersion;
-        this.hasJdk = filename.contains("no-jdk") == false && Version.fromString(baseVersion).onOrAfter(Version.V_7_0_0);
+        this.hasJdk = isDocker() || (filename.contains("no-jdk") == false && Version.fromString(baseVersion).onOrAfter(Version.V_7_0_0));
         this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
     }
 

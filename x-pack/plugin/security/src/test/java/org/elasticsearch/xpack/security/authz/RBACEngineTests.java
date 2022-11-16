@@ -1650,18 +1650,26 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRemoteAccessRoleDescriptorsIntersection() throws ExecutionException, InterruptedException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
 
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
         final String[] indexNames = generateRandomStringArray(3, 10, false, false);
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final boolean allowRestrictedIndices = randomBoolean();
-        final BytesReference query = randomBoolean() ? null : new BytesArray("{ \"match_all\": {} }");
+        final BytesReference query = randomBoolean()
+            ? null
+            : new BytesArray(
+                "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
+            );
+        final boolean hasFls = randomBoolean();
+        final FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroups = hasFls
+            ? new FieldPermissionsDefinition.FieldGrantExcludeGroup(generateRandomStringArray(3, 10, false, false), new String[] {})
+            : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null);
         final Role role = mockRoleWithRemoteIndices(
             RemoteIndicesPermission.builder()
                 .addGroup(
                     Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
                     IndexPrivilege.READ,
-                    new FieldPermissions(new FieldPermissionsDefinition(null, null)),
+                    new FieldPermissions(new FieldPermissionsDefinition(Set.of(fieldGrantExcludeGroups))),
                     query == null ? null : Set.of(query),
                     allowRestrictedIndices,
                     indexNames
@@ -1674,6 +1682,15 @@ public class RBACEngineTests extends ESTestCase {
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
         final RoleDescriptorsIntersection actual = future.get();
 
+        final IndicesPrivileges.Builder builder = IndicesPrivileges.builder()
+            .indices(indexNames)
+            .privileges("read")
+            .query(query)
+            .allowRestrictedIndices(allowRestrictedIndices);
+        if (hasFls) {
+            builder.grantedFields(fieldGrantExcludeGroups.getGrantedFields()).deniedFields(fieldGrantExcludeGroups.getExcludedFields());
+        }
+        final IndicesPrivileges expectedIndexPrivilege = builder.build();
         assertThat(
             actual,
             equalTo(
@@ -1681,15 +1698,9 @@ public class RBACEngineTests extends ESTestCase {
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                Objects.requireNonNull(role.names())[0],
+                                role.names()[0],
                                 null,
-                                new IndicesPrivileges[] {
-                                    IndicesPrivileges.builder()
-                                        .indices(indexNames)
-                                        .privileges("read")
-                                        .query(query)
-                                        .allowRestrictedIndices(allowRestrictedIndices)
-                                        .build() },
+                                new IndicesPrivileges[] { expectedIndexPrivilege },
                                 null,
                                 null,
                                 null,

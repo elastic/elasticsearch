@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Simple usage stat counters based on longs. Internally this is a map mapping from String to a CounterMetric. This class also
@@ -28,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Counters implements Writeable {
 
-    private final Map<String, CounterMetric> counters = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, CounterMetric> counters = new ConcurrentHashMap<>();
 
     public Counters(StreamInput in) throws IOException {
         int numCounters = in.readVInt();

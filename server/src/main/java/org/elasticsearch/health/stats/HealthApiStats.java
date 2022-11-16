@@ -18,6 +18,7 @@ import org.elasticsearch.health.HealthStatus;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -43,8 +44,8 @@ public class HealthApiStats {
     );
 
     private final Set<HealthStatus> statuses = ConcurrentHashMap.newKeySet();
-    private final Map<HealthStatus, Set<String>> indicators = new ConcurrentHashMap<>();
-    private final Map<HealthStatus, Set<String>> diagnoses = new ConcurrentHashMap<>();
+    private final ConcurrentMap<HealthStatus, Set<String>> indicators = new ConcurrentHashMap<>();
+    private final ConcurrentMap<HealthStatus, Set<String>> diagnoses = new ConcurrentHashMap<>();
     private final Counters stats = new Counters(TOTAL_INVOCATIONS);
 
     public HealthApiStats() {}

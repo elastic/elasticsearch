@@ -59,6 +59,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
     exports org.elasticsearch.action.admin.cluster.node.info;
     exports org.elasticsearch.action.admin.cluster.node.reload;
+    exports org.elasticsearch.action.admin.cluster.node.shutdown;
     exports org.elasticsearch.action.admin.cluster.node.stats;
     exports org.elasticsearch.action.admin.cluster.node.tasks.cancel;
     exports org.elasticsearch.action.admin.cluster.node.tasks.get;
@@ -303,7 +304,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
-    exports org.elasticsearch.search.aggregations.bucket.adjacency;
     exports org.elasticsearch.search.aggregations.bucket.composite;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
@@ -319,7 +319,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations.pipeline;
     exports org.elasticsearch.search.aggregations.support;
     exports org.elasticsearch.search.aggregations.support.values;
-    exports org.elasticsearch.search.aggregations.timeseries;
     exports org.elasticsearch.search.builder;
     exports org.elasticsearch.search.collapse;
     exports org.elasticsearch.search.dfs;
@@ -330,6 +329,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.lookup;
     exports org.elasticsearch.search.profile;
     exports org.elasticsearch.search.profile.aggregation;
+    exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rescore;

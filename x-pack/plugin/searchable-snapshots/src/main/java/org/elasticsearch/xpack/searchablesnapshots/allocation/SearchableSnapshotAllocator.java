@@ -201,14 +201,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 unassignedAllocationHandler.initialize(
                     allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
-                    DiskThresholdDecider.getExpectedShardSize(
-                        shardRouting,
-                        ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                        allocation.clusterInfo(),
-                        allocation.snapshotShardSizeInfo(),
-                        allocation.metadata(),
-                        allocation.routingTable()
-                    ),
+                    DiskThresholdDecider.getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                     allocation.changes()
                 );
             } else {
@@ -354,7 +347,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         if (shardRouting.unassignedInfo().isDelayed()) {
             String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
             if (lastAllocatedNodeId != null) {
-                SingleNodeShutdownMetadata nodeShutdownMetadata = allocation.nodeShutdowns().get(lastAllocatedNodeId);
+                SingleNodeShutdownMetadata nodeShutdownMetadata = allocation.metadata().nodeShutdowns().get(lastAllocatedNodeId);
                 return nodeShutdownMetadata != null && nodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.RESTART;
             }
         }
@@ -519,7 +512,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     "{}: node [{}] has [{}/{}] bytes of re-usable cache data",
                     shard,
                     discoNode.getName(),
-                    new ByteSizeValue(matchingBytes),
+                    ByteSizeValue.ofBytes(matchingBytes),
                     matchingBytes
                 );
             }

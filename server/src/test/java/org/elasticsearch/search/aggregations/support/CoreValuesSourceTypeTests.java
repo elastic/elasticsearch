@@ -45,7 +45,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     public void testDatePrepareRoundingWithNothing() throws IOException {
         withAggregationContext(dateMapperService(), List.of(), context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepareForUnknown();
         });
     }
@@ -55,7 +55,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         long max = randomLongBetween(min + 1, 100000000000L);
         withAggregationContext(dateMapperService(), docsWithDatesBetween(min, max), context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepare(min, max);
         });
     }
@@ -82,7 +82,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         );
         withAggregationContext(null, mapperService, List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepare(min, max);
         });
     }
@@ -105,7 +105,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         );
         withAggregationContext(null, mapperService, List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepareForUnknown();
         });
     }
@@ -134,7 +134,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
             .rangeQuery(minQuery, maxQuery, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
         withAggregationContext(null, mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepare(min, max);
         });
     }

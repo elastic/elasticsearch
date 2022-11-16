@@ -22,7 +22,10 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
+import static java.util.stream.Collectors.toUnmodifiableSet;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
@@ -224,5 +227,20 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     private void setClusterExcludeFilters(Map<String, List<String>> filters) {
         clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
+    }
+
+    @Override
+    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+            var indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            var initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMetadata.getInitialRecoveryFilters());
+
+            if (initialRecoveryFilters != null) {
+                return Optional.of(
+                    allocation.nodes().stream().filter(initialRecoveryFilters::match).map(DiscoveryNode::getId).collect(toUnmodifiableSet())
+                );
+            }
+        }
+        return super.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
     }
 }

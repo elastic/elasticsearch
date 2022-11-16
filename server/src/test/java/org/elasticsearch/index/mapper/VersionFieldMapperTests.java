@@ -23,7 +23,20 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class VersionFieldMapperTests extends MapperServiceTestCase {
+public class VersionFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return VersionFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
@@ -53,7 +66,7 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             VersionFieldMapper.VersionFieldType ft = (VersionFieldMapper.VersionFieldType) mapperService.fieldType("_version");
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
-                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                fieldDataLookup(mapperService),
                 new SourceLookup.ReaderSourceProvider()
             );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
@@ -62,7 +75,7 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
+            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), 0, Collections.emptyList()));
         });
     }
 

@@ -20,7 +20,7 @@ public class SnapshotShardSizeInfo {
     private final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes;
 
     public SnapshotShardSizeInfo(Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes) {
-        this.snapshotShardSizes = Map.copyOf(snapshotShardSizes);
+        this.snapshotShardSizes = snapshotShardSizes;
     }
 
     public Long getShardSize(ShardRouting shardRouting) {

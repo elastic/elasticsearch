@@ -61,7 +61,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -427,7 +426,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
-        Mapper mapper = builder.build(MapperBuilderContext.ROOT);
+        Mapper mapper = builder.build(MapperBuilderContext.root(false));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper) mapper).fieldType();
         }
@@ -472,7 +471,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(MapperBuilderContext.ROOT).fieldType();
+            return builder.build(MapperBuilderContext.root(false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -645,10 +644,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
-        return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-    }
-
     @Override
     public final SearchExecutionContext convertToSearchExecutionContext() {
         return this;
@@ -732,6 +727,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer);
+        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 }

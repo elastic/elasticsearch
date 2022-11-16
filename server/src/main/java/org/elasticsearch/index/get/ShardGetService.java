@@ -15,13 +15,13 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -30,8 +30,8 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -241,7 +241,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
-        BytesReference source;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
             ? new SourceLoader.Synthetic(mappingLookup.getMapping())
@@ -267,7 +266,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 if (false == needed.contains(entry.getKey())) {
                     continue;
                 }
-                List<Object> values = FetchPhase.processStoredField(mapperService::fieldType, entry.getKey(), entry.getValue());
+                MappedFieldType ft = mapperService.fieldType(entry.getKey());
+                if (ft == null) {
+                    continue;   // user asked for a non-existent field, ignore it
+                }
+                List<Object> values = entry.getValue().stream().map(ft::valueForDisplay).toList();
                 if (mapperService.isMetadataField(entry.getKey())) {
                     metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
                 } else {
@@ -275,21 +278,16 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 }
             }
         }
-        source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
-            .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
-        if (source != null) {
-            // apply request-level source filtering
-            if (fetchSourceContext.fetchSource() == false) {
-                source = null;
-            } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                try {
-                    source = XContentFieldFilter.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
-                        .apply(source, null);
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Failed to get id [" + id + "] with includes/excludes set", e);
-                }
+        BytesReference sourceBytes = null;
+        if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
+            Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+                .source(leafStoredFieldLoader, docIdAndVersion.docId);
+
+            if (fetchSourceContext.hasFilter()) {
+                source = source.filter(fetchSourceContext.filter());
             }
+            sourceBytes = source.internalSourceRef();
         }
 
         return new GetResult(
@@ -299,7 +297,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             get.docIdAndVersion().primaryTerm,
             get.version(),
             get.exists(),
-            source,
+            sourceBytes,
             documentFields,
             metadataFields
         );

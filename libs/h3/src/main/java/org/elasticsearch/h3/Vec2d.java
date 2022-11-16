@@ -88,15 +88,15 @@ final class Vec2d {
     /**
      * pi
      */
-    private static double M_PI = 3.14159265358979323846;
+    private static final double M_PI = 3.14159265358979323846;
     /**
      * pi / 2.0
      */
-    private static double M_PI_2 = 1.5707963267948966;
+    private static final double M_PI_2 = 1.5707963267948966;
     /**
      * 2.0 * PI
      */
-    public static double M_2PI = 6.28318530717958647692528676655900576839433;
+    public static final double M_2PI = 6.28318530717958647692528676655900576839433;
 
     private final double x;  /// < x component
     private final double y;  /// < y component
@@ -146,11 +146,12 @@ final class Vec2d {
 
         // adjust theta for Class III
         // if a substrate grid, then it's already been adjusted for Class III
-        if (substrate == false && H3Index.isResolutionClassIII(res)) theta = posAngleRads(theta + Constants.M_AP7_ROT_RADS);
+        if (substrate == false && H3Index.isResolutionClassIII(res)) {
+            theta = posAngleRads(theta + Constants.M_AP7_ROT_RADS);
+        }
 
         // find theta as an azimuth
         theta = posAngleRads(faceAxesAzRadsCII[face][0] - theta);
-
         // now find the point at (r,theta) from the face center
         return geoAzDistanceRads(faceCenterGeo[face], theta, r);
     }
@@ -160,7 +161,7 @@ final class Vec2d {
      * coordinate vector (from DGGRID).
      *
      */
-    public CoordIJK hex2dToCoordIJK() {
+    static CoordIJK hex2dToCoordIJK(double x, double y) {
         double a1, a2;
         double x1, x2;
         int m1, m2;
@@ -251,7 +252,7 @@ final class Vec2d {
             i = i - (2 * j + 1) / 2;
             j = -1 * j;
         }
-        CoordIJK coordIJK = new CoordIJK(i, j, k);
+        final CoordIJK coordIJK = new CoordIJK(i, j, k);
         coordIJK.ijkNormalize();
         return coordIJK;
     }
@@ -307,9 +308,13 @@ final class Vec2d {
      * @return The normalized radians value.
      */
     static double posAngleRads(double rads) {
-        double tmp = ((rads < 0.0) ? rads + M_2PI : rads);
-        if (rads >= M_2PI) tmp -= M_2PI;
-        return tmp;
+        if (rads < 0.0) {
+            return rads + M_2PI;
+        } else if (rads >= M_2PI) {
+            return rads - M_2PI;
+        } else {
+            return rads;
+        }
     }
 
     /**
@@ -349,7 +354,11 @@ final class Vec2d {
                 lon = constrainLng(p1.getLonRad());
             }
         } else { // not due north or south
-            sinlat = Math.sin(p1.getLatRad()) * Math.cos(distance) + Math.cos(p1.getLatRad()) * Math.sin(distance) * Math.cos(az);
+            final double sinDistance = Math.sin(distance);
+            final double cosDistance = Math.cos(distance);
+            final double sinP1Lat = Math.sin(p1.getLatRad());
+            final double cosP1Lat = Math.cos(p1.getLatRad());
+            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * Math.cos(az);
             if (sinlat > 1.0) {
                 sinlat = 1.0;
             }
@@ -366,8 +375,9 @@ final class Vec2d {
                 lat = -M_PI_2;
                 lon = 0.0;
             } else {
-                sinlng = Math.sin(az) * Math.sin(distance) / Math.cos(lat);
-                coslng = (Math.cos(distance) - Math.sin(p1.getLatRad()) * Math.sin(lat)) / Math.cos(p1.getLatRad()) / Math.cos(lat);
+                final double cosLat = Math.cos(lat);
+                sinlng = Math.sin(az) * sinDistance / cosLat;
+                coslng = (cosDistance - sinP1Lat * Math.sin(lat)) / cosP1Lat / cosLat;
                 if (sinlng > 1.0) {
                     sinlng = 1.0;
                 }

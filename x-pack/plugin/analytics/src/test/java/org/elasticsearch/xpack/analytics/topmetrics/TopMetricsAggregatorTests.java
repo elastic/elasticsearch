@@ -537,7 +537,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType textFieldType(String name) {
-        return new TextFieldMapper.TextFieldType(name);
+        return new TextFieldMapper.TextFieldType(name, randomBoolean());
     }
 
     private MappedFieldType geoPointFieldType(String name) {
@@ -595,7 +595,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 InternalAggregation agg = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, builder, fields).withShouldBeCached(shouldBeCached)
+                    indexSearcher,
+                    new AggTestConfig(builder, fields).withShouldBeCached(shouldBeCached).withQuery(query)
                 );
                 verifyOutputFieldNames(builder, agg);
                 return agg;

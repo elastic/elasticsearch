@@ -54,6 +54,14 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
     public void testDefaults() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
@@ -195,7 +203,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 

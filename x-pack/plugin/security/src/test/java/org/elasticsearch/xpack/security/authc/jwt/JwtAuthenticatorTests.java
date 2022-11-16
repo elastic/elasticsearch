@@ -75,7 +75,7 @@ public class JwtAuthenticatorTests extends ESTestCase {
             .put("path.home", randomAlphaOfLength(10))
             .setSecureSettings(secureSettings);
         if (randomBoolean()) {
-            builder.put("token_type", "id_token");
+            builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE), "id_token");
         }
         final Settings settings = builder.build();
 

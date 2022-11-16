@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -93,19 +94,20 @@ public class JwtRealmSettings {
         }
 
         public static TokenType parse(String value, String settingKey) {
-            for (TokenType type : values()) {
-                if (type.value.equalsIgnoreCase(value)) {
-                    return type;
-                }
-            }
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Invalid value [%s] for [%s], allowed values are [%s]",
-                    value,
-                    settingKey,
-                    Stream.of(values()).map(TokenType::value).collect(Collectors.joining(","))
-                )
-            );
+            return EnumSet.allOf(TokenType.class)
+                .stream()
+                .filter(type -> type.value.equalsIgnoreCase(value))
+                .findFirst()
+                .orElseThrow(
+                    () -> new IllegalArgumentException(
+                        Strings.format(
+                            "Invalid value [%s] for [%s], allowed values are [%s]",
+                            value,
+                            settingKey,
+                            Stream.of(values()).map(TokenType::value).collect(Collectors.joining(","))
+                        )
+                    )
+                );
         }
     }
 

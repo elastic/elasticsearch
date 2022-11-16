@@ -388,7 +388,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
      * @return Map of formatted and filtered values to be used as user metadata.
      */
     private Map<String, Object> buildUserMetadata(JWTClaimsSet claimsSet) {
-        final HashMap<String, Object> metadata = new HashMap<>(Map.of("jwt_token_type", jwtAuthenticator.getTokenType().value()));
+        final HashMap<String, Object> metadata = new HashMap<>();
+        metadata.put("jwt_token_type", jwtAuthenticator.getTokenType().value());
         if (populateUserMetadata) {
             claimsSet.getClaims()
                 .entrySet()

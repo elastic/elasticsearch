@@ -30,7 +30,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         return false; // need real http
     }
 
-    public void test() throws ExecutionException, InterruptedException, IOException {
+    public void testRetrieveRemoteAccessRoleDescriptorsIntersection() throws IOException {
         getSecurityClient().putRole(
             new RoleDescriptor(
                 "remote_role",
@@ -58,27 +58,25 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             new User("remote_user", "remote_role"),
             new Authentication.RealmRef(realmName, type, nodeName)
         );
-
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            // authentication.writeToContext(threadContext);
-            AuditUtil.generateRequestId(threadContext);
-            // Authorize to populate thread context with authz info
-            authzService.authorize(
-                authentication,
-                AuthenticateAction.INSTANCE.name(),
-                AuthenticateRequest.INSTANCE,
-                ActionListener.wrap(ignored -> {
-                    authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-                        "remote",
-                        authentication.getEffectiveSubject(),
-                        ActionListener.wrap(
-                            actual -> { assertThat(actual.roleDescriptorsList().size(), equalTo(1)); },
-                            ex -> fail("No errors expected")
-                        )
-                    );
-                }, ex -> fail("No errors expected"))
-            );
-        }
+        // This is set during authentication; since we are not authenticating set it explicitly as it's required for the `authorize`
+        // call below
+        AuditUtil.generateRequestId(threadContext);
+        // Authorize to populate thread context with authz info
+        authzService.authorize(
+            authentication,
+            AuthenticateAction.INSTANCE.name(),
+            AuthenticateRequest.INSTANCE,
+            ActionListener.wrap(ignored -> {
+                authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                    "remote",
+                    authentication.getEffectiveSubject(),
+                    ActionListener.wrap(
+                        actual -> { assertThat(actual.roleDescriptorsList().size(), equalTo(1)); },
+                        ex -> { throw new RuntimeException(ex); }
+                    )
+                );
+            }, ex -> fail("no errors expected but encountered: " + ex))
+        );
     }
 
 }

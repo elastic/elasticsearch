@@ -3081,12 +3081,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 try (
-                AggregationContext context = createAggregationContext(
-                    indexSearcher,
-                    new MatchAllDocsQuery(),
-                    keywordField("term-field"),
-                    longField("time")
-                )) {
+                    AggregationContext context = createAggregationContext(
+                        indexSearcher,
+                        new MatchAllDocsQuery(),
+                        keywordField("term-field"),
+                        longField("time")
+                    )
+                ) {
 
                     CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
                         "composite",
@@ -3104,8 +3105,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     // Should not throw
                     createAggregator(goodParentRandom, context);
 
-                    RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
-                        .subAggregation(goodParentFilter);
+                    RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(
+                        0.2
+                    ).subAggregation(goodParentFilter);
                     // Should not throw
                     createAggregator(goodParentRandomFilter, context);
 

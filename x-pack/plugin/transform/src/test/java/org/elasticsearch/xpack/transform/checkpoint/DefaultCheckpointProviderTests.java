@@ -50,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -316,6 +317,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertNotNull(checkpointHolder.get());
         assertThat(checkpointHolder.get().getCheckpoint(), is(equalTo(8L)));
+        assertThat(checkpointHolder.get().getIndicesCheckpoints().keySet(), containsInAnyOrder("index-1", "remote:index-1"));
     }
 
     private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {

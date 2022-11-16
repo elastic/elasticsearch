@@ -309,14 +309,7 @@ public class MetadataIndexTemplateService {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateCompositeTemplate(
-                        tempStateWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        indicesService,
-                        xContentRegistry,
-                        systemIndices
-                    );
+                    validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
                     if (validationFailure == null) {
                         validationFailure = new IllegalArgumentException(

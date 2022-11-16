@@ -13,6 +13,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -34,6 +35,14 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TsdbDataStreamRestIT extends ESRestTestCase {
+
+    private static final String COMPONENT_TEMPLATE = """
+        {
+            "template": {
+                "settings": {}
+            }
+        }
+        """;
 
     private static final String TEMPLATE = """
         {
@@ -97,6 +106,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                     }
                 }
             },
+            "composed_of": ["custom_template"],
             "data_stream": {
             }
         }""";
@@ -190,12 +200,19 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876eb4", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
             """;
 
-    public void testTsdbDataStreams() throws Exception {
-        // Create a template
-        var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
-        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+    @Before
+    public void setup() throws IOException {
+        // Add component template:
+        var request = new Request("POST", "/_component_template/custom_template");
+        request.setJsonEntity(COMPONENT_TEMPLATE);
+        assertOK(client().performRequest(request));
+        // Add composable index template
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity(TEMPLATE);
+        assertOK(client().performRequest(request));
+    }
 
+    public void testTsdbDataStreams() throws Exception {
         var bulkRequest = new Request("POST", "/k8s/_bulk");
         bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
         bulkRequest.addParameter("refresh", "true");
@@ -331,10 +348,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
     }
 
     public void testSimulateTsdbDataStreamTemplate() throws Exception {
-        var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
-        assertOK(client().performRequest(putComposableIndexTemplateRequest));
-
         var simulateIndexTemplateRequest = new Request("POST", "/_index_template/_simulate_index/k8s");
         var response = client().performRequest(simulateIndexTemplateRequest);
         assertOK(response);
@@ -353,11 +366,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
     }
 
     public void testSubsequentRollovers() throws Exception {
-        // Create a template
-        var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
-        assertOK(client().performRequest(putComposableIndexTemplateRequest));
-
         var createDataStreamRequest = new Request("PUT", "/_data_stream/k8s");
         assertOK(client().performRequest(createDataStreamRequest));
 
@@ -461,12 +469,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
     }
 
     public void testChangeTemplateIndexMode() throws Exception {
-        // Create a template
-        {
-            var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-            putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
-            assertOK(client().performRequest(putComposableIndexTemplateRequest));
-        }
         {
             var indexRequest = new Request("POST", "/k8s/_doc");
             var time = Instant.now();
@@ -487,6 +489,22 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 )
             );
         }
+    }
+
+    public void testUpdateComponentTemplateDoesNotFailIndexTemplateValidation() throws IOException {
+        var request = new Request("POST", "/_component_template/custom_template");
+        request.setJsonEntity("""
+            {
+                "template": {
+                    "settings": {
+                        "index": {
+                            "number_of_replicas": 1
+                        }
+                    }
+                }
+            }
+            """);
+        client().performRequest(request);
     }
 
     private static Map<?, ?> getIndex(String indexName) throws IOException {

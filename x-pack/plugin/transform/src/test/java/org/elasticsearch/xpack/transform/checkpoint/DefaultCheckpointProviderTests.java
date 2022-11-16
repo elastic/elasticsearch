@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -43,9 +44,12 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,6 +67,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
+    private Client remoteClient;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -73,6 +78,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        remoteClient = mock(Client.class);
+        when(remoteClient.threadPool()).thenReturn(threadPool);
+        when(client.getRemoteClusterClient(any())).thenReturn(remoteClient);
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -266,6 +274,48 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
         assertThat(hasChangedHolder.get(), is(equalTo(false)));
         assertThat(exceptionHolder.get(), is(nullValue()));
+    }
+
+    // regression test for gh#91550
+    public void testCreateNextCheckpointWithRemoteClient() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 1L, 2L, 3L }));
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        GetCheckpointAction.Response remoteCheckpointResponse = new GetCheckpointAction.Response(
+            Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
+        );
+        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+
+        // local and remote share the same index name
+        when(remoteClusterResolver.resolve(any())).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(Map.of("remote", List.of("index-1")), List.of("index-1"))
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            client,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            new TransformCheckpoint(transformId, 100000000L, 7, emptyMap(), 120000000L),
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertNotNull(checkpointHolder.get());
+        assertThat(checkpointHolder.get().getCheckpoint(), is(equalTo(8L)));
     }
 
     private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {

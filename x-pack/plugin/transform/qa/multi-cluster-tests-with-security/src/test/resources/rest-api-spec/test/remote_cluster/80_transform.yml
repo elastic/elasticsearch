@@ -22,7 +22,7 @@ setup:
               "cluster": [],
               "indices": [
                 {
-                  "names": ["remote_test_index", "remote_test_index_2"],
+                  "names": ["remote_test_index", "remote_test_index_2", "same_index_local_and_remote"],
                   "privileges": ["read", "view_index_metadata"]
                 }
               ]
@@ -196,3 +196,34 @@ teardown:
             user:
               terms:
                 field: user
+
+  # create index with the same name on local and remote gh#91550
+  - do:
+      indices.create:
+        index: same_index_local_and_remote
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          aliases:
+            test_alias: {}
+          mappings:
+            properties:
+              time:
+                type: date
+              user:
+                type: keyword
+              stars:
+                type: integer
+              coolness:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "same_index_local_and_remote"}}'
+            - '{"user": "x", "stars": 3, "date" : "2018-10-29T12:12:12.123456789Z"}'
+            - '{"index": {"_index": "same_index_local_and_remote"}}'
+            - '{"user": "a", "stars": 4, "date" : "2018-10-29T12:14:12.123456789Z"}'

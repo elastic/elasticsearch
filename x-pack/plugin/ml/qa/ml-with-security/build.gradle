@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat', 'semantic_search'
   }
   restTests {
     includeXpack 'ml'
@@ -28,6 +28,8 @@ tasks.named("yamlRestTest").configure {
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple allocations',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple threads per allocation',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
@@ -234,7 +236,8 @@ tasks.named("yamlRestTest").configure {
     'ml/set_upgrade_mode/Attempt to open job when upgrade_mode is enabled',
     'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',
-    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false'
+    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
+    'ml/update_trained_model_deployment/Test with unknown model id'
   ].join(',')
 }
 

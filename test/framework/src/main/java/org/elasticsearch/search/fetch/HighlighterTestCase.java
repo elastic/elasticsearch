@@ -23,6 +23,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,7 +61,14 @@ public class HighlighterTestCase extends MapperServiceTestCase {
             SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
-            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(new SearchHit(0, "id", null, null), ir.leaves().get(0), 0);
+            Source source = Source.fromBytes(doc.source());
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
+                new SearchHit(0, "id"),
+                ir.leaves().get(0),
+                0,
+                Map.of(),
+                source
+            );
             processor.process(hitContext);
             highlights.putAll(hitContext.hit().getHighlightFields());
         });
@@ -82,6 +90,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         when(fetchContext.highlight()).thenReturn(search.highlighter().build(context));
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
+        when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
         return fetchContext;
     }
 }

@@ -26,7 +26,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
+    include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'knn_search', 'index', 'indices', 'msearch',
       'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll'
   }
   restTests {

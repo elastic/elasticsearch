@@ -16,7 +16,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -74,6 +73,7 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -187,12 +187,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 .execute(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
                     Metadata responseMetadata = response.getState().metadata();
                     Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
-                    List<String> indices = new ArrayList<>(indicesMap.keySet());
                     return new SnapshotInfo(
                         new Snapshot(this.metadata.name(), SNAPSHOT_ID),
-                        indices,
-                        new ArrayList<>(responseMetadata.dataStreams().keySet()),
-                        Collections.emptyList(),
+                        List.copyOf(indicesMap.keySet()),
+                        List.copyOf(responseMetadata.dataStreams().keySet()),
+                        List.of(),
                         response.getState().getNodes().getMaxNodeVersion(),
                         SnapshotState.SUCCESS
                     );
@@ -207,10 +206,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = getRemoteClusterClient();
         // We set a single dummy index name to avoid fetching all the index data
-        ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest("dummy_index_name");
         ClusterStateResponse clusterState = remoteClient.admin()
             .cluster()
-            .state(clusterStateRequest)
+            .state(CcrRequests.metadataRequest("dummy_index_name"))
             .actionGet(ccrSettings.getRecoveryActionTimeout());
         return clusterState.getState().metadata();
     }
@@ -221,10 +219,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String leaderIndex = index.getName();
         Client remoteClient = getRemoteClusterClient();
 
-        ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest(leaderIndex);
         ClusterStateResponse clusterState = remoteClient.admin()
             .cluster()
-            .state(clusterStateRequest)
+            .state(CcrRequests.metadataRequest(leaderIndex))
             .actionGet(ccrSettings.getRecoveryActionTimeout());
 
         // Validates whether the leader cluster has been configured properly:
@@ -274,10 +271,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         indexName,
                         new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT, nowMillis, nowMillis, "")
                     );
-                    indexSnapshots.put(
-                        new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()),
-                        Collections.singletonList(snapshotId)
-                    );
+                    indexSnapshots.put(new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()), List.of(snapshotId));
                 }
                 return new RepositoryData(
                     MISSING_UUID,
@@ -305,9 +299,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
-        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+        listener.onFailure(new UnsupportedOperationException("Unsupported for repository of type: " + TYPE));
     }
 
     @Override
@@ -628,7 +622,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         void restoreFiles(Store store, ActionListener<Void> listener) {
             ArrayList<FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetadata fileMetadata : sourceMetadata) {
-                ByteSizeValue fileSize = new ByteSizeValue(fileMetadata.length());
+                ByteSizeValue fileSize = ByteSizeValue.ofBytes(fileMetadata.length());
                 fileInfos.add(new FileInfo(fileMetadata.name(), fileMetadata, fileSize));
             }
             SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos, null);
@@ -754,21 +748,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 .actionGet(ccrSettings.getRecoveryActionTimeout());
         }
 
-        private static class FileChunk implements MultiChunkTransfer.ChunkRequest {
-            final StoreFileMetadata md;
-            final int bytesRequested;
-            final boolean lastChunk;
-
-            FileChunk(StoreFileMetadata md, int bytesRequested, boolean lastChunk) {
-                this.md = md;
-                this.bytesRequested = bytesRequested;
-                this.lastChunk = lastChunk;
-            }
-
-            @Override
-            public boolean lastChunk() {
-                return lastChunk;
-            }
-        }
+        private record FileChunk(StoreFileMetadata md, int bytesRequested, boolean lastChunk) implements MultiChunkTransfer.ChunkRequest {}
     }
 }

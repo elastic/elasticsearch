@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A {@code Future} and {@link ActionListener} against which which other {@link ActionListener}s can be registered later, to support
+ * A {@code Future} and {@link ActionListener} against which other {@link ActionListener}s can be registered later, to support
  * fanning-out a result to a dynamic collection of listeners.
  */
 public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {

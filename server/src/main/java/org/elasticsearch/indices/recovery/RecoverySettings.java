@@ -54,7 +54,7 @@ public class RecoverySettings {
     // package private for tests
     static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
         "recovery_settings.total_physical_memory_override",
-        settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
+        settings -> ByteSizeValue.ofBytes(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
         Property.NodeScope
     );
 
@@ -128,7 +128,7 @@ public class RecoverySettings {
      * Bandwidth settings have a default value of -1 (meaning that they are undefined) or a value in (0, Long.MAX_VALUE).
      */
     private static Setting<ByteSizeValue> bandwidthSetting(String key) {
-        return new Setting<>(key, s -> ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
+        return new Setting<>(key, ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
             final ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
             if (ByteSizeValue.MINUS_ONE.equals(value)) {
                 return value;
@@ -151,7 +151,7 @@ public class RecoverySettings {
                         + "] for bandwidth setting ["
                         + key
                         + "], must be < ["
-                        + new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES).getStringRep()
+                        + ByteSizeValue.ofBytes(Long.MAX_VALUE).getStringRep()
                         + ']'
                 );
             }
@@ -388,6 +388,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
+    private final boolean nodeBandwidthSettingsExist;
     private volatile int maxConcurrentSnapshotFileDownloads;
     private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
 
@@ -419,6 +420,7 @@ public class RecoverySettings {
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
         this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
         validateNodeBandwidthRecoverySettings(settings);
+        this.nodeBandwidthSettingsExist = hasNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
         if (DiscoveryNode.canContainData(settings)) {
             clusterSettings.addSettingsUpdateConsumer(
@@ -490,6 +492,7 @@ public class RecoverySettings {
         }
 
         final long availableBytesPerSec = Math.min(readBytesPerSec, writeBytesPerSec);
+        assert nodeBandwidthSettingsExist == (availableBytesPerSec != 0L);
 
         long maxBytesPerSec;
         if (availableBytesPerSec == 0L                                      // no node recovery bandwidths
@@ -607,7 +610,7 @@ public class RecoverySettings {
         }
     }
 
-    ByteSizeValue getMaxBytesPerSec() {
+    public ByteSizeValue getMaxBytesPerSec() {
         return maxBytesPerSec;
     }
 
@@ -625,6 +628,10 @@ public class RecoverySettings {
 
     private void setMaxConcurrentOperations(int maxConcurrentOperations) {
         this.maxConcurrentOperations = maxConcurrentOperations;
+    }
+
+    public boolean nodeBandwidthSettingsExist() {
+        return nodeBandwidthSettingsExist;
     }
 
     public boolean getUseSnapshotsDuringRecovery() {
@@ -650,21 +657,23 @@ public class RecoverySettings {
 
     @Nullable
     Releasable tryAcquireSnapshotDownloadPermits() {
+        if (getUseSnapshotsDuringRecovery() == false) {
+            return null;
+        }
+
         final int maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads();
         final boolean permitAcquired = maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads);
-        if (getUseSnapshotsDuringRecovery() == false || permitAcquired == false) {
-            if (permitAcquired == false) {
-                logger.warn(
-                    String.format(
-                        Locale.ROOT,
-                        "Unable to acquire permit to use snapshot files during recovery, "
-                            + "this recovery will recover index files from the source node. "
-                            + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
-                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
-                        this.maxConcurrentSnapshotFileDownloadsPerNode
-                    )
-                );
-            }
+        if (permitAcquired == false) {
+            logger.warn(
+                String.format(
+                    Locale.ROOT,
+                    "Unable to acquire permit to use snapshot files during recovery, "
+                        + "this recovery will recover index files from the source node. "
+                        + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
+                    INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+                    this.maxConcurrentSnapshotFileDownloadsPerNode
+                )
+            );
             return null;
         }
 
@@ -685,5 +694,14 @@ public class RecoverySettings {
                     + " are configured."
             );
         }
+    }
+
+    /**
+     * Whether the node bandwidth recovery settings are set.
+     */
+    public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
+        return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
+            .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
+            .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();
     }
 }

@@ -34,7 +34,7 @@ import java.util.Map;
 
 public class JvmInfo implements ReportingService.Info {
 
-    private static JvmInfo INSTANCE;
+    private static final JvmInfo INSTANCE;
 
     static {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -342,68 +342,6 @@ public class JvmInfo implements ReportingService.Info {
         return this.version;
     }
 
-    public int versionAsInteger() {
-        try {
-            int i = 0;
-            StringBuilder sVersion = new StringBuilder();
-            for (; i < version.length(); i++) {
-                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
-                    break;
-                }
-                if (version.charAt(i) != '.') {
-                    sVersion.append(version.charAt(i));
-                }
-            }
-            if (i == 0) {
-                return -1;
-            }
-            return Integer.parseInt(sVersion.toString());
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
-    public int versionUpdatePack() {
-        try {
-            int i = 0;
-            StringBuilder sVersion = new StringBuilder();
-            for (; i < version.length(); i++) {
-                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
-                    break;
-                }
-                if (version.charAt(i) != '.') {
-                    sVersion.append(version.charAt(i));
-                }
-            }
-            if (i == 0) {
-                return -1;
-            }
-            Integer.parseInt(sVersion.toString());
-            int from;
-            if (version.charAt(i) == '_') {
-                // 1.7.0_4
-                from = ++i;
-            } else if (version.charAt(i) == '-' && version.charAt(i + 1) == 'u') {
-                // 1.7.0-u2-b21
-                i = i + 2;
-                from = i;
-            } else {
-                return -1;
-            }
-            for (; i < version.length(); i++) {
-                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
-                    break;
-                }
-            }
-            if (from == i) {
-                return -1;
-            }
-            return Integer.parseInt(version.substring(from, i));
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
     public String getVmName() {
         return this.vmName;
     }
@@ -430,18 +368,6 @@ public class JvmInfo implements ReportingService.Info {
 
     public String[] getInputArguments() {
         return this.inputArguments;
-    }
-
-    public String getBootClassPath() {
-        return this.bootClassPath;
-    }
-
-    public String getClassPath() {
-        return this.classPath;
-    }
-
-    public Map<String, String> getSystemProperties() {
-        return this.systemProperties;
     }
 
     public long getConfiguredInitialHeapSize() {
@@ -484,14 +410,6 @@ public class JvmInfo implements ReportingService.Info {
         return g1RegionSize;
     }
 
-    public String[] getGcCollectors() {
-        return gcCollectors;
-    }
-
-    public String[] getMemoryPools() {
-        return memoryPools;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
@@ -504,11 +422,11 @@ public class JvmInfo implements ReportingService.Info {
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
-        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, new ByteSizeValue(mem.heapInit));
-        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, new ByteSizeValue(mem.heapMax));
-        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, new ByteSizeValue(mem.nonHeapInit));
-        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, new ByteSizeValue(mem.nonHeapMax));
-        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, new ByteSizeValue(mem.directMemoryMax));
+        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, ByteSizeValue.ofBytes(mem.heapInit));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, ByteSizeValue.ofBytes(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, ByteSizeValue.ofBytes(mem.nonHeapInit));
+        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, ByteSizeValue.ofBytes(mem.nonHeapMax));
+        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, ByteSizeValue.ofBytes(mem.directMemoryMax));
         builder.endObject();
 
         builder.array(Fields.GC_COLLECTORS, gcCollectors);
@@ -584,23 +502,12 @@ public class JvmInfo implements ReportingService.Info {
         }
 
         public ByteSizeValue getHeapInit() {
-            return new ByteSizeValue(heapInit);
+            return ByteSizeValue.ofBytes(heapInit);
         }
 
         public ByteSizeValue getHeapMax() {
-            return new ByteSizeValue(heapMax);
+            return ByteSizeValue.ofBytes(heapMax);
         }
 
-        public ByteSizeValue getNonHeapInit() {
-            return new ByteSizeValue(nonHeapInit);
-        }
-
-        public ByteSizeValue getNonHeapMax() {
-            return new ByteSizeValue(nonHeapMax);
-        }
-
-        public ByteSizeValue getDirectMemoryMax() {
-            return new ByteSizeValue(directMemoryMax);
-        }
     }
 }

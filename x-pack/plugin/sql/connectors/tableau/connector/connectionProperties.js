@@ -4,7 +4,7 @@
     props["user"] = attr["username"];
     props["password"] = attr["password"];
 
-    var extraProps = attr[connectionHelper.attributeWarehouse];
+    var extraProps = attr[connectionHelper.attributeVendor1];
     if (extraProps != null && extraProps.trim().length > 0) {
         // allow `&` and white-space as attribue-value pair delimiters
         var avps = extraProps.trim().split(/[\s&]/);

@@ -17,7 +17,7 @@ import java.io.Reader;
 public class FirstLineWithLettersCharFilterFactory extends AbstractCharFilterFactory {
 
     public FirstLineWithLettersCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name);
+        super(name);
     }
 
     @Override

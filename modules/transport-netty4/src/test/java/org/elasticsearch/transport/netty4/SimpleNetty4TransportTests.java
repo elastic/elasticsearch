@@ -125,12 +125,12 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         assertThat(nettyChannel.getNettyChannel(), instanceOf(Netty4NioSocketChannel.class));
         Netty4NioSocketChannel netty4NioSocketChannel = (Netty4NioSocketChannel) nettyChannel.getNettyChannel();
         SocketChannel socketChannel = netty4NioSocketChannel.javaChannel();
-        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOptionOrNull()));
-        Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOptionOrNull());
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOption()));
+        Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOption());
         assertNotNull(keepIdle);
         assertThat(keepIdle, lessThanOrEqualTo(500));
-        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOptionOrNull()));
-        Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOptionOrNull());
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOption()));
+        Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOption());
         assertNotNull(keepInterval);
         assertThat(keepInterval, lessThanOrEqualTo(500));
     }

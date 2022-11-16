@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -697,8 +697,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
-            maxBlobSize = new ByteSizeValue(in);
-            maxTotalDataSize = new ByteSizeValue(in);
+            maxBlobSize = ByteSizeValue.readFrom(in);
+            maxTotalDataSize = ByteSizeValue.readFrom(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
             if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
@@ -973,8 +973,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             concurrency = in.readVInt();
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
-            maxBlobSize = new ByteSizeValue(in);
-            maxTotalDataSize = new ByteSizeValue(in);
+            maxBlobSize = ByteSizeValue.readFrom(in);
+            maxTotalDataSize = ByteSizeValue.readFrom(in);
             seed = in.readLong();
             rareActionProbability = in.readDouble();
             blobPath = in.readString();

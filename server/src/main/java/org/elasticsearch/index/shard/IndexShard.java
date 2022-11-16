@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
@@ -158,7 +159,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -286,6 +286,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final boolean isDataStreamIndex; // if a shard is a part of data stream
+    private final LongSupplier relativeTimeInNanosSupplier;
+    private volatile long startedRelativeTimeInNanos;
+    private volatile long indexingTimeBeforeShardStartedInNanos;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -307,13 +310,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
-        final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier
+        final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+        final LongSupplier relativeTimeInNanosSupplier
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
-        this.codecService = new CodecService(mapperService);
+        this.codecService = new CodecService(mapperService, bigArrays);
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
@@ -385,6 +389,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
     }
 
     public ThreadPool getThreadPool() {
@@ -533,6 +538,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     : "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+                startedRelativeTimeInNanos = getRelativeTimeInNanos();
+                indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
@@ -545,8 +552,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
                     );
                 }
-            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED
-                : "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+
+            if (newRouting.active() != false && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
+                // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
+                // a shard-started message in flight. When the new master is elected we start to recover our shards again and the stale
+                // shard-started message could arrive and move this shard to STARTED in the cluster state too soon. This is pretty rare so
+                // we fix it by just failing the shard and starting the recovery again.
+                //
+                // NB this can only happen on replicas - if it happened to a primary then we'd move to a new primary term and ignore the
+                // stale shard-started message.
+                assert newRouting.primary() == false
+                    : "primary routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+                throw new IllegalIndexShardStateException(shardId, state, "master processed stale shard-started event, failing shard");
+            }
+
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
@@ -684,7 +703,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-            final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.size());
+            final Set<ShardRouting> shardRoutings = Sets.newHashSetWithExpectedSize(routingTable.size());
             for (int copy = 0; copy < routingTable.size(); copy++) {
                 shardRoutings.add(routingTable.shard(copy));
             }
@@ -944,7 +963,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 autoGeneratedTimeStamp,
                 isRetry,
                 ifSeqNo,
-                ifPrimaryTerm
+                ifPrimaryTerm,
+                getRelativeTimeInNanos()
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
@@ -973,9 +993,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long autoGeneratedIdTimestamp,
         boolean isRetry,
         long ifSeqNo,
-        long ifPrimaryTerm
+        long ifPrimaryTerm,
+        long startTimeInNanos
     ) {
-        long startTime = System.nanoTime();
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
             : "dynamic_templates parameter can only be associated with primary operations";
         DocumentMapper documentMapper = mapperService.documentMapper();
@@ -1001,7 +1021,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             version,
             versionType,
             origin,
-            startTime,
+            startTimeInNanos,
             autoGeneratedIdTimestamp,
             isRetry,
             ifSeqNo,
@@ -1260,7 +1280,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttled = engine.isThrottled();
             throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
         }
-        return internalIndexingStats.stats(throttled, throttleTimeInMillis);
+
+        return internalIndexingStats.stats(
+            throttled,
+            throttleTimeInMillis,
+            indexingTimeBeforeShardStartedInNanos,
+            getRelativeTimeInNanos() - startedRelativeTimeInNanos
+        );
     }
 
     public SearchStats searchStats(String... groups) {
@@ -1331,8 +1357,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes the given flush request against the engine.
      *
      * @param request the flush request
+     * @return <code>false</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, else <code>true</code>.
+     *         If <code>false</code> is returned, no flush happened.
      */
-    public void flush(FlushRequest request) {
+    public boolean flush(FlushRequest request) {
         final boolean waitIfOngoing = request.waitIfOngoing();
         final boolean force = request.force();
         logger.trace("flush with {}", request);
@@ -1343,8 +1371,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          */
         verifyNotClosed();
         final long time = System.nanoTime();
-        getEngine().flush(force, waitIfOngoing);
+        boolean flushHappened = getEngine().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
+        return flushHappened;
     }
 
     /**
@@ -1503,7 +1532,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new ElasticsearchException("failed to wrap searcher", ex);
         } finally {
             if (success == false) {
-                Releasables.close(success, searcher);
+                Releasables.closeWhileHandlingException(searcher);
             }
         }
     }
@@ -1986,7 +2015,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        recoveryState().setStage(RecoveryState.Stage.INIT);
+        synchronized (mutex) {
+            this.recoveryState = recoveryState().reset();
+        }
     }
 
     /**
@@ -2176,7 +2207,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     protected void doRun() {
-                        flush(new FlushRequest().waitIfOngoing(false).force(false));
+                        if (flush(new FlushRequest().waitIfOngoing(false).force(false)) == false) {
+                            // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
+                            // will retry (#87888)
+                            active.set(true);
+                        }
                         periodicFlushMetric.inc();
                     }
                 });
@@ -3234,7 +3269,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
-            isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null
+            isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
+            relativeTimeInNanosSupplier
         );
     }
 
@@ -4068,6 +4104,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
         return retentionLeaseSyncer;
+    }
+
+    public long getRelativeTimeInNanos() {
+        return relativeTimeInNanosSupplier.getAsLong();
     }
 
     @Override

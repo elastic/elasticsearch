@@ -2,18 +2,16 @@
 [[security-domain]]
 === Security domains
 
-beta::[]
-
 Security domains are a method of grouping multiple <<realms,realms>> under the
-same domain so that the {stack} can recognize when a single user authenticates 
-with these realms. Users can authenticate with any of the realms in the domain 
-group, and have access to the same set of resources regardless of which realm 
+same domain so that the {stack} can recognize when a single user authenticates
+with these realms. Users can authenticate with any of the realms in the domain
+group, and have access to the same set of resources regardless of which realm
 they authenticated with.
 
-For example, a single <<user-profile,user profile>> is associated with a user, 
-enabling preferences, notifications, and other user data to be shared across 
-realms. The user can view results from an asynchronous search request or a 
-scrolling search across realms. If the user has the necessary privileges, they 
+For example, a single <<user-profile,user profile>> is associated with a user,
+enabling preferences, notifications, and other user data to be shared across
+realms. The user can view results from an asynchronous search request or a
+scrolling search across realms. If the user has the necessary privileges, they
 can also view and manage API keys across realms.
 
 [[security-domain-resource-sharing]]
@@ -21,8 +19,9 @@ can also view and manage API keys across realms.
 Some types of resources in {es} are owned by a single user, such as
 <<async-search,async search contexts>>, <<security-api-create-api-key,API keys>>,
 and <<user-profile,user profiles>>. When a user creates a resource, {es}
-captures the user's username and realm information as part of the resource's 
-metadata.
+captures the user's username and realm information as part of the resource's
+metadata. Likewise, if a user updates a resource, such as an API key,
+{es} automatically re-captures the user's current realm information.
 
 When a user later attempts to access the resource, {es} compares
 the captured username and realm information against those from the accessing
@@ -41,36 +40,44 @@ users with the same username, it's reasonable to treat these users as the
 same user from a resource ownership perspective.
 
 Security domains make resource sharing across realms possible by grouping those
-realms under the same domain. {es} always enforces the privileges that are 
-associated with the currently authenticated user, which remains true with 
+realms under the same domain. {es} always enforces the privileges that are
+associated with the currently authenticated user, which remains true with
 security domains. Security domains don't bypass
-<<authorization,user authorization>> when resource sharing requires them. For 
-example, a user requires the `manage_own_api_key` privilege to manage their own 
-API keys. If that user doesn't have this privilege when authenticating with one 
-realm, they won't be able to manage API keys while authenticating with another 
+<<authorization,user authorization>> when resource sharing requires them. For
+example, a user requires the `manage_own_api_key` privilege to manage their own
+API keys. If that user doesn't have this privilege when authenticating with one
+realm, they won't be able to manage API keys while authenticating with another
 realm.
 
 [[security-domain-realm-roles]]
 ===== Managing roles across realms
 {es} provides multiple ways to consistently apply roles across realms. For example, you can use
-<<configuring-authorization-delegation,authorization delegation>> to 
+<<configuring-authorization-delegation,authorization delegation>> to
 ensure that a user is assigned the same roles from multiple realms. You can also
 manually configure multiple realms that are backed by the same directory service.
 Though it's possible to configure different <<roles,roles>> for the same user
 when authenticating with different realms, it is _not_ recommended.
 
+
 [[security-domain-configure]]
 ==== Configure a security domain
 
-You configure realms to be under a domain in `elasticsearch.yml`. The realms must
-be defined in `elasticsearch.yml` but do not need to be enabled.
+[[security-domain-warning]]
+[IMPORTANT]
+====
+Security domains are an advanced feature that requires careful configuration.
+Misconfiguration or misuse can lead to unexpected behaviors.
+====
 
-NOTE: The <<file-realm,file realm>> and <<native-realm,native realm>> are
-automatically enabled as `default_file` and `default_native`, respectively,
-without any explicit configuration. You can list these realms under domains even 
-when they are not explicitly defined in `elasticsearch.yml`.
+Security domains must be configured consistently across all nodes in cluster.
+Inconsistent configuration can lead to issues such as:
 
-. Add a security domain configuration to `elasticsearch.yml` under the
+- Duplicated user profiles
+- Different ownership of resources depending on the authenticating node's configuration
+
+To configure a security domain:
+
+. Add a security domain configuration to `elasticsearch.yml` in the
 `xpack.security.authc.domains` namespace:
 +
 [source, yaml]
@@ -84,14 +91,47 @@ xpack:
 ----
 <1> This configuration defines a security domain called `my_domain`, which
 contains two realms named `default_native` and `saml1`.
++
+The specified realms must be defined in `elasticsearch.yml`,
+but do not need to be enabled.
++
+NOTE: The <<file-realm,file realm>> and <<native-realm,native realm>> are
+automatically enabled as `default_file` and `default_native`, respectively,
+without any explicit configuration. You can list these realms under domains even
+when they are not explicitly defined in `elasticsearch.yml`.
 
 . Restart {es}.
-
++
 [IMPORTANT]
 ====
 {es} can fail to start if the domain configuration is invalid, such as:
 
-* A single realm is configured under multiple domains.
+* The same realm is configured under multiple domains.
 * Any undefined realm, synthetic realm, or the reserved realm is configured to
 be under a domain.
 ====
+
+. Apply the same configuration across all nodes in the cluster
+before performing operations related to security domains,
+including creating and managing resources such as
+<<user-profile,user profiles>>, <<security-api-create-api-key,API keys>>, and <<async-search,async search>>.
++
+When adding realms to a security domain, avoid authenticating with a newly-added realm until changes are fully applied to all nodes.
+
+[[security-domain-remove-realm]]
+==== Removing realms from a security domain
+
+Removing realms from a security domain can lead to unexpected behaviors
+and is not recommended.
+Resources created or updated before the removal can be owned by different users depending on the resource type:
+
+- <<user-profile,User profiles>> are owned by the user for whom the profile was last
+<<security-api-activate-user-profile,activated>>.
+For users whose realms are no longer in the same domain as the owner user, a new user profile
+will be created for them next time the activate user profile API is called.
+- An API key is owned by the user who originally <<security-api-create-api-key,created>> or last <<security-api-update-api-key,updated>> it.
+Users, including the original creator of the API key, will lose ownership if their realms are no longer in the same domain as those of the current API key owner.
+- Resources such as async search contexts are owned by the user who originally created them.
+
+Instead of removing realms, consider disabling them and keeping them as part of the security domain.
+Under all circumstances, resource sharing across realms is only possible between users with the same username.

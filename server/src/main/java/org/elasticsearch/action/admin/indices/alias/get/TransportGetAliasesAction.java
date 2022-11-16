@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -95,7 +94,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     /**
      * Fills alias result with empty entries for requested indices when no specific aliases were requested.
      */
-    static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(
+    static Map<String, List<AliasMetadata>> postProcess(
         GetAliasesRequest request,
         String[] concreteIndices,
         Map<String, List<AliasMetadata>> aliases,
@@ -105,7 +104,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         SystemIndices systemIndices
     ) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
+        Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>(aliases);
         for (String index : concreteIndices) {
             IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
             assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
@@ -121,7 +120,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                 assert previous == null;
             }
         }
-        final ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = mapBuilder.build();
+        final Map<String, List<AliasMetadata>> finalResponse = Collections.unmodifiableMap(mapBuilder);
         if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
             checkSystemIndexAccess(request, systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
         }
@@ -155,7 +154,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         GetAliasesRequest request,
         SystemIndices systemIndices,
         ClusterState state,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliasesMap,
+        Map<String, List<AliasMetadata>> aliasesMap,
         SystemIndexAccessLevel systemIndexAccessLevel,
         ThreadContext threadContext
     ) {

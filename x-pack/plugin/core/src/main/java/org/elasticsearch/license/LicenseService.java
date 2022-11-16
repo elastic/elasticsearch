@@ -68,7 +68,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
         "xpack.license.self_generated.type",
-        (s) -> License.LicenseType.BASIC.getTypeName(),
+        License.LicenseType.BASIC.getTypeName(),
         (s) -> {
             final License.LicenseType type = License.LicenseType.parse(s);
             return SelfGeneratedLicense.validateSelfGeneratedType(type);

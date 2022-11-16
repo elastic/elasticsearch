@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
@@ -81,11 +81,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     public Tree(StreamInput in) throws IOException {
-        this.featureNames = Collections.unmodifiableList(in.readStringList());
-        this.nodes = Collections.unmodifiableList(in.readList(TreeNode::new));
+        this.featureNames = in.readImmutableList(StreamInput::readString);
+        this.nodes = in.readImmutableList(TreeNode::new);
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
-            this.classificationLabels = Collections.unmodifiableList(in.readStringList());
+            this.classificationLabels = in.readImmutableList(StreamInput::readString);
         } else {
             this.classificationLabels = null;
         }
@@ -213,7 +213,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private void detectCycle() {
-        Set<Integer> visited = new HashSet<>(nodes.size());
+        Set<Integer> visited = Sets.newHashSetWithExpectedSize(nodes.size());
         Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
         while (toVisit.isEmpty() == false) {

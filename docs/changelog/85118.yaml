@@ -1,5 +1,0 @@
-pr: 85118
-summary: Improve min and max performance while in a `random_sampler` aggregation
-area: Aggregations
-type: enhancement
-issues: []

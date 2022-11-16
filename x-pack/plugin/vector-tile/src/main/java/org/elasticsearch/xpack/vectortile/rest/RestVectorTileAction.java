@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -169,7 +168,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                     tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
                     ensureOpen();
                     tileBuilder.build().writeTo(bytesOut);
-                    return new BytesRestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
                 }
             }
         });
@@ -233,8 +232,8 @@ public class RestVectorTileAction extends BaseRestHandler {
             if (request.getGridType() == GridType.CENTROID) {
                 tileAggBuilder.subAggregation(new GeoCentroidAggregationBuilder(CENTROID_AGG_NAME).field(request.getField()));
             }
-            final List<MetricsAggregationBuilder<?, ?>> aggregations = request.getAggBuilder();
-            for (MetricsAggregationBuilder<?, ?> aggregation : aggregations) {
+            final List<MetricsAggregationBuilder<?>> aggregations = request.getAggBuilder();
+            for (MetricsAggregationBuilder<?> aggregation : aggregations) {
                 if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX)) {
                     throw new IllegalArgumentException(
                         "Invalid aggregation name ["

@@ -18,6 +18,11 @@ import java.util.stream.Collectors
 
 class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
+        configurationCacheCompatible = false
+    }
+
     def "can assemble plugin via #taskName"() {
         given:
         buildFile << """plugins {
@@ -70,7 +75,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                consume project(path:':', configuration:'${PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
+                consume project(path:':', configuration:'${BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
             }
 
             tasks.register("resolveModule", Copy) {
@@ -114,13 +119,13 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.get("version") == "1.2.3"
         props.get("description") == "test plugin"
         props.get("classname") == "com.acme.plugin.TestPlugin"
-        props.get("modulename") == ""
-        props.get("type") == "isolated"
         props.get("java.version") == Integer.toString(Runtime.version().feature())
         props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
-        props.get("extended.plugins") == ""
-        props.get("has.native.controller") == "false"
-        props.size() == 10
+
+        props.get("has.native.controller") == null
+        props.get("extended.plugins") == null
+        props.get("modulename") == null
+        props.size() == 6
     }
 
     def "module name is inferred by plugin properties"() {

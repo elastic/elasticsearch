@@ -4,9 +4,8 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-activate-user-profile.html",
       "description":"Creates or updates the user profile on behalf of another user."
     },
-    "stability":"experimental",
-    "visibility":"feature_flag",
-    "feature_flag": "es.user_profile_feature_flag_enabled",
+    "stability":"stable",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

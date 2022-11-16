@@ -46,7 +46,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
@@ -167,11 +166,7 @@ public class FieldSortIT extends ESIntegTestCase {
                             "foo",
                             "bar",
                             "timeUpdated",
-                            "2014/07/"
-                                + String.format(Locale.ROOT, "%02d", i + 1)
-                                + " "
-                                + String.format(Locale.ROOT, "%02d", j + 1)
-                                + ":00:00"
+                            "2014/07/" + formatted("%02d", i + 1) + " " + formatted("%02d", j + 1) + ":00:00"
                         )
                 );
             }
@@ -196,10 +191,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("foo", "bar"))
-                        .must(
-                            QueryBuilders.rangeQuery("timeUpdated")
-                                .gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01")
-                        )
+                        .must(QueryBuilders.rangeQuery("timeUpdated").gte("2014/" + formatted("%02d", randomIntBetween(1, 7)) + "/01"))
                 )
                 .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                 .setSize(scaledRandomIntBetween(1, docs))
@@ -2119,6 +2111,45 @@ public class FieldSortIT extends ESIntegTestCase {
             long currentLong = (long) hit.getSortValues()[0];
             assertThat("sort order is incorrect", currentLong, greaterThanOrEqualTo(previousLong));
             previousLong = currentLong;
+        }
+    }
+
+    public void testSortMixedFieldTypes() {
+        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
+        assertAcked(prepareCreate("index_integer").setMapping("foo", "type=integer").get());
+        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
+        assertAcked(prepareCreate("index_keyword").setMapping("foo", "type=keyword").get());
+
+        client().prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        client().prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
+        client().prepareIndex("index_double").setId("1").setSource("foo", "123").get();
+        client().prepareIndex("index_keyword").setId("1").setSource("foo", "123").get();
+        refresh();
+
+        { // mixing long and integer types is ok, as we convert integer sort to long sort
+            SearchResponse searchResponse = client().prepareSearch("index_long", "index_integer")
+                .addSort(new FieldSortBuilder("foo"))
+                .setSize(10)
+                .get();
+            assertSearchResponse(searchResponse);
+        }
+
+        String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";
+
+        { // mixing long and double types is not allowed
+            SearchPhaseExecutionException exc = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10).get()
+            );
+            assertThat(exc.getCause().toString(), containsString(errMsg));
+        }
+
+        { // mixing long and keyword types is not allowed
+            SearchPhaseExecutionException exc = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("index_long", "index_keyword").addSort(new FieldSortBuilder("foo")).setSize(10).get()
+            );
+            assertThat(exc.getCause().toString(), containsString(errMsg));
         }
     }
 

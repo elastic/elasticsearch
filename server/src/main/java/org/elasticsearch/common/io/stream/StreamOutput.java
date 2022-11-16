@@ -97,10 +97,6 @@ public abstract class StreamOutput extends OutputStream {
         throw new UnsupportedOperationException();
     }
 
-    public void seek(long position) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
     /**
      * Writes a single byte.
      */
@@ -497,8 +493,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     @Override
     public abstract void close() throws IOException;
-
-    public abstract void reset() throws IOException;
 
     @Override
     public void write(int b) throws IOException {
@@ -1179,6 +1173,27 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an optional collection. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     */
+    public <T extends Writeable> void writeOptionalCollection(final Collection<T> collection) throws IOException {
+        writeOptionalCollection(collection, (o, v) -> v.writeTo(o));
+    }
+
+    /**
+     * Writes an optional collection via {@link Writer}. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     */
+    public <T> void writeOptionalCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
+        if (collection != null) {
+            writeBoolean(true);
+            writeCollection(collection, writer);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    /**
      * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
      * {@link StreamInput#readList(Writeable.Reader)}.
      *
@@ -1186,12 +1201,7 @@ public abstract class StreamOutput extends OutputStream {
      * @throws IOException if an I/O exception occurs writing the collection
      */
     public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
-        if (collection != null) {
-            writeBoolean(true);
-            writeCollection(collection, StreamOutput::writeString);
-        } else {
-            writeBoolean(false);
-        }
+        writeOptionalCollection(collection, StreamOutput::writeString);
     }
 
     /**

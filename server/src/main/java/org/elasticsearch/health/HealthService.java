@@ -8,10 +8,14 @@
 
 package org.elasticsearch.health;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.HealthInfo;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -19,14 +23,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.function.Predicate.isEqual;
-import static java.util.stream.Collectors.collectingAndThen;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -37,23 +37,17 @@ public class HealthService {
     // Visible for testing
     static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine health status. Check details on critical issues "
         + "preventing the health status from reporting.";
-    static final String UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED =
-        "Could not determine health status. This node is not ready to assess the cluster health. Try again later or run the health API "
-            + "against a different node.";
+
+    public static final String HEALTH_API_ID_PREFIX = "elasticsearch:health:";
 
     /**
      * Detail map key that contains the reasons a result was marked as UNKNOWN
      */
     private static final String REASON = "reasons";
-
-    private static final String CLUSTER_STATE_RECOVERED = "cluster_state_recovered";
-    private static final SimpleHealthIndicatorDetails DETAILS_UNKNOWN_STATE_NOT_RECOVERED = new SimpleHealthIndicatorDetails(
-        Map.of(REASON, Map.of(CLUSTER_STATE_RECOVERED, false))
-    );
+    private static final Logger logger = LogManager.getLogger(HealthService.class);
 
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
-    private final ClusterService clusterService;
 
     /**
      * Creates a new HealthService.
@@ -68,96 +62,107 @@ public class HealthService {
      */
     public HealthService(
         List<HealthIndicatorService> preflightHealthIndicatorServices,
-        List<HealthIndicatorService> healthIndicatorServices,
-        ClusterService clusterService
+        List<HealthIndicatorService> healthIndicatorServices
     ) {
         this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
         this.healthIndicatorServices = healthIndicatorServices;
-        this.clusterService = clusterService;
     }
 
     /**
-     * Returns the list of HealthComponentResults for this cluster. If no componentName is specified, one HealthComponentResult is returned
-     * for each component in the system. If a componentName is given, only the single HealthComponentResult for that component is
-     * returned. If both a componentName and indicatorName are given, the returned HealthComponentResult will only have information about
-     * the given indicatorName.
-     * @param componentName If not null, only the component with this name is returned
-     * @param indicatorName If not null, the returned component will only have this indicator
-     * @param explain Whether to compute the details portion of the component results
-     * @return A list of all HealthComponentResults if componentName is null, or one HealthComponentResult if componentName is not null
-     * @throws ResourceNotFoundException if a component name is given and the component or indicator are not found
+     * Returns the list of HealthIndicatorResult for this cluster.
+     *
+     * @param client        A client to be used to fetch the health data from the health node
+     * @param indicatorName If not null, the returned results will only have this indicator
+     * @param explain       Whether to compute the details portion of the results
+     * @param listener      A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
+     *                      HealthIndicatorResult if indicatorName is not null
+     * @throws ResourceNotFoundException if an indicator name is given and the indicator is not found
      */
-    public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean explain) {
-        final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
-        final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
-
-        // Is the cluster state recovered? If not, ALL indicators should return UNKNOWN
-        boolean clusterStateRecovered = clusterService.state()
-            .getBlocks()
-            .hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false;
-
-        List<HealthIndicatorResult> preflightResults;
-        if (clusterStateRecovered) {
-            // Determine if cluster is stable enough to calculate health before running other indicators
-            preflightResults = preflightHealthIndicatorServices.stream().map(service -> service.calculate(explain)).toList();
-        } else {
-            // Mark preflight indicators as UNKNOWN
-            HealthIndicatorDetails details = explain ? DETAILS_UNKNOWN_STATE_NOT_RECOVERED : HealthIndicatorDetails.EMPTY;
-            preflightResults = preflightHealthIndicatorServices.stream()
-                .map(service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED, details))
-                .toList();
-        }
+    public void getHealth(
+        Client client,
+        @Nullable String indicatorName,
+        boolean explain,
+        ActionListener<List<HealthIndicatorResult>> listener
+    ) {
+        // Determine if cluster is stable enough to calculate health before running other indicators
+        List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
+            .map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
+            .toList();
 
         // If any of these are not GREEN, then we cannot obtain health from other indicators
         boolean clusterHealthIsObtainable = preflightResults.isEmpty()
             || preflightResults.stream().map(HealthIndicatorResult::status).allMatch(isEqual(HealthStatus.GREEN));
 
-        // Filter remaining indicators by component name and indicator name if present before calculating their results
+        // Filter remaining indicators by indicator name if present before calculating their results
         Stream<HealthIndicatorService> filteredIndicators = healthIndicatorServices.stream()
-            .filter(service -> componentName == null || service.component().equals(componentName))
             .filter(service -> indicatorName == null || service.name().equals(indicatorName));
-
-        Stream<HealthIndicatorResult> filteredIndicatorResults;
-        if (clusterStateRecovered && clusterHealthIsObtainable) {
-            // Calculate remaining indicators
-            filteredIndicatorResults = filteredIndicators.map(service -> service.calculate(explain));
-        } else {
-            // Mark remaining indicators as UNKNOWN
-            String unknownSummary = clusterStateRecovered ? UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED : UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED;
-            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, clusterStateRecovered, explain);
-            filteredIndicatorResults = filteredIndicators.map(service -> generateUnknownResult(service, unknownSummary, unknownDetails));
-        }
-
-        // Filter the cluster indicator results by component name and indicator name if present
         Stream<HealthIndicatorResult> filteredPreflightResults = preflightResults.stream()
-            .filter(result -> componentName == null || result.component().equals(componentName))
             .filter(result -> indicatorName == null || result.name().equals(indicatorName));
 
-        // Combine indicator results
-        List<HealthComponentResult> components = List.copyOf(
-            Stream.concat(filteredPreflightResults, filteredIndicatorResults)
-                .collect(
-                    groupingBy(
-                        HealthIndicatorResult::component,
-                        TreeMap::new,
-                        collectingAndThen(
-                            toList(),
-                            indicators -> HealthService.createComponentFromIndicators(indicators, showRolledUpComponentStatus)
-                        )
-                    )
-                )
-                .values()
-        );
-        if (components.isEmpty() && componentName != null) {
-            String errorMessage;
-            if (indicatorName != null) {
-                errorMessage = String.format(Locale.ROOT, "Did not find indicator %s in component %s", indicatorName, componentName);
-            } else {
-                errorMessage = String.format(Locale.ROOT, "Did not find component %s", componentName);
-            }
-            throw new ResourceNotFoundException(errorMessage);
+        if (clusterHealthIsObtainable) {
+
+            client.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request(), new ActionListener<>() {
+                @Override
+                public void onResponse(FetchHealthInfoCacheAction.Response response) {
+                    HealthInfo healthInfo = response.getHealthInfo();
+                    validateResultsAndNotifyListener(
+                        indicatorName,
+                        Stream.concat(filteredPreflightResults, filteredIndicators.map(service -> service.calculate(explain, healthInfo)))
+                            .toList(),
+                        listener
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    validateResultsAndNotifyListener(
+                        indicatorName,
+                        Stream.concat(
+                            filteredPreflightResults,
+                            filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
+                        ).toList(),
+                        listener
+                    );
+                }
+            });
+
+        } else {
+            // Mark remaining indicators as UNKNOWN
+            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, explain);
+            Stream<HealthIndicatorResult> filteredIndicatorResults = filteredIndicators.map(
+                service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED, unknownDetails)
+            );
+            validateResultsAndNotifyListener(
+                indicatorName,
+                Stream.concat(filteredPreflightResults, filteredIndicatorResults).toList(),
+                listener
+            );
         }
-        return components;
+    }
+
+    /**
+     * This method validates the health indicator results, and notifies the listener. If assertions are enabled and there are indicators
+     * with duplicate names, an AssertionError is thrown (the listener is not notified). If there are no results and the indicator name is
+     * not null, the listener will be notified of failure because the user could not get the results that were asked for. Otherwise, the
+     * listener will be notified with the results.
+     *
+     * @param indicatorName            If not null, the results will be validated to only have this indicator name
+     * @param results                  The results that the listener will be notified of, if they pass validation
+     * @param listener                 A listener to be notified of results
+     */
+    private void validateResultsAndNotifyListener(
+        @Nullable String indicatorName,
+        List<HealthIndicatorResult> results,
+        ActionListener<List<HealthIndicatorResult>> listener
+    ) {
+        assert findDuplicatesByName(results).isEmpty()
+            : String.format(Locale.ROOT, "Found multiple indicators with the same name: %s", findDuplicatesByName(results));
+        if (results.isEmpty() && indicatorName != null) {
+            String errorMessage = String.format(Locale.ROOT, "Did not find indicator %s", indicatorName);
+            listener.onFailure(new ResourceNotFoundException(errorMessage));
+        } else {
+            listener.onResponse(results);
+        }
     }
 
     /**
@@ -166,25 +171,16 @@ public class HealthService {
      * @param computeDetails If details should be calculated on which indicators are causing the UNKNOWN state.
      * @return Details explaining why results are UNKNOWN, or an empty detail set if computeDetails is false.
      */
-    private HealthIndicatorDetails healthUnknownReason(
-        List<HealthIndicatorResult> preflightResults,
-        boolean clusterStateRecovered,
-        boolean computeDetails
-    ) {
-        assert clusterStateRecovered == false || preflightResults.isEmpty() == false
-            : "Requires at least one non-GREEN preflight result or cluster state not recovered";
+    private HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
+        assert preflightResults.isEmpty() == false : "Requires at least one non-GREEN preflight result";
         HealthIndicatorDetails unknownDetails;
         if (computeDetails) {
-            if (clusterStateRecovered) {
-                // Determine why the cluster is not stable enough for running remaining indicators
-                Map<String, String> clusterUnstableReasons = preflightResults.stream()
-                    .filter(result -> HealthStatus.GREEN.equals(result.status()) == false)
-                    .collect(toMap(HealthIndicatorResult::name, result -> result.status().xContentValue()));
-                assert clusterUnstableReasons.isEmpty() == false : "Requires at least one non-GREEN preflight result";
-                unknownDetails = new SimpleHealthIndicatorDetails(Map.of(REASON, clusterUnstableReasons));
-            } else {
-                unknownDetails = DETAILS_UNKNOWN_STATE_NOT_RECOVERED;
-            }
+            // Determine why the cluster is not stable enough for running remaining indicators
+            Map<String, String> clusterUnstableReasons = preflightResults.stream()
+                .filter(result -> HealthStatus.GREEN.equals(result.status()) == false)
+                .collect(toMap(HealthIndicatorResult::name, result -> result.status().xContentValue()));
+            assert clusterUnstableReasons.isEmpty() == false : "Requires at least one non-GREEN preflight result";
+            unknownDetails = new SimpleHealthIndicatorDetails(Map.of(REASON, clusterUnstableReasons));
         } else {
             unknownDetails = HealthIndicatorDetails.EMPTY;
         }
@@ -204,25 +200,6 @@ public class HealthService {
         HealthIndicatorDetails details
     ) {
         return indicatorService.createIndicator(HealthStatus.UNKNOWN, summary, details, Collections.emptyList(), Collections.emptyList());
-    }
-
-    // Non-private for testing purposes
-    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators, boolean showComponentSummary) {
-        assert indicators.size() > 0 : "Component should not be non empty";
-        assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
-            : "Should not mix indicators from different components";
-        assert findDuplicatesByName(indicators).isEmpty()
-            : String.format(
-                Locale.ROOT,
-                "Found multiple indicators with the same name within the %s component: %s",
-                indicators.get(0).component(),
-                findDuplicatesByName(indicators)
-            );
-        return new HealthComponentResult(
-            indicators.get(0).component(),
-            showComponentSummary ? HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)) : null,
-            indicators
-        );
     }
 
     private static Set<String> findDuplicatesByName(List<HealthIndicatorResult> indicators) {

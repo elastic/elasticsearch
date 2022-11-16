@@ -23,7 +23,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean longestOnly;
 
     public HunspellTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, HunspellService hunspellService) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
         if (locale == null) {

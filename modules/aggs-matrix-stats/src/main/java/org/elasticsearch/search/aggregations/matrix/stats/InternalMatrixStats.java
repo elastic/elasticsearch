@@ -204,6 +204,26 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
+        } else if (path.size() == 2) {
+            if (results == null) {
+                return emptyMap();
+            }
+            final String field = path.get(0)
+                .replaceAll("^\"", "") // remove leading "
+                .replaceAll("^'", "") // remove leading '
+                .replaceAll("\"$", "") // remove trailing "
+                .replaceAll("'$", ""); // remove trailing '
+            final String element = path.get(1);
+            return switch (element) {
+                case "counts" -> results.getFieldCount(field);
+                case "means" -> results.getMean(field);
+                case "variances" -> results.getVariance(field);
+                case "skewness" -> results.getSkewness(field);
+                case "kurtosis" -> results.getKurtosis(field);
+                case "covariance" -> results.getCovariance(field, field);
+                case "correlation" -> results.getCorrelation(field, field);
+                default -> throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
+            };
         } else if (path.size() == 1) {
             String element = path.get(0);
             if (results == null) {

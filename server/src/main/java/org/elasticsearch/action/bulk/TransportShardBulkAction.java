@@ -8,10 +8,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -39,6 +38,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexingPressure;
@@ -78,6 +79,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final Consumer<Runnable> postWriteAction;
 
     @Inject
     public TransportShardBulkAction(
@@ -111,6 +113,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.postWriteAction = WriteAckDelay.create(settings, threadPool);
     }
 
     @Override
@@ -149,7 +152,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary));
+        }), listener, threadPool, executor(primary), postWriteAction);
     }
 
     @Override
@@ -172,6 +175,32 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         ThreadPool threadPool,
         String executorName
+    ) {
+        performOnPrimary(
+            request,
+            primary,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            listener,
+            threadPool,
+            executorName,
+            null
+        );
+    }
+
+    public static void performOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool,
+        String executorName,
+        @Nullable Consumer<Runnable> postWriteAction
     ) {
         new ActionRunnable<>(listener) {
 
@@ -246,7 +275,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getLocationToSync(),
                         null,
                         context.getPrimary(),
-                        logger
+                        logger,
+                        postWriteAction
                     )
                 );
             }
@@ -402,17 +432,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             if (isFailed) {
                 final Exception failure = executionResult.getFailure().getCause();
-                final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
-                    "{} failed to execute bulk item ({}) {}",
-                    context.getPrimary().shardId(),
-                    opType.getLowercase(),
-                    docWriteRequest
-                );
+                Level level;
                 if (TransportShardBulkAction.isConflictException(failure)) {
-                    logger.trace(messageSupplier, failure);
+                    level = Level.TRACE;
                 } else {
-                    logger.debug(messageSupplier, failure);
+                    level = Level.DEBUG;
                 }
+                logger.log(
+                    level,
+                    () -> Strings.format(
+                        "%s failed to execute bulk item (%s) %s",
+                        context.getPrimary().shardId(),
+                        opType.getLowercase(),
+                        docWriteRequest
+                    ),
+                    failure
+                );
+
             }
             response = executionResult;
         }
@@ -514,7 +550,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final long startBulkTime = System.nanoTime();
             final Translog.Location location = performOnReplica(request, replica);
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
-            return new WriteReplicaResult<>(request, location, null, replica, logger);
+            return new WriteReplicaResult<>(request, location, null, replica, logger, postWriteAction);
         });
     }
 

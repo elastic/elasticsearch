@@ -1,5 +1,0 @@
-pr: 85526
-summary: "TSDB: fix the time_series in order collect priority"
-area: TSDB
-type: bug
-issues: []

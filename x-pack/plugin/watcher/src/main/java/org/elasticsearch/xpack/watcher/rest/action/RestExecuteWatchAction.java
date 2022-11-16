@@ -12,7 +12,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
@@ -83,7 +82,7 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
                 builder.field(Field.ID.getPreferredName(), response.getRecordId());
                 builder.field(Field.WATCH_RECORD.getPreferredName(), response.getRecordSource(), request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

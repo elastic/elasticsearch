@@ -8,10 +8,12 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +29,25 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     List<Integer> locations;
     List<MultiGetRequest.Item> items;
 
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private final boolean forceSyntheticSource;
+
+    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
+        super(index);
+        this.shardId = shardId;
+        locations = new ArrayList<>();
+        items = new ArrayList<>();
+        preference = multiGetRequest.preference;
+        realtime = multiGetRequest.realtime;
+        refresh = multiGetRequest.refresh;
+        forceSyntheticSource = multiGetRequest.isForceSyntheticSource();
+    }
+
     MultiGetShardRequest(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
@@ -41,16 +62,33 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
+        }
     }
 
-    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
-        super(index);
-        this.shardId = shardId;
-        locations = new ArrayList<>();
-        items = new ArrayList<>();
-        preference = multiGetRequest.preference;
-        realtime = multiGetRequest.realtime;
-        refresh = multiGetRequest.refresh;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(locations.size());
+
+        for (int i = 0; i < locations.size(); i++) {
+            out.writeVInt(locations.get(i));
+            items.get(i).writeTo(out);
+        }
+
+        out.writeOptionalString(preference);
+        out.writeBoolean(refresh);
+        out.writeBoolean(realtime);
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
+        }
     }
 
     @Override
@@ -94,6 +132,16 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         return this;
     }
 
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
+    }
+
     void add(int location, MultiGetRequest.Item item) {
         this.locations.add(location);
         this.items.add(item);
@@ -106,20 +154,5 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
             indices[i] = items.get(i).index();
         }
         return indices;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(locations.size());
-
-        for (int i = 0; i < locations.size(); i++) {
-            out.writeVInt(locations.get(i));
-            items.get(i).writeTo(out);
-        }
-
-        out.writeOptionalString(preference);
-        out.writeBoolean(refresh);
-        out.writeBoolean(realtime);
     }
 }

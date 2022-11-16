@@ -186,7 +186,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         return allReferencedModelKeys;
     }
 
-    private static List<String> getModelAliases(ClusterState clusterState, String modelId) {
+    static List<String> getModelAliases(ClusterState clusterState, String modelId) {
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterState);
         final List<String> modelAliases = new ArrayList<>();
         for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> modelAliasEntry : currentMetadata.modelAliases().entrySet()) {

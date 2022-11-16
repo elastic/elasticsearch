@@ -22,7 +22,10 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingParserContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -80,7 +83,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     Settings.Builder builder = Settings.builder();
-                    TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
+                    TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(allSettings);
                     final Instant start;
                     final Instant end;
                     if (dataStream == null || migrating) {
@@ -112,7 +115,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
                         List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
-                        if (routingPaths != null) {
+                        if (routingPaths.isEmpty() == false) {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
                     }
@@ -159,20 +162,42 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
             }
 
-            List<String> routingPaths = null;
+            List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                if (fieldMapper instanceof KeywordFieldMapper keywordFieldMapper) {
-                    if (keywordFieldMapper.fieldType().isDimension()) {
-                        if (routingPaths == null) {
-                            routingPaths = new ArrayList<>();
-                        }
-                        routingPaths.add(keywordFieldMapper.name());
-                    }
+                extractPath(routingPaths, fieldMapper);
+            }
+            for (var template : mapperService.getAllDynamicTemplates()) {
+                if (template.pathMatch() == null) {
+                    continue;
                 }
+
+                var templateName = "__dynamic__" + template.name();
+                var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+                String mappingSnippetType = (String) mappingSnippet.get("type");
+                if (mappingSnippetType == null) {
+                    continue;
+                }
+
+                MappingParserContext parserContext = mapperService.parserContext();
+                var mapper = parserContext.typeParser(mappingSnippetType)
+                    .parse(template.pathMatch(), mappingSnippet, parserContext)
+                    .build(MapperBuilderContext.root(false));
+                extractPath(routingPaths, mapper);
             }
             return routingPaths;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Helper method that adds the name of the mapper to the provided list if it is a keyword dimension field.
+     */
+    private static void extractPath(List<String> routingPaths, Mapper mapper) {
+        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+            if (keywordFieldMapper.fieldType().isDimension()) {
+                routingPaths.add(mapper.name());
+            }
         }
     }
 

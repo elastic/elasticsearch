@@ -97,7 +97,8 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool
+            threadpool,
+            null
         );
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
 

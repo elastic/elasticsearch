@@ -104,7 +104,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     }
 
     /**
-     * The refresh request works against *all* shards.
+     * The force merge request works against *all* shards.
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ForceMergeRequest request, String[] concreteIndices) {

@@ -51,7 +51,8 @@ public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScal
     protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
         return new AutoscalingCapacity.AutoscalingResources(
             ByteSizeValue.ofBytes(randomLongBetween(10, ByteSizeValue.ofGb(10).getBytes())),
-            ByteSizeValue.ofBytes(randomLongBetween(10, ByteSizeValue.ofGb(10).getBytes()))
+            ByteSizeValue.ofBytes(randomLongBetween(10, ByteSizeValue.ofGb(10).getBytes())),
+            null
         );
     }
 

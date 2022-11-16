@@ -109,7 +109,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
             // add irrelevant shards noise for completeness (should not happen IRL).
             sizes.put(new ShardId(index, i), randomLongBetween(0, Integer.MAX_VALUE));
         }
-        ClusterInfo info = new ClusterInfo(null, null, null, sizes, null, null);
+        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), Map.of(), sizes, Map.of(), Map.of());
         return Tuple.tuple(totalSize, info);
     }
 }

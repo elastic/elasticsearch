@@ -121,7 +121,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testScalingExecutorType")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
+            final int expectedMinimum = switch (threadPoolName) {
+                case "generic" -> 4;
+                case "management" -> 2;
+                default -> 1;
+            };
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
             final long expectedKeepAlive = "generic".equals(threadPoolName) || Names.SNAPSHOT_META.equals(threadPoolName) ? 30 : 300;
@@ -142,7 +146,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            assertEquals(info(threadPool, threadPoolName).getQueueSize().getSingles(), 1000L);
+            assertEquals(info(threadPool, threadPoolName).getQueueSize().singles(), 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
             final CountDownLatch latch = new CountDownLatch(1);

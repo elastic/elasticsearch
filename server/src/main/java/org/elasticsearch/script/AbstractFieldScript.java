@@ -99,8 +99,12 @@ public abstract class AbstractFieldScript extends DocBasedScript {
             return;
         }
         for (Object value : values) {
-            emitFromObject(value);
+            emitValueFromCompositeScript(value);
         }
+    }
+
+    protected void emitValueFromCompositeScript(Object value) {
+        emitFromObject(value);
     }
 
     protected abstract void emitFromObject(Object v);

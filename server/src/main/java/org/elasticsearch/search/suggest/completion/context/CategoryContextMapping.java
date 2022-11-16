@@ -13,6 +13,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -126,7 +127,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         Set<String> values = null;
         if (fieldName != null) {
             IndexableField[] fields = document.getFields(fieldName);
-            values = new HashSet<>(fields.length);
+            values = Sets.newHashSetWithExpectedSize(fields.length);
             // TODO we should be checking mapped field types, not lucene field types
             for (IndexableField field : fields) {
                 if (field instanceof SortedDocValuesField || field instanceof SortedSetDocValuesField || field instanceof StoredField) {

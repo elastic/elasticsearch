@@ -12,6 +12,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -55,12 +56,12 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String deploymentId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
         InferTrainedModelDeploymentAction.Request.Builder request = InferTrainedModelDeploymentAction.Request.parseRequest(
-            deploymentId,
+            modelId,
             restRequest.contentParser()
         );
 
@@ -72,7 +73,7 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
             request.setInferenceTimeout(inferTimeout);
         }
 
-        return channel -> client.execute(
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             InferTrainedModelDeploymentAction.INSTANCE,
             request.build(),
             new RestToXContentListener<>(channel)

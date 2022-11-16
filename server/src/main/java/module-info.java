@@ -21,6 +21,9 @@ module org.elasticsearch.server {
     requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.logging;
+    requires org.elasticsearch.plugin.api;
+    requires org.elasticsearch.plugin.analysis.api;
 
     requires com.sun.jna;
     requires hppc;
@@ -44,13 +47,13 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queries;
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
-    requires org.apache.lucene.spatial3d;
     requires org.apache.lucene.suggest;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;
     exports org.elasticsearch.action.admin.cluster.allocation;
     exports org.elasticsearch.action.admin.cluster.configuration;
+    exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
     exports org.elasticsearch.action.admin.cluster.migration;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
@@ -212,6 +215,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.env;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
+    exports org.elasticsearch.health.node;
+    exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.http;
     exports org.elasticsearch.index;
     exports org.elasticsearch.index.analysis;
@@ -221,6 +226,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
     exports org.elasticsearch.index.fielddata.fieldcomparator;
@@ -231,6 +237,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.get;
     exports org.elasticsearch.index.mapper;
     exports org.elasticsearch.index.mapper.flattened;
+    exports org.elasticsearch.index.mapper.vectors;
     exports org.elasticsearch.index.merge;
     exports org.elasticsearch.index.query;
     exports org.elasticsearch.index.query.functionscore;
@@ -272,6 +279,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
+    exports org.elasticsearch.reservedstate;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
@@ -291,10 +299,10 @@ module org.elasticsearch.server {
     exports org.elasticsearch.rest.action.search;
     exports org.elasticsearch.script;
     exports org.elasticsearch.script.field;
+    exports org.elasticsearch.script.field.vectors;
     exports org.elasticsearch.search;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
-    exports org.elasticsearch.search.aggregations.bucket.adjacency;
     exports org.elasticsearch.search.aggregations.bucket.composite;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
@@ -310,7 +318,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations.pipeline;
     exports org.elasticsearch.search.aggregations.support;
     exports org.elasticsearch.search.aggregations.support.values;
-    exports org.elasticsearch.search.aggregations.timeseries;
     exports org.elasticsearch.search.builder;
     exports org.elasticsearch.search.collapse;
     exports org.elasticsearch.search.dfs;
@@ -321,6 +328,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.lookup;
     exports org.elasticsearch.search.profile;
     exports org.elasticsearch.search.profile.aggregation;
+    exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rescore;
@@ -333,11 +341,13 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.suggest.completion.context;
     exports org.elasticsearch.search.suggest.phrase;
     exports org.elasticsearch.search.suggest.term;
+    exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
     exports org.elasticsearch.timeseries.support;
+    exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;
@@ -352,5 +362,8 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
-    provides org.apache.logging.log4j.util.PropertySource with org.elasticsearch.common.logging.ESSystemPropertiesPropertySource;
+
+    uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+
+    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 }

@@ -338,7 +338,7 @@ public class BytesRefHashTests extends ESTestCase {
     // END - tests borrowed from LUCENE
 
     public void testAllocation() {
-        MockBigArrays.assertFitsIn(new ByteSizeValue(512), bigArrays -> new BytesRefHash(1, bigArrays));
+        MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(512), bigArrays -> new BytesRefHash(1, bigArrays));
     }
 
     private void assertEquality(BytesRefHash original, BytesRefHash copy) {
@@ -398,7 +398,7 @@ public class BytesRefHashTests extends ESTestCase {
             );
 
             BytesRefHash copy = new BytesRefHash(refArrayCopy, mockBigArrays());
-
+            refArrayCopy.close();
             assertEquality(hash, copy);
             assertAllIn(strings, copy);
             copy.close();

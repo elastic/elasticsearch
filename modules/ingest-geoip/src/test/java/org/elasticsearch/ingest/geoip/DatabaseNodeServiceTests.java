@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
@@ -68,7 +69,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -106,6 +106,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     private DatabaseNodeService databaseNodeService;
     private ResourceWatcherService resourceWatcherService;
     private IngestService ingestService;
+    private ClusterService clusterService;
 
     @Before
     public void setup() throws IOException {
@@ -121,9 +122,10 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         client = mock(Client.class);
         ingestService = mock(IngestService.class);
+        clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
         databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run);
-        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService);
+        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService, clusterService);
     }
 
     @After
@@ -295,14 +297,17 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
 
         // Updating the first time may trigger a reload.
-        verify(ingestService, times(1)).addIngestClusterStateListener(any());
+        verify(clusterService, times(1)).addListener(any());
         verify(ingestService, times(1)).getPipelineWithProcessorType(any(), any());
         verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
+        verifyNoMoreInteractions(clusterService);
         verifyNoMoreInteractions(ingestService);
+        reset(clusterService);
         reset(ingestService);
 
         // Subsequent updates shouldn't trigger a reload.
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
+        verifyNoMoreInteractions(clusterService);
         verifyNoMoreInteractions(ingestService);
     }
 
@@ -382,7 +387,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         shardRouting = shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize());
         if (noStartedShards == false) {
-            shardRouting = shardRouting.moveToStarted();
+            shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
@@ -405,7 +410,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         byte[] header = new byte[512];
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] sizeBytes = String.format(Locale.ROOT, "%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
+        byte[] sizeBytes = formatted("%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
         System.arraycopy(nameBytes, 0, header, 0, nameBytes.length);
         System.arraycopy(sizeBytes, 0, header, 124, 12);
         gzipOutputStream.write(header);

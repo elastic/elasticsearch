@@ -273,6 +273,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
         }
     }
 
@@ -323,6 +325,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
         }
     }
 
@@ -733,6 +739,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return source != null && source.isSuggestOnly();
     }
 
+    /**
+     * @return true if the request contains kNN search
+     */
+    public boolean hasKnnSearch() {
+        return source != null && source.knnSearch() != null;
+    }
+
     public int resolveTrackTotalHitsUpTo() {
         return resolveTrackTotalHitsUpTo(scroll, source);
     }
@@ -749,6 +762,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
      */
     public void setForceSyntheticSource(boolean forceSyntheticSource) {
         this.forceSyntheticSource = forceSyntheticSource;
@@ -800,15 +816,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");
         Strings.arrayToDelimitedString(indices, ",", sb);
-        sb.append("], ");
-        sb.append("search_type[").append(searchType).append("], ");
+        sb.append("]");
+        sb.append(", search_type[").append(searchType).append("]");
         if (scroll != null) {
-            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+            sb.append(", scroll[").append(scroll.keepAlive()).append("]");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append(", source[").append(source.toString(FORMAT_PARAMS)).append("]");
         } else {
-            sb.append("source[]");
+            sb.append(", source[]");
+        }
+        if (routing != null) {
+            sb.append(", routing[").append(routing).append("]");
+        }
+        if (preference != null) {
+            sb.append(", preference[").append(preference).append("]");
         }
         return sb.toString();
     }

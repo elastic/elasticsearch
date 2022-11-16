@@ -1,0 +1,22 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+snyk-dependency-monitoring
+    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+snyk-dependency-monitoring
+    display-name: "elastic / elasticsearch # %BRANCH% - snyk dependency monitoring"
+    description: "Publishing of the Elasticsearch %BRANCH% dependencies graph to snyk dependency monitoring"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          set -euo pipefail
+          set +x
+          VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
+          export VAULT_TOKEN
+          export SNYK_TOKEN=$(vault read -field=token secret/elasticsearch-ci/snyk)
+          unset VAULT_TOKEN
+          set -x
+          $WORKSPACE/.ci/scripts/run-gradle.sh uploadSnykDependencyGraph

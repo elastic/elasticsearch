@@ -20,10 +20,12 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -46,11 +48,23 @@ public class FakeThreadPoolMasterService extends MasterService {
         ThreadPool threadPool,
         Consumer<Runnable> onTaskAvailableToRun
     ) {
-        super(
+        this(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            serviceName,
+            onTaskAvailableToRun
         );
+    }
+
+    private FakeThreadPoolMasterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        String serviceName,
+        Consumer<Runnable> onTaskAvailableToRun
+    ) {
+        super(settings, clusterSettings, threadPool, new TaskManager(settings, threadPool, Set.of()));
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
     }

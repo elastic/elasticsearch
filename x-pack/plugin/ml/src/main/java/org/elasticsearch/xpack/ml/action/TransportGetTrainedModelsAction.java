@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
@@ -46,6 +47,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         Response.Builder responseBuilder = Response.builder();
 
@@ -68,6 +70,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                     modelIdAndAliases.getKey(),
                     modelIdAndAliases.getValue(),
                     request.getIncludes(),
+                    parentTaskId,
                     ActionListener.wrap(
                         config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
                         listener::onFailure
@@ -78,6 +81,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                     totalAndIds.v2(),
                     request.getIncludes(),
                     request.isAllowNoResources(),
+                    parentTaskId,
                     ActionListener.wrap(configs -> listener.onResponse(responseBuilder.setModels(configs).build()), listener::onFailure)
                 );
             }
@@ -88,6 +92,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
             request.getPageParams(),
             new HashSet<>(request.getTags()),
             ModelAliasMetadata.fromState(clusterService.state()),
+            parentTaskId,
             idExpansionListener
         );
     }

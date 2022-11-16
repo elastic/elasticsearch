@@ -288,12 +288,8 @@ public class DataStreamMetadata implements Metadata.Custom {
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             return new DataStreamMetadata(
-                ImmutableOpenMap.<String, DataStream>builder()
-                    .putAllFromMap(dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams))
-                    .build(),
-                dataStreamAliasDiff != null
-                    ? dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases)
-                    : ImmutableOpenMap.of()
+                dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams),
+                dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases)
             );
         }
 

@@ -12,7 +12,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
-import java.io.IOException;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomProcessors;
 
 public class AutoscalingCapacityWireSerializationTests extends AbstractWireSerializingTestCase<AutoscalingCapacity> {
     @Override
@@ -26,27 +28,38 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
     }
 
     @Override
-    protected AutoscalingCapacity mutateInstance(AutoscalingCapacity instance) throws IOException {
+    protected AutoscalingCapacity mutateInstance(AutoscalingCapacity instance) {
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder().capacity(instance);
-
         if (randomBoolean()) {
             // mutate total
-            boolean hasBothStorageAndMemory = instance.total().memory() != null && instance.total().storage() != null;
+            boolean hasAllMetrics = instance.total().memory() != null
+                && instance.total().storage() != null
+                && instance.total().processors() != null;
             if (randomBoolean()) {
                 builder.total(
                     randomByteSize(
-                        hasBothStorageAndMemory && (instance.node() == null || instance.node().storage() == null),
+                        hasAllMetrics && (instance.node() == null || instance.node().storage() == null),
                         instance.total().storage()
                     ),
-                    instance.total().memory()
+                    instance.total().memory(),
+                    instance.total().processors()
+                );
+            } else if (randomBoolean()) {
+                builder.total(
+                    instance.total().storage(),
+                    randomByteSize(
+                        hasAllMetrics && (instance.node() == null || instance.node().memory() == null),
+                        instance.total().memory()
+                    ),
+                    instance.total().processors()
                 );
             } else {
                 builder.total(
                     instance.total().storage(),
-                    randomByteSize(
-                        hasBothStorageAndMemory && (instance.node() == null || instance.node().memory() == null),
-                        instance.total().memory()
-                    )
+                    instance.total().memory(),
+                    hasAllMetrics && (instance.node() == null || instance.node().processors() == null) && randomBoolean()
+                        ? null
+                        : Optional.ofNullable(instance.total().processors()).map(p -> p.plus(randomProcessors())).orElse(randomProcessors())
                 );
             }
         } else {
@@ -55,13 +68,51 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
                 builder.node(
                     AutoscalingTestCase.randomNullValueAutoscalingResources(
                         instance.total().storage() != null,
-                        instance.total().memory() != null
+                        instance.total().memory() != null,
+                        instance.total().processors() != null
                     )
                 );
-            } else if (randomBoolean() && instance.total().storage() != null || instance.total().memory() == null) {
-                builder.node(randomByteSize(instance.node().memory() != null, instance.node().storage()), instance.node().memory());
+            } else if (randomBoolean() && instance.total().storage() != null) {
+                builder.node(
+                    randomByteSize(instance.node().memory() != null || instance.node().processors() != null, instance.node().storage()),
+                    instance.node().memory(),
+                    instance.node().processors()
+                );
+            } else if (randomBoolean() && instance.total().memory() != null) {
+                builder.node(
+                    instance.node().storage(),
+                    randomByteSize(instance.node().storage() != null || instance.node().processors() != null, instance.node().memory()),
+                    instance.node().processors()
+                );
+            } else if (instance.total().processors() != null) {
+                builder.node(
+                    instance.node().storage(),
+                    instance.node().memory(),
+                    randomBoolean()
+                        && (instance.node().storage() != null || instance.node().memory() != null)
+                        && instance.node().processors() != null
+                            ? null
+                            : Optional.ofNullable(instance.total().processors())
+                                .map(p -> p.plus(randomProcessors()))
+                                .orElse(randomProcessors())
+                );
             } else {
-                builder.node(instance.node().storage(), randomByteSize(instance.node().storage() != null, instance.node().memory()));
+                ByteSizeValue newStorage = instance.total().storage() != null
+                    ? randomByteSize(instance.node().memory() != null || instance.node().processors() != null, instance.node().storage())
+                    : null;
+                ByteSizeValue newMem = instance.total().memory() != null
+                    ? randomByteSize(newStorage != null || instance.node().processors() != null, instance.node().memory())
+                    : null;
+                builder.node(
+                    newStorage,
+                    newMem,
+                    randomBoolean() && (newMem != null || newStorage != null) && instance.node().processors() != null ? null
+                        : instance.total().processors() != null && randomBoolean()
+                            ? Optional.ofNullable(instance.total().processors())
+                                .map(p -> p.plus(randomProcessors()))
+                                .orElse(randomProcessors())
+                        : null
+                );
             }
         }
         return builder.build();

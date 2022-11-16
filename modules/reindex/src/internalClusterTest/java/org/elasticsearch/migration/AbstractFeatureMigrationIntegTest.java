@@ -114,6 +114,18 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
     static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
+    public static final SystemIndexDescriptor KIBANA_MOCK_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".kibana_*")
+        .setDescription("Kibana saved objects system index")
+        .setAliasName(".kibana")
+        .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(Collections.emptyList())
+        .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
+        .setPriorSystemIndexDescriptors(Collections.emptyList())
+        .setAllowsTemplates()
+        .build();
+
     protected String masterAndDataNode;
     protected String masterName;
 
@@ -262,7 +274,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED);
+            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED, KIBANA_MOCK_INDEX_DESCRIPTOR);
         }
 
         @Override

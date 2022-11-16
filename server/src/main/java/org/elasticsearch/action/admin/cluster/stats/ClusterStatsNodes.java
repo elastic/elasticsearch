@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.stats.IndexingPressureStats;
@@ -64,7 +65,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
 
-        Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
+        Set<InetAddress> seenAddresses = Sets.newHashSetWithExpectedSize(nodeResponses.size());
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
@@ -514,14 +515,14 @@ public class ClusterStatsNodes implements ToXContentFragment {
          * Total heap used in the cluster
          */
         public ByteSizeValue getHeapUsed() {
-            return new ByteSizeValue(heapUsed);
+            return ByteSizeValue.ofBytes(heapUsed);
         }
 
         /**
          * Maximum total heap available to the cluster
          */
         public ByteSizeValue getHeapMax() {
-            return new ByteSizeValue(heapMax);
+            return ByteSizeValue.ofBytes(heapMax);
         }
 
         static final class Fields {

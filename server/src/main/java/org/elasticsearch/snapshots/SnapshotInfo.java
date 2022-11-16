@@ -502,20 +502,23 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         } else {
             snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
         }
-        final List<String> indices = in.readStringList();
+        final List<String> indices = in.readImmutableStringList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
         final long startTime = in.readVLong();
         final long endTime = in.readVLong();
         final int totalShards = in.readVInt();
         final int successfulShards = in.readVInt();
-        final List<SnapshotShardFailure> shardFailures = in.readList(SnapshotShardFailure::new);
+        final List<SnapshotShardFailure> shardFailures = in.readImmutableList(SnapshotShardFailure::new);
         final Version version = in.readBoolean() ? Version.readVersion(in) : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
         final Map<String, Object> userMetadata = in.readMap();
-        final List<String> dataStreams = in.readStringList();
-        final List<SnapshotFeatureInfo> featureStates = in.readList(SnapshotFeatureInfo::new);
-        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readMap(StreamInput::readString, IndexSnapshotDetails::new);
+        final List<String> dataStreams = in.readImmutableStringList();
+        final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
+        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(
+            StreamInput::readString,
+            IndexSnapshotDetails::new
+        );
         return new SnapshotInfo(
             snapshot,
             indices,
@@ -627,13 +630,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     }
 
     /**
-     * Number of failed shards; a value of {@code 0} will be returned if there were no
-     * failed shards, or if {@link #state()} returns {@code null}.
+     * Number of failed shards.
      *
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards - successfulShards;
+        return shardFailures.size();
     }
 
     /**
@@ -1134,7 +1136,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         public IndexSnapshotDetails(StreamInput in) throws IOException {
             shardCount = in.readVInt();
-            size = new ByteSizeValue(in);
+            size = ByteSizeValue.readFrom(in);
             maxSegmentsPerShard = in.readVInt();
         }
 

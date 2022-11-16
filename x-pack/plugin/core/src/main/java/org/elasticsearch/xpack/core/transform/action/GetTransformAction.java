@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTransformAction extends ActionType<GetTransformAction.Response> {
 
@@ -74,6 +75,11 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                 );
             }
             return exception;
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_transforms[%s]", getResourceId());
         }
 
         @Override

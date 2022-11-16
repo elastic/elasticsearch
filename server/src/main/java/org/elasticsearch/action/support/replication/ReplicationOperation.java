@@ -155,11 +155,12 @@ public class ReplicationOperation<
             @Override
             public void onResponse(Void aVoid) {
                 successfulShards.incrementAndGet();
-                try {
-                    updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint);
-                } finally {
-                    decPendingAndFinishIfNeeded();
-                }
+                updateCheckPoints(
+                    primary.routingEntry(),
+                    primary::localCheckpoint,
+                    primary::globalCheckpoint,
+                    () -> decPendingAndFinishIfNeeded()
+                );
             }
 
             @Override
@@ -221,11 +222,7 @@ public class ReplicationOperation<
             @Override
             public void onResponse(ReplicaResponse response) {
                 successfulShards.incrementAndGet();
-                try {
-                    updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
-                } finally {
-                    decPendingAndFinishIfNeeded();
-                }
+                updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint, () -> decPendingAndFinishIfNeeded());
             }
 
             @Override
@@ -302,16 +299,46 @@ public class ReplicationOperation<
         replicationAction.run();
     }
 
-    private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {
+    private void updateCheckPoints(
+        ShardRouting shard,
+        LongSupplier localCheckpointSupplier,
+        LongSupplier globalCheckpointSupplier,
+        Runnable onCompletion
+    ) {
+        boolean forked = false;
         try {
             primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
             primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
         } catch (final AlreadyClosedException e) {
             // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
         } catch (final Exception e) {
-            // fail the primary but fall through and let the rest of operation processing complete
-            final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
-            primary.failShard(message, e);
+            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e;
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                protected void doRun() {
+                    // fail the primary but fall through and let the rest of operation processing complete
+                    primary.failShard(String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard), e);
+                }
+
+                @Override
+                public void onAfter() {
+                    onCompletion.run();
+                }
+            });
+            forked = true;
+        } finally {
+            if (forked == false) {
+                onCompletion.run();
+            }
         }
     }
 

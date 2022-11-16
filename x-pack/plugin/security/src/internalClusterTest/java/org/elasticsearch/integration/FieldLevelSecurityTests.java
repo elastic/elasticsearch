@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -49,6 +50,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -59,8 +61,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -101,15 +101,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
             PercolatorPlugin.class,
-            DenseVectorPlugin.class,
-            SpatialPlugin.class
+            SpatialPlugin.class,
+            MapperExtrasPlugin.class
         );
-    }
-
-    @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        // a test requires the real SpatialPlugin because it utilizes the shape query
-        return false;
     }
 
     @Override

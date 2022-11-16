@@ -188,6 +188,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 request.allowNoMatch(),
                 tasks,
                 request.isForce(),
+                null,
                 ActionListener.wrap(expandedIds -> {
                     List<String> startedDatafeeds = new ArrayList<>();
                     List<String> stoppingDatafeeds = new ArrayList<>();
@@ -372,37 +373,28 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         for (String datafeedId : notStoppedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask != null) {
-                persistentTasksService.sendRemoveRequest(
-                    datafeedTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                            // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
-                            // If the datafeed was active then it audits itself on being cancelled.
-                            if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
-                                auditDatafeedStopped(datafeedTask);
-                            }
-                            if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {
-                                sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            final int slot = counter.incrementAndGet();
-                            // We validated that the datafeed names supplied in the request existed when we started processing the action.
-                            // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop
-                            // request.
-                            // This is not an error.
-                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                                failures.set(slot - 1, e);
-                            }
-                            if (slot == notStoppedDatafeeds.size()) {
-                                sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                            }
-                        }
+                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(persistentTask -> {
+                    // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
+                    // If the datafeed was active then it audits itself on being cancelled.
+                    if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
+                        auditDatafeedStopped(datafeedTask);
                     }
-                );
+                    if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {
+                        sendResponseOrFailure(request.getDatafeedId(), listener, failures);
+                    }
+                }, e -> {
+                    final int slot = counter.incrementAndGet();
+                    // We validated that the datafeed names supplied in the request existed when we started processing the action.
+                    // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop
+                    // request.
+                    // This is not an error.
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                        failures.set(slot - 1, e);
+                    }
+                    if (slot == notStoppedDatafeeds.size()) {
+                        sendResponseOrFailure(request.getDatafeedId(), listener, failures);
+                    }
+                }));
             } else {
                 // This should not happen, because startedDatafeeds and stoppingDatafeeds
                 // were derived from the same tasks that were passed to this method
@@ -420,6 +412,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         StopDatafeedAction.Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<StopDatafeedAction.Response> listener

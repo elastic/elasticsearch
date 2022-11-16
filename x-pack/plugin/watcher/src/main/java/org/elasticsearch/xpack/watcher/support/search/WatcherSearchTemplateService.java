@@ -73,7 +73,7 @@ public class WatcherSearchTemplateService {
                 XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
-                sourceBuilder.parseXContent(parser);
+                sourceBuilder.parseXContent(parser, true);
                 searchRequest.source(sourceBuilder);
             }
         }

@@ -19,12 +19,12 @@ public class NodeLoadTests extends ESTestCase {
             .incNumAssignedAnomalyDetectorJobs()
             .incNumAssignedDataFrameAnalyticsJobs()
             .incNumAssignedDataFrameAnalyticsJobs()
-            .incNumAssignedNativeInferenceJobs()
-            .incNumAssignedNativeInferenceJobs()
-            .incNumAssignedNativeInferenceJobs()
+            .incNumAssignedNativeInferenceModels()
+            .incNumAssignedNativeInferenceModels()
+            .incNumAssignedNativeInferenceModels()
             .build();
 
-        assertThat(nodeLoad.getNumAssignedJobs(), equalTo(6));
-        assertThat(nodeLoad.remainingJobs(), equalTo(4));
+        assertThat(nodeLoad.getNumAssignedJobsAndModels(), equalTo(6));
+        assertThat(nodeLoad.remainingJobs(), equalTo(7));
     }
 }

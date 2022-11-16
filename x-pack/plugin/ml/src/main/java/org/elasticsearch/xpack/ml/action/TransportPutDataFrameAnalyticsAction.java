@@ -188,7 +188,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
                 ActionListener.wrap(
-                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
+                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
                     listener::onFailure
                 )
             );
@@ -208,7 +208,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
                 ActionListener.wrap(
-                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
                     listener::onFailure
                 )
             );
@@ -238,10 +238,18 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         TimeValue masterNodeTimeout,
         ActionListener<DataFrameAnalyticsConfig> listener
     ) {
+        ActionListener<DataFrameAnalyticsConfig> auditingListener = ActionListener.wrap(finalConfig -> {
+            auditor.info(
+                finalConfig.getId(),
+                Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, finalConfig.getAnalysis().getWriteableName())
+            );
+            listener.onResponse(finalConfig);
+        }, listener::onFailure);
+
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, masterNodeTimeout, listener);
+            configProvider.put(config, headers, masterNodeTimeout, auditingListener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -250,13 +258,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             client,
             clusterState,
             masterNodeTimeout,
-            ActionListener.wrap(unused -> configProvider.put(config, headers, masterNodeTimeout, ActionListener.wrap(indexResponse -> {
-                auditor.info(
-                    config.getId(),
-                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, config.getAnalysis().getWriteableName())
-                );
-                listener.onResponse(config);
-            }, listener::onFailure)), listener::onFailure)
+            ActionListener.wrap(unused -> configProvider.put(config, headers, masterNodeTimeout, auditingListener), listener::onFailure)
         );
     }
 

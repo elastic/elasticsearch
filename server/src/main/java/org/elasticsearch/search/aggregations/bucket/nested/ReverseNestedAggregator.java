@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -47,7 +47,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {
-            parentFilter = Queries.newNonNestedFilter();
+            parentFilter = Queries.newNonNestedFilter(context.getIndexSettings().getIndexVersionCreated());
         } else {
             parentFilter = objectMapper.nestedTypeFilter();
         }
@@ -55,10 +55,10 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
         // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
-        final BitSet parentDocs = parentBitsetProducer.getBitSet(ctx);
+        final BitSet parentDocs = parentBitsetProducer.getBitSet(aggCtx.getLeafReaderContext());
         if (parentDocs == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

@@ -95,6 +95,7 @@ public class AutodetectResultProcessor {
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
+    private volatile boolean vacating;
     private volatile boolean failed;
     private final Map<String, ForecastRequestStats> runningForecasts;
     private final long priorRunsBucketCount;
@@ -233,12 +234,17 @@ public class AutodetectResultProcessor {
 
     public void setProcessKilled() {
         processKilled = true;
+        vacating = false;
         try {
             renormalizer.shutdown();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+    }
+
+    public void setVacating(boolean vacating) {
+        this.vacating = vacating;
     }
 
     void handleOpenForecasts() {
@@ -275,12 +281,14 @@ public class AutodetectResultProcessor {
                 deleteInterimRequired = false;
             }
 
+            if (bucket.isInterim() == false) {
+                timingStatsReporter.reportBucket(bucket);
+                ++currentRunBucketCount;
+            }
             // persist after deleting interim results in case the new
             // results are also interim
-            timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
             bulkAnnotationsPersister.executeRequest();
-            ++currentRunBucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && records.isEmpty() == false) {
@@ -360,7 +368,8 @@ public class AutodetectResultProcessor {
             persister.persistQuantiles(quantiles, this::isAlive);
             bulkResultsPersister.executeRequest();
 
-            if (processKilled == false && renormalizer.isEnabled()) {
+            // If a node is trying to shut down then don't trigger any further normalizations on the node
+            if (vacating == false && processKilled == false && renormalizer.isEnabled()) {
                 // We need to make all results written up to these quantiles available for renormalization
                 persister.commitResultWrites(jobId);
                 LOGGER.debug("[{}] Quantiles queued for renormalization", jobId);
@@ -575,5 +584,11 @@ public class AutodetectResultProcessor {
 
     void setDeleteInterimRequired(boolean deleteInterimRequired) {
         this.deleteInterimRequired = deleteInterimRequired;
+    }
+
+    // For testing only.
+    // Reading currentRunBucketCount is not thread safe
+    long getCurrentRunBucketCount() {
+        return currentRunBucketCount;
     }
 }

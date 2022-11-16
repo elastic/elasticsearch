@@ -9,12 +9,22 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 public class GeoShapeIT extends GeoShapeIntegTestCase {
+
+    @SuppressWarnings("deprecation")
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
+    }
 
     @Override
     protected void getGeoShapeMapping(XContentBuilder b) throws IOException {

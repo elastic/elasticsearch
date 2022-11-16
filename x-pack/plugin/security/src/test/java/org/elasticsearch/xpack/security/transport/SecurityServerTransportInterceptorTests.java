@@ -111,7 +111,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            )
+            ),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -160,7 +161,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            )
+            ),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -202,7 +204,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            )
+            ),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -262,7 +265,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            )
+            ),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -293,10 +297,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
-        assertEquals(authentication.getUser(), sendingUser.get());
-        assertEquals(authentication.getUser(), securityContext.getUser());
-        assertEquals(Version.CURRENT, authRef.get().getVersion());
-        assertEquals(Version.CURRENT, authentication.getVersion());
+        assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
+        assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
+        assertEquals(Version.CURRENT, authRef.get().getEffectiveSubject().getVersion());
+        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getVersion());
     }
 
     public void testSendToOlderVersionSetsCorrectVersion() throws Exception {
@@ -328,7 +332,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            )
+            ),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -359,10 +364,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
-        assertEquals(authentication.getUser(), sendingUser.get());
-        assertEquals(authentication.getUser(), securityContext.getUser());
-        assertEquals(connectionVersion, authRef.get().getVersion());
-        assertEquals(Version.CURRENT, authentication.getVersion());
+        assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
+        assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
+        assertEquals(connectionVersion, authRef.get().getEffectiveSubject().getVersion());
+        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getVersion());
     }
 
     public void testSetUserBasedOnActionOrigin() {
@@ -390,7 +395,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            )
+            ),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -420,8 +426,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(calledWrappedSender.get(), is(true));
         final Authentication authentication = authenticationRef.get();
         assertThat(authentication, notNullValue());
-        assertThat(authentication.getUser(), equalTo(originToUserMap.get(origin)));
-        assertThat(authentication.getVersion(), equalTo(connectionVersion));
+        assertThat(authentication.getEffectiveSubject().getUser(), equalTo(originToUserMap.get(origin)));
+        assertThat(authentication.getEffectiveSubject().getVersion(), equalTo(connectionVersion));
     }
 
     public void testContextRestoreResponseHandler() throws Exception {

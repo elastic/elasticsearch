@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -55,11 +54,6 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         this.request = request;
         this.listener = listener;
         this.clock = clock;
-    }
-
-    @Override
-    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "never called";
     }
 
     private LicensesMetadata execute(
@@ -115,18 +109,21 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
     static class Executor implements ClusterStateTaskExecutor<StartTrialClusterTask> {
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<StartTrialClusterTask>> taskContexts) throws Exception {
-            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-            final LicensesMetadata originalLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
+        public ClusterState execute(BatchExecutionContext<StartTrialClusterTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            XPackPlugin.checkReadyForXPackCustomMetadata(initialState);
+            final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
-            for (final var taskContext : taskContexts) {
-                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, currentState.nodes(), taskContext);
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                }
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {
-                return currentState;
+                return initialState;
             } else {
-                return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
+                return ClusterState.builder(initialState)
+                    .metadata(Metadata.builder(initialState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
                     .build();
             }
         }

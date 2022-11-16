@@ -782,20 +782,26 @@ public class RBACEngine implements AuthorizationEngine {
             }
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
-        }, name -> {
-            final IndexAbstraction indexAbstraction = lookup.get(name);
-            if (indexAbstraction == null) {
-                return predicate.test(name);
-            }
-            // We check the parent data stream first if there is one. For testing requested indices, this is most likely
-            // more efficient than checking the index name first because we recommend grant privileges over data stream
-            // instead of backing indices.
-            if (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream())) {
-                return true;
-            } else {
-                return predicate.test(indexAbstraction);
-            }
-        });
+        }, name -> isExplicitNameAuthorized(name, lookup, predicate));
+    }
+
+    private static boolean isExplicitNameAuthorized(
+        String name,
+        Map<String, IndexAbstraction> lookup,
+        IndicesPermission.IndexMatcherPredicate predicate
+    ) {
+        final IndexAbstraction indexAbstraction = lookup.get(name);
+        if (indexAbstraction == null) {
+            return predicate.test(name);
+        }
+        // We check the parent data stream first if there is one. For testing requested indices, this is most likely
+        // more efficient than checking the index name first because we recommend grant privileges over data stream
+        // instead of backing indices.
+        if (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream())) {
+            return true;
+        } else {
+            return predicate.test(indexAbstraction);
+        }
     }
 
     private IndexAuthorizationResult buildIndicesAccessControl(

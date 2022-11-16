@@ -239,6 +239,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -745,6 +746,9 @@ public class Security extends Plugin
         );
         components.add(apiKeyService);
 
+        final CrossClusterService crossClusterService = new CrossClusterService(apiKeyService);
+        components.add(crossClusterService);
+
         final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
             settings,
             threadPool,
@@ -787,6 +791,7 @@ public class Security extends Plugin
             getLicenseState(),
             fieldPermissionsCache,
             apiKeyService,
+            crossClusterService,
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,

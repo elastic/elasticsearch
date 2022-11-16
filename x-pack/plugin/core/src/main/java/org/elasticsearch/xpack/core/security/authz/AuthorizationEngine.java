@@ -235,6 +235,12 @@ public interface AuthorizationEngine {
      */
     void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener);
 
+    void getRemoteClusterPrivileges(
+        String remoteClusterAlias,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<RoleDescriptorsIntersection> listener
+    );
+
     /**
      * Interface for objects that contains the information needed to authorize a request
      */

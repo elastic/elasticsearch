@@ -138,6 +138,7 @@ import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverFiel
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
@@ -2907,6 +2908,15 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
                 throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void getRemoteClusterPrivileges(
+                String remoteClusterAlias,
+                AuthorizationInfo authorizationInfo,
+                ActionListener<RoleDescriptorsIntersection> listener
+            ) {
+                listener.onFailure(new UnsupportedOperationException("not implemented"));
             }
         };
 

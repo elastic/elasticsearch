@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDescriptorsList) implements ToXContentObject, Writeable {
+    public static final RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Set.of());
 
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
         this(in.readImmutableList(inner -> inner.readSet(RoleDescriptor::new)));

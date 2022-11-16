@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
@@ -456,6 +457,15 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
 
                 @Override
                 public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+                    listener.onFailure(new UnsupportedOperationException("not implemented"));
+                }
+
+                @Override
+                public void getRemoteClusterPrivileges(
+                    String remoteClusterAlias,
+                    AuthorizationInfo authorizationInfo,
+                    ActionListener<RoleDescriptorsIntersection> listener
+                ) {
                     listener.onFailure(new UnsupportedOperationException("not implemented"));
                 }
             };

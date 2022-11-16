@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -200,6 +201,21 @@ public class AuthorizationService {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
         // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
         authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
+    }
+
+    public void retrieveRemoteAccessRoleDescriptorsIntersection(
+        String remoteClusterAlias,
+        Subject subject,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<RoleDescriptorsIntersection> listener
+    ) {
+        final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
+        // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
+        authorizationEngine.getRemoteClusterPrivileges(
+            remoteClusterAlias,
+            authorizationInfo,
+            wrapPreservingContext(listener, threadContext)
+        );
     }
 
     /**

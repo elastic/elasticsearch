@@ -76,14 +76,14 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         result.task(":resolveArtifacts").outcome == TaskOutcome.SUCCESS
 
         when:
-        result = gradleRunner("resolveArtifacts", "-Ddra.artifacts=true").buildAndFail()
+        result = gradleRunner("resolveArtifacts", "-Ddra.artifacts=true", "-Ddra.workflow=SNAPSHOT").buildAndFail()
 
         then:
         result.task(":resolveArtifacts").outcome == TaskOutcome.FAILED
         result.output.contains("Cannot resolve external dependency org.acme:ml-cpp:8.6.0-SNAPSHOT because no repositories are defined.")
     }
 
-    def "configures repositories to resolve #draKey like dra #artifactType artifacts"() {
+    def "configures repositories to resolve #draKey like dra #workflow artifacts"() {
         setup:
         repository.generateJar("some.group", "bar", "1.0.0")
         repository.generateJar("some.group", "baz", "1.0.0-SNAPSHOT")

@@ -6,7 +6,7 @@ strip_version() {
 }
 
 fetch_build() {
-  curl -sS https://artifacts-$(echo $1 | awk '{print tolower($0)}').elastic.co/$2/latest/$3.json \
+  curl -sS https://artifacts-$1.elastic.co/$2/latest/$3.json \
     | jq -r '.build_id'
 }
 

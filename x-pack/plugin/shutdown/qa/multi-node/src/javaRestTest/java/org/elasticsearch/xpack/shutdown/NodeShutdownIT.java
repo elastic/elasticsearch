@@ -122,7 +122,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         String[] readinessAddresses = readinessPorts.split(",");
         String readinessAddress = readinessAddresses[nodeIndex];
 
-        String portStr = readinessAddress.split(":")[1];
+        String portStr = readinessAddress.substring(readinessAddress.lastIndexOf(':') + 1);
         Integer port = Integer.parseInt(portStr);
 
         // Once we have the right port, check to see if it's ready, has to be for a properly started cluster

@@ -265,7 +265,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         float minWeightDelta(Balancer balancer, String index) {
-            return theta0 * 1 + theta1 * 1 + theta2 * (float) balancer.writeLoad(index);
+            return theta0 * 1 + theta1 * 1 + theta2 * (float) balancer.getShardWriteLoad(index);
         }
     }
 
@@ -311,6 +311,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardWriteLoad * indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
         }
 
+        private double getShardWriteLoad(String index) {
+            return writeLoadForecaster.getForecastedWriteLoad(metadata.index(index)).orElse(0.0);
+        }
+
         /**
          * Returns an array view on the nodes in the balancer. Nodes should not be removed from this list.
          */
@@ -334,10 +338,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public double avgWriteLoadPerNode() {
             return avgWriteLoadPerNode;
-        }
-
-        public double writeLoad(String index) {
-            return getIndexWriteLoad(writeLoadForecaster, metadata.index(index));
         }
 
         /**

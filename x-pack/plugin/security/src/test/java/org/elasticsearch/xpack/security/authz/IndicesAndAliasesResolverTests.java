@@ -714,10 +714,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("missing", "bar", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[] { "bar" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
+        String[] replacedIndices = new String[] { "missing", "bar" };
+        assertThat(indices, containsInAnyOrder(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
@@ -1084,17 +1082,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
         request.indices("missing");
         request.aliases("alias2");
-        IndexNotFoundException exception = expectThrows(
-            IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal()
-        );
-        assertEquals("no such index [[missing]]", exception.getMessage());
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal();
+        assertThat(indices, containsInAnyOrder("missing", "alias2"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
     }
 
     public void testGetAliasesRequestMissingIndexIgnoreUnavailableAllowNoIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.indicesOptions(IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean()));
-        request.indices("missing");
+        request.indices("missing2");
         request.aliases("alias2");
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)));
     }

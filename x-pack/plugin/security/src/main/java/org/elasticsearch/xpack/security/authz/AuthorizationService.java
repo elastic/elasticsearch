@@ -226,14 +226,19 @@ public class AuthorizationService {
                 wrapPreservingContext(listener, threadContext)
             );
         } else {
-            assert isInternal(subject.getUser()) : "authorization info must be in thread context for all users other than internal users";
-            authorizationEngine.resolveAuthorizationInfo(subject, ActionListener.wrap(resolvedAuthzInfo -> {
-                authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
-                    remoteClusterAlias,
-                    resolvedAuthzInfo,
-                    wrapPreservingContext(listener, threadContext)
-                );
-            }, listener::onFailure));
+            assert isInternal(subject.getUser())
+                : "authorization info must be available in thread context for all users other than internal users";
+            authorizationEngine.resolveAuthorizationInfo(
+                subject,
+                ActionListener.wrap(
+                    resolvedAuthzInfo -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                        remoteClusterAlias,
+                        resolvedAuthzInfo,
+                        wrapPreservingContext(listener, threadContext)
+                    ),
+                    listener::onFailure
+                )
+            );
         }
     }
 

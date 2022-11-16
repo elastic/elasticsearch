@@ -65,8 +65,7 @@ cache, `0b` can be provided.
 `number_of_allocations`::
 (Optional, integer)
 The total number of allocations this model is assigned across {ml} nodes.
-Increasing this value generally increases the throughput.
-Defaults to 1.
+Increasing this value generally increases the throughput. Defaults to 1.
 
 `priority`::
 (Optional, string)

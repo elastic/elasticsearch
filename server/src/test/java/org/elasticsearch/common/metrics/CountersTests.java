@@ -56,4 +56,14 @@ public class CountersTests extends ESTestCase {
         assertThat(mergedCounters.get("foo.baz"), equalTo(2L));
         assertThat(mergedCounters.get("bar.foo"), equalTo(1L));
     }
+
+    public void testPathConflictNestedMapConversion() {
+        Counters counters = new Counters();
+        counters.inc("foo.bar");
+        counters.inc("foo");
+        counters.inc("foo.baz");
+        assertThat(counters.get("foo.bar"), equalTo(1L));
+        assertThat(counters.get("foo"), equalTo(1L));
+        expectThrows(IllegalStateException.class, counters::toNestedMap);
+    }
 }

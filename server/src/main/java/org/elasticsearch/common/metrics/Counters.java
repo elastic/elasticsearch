@@ -19,9 +19,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Simple usage stat counters based on longs. Internally this is a map mapping from String to a CounterMetric.
- * Calling toNestedMap() will create a nested map, where each dot of the key name will nest deeper. This class allows the
- * stats producer to not worry about how the map is actually nested.
+ * Simple usage stat counters based on longs. Internally this is a map mapping from String to a CounterMetric. This class also
+ * provides a helper method that converts the counters to a nested map, using the "." as a splitter. This allows the stats producer to not
+ * worry about how the map is actually nested.
+
+ * IMPORTANT: if the consumer of the metrics will make use of the nested map, it is the responsibility of the producer to provide counters
+ * that will not have conflicts, which means that there will be no counter which is a substring of another counter.
  */
 public class Counters implements Writeable {
 
@@ -36,16 +39,8 @@ public class Counters implements Writeable {
 
     public Counters(String... names) {
         for (String name : names) {
-            set(name);
+            counters.put(name, new CounterMetric());
         }
-    }
-
-    /**
-     * Sets a counter. This ensures that the counter is there, even though it is never incremented.
-     * @param name Name of the counter
-     */
-    public void set(String name) {
-        counters.put(name, new CounterMetric());
     }
 
     /**
@@ -81,35 +76,43 @@ public class Counters implements Writeable {
     }
 
     /**
-     * Convert the counters to a nested map, using the "." as a splitter to create deeper maps
+     * Convert the counters to a nested map, using the "." as a splitter to create a nested map. For example, the counters `foo.bar`: 2,
+     * `foo.baz`: 1, `foobar`: 5 would become:
+     * {
+     *     "foo": {
+     *         "bar": 2,
+     *         "baz": 1
+     *     },
+     *     "foobar": 5
+     * }
      * @return A nested map with all the current configured counters
+     * @throws IllegalStateException if there is a conflict in a path of two counters for example `foo`: 1 and `foo.bar`: 1.
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> toNestedMap() {
-        Map<String, Object> map = new HashMap<>();
+        Map<String, Object> root = new HashMap<>();
         for (var counter : counters.entrySet()) {
-            if (counter.getKey().contains(".")) {
-                String[] parts = counter.getKey().split("\\.");
-                Map<String, Object> curr = map;
-                for (int i = 0; i < parts.length; i++) {
-                    String part = parts[i];
-                    boolean isLast = i == parts.length - 1;
-                    if (isLast == false) {
-                        if (curr.containsKey(part) == false) {
-                            curr.put(part, new HashMap<String, Object>());
-                            curr = (Map<String, Object>) curr.get(part);
-                        } else {
-                            curr = (Map<String, Object>) curr.get(part);
-                        }
-                    } else {
-                        curr.put(part, counter.getValue().count());
-                    }
+            Map<String, Object> currentLevel = root;
+            String[] parts = counter.getKey().split("\\.");
+            for (int i = 0; i < parts.length - 1; i++) {
+                if (currentLevel.get(parts[i]) == null || currentLevel.get(parts[i]) instanceof Map) {
+                    currentLevel = (Map<String, Object>) currentLevel.computeIfAbsent(parts[i], k -> new HashMap<String, Object>());
+                } else {
+                    throw new IllegalStateException(
+                        "Failed to convert counter '" + counter.getKey() + "' because '" + parts[i] + "' is already a leaf."
+                    );
                 }
+            }
+            String leaf = parts[parts.length - 1];
+            if (currentLevel.containsKey(leaf)) {
+                throw new IllegalStateException(
+                    "Failed to convert counter '" + counter.getKey() + "' because this is the path of another metric."
+                );
             } else {
-                map.put(counter.getKey(), counter.getValue().count());
+                currentLevel.put(parts[parts.length - 1], counter.getValue().count());
             }
         }
-        return map;
+        return root;
     }
 
     @Override

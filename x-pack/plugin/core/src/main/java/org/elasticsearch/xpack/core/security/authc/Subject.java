@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -26,7 +27,9 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_FC_API_KEY_ID_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_QC_PRINCIPAL_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ROLE_DESCRIPTORS_INTERSECTION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
@@ -69,7 +72,7 @@ public class Subject {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
         } else if (AuthenticationField.CROSS_CLUSTER_REALM_TYPE.equals(realm.getType())) {
-            assert AuthenticationField.CROSS_CLUSTER_REALM_NAME.equals(realm.getName()) : "api key realm name mismatch";
+            assert AuthenticationField.CROSS_CLUSTER_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
             this.type = Type.CROSS_CLUSTER;
         } else {
             this.type = Type.USER;
@@ -232,15 +235,22 @@ public class Subject {
         if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             return null;
         }
-        final String fcPrincipal = user.principal();
-        final BytesReference qcRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_ROLE_DESCRIPTORS_KEY);
-        if (isEmptyRoleDescriptorsBytes(qcRoleDescriptorsBytes)) {
+        final String qcPrincipal = (String) metadata.get(CROSS_CLUSTER_QC_PRINCIPAL_KEY);
+        if (Strings.isEmpty(qcPrincipal)) {
+            throw new ElasticsearchSecurityException("no QC principal found for Cross Cluster");
+        }
+        final String fcApiKeyId = (String) metadata.get(CROSS_CLUSTER_FC_API_KEY_ID_KEY);
+        if (Strings.isEmpty(fcApiKeyId)) {
+            throw new ElasticsearchSecurityException("no FC API Key Id found for Cross Cluster");
+        }
+        final BytesReference combinedRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_ROLE_DESCRIPTORS_INTERSECTION_KEY);
+        if (isEmptyRoleDescriptorsBytes(combinedRoleDescriptorsBytes)) {
             throw new ElasticsearchSecurityException("no role descriptors found for Cross Cluster");
         }
         final RoleReference.CrossClusterRoleReference roleDescriptorsReference = new RoleReference.CrossClusterRoleReference(
-            fcPrincipal,
-            fcPrincipal,
-            qcRoleDescriptorsBytes
+            qcPrincipal,
+            fcApiKeyId,
+            combinedRoleDescriptorsBytes
         );
         return new RoleReferenceIntersection(roleDescriptorsReference);
     }

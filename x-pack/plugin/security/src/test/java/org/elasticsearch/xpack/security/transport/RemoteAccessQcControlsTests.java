@@ -20,7 +20,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteAccessAuthenticationTests extends ESTestCase {
+public class RemoteAccessQcControlsTests extends ESTestCase {
 
     public void testEncodeDecodeRoundtrip() throws IOException {
         final Set<RoleDescriptor> expectedRoleDescriptors = Set.of(
@@ -30,13 +30,13 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         );
         final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
 
-        final RemoteAccessAuthentication decoded = RemoteAccessAuthentication.decode(
-            RemoteAccessAuthentication.encode(expectedAuthentication, new RoleDescriptorsIntersection(List.of(expectedRoleDescriptors)))
+        final RemoteAccessQcControls decoded = RemoteAccessQcControls.decode(
+            RemoteAccessQcControls.encode(expectedAuthentication, new RoleDescriptorsIntersection(List.of(expectedRoleDescriptors)))
         );
 
         assertThat(decoded.authentication(), equalTo(expectedAuthentication));
         assertThat(
-            RemoteAccessAuthentication.parseRoleDescriptorBytes(decoded.roleDescriptorsBytesIntersection().iterator().next()),
+            RemoteAccessQcControls.parseRoleDescriptorsBytes(decoded.roleDescriptorsBytesIntersection().iterator().next()),
             equalTo(expectedRoleDescriptors)
         );
     }

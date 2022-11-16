@@ -180,18 +180,18 @@ public interface RoleReference {
     }
 
     /**
-     * Referencing Cross Cluster role descriptors. It is a list of 1-2 QC role descriptors and 2 FC role descriptors (3-4 total).
+     * Referencing Cross Cluster role descriptors. It is a list of 1-2 QC role descriptor sets and 2 FC role descriptor sets; 3-4 total.
      */
     final class CrossClusterRoleReference implements RoleReference {
 
-        private final String qcId;
-        private final String fcId;
+        private final String qcPrincipal;
+        private final String fcApiKeyId;
         private final BytesReference roleDescriptorsBytes;
         private RoleKey cacheKey = null;
 
-        public CrossClusterRoleReference(final String qcId, final String fcId, final BytesReference roleDescriptorsBytes) {
-            this.qcId = qcId;
-            this.fcId = fcId;
+        public CrossClusterRoleReference(final String qcPrincipal, final String fcApiKeyId, final BytesReference roleDescriptorsBytes) {
+            this.qcPrincipal = qcPrincipal;
+            this.fcApiKeyId = fcApiKeyId;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
         }
 
@@ -212,12 +212,12 @@ public interface RoleReference {
             resolver.resolveCrossClusterRoleReference(this, listener);
         }
 
-        public String getQcId() {
-            return this.qcId;
+        public String getQcPrincipal() {
+            return this.qcPrincipal;
         }
 
-        public String getFcId() {
-            return this.fcId;
+        public String getFcApiKeyId() {
+            return this.fcApiKeyId;
         }
 
         public BytesReference getRoleDescriptorsBytes() {

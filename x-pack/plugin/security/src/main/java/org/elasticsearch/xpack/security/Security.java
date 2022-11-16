@@ -852,6 +852,7 @@ public class Security extends Plugin
                 anonymousUser,
                 tokenService,
                 apiKeyService,
+                crossClusterService,
                 serviceAccountService,
                 operatorPrivilegesService
             )

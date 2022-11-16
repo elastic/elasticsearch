@@ -65,6 +65,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     private OAuth2TokenAuthenticator oAuth2TokenAuthenticator;
     private ApiKeyAuthenticator apiKeyAuthenticator;
     private RealmsAuthenticator realmsAuthenticator;
+    private CrossClusterAuthenticator crossClusterAuthenticator;
     private Authentication authentication;
     private User fallbackUser;
     private AuthenticatorChain authenticatorChain;
@@ -88,10 +89,12 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
+        crossClusterAuthenticator = mock(CrossClusterAuthenticator.class);
         when(serviceAccountAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
         when(oAuth2TokenAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
         when(apiKeyAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
         when(realmsAuthenticator.canBeFollowedByNullTokenHandler()).thenCallRealMethod();
+        when(crossClusterAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
@@ -105,7 +108,8 @@ public class AuthenticatorChainTests extends ESTestCase {
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
-            realmsAuthenticator
+            realmsAuthenticator,
+            crossClusterAuthenticator
         );
     }
 

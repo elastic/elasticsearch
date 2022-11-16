@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.transport.RemoteAccessQcControls;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -141,7 +142,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.CrossClusterRoleReference crossClusterRoleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        final List<RoleDescriptor> roleDescriptors = crossClusterService.parseRoleDescriptorsBytes(
+        final Set<RoleDescriptor> roleDescriptors = RemoteAccessQcControls.parseRoleDescriptorsBytes(
             crossClusterRoleReference.getRoleDescriptorsBytes()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();

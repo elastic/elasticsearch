@@ -10,24 +10,18 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.transport.RemoteAccessQcControls;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 public class CrossClusterService {
-    private static final Logger LOGGER = LogManager.getLogger(CrossClusterService.class);
+    private static final Logger logger = LogManager.getLogger(CrossClusterService.class);
 
     private final ApiKeyService apiKeyService;
 
@@ -35,29 +29,73 @@ public class CrossClusterService {
         this.apiKeyService = apiKeyService;
     }
 
-    void validateCrossClusterCredentials(
-        ThreadContext ctx,
-        ApiKeyService.ApiKeyCredentials fcApiKeyCredentials,
-        ActionListener<AuthenticationResult<User>> listener
-    ) {
-        this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, fcApiKeyCredentials, listener);
+    CrossClusterCredentials getCredentialsFromHeader(ThreadContext threadContext) {
+        // Header _remote_access_authentication
+        final RemoteAccessQcControls remoteAccessQcControls; // Successful QC Authentication and Authorization details
+        try {
+            remoteAccessQcControls = RemoteAccessQcControls.readFromContext(threadContext);
+            if (remoteAccessQcControls == null) {
+                logger.info("Remote access authentication header is absent");
+                return null;
+            }
+            logger.info("Remote access authentication present [{}]", remoteAccessQcControls);
+        } catch (IOException ex) {
+            logger.error("Remote access authentication parse failed", ex);
+            return null;
+        }
+        final String qcPrincipal = remoteAccessQcControls.authentication().getEffectiveSubject().getUser().principal();
+        // TODO Header _remote_access_cluster_credential
+        final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials = new ApiKeyService.ApiKeyCredentials(
+            new String(""),
+            new SecureString(new char[] {})
+        );
+        // Combine
+        return new CrossClusterCredentials(qcPrincipal, fcApiKeyCredentials);
     }
 
-    public List<RoleDescriptor> parseRoleDescriptorsBytes(BytesReference bytesReference) {
-        if (bytesReference == null) {
-            return Collections.emptyList();
+    void tryAuthenticate(
+        ThreadContext ctx,
+        CrossClusterCredentials crossClusterCredentials,
+        ActionListener<AuthenticationResult<User>> listener
+    ) {
+        this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, crossClusterCredentials.getApiKeyCredentials(), listener);
+    }
+
+    public static final class CrossClusterCredentials implements AuthenticationToken, Closeable {
+        private final String qcPrincipal;
+        private final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials;
+
+        public CrossClusterCredentials(String qcPrincipal, ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
+            this.qcPrincipal = qcPrincipal;
+            this.fcApiKeyCredentials = fcApiKeyCredentials;
         }
-        final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, bytesReference, XContentType.JSON)) {
-            parser.nextToken(); // skip outer start object
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                parser.nextToken(); // role name
-                String roleName = parser.currentName();
-                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+
+        String getQcPrincipal() {
+            return this.qcPrincipal;
         }
-        return roleDescriptors;
+
+        ApiKeyService.ApiKeyCredentials getApiKeyCredentials() {
+            return this.fcApiKeyCredentials;
+        }
+
+        @Override
+        public void clearCredentials() {
+            close();
+        }
+
+        @Override
+        public void close() {
+            this.fcApiKeyCredentials.close();
+        }
+
+        @Override
+        public String principal() {
+            return this.qcPrincipal;
+        }
+
+        @Override
+        public Object credentials() {
+            return this.fcApiKeyCredentials;
+        }
     }
 }

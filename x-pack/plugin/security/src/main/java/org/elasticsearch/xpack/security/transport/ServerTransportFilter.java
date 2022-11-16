@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
-import java.io.IOException;
-
 /**
  * The server transport filter that should be used in nodes as it ensures that an incoming
  * request is properly authenticated and authorized
@@ -102,14 +100,15 @@ final class ServerTransportFilter {
             }
         }
 
-        // Just for demonstration
-        if (threadContext.getHeader(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER) != null) {
-            try {
-                logger.info("Received remote access authentication [{}]", RemoteAccessAuthentication.readFromContext(threadContext));
-            } catch (IOException ex) {
-                logger.error("Expected remote access authentication", ex);
-            }
-        }
+        // TODO Remove this, move to AuthenticationService?
+        // // Just for demonstration
+        // if (threadContext.getHeader(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER) != null) {
+        // try {
+        // logger.info("Received remote access authentication [{}]", RemoteAccessAuthentication.readFromContext(threadContext));
+        // } catch (IOException ex) {
+        // logger.error("Expected remote access authentication", ex);
+        // }
+        // }
 
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {

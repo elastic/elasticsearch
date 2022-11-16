@@ -71,7 +71,6 @@ Defaults to 1.
 `priority`::
 (Optional, string)
 The priority of the deployment. The default value is `normal`.
-
 There are two priority settings:
 +
 --

@@ -334,7 +334,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     );
                 }
             }
-        });
+        }, 20, TimeUnit.SECONDS);
 
         verifyUpdatedDatabase();
 

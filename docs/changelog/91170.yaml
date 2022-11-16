@@ -1,5 +1,0 @@
-pr: 91170
-summary: Ensure `TermsEnum` action works correctly with API keys
-area: Authorization
-type: bug
-issues: []

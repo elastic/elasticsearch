@@ -30,6 +30,7 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
     protected RollupShardStatus createTestInstance() {
         RollupShardStatus rollupShardStatus = new RollupShardStatus(
             new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(5)),
+            randomMillisUpToYear9999(),
             new AtomicLong(randomNonNegativeLong()),
             new AtomicLong(randomNonNegativeLong()),
             new AtomicLong(randomNonNegativeLong()),

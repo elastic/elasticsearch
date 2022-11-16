@@ -17,9 +17,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class RollupShardTask extends CancellableTask {
-    private String rollupIndex;
-    private DownsampleConfig config;
-    private final RollupShardStatus status;
+    private final String rollupIndex;
+    private final DownsampleConfig config;
+    private final ShardId shardId;
+    private final long rollupStartTime;
     private final AtomicLong numReceived = new AtomicLong(0);
     private final AtomicLong numSent = new AtomicLong(0);
     private final AtomicLong numIndexed = new AtomicLong(0);
@@ -38,7 +39,8 @@ public class RollupShardTask extends CancellableTask {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
         this.config = config;
-        this.status = new RollupShardStatus(shardId, numReceived, numSent, numIndexed, numFailed);
+        this.shardId = shardId;
+        this.rollupStartTime = System.currentTimeMillis();
     }
 
     public String getRollupIndex() {
@@ -51,7 +53,7 @@ public class RollupShardTask extends CancellableTask {
 
     @Override
     public Status getStatus() {
-        return status;
+        return new RollupShardStatus(shardId, rollupStartTime, numReceived, numSent, numIndexed, numFailed);
     }
 
     public AtomicLong getNumReceived() {

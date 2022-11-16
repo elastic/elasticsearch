@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
@@ -180,7 +182,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         private final RollupIndexerAction.Request request;
         private final ActionListener<RollupIndexerAction.Response> listener;
         private final Task task;
-        private boolean hasCancelled = false;
+        private volatile boolean hasCancelled = false;
 
         protected Async(Task task, RollupIndexerAction.Request request, ActionListener<RollupIndexerAction.Response> listener) {
             super(task, request, listener);
@@ -203,7 +205,8 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         protected void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
             // when this shard operation failed, cancel other shard operations
             cancelOtherShardIndexers();
-            super.onOperation(shard, shardIt, shardIndex, e);
+            // to avoid retry, set the shardIt to the last shard
+            super.onOperation(shard, new PlainShardIterator(shard.shardId(), Collections.emptyList()), shardIndex, e);
         }
 
         private void cancelOtherShardIndexers() {
@@ -212,6 +215,14 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
                     task,
                     new CancelTasksRequest().setTargetParentTaskId(new TaskId(clusterService.localNode().getId(), task.getId())),
                     ActionListener.wrap(r -> {
+                        if (r.getNodeFailures().size() > 0 || r.getTaskFailures().size() > 0) {
+                            logger.info(
+                                "[{}] rollup cancel other shard indexers response failed, response is {}",
+                                request.getRollupRequest().getSourceIndex(),
+                                r
+                            );
+                            return;
+                        }
                         logger.info("[{}] rollup cancel other shard indexers", request.getRollupRequest().getSourceIndex());
                         hasCancelled = true;
                     },

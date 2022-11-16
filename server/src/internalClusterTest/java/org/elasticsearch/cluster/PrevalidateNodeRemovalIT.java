@@ -189,7 +189,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             .build()
             .timeout(TimeValue.timeValueSeconds(1));
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
-        assertTrue(resp.getPrevalidation().isSafe());
+        assertFalse("prevalidation result should return false", resp.getPrevalidation().isSafe());
         String node2Id = internalCluster().clusterService(node2).localNode().getId();
         assertThat(
             resp.getPrevalidation().message(),

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -156,6 +157,60 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testBalanceByDiskUsage() {
 
+        var discoveryNodes = DiscoveryNodes.builder()
+            .add(createNode("node-1"))
+            .add(createNode("node-2"))
+            .build();
+
+        var metadata = Metadata.builder()
+            .put(IndexMetadata.builder("index-1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).shardSizeInBytesForecast(ByteSizeValue.ofGb(1L).getBytes()))
+            .put(IndexMetadata.builder("index-2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).shardSizeInBytesForecast(ByteSizeValue.ofGb(2L).getBytes()))
+            .put(IndexMetadata.builder("index-3").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).shardSizeInBytesForecast(ByteSizeValue.ofGb(3L).getBytes()))
+            .build();
+
+        var routingTable = RoutingTable.builder()
+            .addAsNew(metadata.index("index-1"))
+            .addAsNew(metadata.index("index-2"))
+            .addAsNew(metadata.index("index-3"))
+            .build();
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+//        var shardSizes = Map.of(
+//            ClusterInfo.shardIdentifierFromRouting(routingTable.index("index-1").shard(0).primaryShard()), ByteSizeValue.ofGb(1L).getBytes(),
+//            ClusterInfo.shardIdentifierFromRouting(routingTable.index("index-2").shard(0).primaryShard()), ByteSizeValue.ofGb(2L).getBytes(),
+//            ClusterInfo.shardIdentifierFromRouting(routingTable.index("index-3").shard(0).primaryShard()), ByteSizeValue.ofGb(3L).getBytes()
+//        );
+
+        var settings = Settings.builder().put("cluster.routing.allocation.balance.disk_usage", "1").build();
+        var allocator = new BalancedShardsAllocator(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            WriteLoadForecaster.DEFAULT,
+            EmptyClusterInfoService.INSTANCE
+        );
+
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            RoutingNodes.mutable(clusterState.routingTable(), clusterState.nodes()),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+        allocator.allocate(allocation);
+
+        for (RoutingNode routingNode : allocation.routingNodes()) {
+            var nodeDiskUsage = 0L;
+            for (ShardRouting shardRouting : routingNode) {
+                nodeDiskUsage += metadata.index(shardRouting.index()).getForecastedShardSizeInBytes().orElse(0L);
+            }
+            assertThat(nodeDiskUsage, equalTo(ByteSizeValue.ofGb(3L).getBytes()));
+        }
     }
 
     /**

@@ -383,6 +383,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         return new DataStream(
             name,
             backingIndices,
+            backingIndices.get(backingIndices.size() - 1),
             backingIndices.size(),
             Collections.emptyMap(),
             false,

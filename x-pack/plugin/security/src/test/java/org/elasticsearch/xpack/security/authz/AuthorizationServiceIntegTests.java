@@ -73,7 +73,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         );
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
-        // This is set during authentication; since we are not authenticating set it explicitly as it's required for the `authorize`
+        // This is set during authentication; since we are not authenticating, set it explicitly as it's required for the `authorize`
         // call below
         AuditUtil.generateRequestId(threadContext);
         // Authorize to populate thread context with authz info

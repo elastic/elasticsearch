@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -1635,32 +1636,39 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
     }
 
-    public void testGetRemoteAccessRoleDescriptorsIntersection() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
-
-        final String concreteClusterAlias = randomAlphaOfLength(10);
-        final String[] indexNames = generateRandomStringArray(3, 10, false, false);
-        final String[] roleNames = generateRandomStringArray(3, 10, false, false);
-        final boolean allowRestrictedIndices = randomBoolean();
+    private Role mockRoleWithRemoteIndices(RemoteIndicesPermission remoteIndicesPermission) {
         final Role role = mock(Role.class);
-        when(authorizationInfo.getRole()).thenReturn(role);
+        final String[] roleNames = generateRandomStringArray(3, 10, false, false);
         when(role.names()).thenReturn(roleNames);
         when(role.cluster()).thenReturn(ClusterPermission.NONE);
         when(role.indices()).thenReturn(IndicesPermission.NONE);
         when(role.application()).thenReturn(ApplicationPermission.NONE);
         when(role.runAs()).thenReturn(RunAsPermission.NONE);
-        final RemoteIndicesPermission remoteIndicesPermission = RemoteIndicesPermission.builder()
-            .addGroup(
-                Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
-                IndexPrivilege.READ,
-                new FieldPermissions(new FieldPermissionsDefinition(null, null)),
-                null,
-                allowRestrictedIndices,
-                indexNames
-            )
-            .build();
         when(role.remoteIndices()).thenReturn(remoteIndicesPermission);
+        return role;
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersection() throws ExecutionException, InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+
+        final String[] indexNames = generateRandomStringArray(3, 10, false, false);
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final boolean allowRestrictedIndices = randomBoolean();
+        final BytesReference query = randomBoolean() ? null : new BytesArray("{ \"match_all\": {} }");
+        final Role role = mockRoleWithRemoteIndices(
+            RemoteIndicesPermission.builder()
+                .addGroup(
+                    Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                    IndexPrivilege.READ,
+                    new FieldPermissions(new FieldPermissionsDefinition(null, null)),
+                    query == null ? null : Set.of(query),
+                    allowRestrictedIndices,
+                    indexNames
+                )
+                .build()
+        );
+        when(authorizationInfo.getRole()).thenReturn(role);
 
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
@@ -1673,12 +1681,13 @@ public class RBACEngineTests extends ESTestCase {
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                Objects.requireNonNull(roleNames)[0],
+                                Objects.requireNonNull(role.names())[0],
                                 null,
                                 new IndicesPrivileges[] {
                                     IndicesPrivileges.builder()
                                         .indices(indexNames)
                                         .privileges("read")
+                                        .query(query)
                                         .allowRestrictedIndices(allowRestrictedIndices)
                                         .build() },
                                 null,

@@ -8,8 +8,9 @@
 
 package org.elasticsearch.painless;
 
-/** Tests floating point overflow cases */
-public class FloatOverflowTests extends ScriptTestCase {
+import java.util.Locale;
+
+public class NumberTests extends ScriptTestCase {
 
     public void testAssignmentAdditionOverflow() {
         // float
@@ -122,5 +123,33 @@ public class FloatOverflowTests extends ScriptTestCase {
         assertTrue(Double.isNaN((Double) exec("double x = 1.0; double y = 0.0; return x % y;")));
         assertTrue(Double.isNaN((Double) exec("return 1.0 % 0.0;")));
         assertTrue(Double.isNaN((Double) exec("double x = 1.0; x %= 0.0; return x;")));
+    }
+
+    public void testHexCollisionDouble() {
+        assertEquals(0xd, exec("return 0xd"));
+        assertEquals(0x0d, exec("return 0x0d"));
+        assertEquals(0x1d, exec("return 0x1d"));
+        assertEquals(0xdd, exec("return 0xdd"));
+
+        assertEquals(1d, exec("return 1d"));
+    }
+
+    public void testHexCollisionFloat() {
+        assertEquals(0xf, exec("return 0xf"));
+        assertEquals(0x0f, exec("return 0x0f"));
+        assertEquals(0x1f, exec("return 0x1f"));
+        assertEquals(0xff, exec("return 0xff"));
+
+        assertEquals(1f, exec("return 1f"));
+    }
+
+    public void testHex() {
+        for (int i = 0; i <= 0xf; i++) {
+            String hex = Integer.toHexString(i);
+            assertEquals(i, exec("return 0x" + hex));
+            assertEquals(i, exec("return 0x" + hex.toUpperCase(Locale.ROOT)));
+            assertEquals(i, exec("return 0X" + hex));
+            assertEquals(i, exec("return 0X" + hex.toUpperCase(Locale.ROOT)));
+        }
     }
 }

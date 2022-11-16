@@ -55,7 +55,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -83,7 +82,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
-import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -1076,73 +1074,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             RepositoryException.class,
             "cannot create snapshot in a readonly repository"
         );
-    }
-
-    public void testThrottling() throws Exception {
-        Client client = client();
-
-        boolean throttleSnapshot = randomBoolean();
-        boolean throttleRestore = randomBoolean();
-        boolean throttleRestoreViaRecoverySettings = throttleRestore && randomBoolean();
-        createRepository(
-            "test-repo",
-            "fs",
-            Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
-                .put("max_restore_bytes_per_sec", throttleRestore && (throttleRestoreViaRecoverySettings == false) ? "10k" : "0")
-                .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "10k" : "0")
-        );
-
-        createIndexWithRandomDocs("test-idx", 100);
-        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
-
-        logger.info("--> delete index");
-        cluster().wipeIndices("test-idx");
-
-        logger.info("--> restore index");
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), throttleRestoreViaRecoverySettings ? "10k" : "0")
-                    .build()
-            )
-            .get();
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-            .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        assertDocCount("test-idx", 100L);
-
-        long snapshotPause = 0L;
-        long restorePause = 0L;
-        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            snapshotPause += repositoriesService.repository("test-repo").getSnapshotThrottleTimeInNanos();
-            restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
-        }
-
-        if (throttleSnapshot) {
-            assertThat(snapshotPause, greaterThan(0L));
-        } else {
-            assertThat(snapshotPause, equalTo(0L));
-        }
-
-        if (throttleRestore) {
-            assertThat(restorePause, greaterThan(0L));
-        } else {
-            assertThat(restorePause, equalTo(0L));
-        }
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
-            .get();
     }
 
     public void testSnapshotStatus() throws Exception {

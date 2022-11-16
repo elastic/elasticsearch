@@ -15,7 +15,7 @@
             #!/usr/local/bin/runbld --redirect-stderr
             ES_VERSION=$(cat build-tools-internal/version.properties \
                   | grep elasticsearch \
-                  | sed "s/elasticsearch *= *//g"
+                  | sed "s/elasticsearch *= *//g")
             BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats master $ES_VERSION)"
             ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp master $ES_VERSION)"
             set -euo pipefail

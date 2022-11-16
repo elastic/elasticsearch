@@ -393,16 +393,18 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-                try (AggregationContext context = createAggregationContext(
-                    indexSearcher,
-                    createIndexSettings(),
-                    new MatchAllDocsQuery(),
-                    breaker,
-                    builder.bytesToPreallocate(),
-                    MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
-                    false,
-                    doubleFields()
-                )) {
+                try (
+                    AggregationContext context = createAggregationContext(
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MatchAllDocsQuery(),
+                        breaker,
+                        builder.bytesToPreallocate(),
+                        MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                        false,
+                        doubleFields()
+                    )
+                ) {
                     Aggregator aggregator = builder.build(context, null).create(null, CardinalityUpperBound.ONE);
                     aggregator.preCollection();
                     assertThat(indexReader.leaves(), hasSize(1));

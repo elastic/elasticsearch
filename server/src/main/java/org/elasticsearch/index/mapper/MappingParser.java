@@ -122,9 +122,7 @@ public final class MappingParser {
                 MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext)
                     .build(MapperBuilderContext.forMetadata());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
-                fieldNodeMap.remove("type");
-                checkNoRemainingFields(fieldName, fieldNodeMap);
-
+                assert fieldNodeMap.isEmpty();
                 if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
                     isSourceSynthetic = sfm.isSynthetic();
                 }

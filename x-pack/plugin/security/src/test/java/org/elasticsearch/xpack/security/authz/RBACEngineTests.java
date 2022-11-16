@@ -1636,7 +1636,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
     }
 
-    private Role mockRoleWithRemoteIndices(RemoteIndicesPermission remoteIndicesPermission) {
+    private Role mockRoleWithRemoteIndices(final RemoteIndicesPermission remoteIndicesPermission) {
         final Role role = mock(Role.class);
         final String[] roleNames = generateRandomStringArray(3, 10, false, false);
         when(role.names()).thenReturn(roleNames);
@@ -1651,7 +1651,6 @@ public class RBACEngineTests extends ESTestCase {
     public void testGetRemoteAccessRoleDescriptorsIntersection() throws ExecutionException, InterruptedException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
-        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
         final String[] indexNames = generateRandomStringArray(3, 10, false, false);
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final boolean allowRestrictedIndices = randomBoolean();
@@ -1664,24 +1663,6 @@ public class RBACEngineTests extends ESTestCase {
         final FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroups = hasFls
             ? new FieldPermissionsDefinition.FieldGrantExcludeGroup(generateRandomStringArray(3, 10, false, false), new String[] {})
             : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null);
-        final Role role = mockRoleWithRemoteIndices(
-            RemoteIndicesPermission.builder()
-                .addGroup(
-                    Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
-                    IndexPrivilege.READ,
-                    new FieldPermissions(new FieldPermissionsDefinition(Set.of(fieldGrantExcludeGroups))),
-                    query == null ? null : Set.of(query),
-                    allowRestrictedIndices,
-                    indexNames
-                )
-                .build()
-        );
-        when(authorizationInfo.getRole()).thenReturn(role);
-
-        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
-        final RoleDescriptorsIntersection actual = future.get();
-
         final IndicesPrivileges.Builder builder = IndicesPrivileges.builder()
             .indices(indexNames)
             .privileges("read")
@@ -1691,6 +1672,25 @@ public class RBACEngineTests extends ESTestCase {
             builder.grantedFields(fieldGrantExcludeGroups.getGrantedFields()).deniedFields(fieldGrantExcludeGroups.getExcludedFields());
         }
         final IndicesPrivileges expectedIndexPrivilege = builder.build();
+        final Role role = mockRoleWithRemoteIndices(
+            RemoteIndicesPermission.builder()
+                .addGroup(
+                    Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                    IndexPrivilege.get(Set.of(expectedIndexPrivilege.getPrivileges())),
+                    new FieldPermissions(new FieldPermissionsDefinition(Set.of(fieldGrantExcludeGroups))),
+                    expectedIndexPrivilege.getQuery() == null ? null : Set.of(expectedIndexPrivilege.getQuery()),
+                    expectedIndexPrivilege.allowRestrictedIndices(),
+                    expectedIndexPrivilege.getIndices()
+                )
+                .build()
+        );
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
+        final RoleDescriptorsIntersection actual = future.get();
+
         assertThat(
             actual,
             equalTo(

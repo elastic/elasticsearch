@@ -44,8 +44,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -3080,46 +3078,44 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
                 indexWriter.addDocument(document);
             }
-            List<Releasable> releasables = new ArrayList<>();
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                try (
                 AggregationContext context = createAggregationContext(
                     indexSearcher,
                     new MatchAllDocsQuery(),
                     keywordField("term-field"),
                     longField("time")
-                );
-                releasables.add(context);
+                )) {
 
-                CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
-                    "composite",
-                    List.of(new TermsValuesSourceBuilder("term").field("term-field"))
-                );
+                    CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
+                        "composite",
+                        List.of(new TermsValuesSourceBuilder("term").field("term-field"))
+                    );
 
-                FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
-                    .subAggregation(compositeBuilder);
-                // should not throw
-                createAggregator(goodParentFilter, context);
+                    FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
+                        .subAggregation(compositeBuilder);
+                    // should not throw
+                    createAggregator(goodParentFilter, context);
 
-                RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
-                    .subAggregation(compositeBuilder);
+                    RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
+                        .subAggregation(compositeBuilder);
 
-                // Should not throw
-                createAggregator(goodParentRandom, context);
+                    // Should not throw
+                    createAggregator(goodParentRandom, context);
 
-                RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
-                    .subAggregation(goodParentFilter);
-                // Should not throw
-                createAggregator(goodParentRandomFilter, context);
+                    RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
+                        .subAggregation(goodParentFilter);
+                    // Should not throw
+                    createAggregator(goodParentRandomFilter, context);
 
-                DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
-                    .field("time")
-                    .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
+                    DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
+                        .field("time")
+                        .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
 
-                expectThrows(IllegalArgumentException.class, () -> createAggregator(badParent, context));
+                    expectThrows(IllegalArgumentException.class, () -> createAggregator(badParent, context));
 
-            } finally {
-                Releasables.close(releasables);
+                }
             }
         }
     }

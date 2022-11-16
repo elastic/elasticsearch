@@ -1272,7 +1272,9 @@ One of the `dfs.knn` sections for a shard looks like the following:
                   "create_weight" : 128879,
                   "shallow_advance" : 0,
                   "create_weight_count" : 1,
-                  "build_scorer" : 307595
+                  "build_scorer" : 307595,
+                  "count_weight": 0,
+                  "count_weight_count": 0
                 }
             }
         ],

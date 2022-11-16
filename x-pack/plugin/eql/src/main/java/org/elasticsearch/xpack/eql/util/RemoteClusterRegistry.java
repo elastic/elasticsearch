@@ -41,7 +41,8 @@ public class RemoteClusterRegistry {
         Set<String> incompatibleClusters = new TreeSet<>();
         for (String clusterAlias : clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
             Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
-            if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
+            // EQL was released as GA in v 7.11.0
+            if (Version.CURRENT.isCompatible(clusterVersion) == false || clusterVersion.before(Version.V_7_11_0)) {
                 incompatibleClusters.add(clusterAlias);
             }
         }

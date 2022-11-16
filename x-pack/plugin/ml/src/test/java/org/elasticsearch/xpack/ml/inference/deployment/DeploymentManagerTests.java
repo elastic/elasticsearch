@@ -78,19 +78,19 @@ public class DeploymentManagerTests extends ESTestCase {
             mock(PyTorchProcessFactory.class)
         );
 
-        PriorityProcessWorkerExecutorService executorService = new PriorityProcessWorkerExecutorService(
+        PriorityProcessWorkerExecutorService priorityExecutorService = new PriorityProcessWorkerExecutorService(
             tp.getThreadContext(),
             "test reject",
             10
         );
-        executorService.shutdown();
+        priorityExecutorService.shutdown();
 
         AtomicInteger rejectedCount = new AtomicInteger();
 
         DeploymentManager.ProcessContext context = mock(DeploymentManager.ProcessContext.class);
         PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
         when(context.getResultProcessor()).thenReturn(resultProcessor);
-        when(context.getExecutorService()).thenReturn(executorService);
+        when(context.getPriorityProcessWorker()).thenReturn(priorityExecutorService);
         when(context.getRejectedExecutionCount()).thenReturn(rejectedCount);
 
         deploymentManager.addProcessContext(taskId, context);

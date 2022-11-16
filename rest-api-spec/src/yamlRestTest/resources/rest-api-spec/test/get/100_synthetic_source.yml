@@ -585,6 +585,45 @@ _source filtering:
   - is_false: fields
 
 ---
+_doc_count:
+  - skip:
+      version: " - 8.5.99"
+      reason: introduced in 8.6.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            _source:
+              mode: synthetic
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          _doc_count: 3
+          foo: bar
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        _doc_count: 3
+        foo: bar
+  - is_false: fields
+
+---
 ip with ignore_malformed:
   - skip:
       version: " - 8.5.99"

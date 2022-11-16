@@ -28,6 +28,8 @@ import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -269,6 +271,58 @@ public class AllocationDecidersTests extends ESTestCase {
         assertEquals(expectedDebugDecision, allocationDeciders.canForceAllocatePrimary(shardRouting, routingNode, allocation));
     }
 
+    public void testGetForcedInitialShardAllocation() {
+        var deciders = new AllocationDeciders(
+            shuffledList(
+                List.of(
+                    new AnyNodeInitialShardAllocationDecider(),
+                    new AnyNodeInitialShardAllocationDecider(),
+                    new AnyNodeInitialShardAllocationDecider()
+                )
+            )
+        );
+
+        assertThat(
+            deciders.getForcedInitialShardAllocationToNodes(createShardRouting(), createRoutingAllocation(deciders)),
+            equalTo(Optional.empty())
+        );
+    }
+
+    public void testGetForcedInitialShardAllocationToFixedNode() {
+        var deciders = new AllocationDeciders(
+            shuffledList(
+                List.of(
+                    new AnyNodeInitialShardAllocationDecider(),
+                    new FixedNodesInitialShardAllocationDecider(Set.of("node-1", "node-2")),
+                    new AnyNodeInitialShardAllocationDecider()
+                )
+            )
+        );
+
+        assertThat(
+            deciders.getForcedInitialShardAllocationToNodes(createShardRouting(), createRoutingAllocation(deciders)),
+            equalTo(Optional.of(Set.of("node-1", "node-2")))
+        );
+    }
+
+    public void testGetForcedInitialShardAllocationToFixedNodeFromMultipleDeciders() {
+        var deciders = new AllocationDeciders(
+            shuffledList(
+                List.of(
+                    new AnyNodeInitialShardAllocationDecider(),
+                    new FixedNodesInitialShardAllocationDecider(Set.of("node-1", "node-2")),
+                    new FixedNodesInitialShardAllocationDecider(Set.of("node-2", "node-3")),
+                    new AnyNodeInitialShardAllocationDecider()
+                )
+            )
+        );
+
+        assertThat(
+            deciders.getForcedInitialShardAllocationToNodes(createShardRouting(), createRoutingAllocation(deciders)),
+            equalTo(Optional.of(Set.of("node-2")))
+        );
+    }
+
     private static ShardRouting createShardRouting(Index index) {
         return ShardRouting.newUnassigned(
             new ShardId(index, 0),
@@ -276,5 +330,30 @@ public class AllocationDecidersTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message")
         );
+    }
+
+    private static ShardRouting createShardRouting() {
+        return createShardRouting(new Index("test", "testUUID"));
+    }
+
+    private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {
+        return new RoutingAllocation(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L);
+    }
+
+    private static final class AnyNodeInitialShardAllocationDecider extends AllocationDecider {
+
+    }
+
+    private static final class FixedNodesInitialShardAllocationDecider extends AllocationDecider {
+        private final Set<String> initialNodeIds;
+
+        private FixedNodesInitialShardAllocationDecider(Set<String> initialNodeIds) {
+            this.initialNodeIds = initialNodeIds;
+        }
+
+        @Override
+        public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+            return Optional.of(initialNodeIds);
+        }
     }
 }

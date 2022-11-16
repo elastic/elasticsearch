@@ -17,7 +17,6 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -114,13 +113,13 @@ public class ScriptClassInfo {
                     defConverter = new FunctionTable.LocalFunction(
                         m.getName(),
                         m.getReturnType(),
-                        Arrays.asList(m.getParameterTypes()),
+                        List.of(m.getParameterTypes()),
                         true,
                         true
                     );
                 } else {
                     converters.add(
-                        new FunctionTable.LocalFunction(m.getName(), m.getReturnType(), Arrays.asList(m.getParameterTypes()), true, true)
+                        new FunctionTable.LocalFunction(m.getName(), m.getReturnType(), List.of(m.getParameterTypes()), true, true)
                     );
                 }
             }
@@ -212,23 +211,7 @@ public class ScriptClassInfo {
     /**
      * Painless {@link Class}es and name of the argument to the {@code execute} method.
      */
-    public static class MethodArgument {
-        private final Class<?> clazz;
-        private final String name;
-
-        public MethodArgument(Class<?> clazz, String name) {
-            this.clazz = clazz;
-            this.name = name;
-        }
-
-        public Class<?> getClazz() {
-            return clazz;
-        }
-
-        public String getName() {
-            return name;
-        }
-    }
+    public record MethodArgument(Class<?> clazz, String name) {}
 
     private MethodArgument methodArgument(PainlessLookup painlessLookup, Class<?> clazz, String argName) {
         Class<?> defClass = definitionTypeForClass(

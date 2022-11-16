@@ -89,7 +89,7 @@ public interface SourceLoader {
         private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
 
         public Synthetic(Mapping mapping) {
-            loader = mapping.getRoot().syntheticFieldLoader();
+            loader = mapping.syntheticFieldLoader();
             storedFieldLoaders = Map.copyOf(loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         }
 

@@ -141,25 +141,30 @@ public class TransportActionProxyTests extends ESTestCase {
         latch.await();
     }
 
-    public void testSendLocalRequest() throws InterruptedException {
+    public void testSendLocalRequest() throws Exception {
         final AtomicReference<SimpleTestResponse> response = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(2);
+
         final boolean cancellable = randomBoolean();
         serviceB.registerRequestHandler(
             "internal:test",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             SimpleTestRequest::new,
             (request, channel, task) -> {
-                assertThat(task instanceof CancellableTask, equalTo(cancellable));
-                assertEquals(request.sourceNode, "TS_A");
-                final SimpleTestResponse responseB = new SimpleTestResponse("TS_B");
-                channel.sendResponse(responseB);
-                response.set(responseB);
+                try {
+                    assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                    assertEquals(request.sourceNode, "TS_A");
+                    final SimpleTestResponse responseB = new SimpleTestResponse("TS_B");
+                    channel.sendResponse(responseB);
+                    response.set(responseB);
+                } finally {
+                    latch.countDown();
+                }
             }
         );
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
-        final CountDownLatch latch = new CountDownLatch(1);
         // Node A -> Proxy Node B (Local execution)
         serviceA.sendRequest(
             nodeB,
@@ -193,7 +198,7 @@ public class TransportActionProxyTests extends ESTestCase {
         latch.await();
 
         assertThat(response.get(), notNullValue());
-        assertThat(response.get().hasReferences(), equalTo(false));
+        assertBusy(() -> assertThat(response.get().hasReferences(), equalTo(false)));
     }
 
     public void testException() throws InterruptedException {

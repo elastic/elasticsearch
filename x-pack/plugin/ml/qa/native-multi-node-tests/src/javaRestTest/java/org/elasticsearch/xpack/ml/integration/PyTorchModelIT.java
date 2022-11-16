@@ -238,14 +238,13 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLiveDeploymentStats() throws IOException {
-        String modelA = "model_a";
-
-        createPassThroughModel(modelA);
-        putVocabulary(List.of("once", "twice"), modelA);
-        putModelDefinition(modelA);
-        startDeployment(modelA, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        String modelId = "live_deployment_stats";
+        createPassThroughModel(modelId);
+        putVocabulary(List.of("once", "twice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
         {
-            Response noInferenceCallsStatsResponse = getTrainedModelStats(modelA);
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
                 "trained_model_stats"
             );
@@ -266,17 +265,17 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             }
         }
 
-        infer("once", modelA);
-        infer("twice", modelA);
+        infer("once", modelId);
+        infer("twice", modelId);
         // By making this request 3 times at least one of the responses must come from the cache because the cluster has 2 ML nodes
-        infer("three times", modelA);
-        infer("three times", modelA);
-        infer("three times", modelA);
+        infer("three times", modelId);
+        infer("three times", modelId);
+        infer("three times", modelId);
         {
-            Response postInferStatsResponse = getTrainedModelStats(modelA);
+            Response postInferStatsResponse = getTrainedModelStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelId));
             assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
             List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
                 "deployment_stats.nodes",
@@ -746,12 +745,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                 }}""");
         client().performRequest(loggingSettings);
 
-        String modelId1 = "model_1";
+        String modelId1 = "stopping_triggers_rebalance_1";
         createPassThroughModel(modelId1);
         putModelDefinition(modelId1);
         putVocabulary(List.of("these", "are", "my", "words"), modelId1);
 
-        String modelId2 = "model_2";
+        String modelId2 = "stopping_triggers_rebalance_2";
         createPassThroughModel(modelId2);
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
@@ -824,12 +823,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                 }}""");
         client().performRequest(loggingSettings);
 
-        String modelId1 = "model_1";
+        String modelId1 = "start_no_processors_left_lazy_start_1";
         createPassThroughModel(modelId1);
         putModelDefinition(modelId1);
         putVocabulary(List.of("these", "are", "my", "words"), modelId1);
 
-        String modelId2 = "model_2";
+        String modelId2 = "start_no_processors_left_lazy_start_2";
         createPassThroughModel(modelId2);
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);

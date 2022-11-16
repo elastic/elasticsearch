@@ -39,6 +39,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -50,9 +51,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -88,43 +92,18 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testBalanceByShardLoad() {
 
-        var discoveryNodes = DiscoveryNodes.builder().add(createNode("node-1")).add(createNode("node-2")).build();
+        var smallIndices = IntStream.range(1, randomIntBetween(2, 5))
+            .mapToObj(i -> IndexMetadata.builder("small-index-" + i))
+            .map(builder -> builder.settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .map(builder -> builder.indexWriteLoadForecast(randomIngestLoad(2.0)));
 
-        var metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index-1")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .indexWriteLoadForecast(1.0)
-            )
-            .put(
-                IndexMetadata.builder("index-2")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .indexWriteLoadForecast(2.0)
-            )
-            .put(
-                IndexMetadata.builder("index-3")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .indexWriteLoadForecast(3.0)
-            )
-            .build();
+        var heavyIndex = IndexMetadata.builder("heavy-index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .indexWriteLoadForecast(8.0);
 
-        var routingTable = RoutingTable.builder()
-            .addAsNew(metadata.index("index-1"))
-            .addAsNew(metadata.index("index-2"))
-            .addAsNew(metadata.index("index-3"))
-            .build();
-
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        var clusterState = stateWithIndices(Stream.concat(smallIndices, Stream.of(heavyIndex)).toList());
 
         WriteLoadForecaster writeLoadForecaster = new WriteLoadForecaster() {
             @Override
@@ -133,10 +112,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
+            @SuppressForbidden(reason = "This is required to test balancing by ingest load")
             public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
                 return indexMetadata.getForecastedWriteLoad();
             }
         };
+
         var allocator = new BalancedShardsAllocator(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -149,15 +130,22 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         for (RoutingNode routingNode : allocation.routingNodes()) {
             var nodeIngestLoad = 0.0;
             for (ShardRouting shardRouting : routingNode) {
-                nodeIngestLoad += writeLoadForecaster.getForecastedWriteLoad(metadata.index(shardRouting.index())).orElse(0.0);
+                nodeIngestLoad += writeLoadForecaster.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
+                    .orElse(0.0);
             }
-            assertThat(nodeIngestLoad, equalTo(3.0));
+            assertThat(nodeIngestLoad, lessThanOrEqualTo(8.0 + 2.0));
         }
     }
 
-    public void testBalanceByDiskUsage() {
+    private Double randomIngestLoad(double max) {
+        return switch (randomInt(3)) {
+            case 0 -> null;
+            case 1 -> 0.0;
+            default -> randomDoubleBetween(1.0, max, true);
+        };
+    }
 
-        var discoveryNodes = DiscoveryNodes.builder().add(createNode("node-1")).add(createNode("node-2")).build();
+    public void testBalanceByDiskUsage() {
 
         var metadata = Metadata.builder()
             .put(
@@ -190,7 +178,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .build();
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
+            .nodes(DiscoveryNodes.builder().add(createNode("node-1")).add(createNode("node-2")))
             .metadata(metadata)
             .routingTable(routingTable)
             .build();
@@ -283,7 +271,24 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
     }
 
-    private DiscoveryNode createNode(String nodeId) {
+    private static ClusterState stateWithIndices(List<IndexMetadata.Builder> indices) {
+
+        var metadataBuilder = Metadata.builder();
+        var routingTableBuilder = RoutingTable.builder();
+        for (var index : indices) {
+            var i = index.build();
+            metadataBuilder.put(i, false);
+            routingTableBuilder.addAsNew(i);
+        }
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(createNode("node-1")).add(createNode("node-2")))
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+    }
+
+    private static DiscoveryNode createNode(String nodeId) {
         return new DiscoveryNode(
             nodeId,
             nodeId,

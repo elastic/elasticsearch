@@ -969,11 +969,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public boolean contains(Object o) {
-            if (authorizedIndices == null) {
-                return predicate.test((String) o);
-            } else {
-                return authorizedIndices.contains(o);
-            }
+            return predicate.test((String) o);
         }
 
         @Override
@@ -1003,11 +999,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public boolean containsAll(Collection<?> c) {
-            if (authorizedIndices == null) {
-                return c.stream().allMatch(this::contains);
-            } else {
-                return authorizedIndices.containsAll(c);
-            }
+            return c.stream().allMatch(this::contains);
         }
 
         @Override

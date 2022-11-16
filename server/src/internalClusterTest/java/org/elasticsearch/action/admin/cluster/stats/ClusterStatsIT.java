@@ -12,15 +12,21 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -40,6 +46,11 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterStatsIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {
         assertThat(counts.getTotal(), equalTo(total));
@@ -285,5 +296,69 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));
             }
         }
+    }
+
+    public void testSearchUsageStats() throws IOException {
+        internalCluster().startNode();
+        ensureStableCluster(1);
+        {
+            SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+            assertEquals(0, stats.getTotalSearchCount());
+            assertEquals(0, stats.getQueryUsage().size());
+            assertEquals(0, stats.getSectionsUsage().size());
+        }
+
+        // doesn't get counted because it doesn't specify a request body
+        getRestClient().performRequest(new Request("GET", "/_search"));
+        {
+            Request request = new Request("GET", "/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchQuery("field", "value"));
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            getRestClient().performRequest(request);
+        }
+        {
+            Request request = new Request("GET", "/_search");
+            // error at parsing: request not counted
+            request.setJsonEntity("{\"unknown]\":10}");
+            expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        }
+        {
+            // non existent index: request counted
+            Request request = new Request("GET", "/unknown/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"));
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertEquals(404, responseException.getResponse().getStatusLine().getStatusCode());
+        }
+        {
+            Request request = new Request("GET", "/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(
+                QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("field").from(10))
+            );
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            getRestClient().performRequest(request);
+        }
+        {
+            Request request = new Request("POST", "/_msearch");
+            SearchSourceBuilder searchSourceBuilder1 = new SearchSourceBuilder().aggregation(
+                new TermsAggregationBuilder("name").field("field")
+            );
+            SearchSourceBuilder searchSourceBuilder2 = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"));
+            request.setJsonEntity(
+                "{}\n" + Strings.toString(searchSourceBuilder1) + "\n" + "{}\n" + Strings.toString(searchSourceBuilder2) + "\n"
+            );
+            getRestClient().performRequest(request);
+        }
+
+        SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+        assertEquals(5, stats.getTotalSearchCount());
+        assertEquals(4, stats.getQueryUsage().size());
+        assertEquals(1, stats.getQueryUsage().get("match").longValue());
+        assertEquals(2, stats.getQueryUsage().get("term").longValue());
+        assertEquals(1, stats.getQueryUsage().get("range").longValue());
+        assertEquals(1, stats.getQueryUsage().get("bool").longValue());
+        assertEquals(2, stats.getSectionsUsage().size());
+        assertEquals(4, stats.getSectionsUsage().get("query").longValue());
+        assertEquals(1, stats.getSectionsUsage().get("aggs").longValue());
     }
 }

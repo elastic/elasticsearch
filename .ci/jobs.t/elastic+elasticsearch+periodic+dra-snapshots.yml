@@ -13,12 +13,12 @@
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
             #!/usr/local/bin/runbld --redirect-stderr
-            WORKFLOW="SNAPSHOT"
+            WORKFLOW="snapshot"
             RM_BRANCH="%BRANCH%" && [[ "%BRANCH%" == "main" ]] && RM_BRANCH=master
             ES_VERSION=$(cat build-tools-internal/version.properties \
                   | grep elasticsearch \
                   | sed "s/elasticsearch *= *//g")
-            VERSION_SUFFIX="" && [[ "$WORKFLOW" == "SNAPSHOT" ]] && VERSION_SUFFIX="-SNAPSHOT"
+            VERSION_SUFFIX="" && [[ "$WORKFLOW" == "snapshot" ]] && VERSION_SUFFIX="-SNAPSHOT"
             BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats $RM_BRANCH $ES_VERSION $WORKFLOW)"
             ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp $RM_BRANCH $ES_VERSION $WORKFLOW)"
             set -euo pipefail

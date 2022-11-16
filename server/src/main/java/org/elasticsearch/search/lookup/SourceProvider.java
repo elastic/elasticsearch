@@ -13,7 +13,6 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * Provides access to the Source of a document
@@ -29,7 +28,7 @@ public interface SourceProvider {
      * A SourceProvider that loads source from stored fields
      */
     static SourceProvider fromStoredFields() {
-        StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(true, Set.of());
+        StoredFieldLoader storedFieldLoader = StoredFieldLoader.sequentialSource();
         return new SourceProvider() {
 
             // TODO we can make this segment thread safe by keeping an array of LeafStoredFieldLoader/doc/Source

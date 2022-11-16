@@ -235,6 +235,14 @@ public interface AuthorizationEngine {
      */
     void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener);
 
+    default void getRemoteAccessRoleDescriptorsIntersection(
+        final String remoteClusterAlias,
+        final AuthorizationInfo authorizationInfo,
+        final ActionListener<RoleDescriptorsIntersection> listener
+    ) {
+        throw new UnsupportedOperationException("retrieving remote access role descriptors is not supported by this authorization engine");
+    }
+
     /**
      * Interface for objects that contains the information needed to authorize a request
      */

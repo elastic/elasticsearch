@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -657,6 +659,95 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
+    @Override
+    public void getRemoteAccessRoleDescriptorsIntersection(
+        final String remoteClusterAlias,
+        final AuthorizationInfo authorizationInfo,
+        final ActionListener<RoleDescriptorsIntersection> listener
+    ) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
+            return;
+        }
+
+        final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+        final RemoteIndicesPermission remoteIndicesPermission;
+        try {
+            // TODO we will need to implement this to support API keys with assigned role descriptors
+            remoteIndicesPermission = role.remoteIndices().forCluster(remoteClusterAlias);
+        } catch (UnsupportedOperationException e) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Cannot retrieve remote access role descriptors for API keys with assigned role descriptors.",
+                    e
+                )
+            );
+            return;
+        }
+        if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
+            listener.onResponse(RoleDescriptorsIntersection.EMPTY);
+            return;
+        }
+
+        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+        for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
+            for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
+                indicesPrivileges.addAll(toIndicesPrivileges(indicesGroup));
+            }
+        }
+
+        // A role descriptor can only store one name, whereas the role may have multiple names. To work around this, we will include the
+        // complete list of role names in the role descriptor metadata, and simply use the first name for the role descriptor as a
+        // place-holder.
+        final String roleDescriptorName = Arrays.stream(role.names()).iterator().next();
+        listener.onResponse(
+            new RoleDescriptorsIntersection(
+                List.of(
+                    Set.of(
+                        new RoleDescriptor(
+                            roleDescriptorName,
+                            null,
+                            indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[0]),
+                            null,
+                            null,
+                            null,
+                            // The fulfilling cluster should rely on this metadata field for auditing role names
+                            Map.of("_role_names", role.names()),
+                            null
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(IndicesPermission.Group indicesGroup) {
+        final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
+        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+        // We need to force at least one iteration even if there is no FLS/DLS, so we use Collections.singleton(null) in the loops below
+        // if either FLS or DLS is not specified
+        for (BytesReference query : (queries.isEmpty() ? Collections.<BytesReference>singleton(null) : queries)) {
+            for (FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup : (fieldGrantExcludeGroups.isEmpty()
+                ? Collections.<FieldPermissionsDefinition.FieldGrantExcludeGroup>singleton(null)
+                : fieldGrantExcludeGroups)) {
+                final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(indicesGroup.indices())
+                    .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
+                    .privileges(indicesGroup.privilege().name())
+                    .query(query);
+                if (fieldGrantExcludeGroup != null) {
+                    builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields())
+                        .deniedFields(fieldGrantExcludeGroup.getExcludedFields());
+                }
+                indicesPrivileges.add(builder.build());
+            }
+        }
+        return indicesPrivileges;
+    }
+
     static GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
         logger.trace(() -> "List privileges for role [" + arrayToCommaDelimitedString(userRole.names()) + "]");
 
@@ -721,6 +812,17 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {
         final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = getFieldGrantExcludeGroups(group);
+        return new GetUserPrivilegesResponse.Indices(
+            Arrays.asList(group.indices()),
+            group.privilege().name(),
+            fieldSecurity,
+            queries,
+            group.allowRestrictedIndices()
+        );
+    }
+
+    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(IndicesPermission.Group group) {
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
         if (group.getFieldPermissions().hasFieldLevelSecurity()) {
             final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
@@ -732,13 +834,7 @@ public class RBACEngine implements AuthorizationEngine {
         } else {
             fieldSecurity = Collections.emptySet();
         }
-        return new GetUserPrivilegesResponse.Indices(
-            Arrays.asList(group.indices()),
-            group.privilege().name(),
-            fieldSecurity,
-            queries,
-            group.allowRestrictedIndices()
-        );
+        return fieldSecurity;
     }
 
     static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {

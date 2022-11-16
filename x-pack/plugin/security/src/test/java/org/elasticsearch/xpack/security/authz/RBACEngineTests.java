@@ -59,8 +59,10 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -93,8 +95,11 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1625,6 +1630,58 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersection() throws ExecutionException, InterruptedException {
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final String[] indexNames = generateRandomStringArray(3, 10, false, false);
+        final String[] roleNames = generateRandomStringArray(3, 10, false, false);
+        final Role role = mock(Role.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+        when(role.names()).thenReturn(roleNames);
+        when(role.cluster()).thenReturn(ClusterPermission.NONE);
+        when(role.indices()).thenReturn(IndicesPermission.NONE);
+        when(role.application()).thenReturn(ApplicationPermission.NONE);
+        when(role.runAs()).thenReturn(RunAsPermission.NONE);
+        final RemoteIndicesPermission remoteIndicesPermission = RemoteIndicesPermission.builder()
+            .addGroup(
+                Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                IndexPrivilege.READ,
+                new FieldPermissions(new FieldPermissionsDefinition(null, null)),
+                null,
+                false,
+                indexNames
+            )
+            .build();
+        when(role.remoteIndices()).thenReturn(remoteIndicesPermission);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
+        final RoleDescriptorsIntersection actual = future.get();
+
+        assertThat(
+            actual,
+            equalTo(
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                Objects.requireNonNull(roleNames)[0],
+                                null,
+                                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(indexNames).privileges("read").build() },
+                                null,
+                                null,
+                                null,
+                                Map.of("_role_names", role.names()),
+                                null
+                            )
+                        )
+                    )
+                )
+            )
+        );
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

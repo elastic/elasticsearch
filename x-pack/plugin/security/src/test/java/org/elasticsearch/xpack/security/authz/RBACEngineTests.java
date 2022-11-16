@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1633,11 +1634,13 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersection() throws ExecutionException, InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
 
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final String[] indexNames = generateRandomStringArray(3, 10, false, false);
         final String[] roleNames = generateRandomStringArray(3, 10, false, false);
+        final boolean allowRestrictedIndices = randomBoolean();
         final Role role = mock(Role.class);
         when(authorizationInfo.getRole()).thenReturn(role);
         when(role.names()).thenReturn(roleNames);
@@ -1651,7 +1654,7 @@ public class RBACEngineTests extends ESTestCase {
                 IndexPrivilege.READ,
                 new FieldPermissions(new FieldPermissionsDefinition(null, null)),
                 null,
-                false,
+                allowRestrictedIndices,
                 indexNames
             )
             .build();
@@ -1670,7 +1673,12 @@ public class RBACEngineTests extends ESTestCase {
                             new RoleDescriptor(
                                 Objects.requireNonNull(roleNames)[0],
                                 null,
-                                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(indexNames).privileges("read").build() },
+                                new IndicesPrivileges[] {
+                                    IndicesPrivileges.builder()
+                                        .indices(indexNames)
+                                        .privileges("read")
+                                        .allowRestrictedIndices(allowRestrictedIndices)
+                                        .build() },
                                 null,
                                 null,
                                 null,

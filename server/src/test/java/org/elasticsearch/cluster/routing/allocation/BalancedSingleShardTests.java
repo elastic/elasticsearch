@@ -173,7 +173,6 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91606")
     public void testSingleShardBalanceProducesSameResultsAsBalanceStep() {
         final String[] indices = { "idx1", "idx2" };
         // Create a cluster state with 2 indices, each with 1 started primary shard, and only
@@ -242,7 +241,6 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91606")
     public void testNodeDecisionsRanking() {
         // only one shard, so moving it will not create a better balance anywhere, so all node decisions should
         // return the same ranking as the current node

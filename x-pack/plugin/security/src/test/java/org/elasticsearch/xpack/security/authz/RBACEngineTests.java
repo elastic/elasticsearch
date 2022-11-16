@@ -1544,54 +1544,6 @@ public class RBACEngineTests extends ESTestCase {
         new RBACAuthorizationInfo(role, null).hashCode();
     }
 
-    @SuppressWarnings("unchecked")
-    public void testLazinessForAuthorizedIndicesSet() {
-        final Set<String> authorizedNames = Set.of("foo", "bar", "baz");
-        final HashSet<String> allNames = new HashSet<>(authorizedNames);
-        allNames.addAll(Set.of("buzz", "fiz"));
-
-        final Supplier<Set<String>> supplier = mock(Supplier.class);
-        when(supplier.get()).thenReturn(authorizedNames);
-        final Predicate<String> predicate = mock(Predicate.class);
-        doAnswer(invocation -> {
-            final String name = (String) invocation.getArguments()[0];
-            return authorizedNames.contains(name);
-        }).when(predicate).test(anyString());
-        final RBACEngine.AuthorizedIndicesSet authorizedIndicesSet = new RBACEngine.AuthorizedIndicesSet(supplier, predicate);
-
-        // Check with contains or containsAll do not trigger loading
-        final String name1 = randomFrom(allNames);
-        final String name2 = randomValueOtherThan(name1, () -> randomFrom(allNames));
-        final boolean containsAll = randomBoolean();
-        if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
-        } else {
-            assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
-        }
-        verify(supplier, never()).get();
-        verify(predicate, atLeastOnce()).test(anyString());
-
-        // Iterating through the set triggers loading
-        Mockito.clearInvocations(predicate);
-        final Set<String> collectedNames = new HashSet<>();
-        for (String name : authorizedIndicesSet) {
-            collectedNames.add(name);
-        }
-        verify(supplier).get();
-        assertThat(collectedNames, equalTo(authorizedNames));
-
-        // Check with contains and containsAll again now uses the loaded set not the predicate anymore
-        Mockito.clearInvocations(supplier);
-        if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
-        } else {
-            assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
-        }
-        verify(predicate, never()).test(anyString());
-        // It also does not load twice
-        verify(supplier, never()).get();
-    }
-
     public void testGetUserPrivilegesThrowsIaeForUnsupportedOperation() {
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
         final Role role = mock(Role.class);

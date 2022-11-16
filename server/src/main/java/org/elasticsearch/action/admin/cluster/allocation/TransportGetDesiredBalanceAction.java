@@ -56,7 +56,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             DesiredBalanceRequest::new,
             indexNameExpressionResolver,
             DesiredBalanceResponse::from,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
         this.shardsAllocator = shardsAllocator;
     }

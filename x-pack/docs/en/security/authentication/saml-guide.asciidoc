@@ -255,7 +255,8 @@ URI such as `urn:oid:0.9.2342.19200300.100.1.1`, however there are some
 additional names that can be used:
 
 `nameid`::
-    This uses the SAML `NameID` value instead of a SAML attribute. SAML
+    This uses the SAML `NameID` value (all leading and trailing whitespace removed)
+    instead of a SAML attribute. SAML
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
@@ -264,7 +265,8 @@ additional names that can be used:
     of the IdP.
 
 `nameid:persistent`::
-    This uses the SAML `NameID` value, but only if the NameID format is
+    This uses the SAML `NameID` value (all leading and trailing whitespace removed),
+    but only if the NameID format is
     `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`.
     A SAML `NameID` element has an optional `Format` attribute that indicates
     the semantics of the provided name. It is common for IdPs to be configured

@@ -438,15 +438,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        /*
-        GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        Global global = (Global) aggregator.buildTopLevel();
-
-         */
         Global global = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(global);
         assertEquals("global", global.getName());
@@ -892,16 +883,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value");
 
-        /*
-        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
-        MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        Max max = (Max) aggregator.buildAggregation(0L);
-
-         */
         Max max = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
 
         assertEquals(10.0, max.value(), 0);

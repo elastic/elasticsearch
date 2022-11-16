@@ -119,7 +119,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 return indexMetadata.getForecastedWriteLoad();
             }
         };
-
         var allocator = new BalancedShardsAllocator(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -150,54 +149,32 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testBalanceByDiskUsage() {
 
-        var metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index-1")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .shardSizeInBytesForecast(ByteSizeValue.ofGb(1L).getBytes())
-            )
-            .put(
-                IndexMetadata.builder("index-2")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .shardSizeInBytesForecast(ByteSizeValue.ofGb(2L).getBytes())
-            )
-            .put(
-                IndexMetadata.builder("index-3")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .shardSizeInBytesForecast(ByteSizeValue.ofGb(3L).getBytes())
-            )
-            .build();
+        var smallIndices = IntStream.range(1, randomIntBetween(3, 5))
+            .mapToObj(i -> IndexMetadata.builder("small-index-" + i))
+            .map(builder -> builder.settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .map(builder -> builder.shardSizeInBytesForecast(ByteSizeValue.ofMb(1024).getBytes()));
 
-        var routingTable = RoutingTable.builder()
-            .addAsNew(metadata.index("index-1"))
-            .addAsNew(metadata.index("index-2"))
-            .addAsNew(metadata.index("index-3"))
-            .build();
+        var heavyIndex = IndexMetadata.builder("heavy-index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .shardSizeInBytesForecast(ByteSizeValue.ofGb(8).getBytes());
 
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(createNode("node-1")).add(createNode("node-2")))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        var clusterState = stateWithIndices(Stream.concat(smallIndices, Stream.of(heavyIndex)).toList());
 
         var allocator = new BalancedShardsAllocator(
-            Settings.builder().put("cluster.routing.allocation.balance.disk_usage", "1e-10").build()
+            Settings.builder().put("cluster.routing.allocation.balance.disk_usage", "1e-9").build()
         );
         var allocation = createRoutingAllocation(clusterState);
         allocator.allocate(allocation);
 
+        assertThat(allocation.metadata().getTotalNumberOfShards(), allOf(greaterThanOrEqualTo(3), lessThanOrEqualTo(5)));
         for (RoutingNode routingNode : allocation.routingNodes()) {
             var nodeDiskUsage = 0L;
             for (ShardRouting shardRouting : routingNode) {
-                nodeDiskUsage += metadata.index(shardRouting.index()).getForecastedShardSizeInBytes().orElse(0L);
+                nodeDiskUsage += clusterState.metadata().index(shardRouting.index()).getForecastedShardSizeInBytes().orElse(0L);
             }
-            assertThat(nodeDiskUsage, equalTo(ByteSizeValue.ofGb(3L).getBytes()));
+            assertThat(nodeDiskUsage, lessThanOrEqualTo(ByteSizeValue.ofGb(9).getBytes()));
         }
     }
 

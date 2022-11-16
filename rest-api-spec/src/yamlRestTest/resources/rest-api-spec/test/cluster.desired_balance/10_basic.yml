@@ -1,0 +1,58 @@
+---
+setup:
+  - skip:
+      version: " - 8.5.99"
+      reason: "API added in in 8.6.0"
+
+---
+"Test empty desired balance":
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computation_submitted: 0 }
+  - gte: { stats.computation_executed: 0 }
+  - gte: { stats.computation_converged: 0 }
+  - gte: { stats.computation_iterations: 0 }
+  - gte: { stats.computation_converged_index: 0 }
+  - gte: { stats.computation_time_in_millis: 0 }
+  - gte: { stats.reconciliation_time_in_millis: 0 }
+  - match: { routing_table: {} }
+
+---
+"Test get desired balance for single shard":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computation_submitted: 0 }
+  - gte: { stats.computation_executed: 0 }
+  - gte: { stats.computation_converged: 0 }
+  - gte: { stats.computation_iterations: 0 }
+  - gte: { stats.computation_converged_index: 0 }
+  - gte: { stats.computation_time_in_millis: 0 }
+  - gte: { stats.reconciliation_time_in_millis: 0 }
+
+  - match: { routing_table.test.0.current.0.state: 'STARTED' }
+  - match: { routing_table.test.0.current.0.shard_id: 0 }
+  - match: { routing_table.test.0.current.0.index: test }
+  - is_true: 'routing_table.test.0.current.0.node_is_desired'
+  - is_false: 'routing_table.test.0.current.0.relocating_node'
+  - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
+  - match: { routing_table.test.0.desired.total: 1 }
+  - gte: { routing_table.test.0.desired.unassigned: 0 }
+  - gte: { routing_table.test.0.desired.ignored: 0 }
+  - is_true: 'routing_table.test.0.desired.node_ids'
+

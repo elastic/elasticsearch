@@ -1,6 +1,0 @@
-pr: 91313
-summary: Make transform `_preview` request cancellable
-area: Transform
-type: bug
-issues:
- - 91286

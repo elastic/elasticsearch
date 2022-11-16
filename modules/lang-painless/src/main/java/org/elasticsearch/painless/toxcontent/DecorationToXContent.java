@@ -67,6 +67,7 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -548,8 +549,8 @@ public class DecorationToXContent {
             return;
         }
         builder.startArray("annotations");
-        for (Class<?> key : annotations.keySet().stream().sorted().collect(Collectors.toList())) {
-            AnnotationToXContent(annotations.get(key), builder);
+        for (var a : new TreeMap<>(annotations).values()) {
+            AnnotationToXContent(a, builder);
         }
         builder.endArray();
     }

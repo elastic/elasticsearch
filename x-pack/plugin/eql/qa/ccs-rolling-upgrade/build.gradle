@@ -20,6 +20,7 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
+// EQL was released as GA in v 7.11.0
 BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.11.0")) { bwcVersion, baseName ->
 
   /**

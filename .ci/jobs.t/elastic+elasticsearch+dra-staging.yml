@@ -14,12 +14,13 @@
       - shell: |
             #!/usr/local/bin/runbld --redirect-stderr
             WORKFLOW="STAGING"
+            RM_BRANCH="%BRANCH%" && [[ "%BRANCH%" == "main" ]] && RM_BRANCH=master
             ES_VERSION=$(cat build-tools-internal/version.properties \
                   | grep elasticsearch \
                   | sed "s/elasticsearch *= *//g")
             VERSION_SUFFIX="" && [[ "$WORKFLOW" == "SNAPSHOT" ]] && VERSION_SUFFIX="-SNAPSHOT"
-            BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats master $ES_VERSION $WORKFLOW)"
-            ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp master $ES_VERSION $WORKFLOW)"
+            BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats $RM_BRANCH $ES_VERSION $WORKFLOW)"
+            ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp $RM_BRANCH $ES_VERSION $WORKFLOW)"
             set -euo pipefail
             set +x
             VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)

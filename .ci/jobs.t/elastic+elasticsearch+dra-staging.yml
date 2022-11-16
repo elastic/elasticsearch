@@ -35,7 +35,7 @@
                 -Ddra.workflow=$WORKFLOW \
                 -Dcsv=$WORKSPACE/build/distributions/dependencies-${ES_VERSION}${VERSION_SUFFIX}.csv \
                 -Dbuild.snapshot=false \
-                -Dlicense.key=$LICENSE_KEY
+                -Dlicense.key=$LICENSE_KEY \
                 buildReleaseArtifacts \
                 exportCompressedDockerImages \
                 :distribution:generateDependenciesReport

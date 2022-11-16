@@ -6,7 +6,11 @@
 <titleabbrev>Infer trained model</titleabbrev>
 ++++
 
-Evaluates a trained model. The model may be any supervised model either trained by {dfanalytics} or imported.
+Evaluates a trained model. The model may be any supervised model either trained 
+by {dfanalytics} or imported.
+
+NOTE: For model deployments with caching enabled, results may be returned 
+directly from the {infer} cache.
 
 beta::[]
 
@@ -102,7 +106,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
 =====
 `num_top_classes`::::
 (Optional, integer)
-Number of top predicted tokens to return for replacing the mask token. Defaults to `0`.
+Number of top predicted tokens to return for replacing the mask token. Defaults 
+to `0`.
 
 `results_field`::::
 (Optional, string)
@@ -272,7 +277,8 @@ The maximum amount of words in the answer. Defaults to `15`.
 
 `num_top_classes`::::
 (Optional, integer)
-The number the top found answers to return. Defaults to `0`, meaning only the best found answer is returned.
+The number the top found answers to return. Defaults to `0`, meaning only the 
+best found answer is returned.
 
 `question`::::
 (Required, string)
@@ -368,7 +374,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 
 `num_top_classes`::::
 (Optional, integer)
-Specifies the number of top class predictions to return. Defaults to all classes (-1).
+Specifies the number of top class predictions to return. Defaults to all classes 
+(-1).
 
 `results_field`::::
 (Optional, string)
@@ -879,8 +886,8 @@ POST _ml/trained_models/model2/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-When the input has been truncated due to the limit imposed by the model's `max_sequence_length`
-the `is_truncated` field appears in the response.
+When the input has been truncated due to the limit imposed by the model's 
+`max_sequence_length` the `is_truncated` field appears in the response.
 
 [source,console-result]
 ----

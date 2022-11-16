@@ -1,0 +1,23 @@
+{
+  "_internal.get_desired_balance":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-desired-balance.html",
+      "description": "This API is a diagnostics API and the output should not be relied upon for building applications."
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_internal/desired_balance",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

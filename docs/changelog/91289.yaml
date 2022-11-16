@@ -1,5 +1,0 @@
-pr: 91289
-summary: Fix `TransportActionProxy` for local execution
-area: Network
-type: bug
-issues: []

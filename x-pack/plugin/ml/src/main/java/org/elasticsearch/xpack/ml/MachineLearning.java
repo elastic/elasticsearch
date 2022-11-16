@@ -1047,7 +1047,9 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
-        this.deploymentManager.set(new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory));
+        this.deploymentManager.set(
+            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+        );
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(
@@ -1479,7 +1481,7 @@ public class MachineLearning extends Plugin
         ScalingExecutorBuilder pytorchComms = new ScalingExecutorBuilder(
             NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
             3,
-            (getAllocatedProcessors().roundUp() + MAX_LOW_PRIORITY_MODELS_PER_NODE) * 3,
+            getMaxModelDeploymentsPerNode() * 3,
             TimeValue.timeValueMinutes(1),
             false,
             "xpack.ml.native_inference_comms_thread_pool"
@@ -1506,6 +1508,10 @@ public class MachineLearning extends Plugin
         );
 
         return List.of(jobComms, pytorchComms, utility, datafeed);
+    }
+
+    private int getMaxModelDeploymentsPerNode() {
+        return getAllocatedProcessors().roundUp() + MAX_LOW_PRIORITY_MODELS_PER_NODE;
     }
 
     @Override

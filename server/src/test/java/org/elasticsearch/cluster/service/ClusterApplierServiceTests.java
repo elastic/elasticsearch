@@ -486,7 +486,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             try {
                 applierCalled.set(true);
                 ClusterStateObserver observer = new ClusterStateObserver(
-                    event.state(),
+                    event.state().version(),
                     clusterApplierService,
                     null,
                     logger,

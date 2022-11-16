@@ -1,5 +1,0 @@
-pr: 90064
-summary: Add support for predefined char class regexp on wildcard fields
-area: Search
-type: bug
-issues: []

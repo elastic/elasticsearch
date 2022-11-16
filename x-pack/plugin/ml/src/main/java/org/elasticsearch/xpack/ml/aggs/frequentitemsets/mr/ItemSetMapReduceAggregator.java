@@ -7,11 +7,17 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
@@ -41,6 +47,7 @@ public abstract class ItemSetMapReduceAggregator<
     Result extends ToXContent & Writeable> extends AggregatorBase {
 
     private final List<ItemSetMapReduceValueSource> extractors;
+    private final Weight weightFilter;
     private final List<Field> fields;
     private final AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
@@ -55,13 +62,20 @@ public abstract class ItemSetMapReduceAggregator<
         Aggregator parent,
         Map<String, Object> metadata,
         AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
-        List<ValuesSourceConfig> configs
+        List<ValuesSourceConfig> configs,
+        QueryBuilder filter
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
         List<ItemSetMapReduceValueSource> extractors = new ArrayList<>();
         List<Field> fields = new ArrayList<>();
+        IndexSearcher contextSearcher = context.searcher();
+
         int id = 0;
+        this.weightFilter = filter != null
+            ? contextSearcher.createWeight(contextSearcher.rewrite(context.buildQuery(filter)), ScoreMode.COMPLETE_NO_SCORES, 1f)
+            : null;
+
         for (ValuesSourceConfig c : configs) {
             ItemSetMapReduceValueSource e = context.getValuesSourceRegistry().getAggregator(registryKey, c).build(c, id++);
             if (e.getField().getName() != null) {
@@ -100,20 +114,31 @@ public abstract class ItemSetMapReduceAggregator<
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext ctx, LeafBucketCollector sub) throws IOException {
+
+        final Bits bits = weightFilter != null
+            ? Lucene.asSequentialAccessBits(
+                ctx.getLeafReaderContext().reader().maxDoc(),
+                weightFilter.scorerSupplier(ctx.getLeafReaderContext())
+            )
+            : null;
+
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 SetOnce<IOException> firstException = new SetOnce<>();
-
-                mapReducer.map(extractors.stream().map(extractor -> {
-                    try {
-                        return extractor.collect(ctx.getLeafReaderContext(), doc);
-                    } catch (IOException e) {
-                        firstException.trySet(e);
-                        // ignored in AbstractMapReducer
-                        return null;
-                    }
-                }), getMapReduceContext(owningBucketOrd));
+                if (bits == null || bits.get(doc)) {
+                    mapReducer.map(extractors.stream().map(extractor -> {
+                        try {
+                            return extractor.collect(ctx.getLeafReaderContext(), doc);
+                        } catch (IOException e) {
+                            firstException.trySet(e);
+                            // ignored in AbstractMapReducer
+                            return null;
+                        }
+                    }), getMapReduceContext(owningBucketOrd));
+                } else {
+                    mapReducer.mapFiltered(getMapReduceContext(owningBucketOrd));
+                }
 
                 if (firstException.get() != null) {
                     throw firstException.get();

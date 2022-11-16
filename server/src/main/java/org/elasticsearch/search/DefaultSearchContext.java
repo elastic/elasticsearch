@@ -280,7 +280,7 @@ final class DefaultSearchContext extends SearchContext {
         if (nestedLookup != NestedLookup.EMPTY
             && nestedHelper.mightMatchNestedDocs(query)
             && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter());
+            filters.add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()));
         }
 
         if (aliasFilter != null) {
@@ -404,7 +404,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public boolean hasScriptFields() {
-        return scriptFields != null;
+        return scriptFields != null && scriptFields.fields().isEmpty() == false;
     }
 
     @Override

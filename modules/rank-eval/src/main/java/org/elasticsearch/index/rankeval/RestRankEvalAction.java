@@ -77,7 +77,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestRankEvalAction extends BaseRestHandler {
 
-    public static String ENDPOINT = "_rank_eval";
+    public static final String ENDPOINT = "_rank_eval";
 
     @Override
     public List<Route> routes() {

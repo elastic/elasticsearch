@@ -232,8 +232,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                 request.fetchSize(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
-                task,
-                remoteClusterRegistry::versionIncompatibleClusters
+                task
             );
             executeRequestWithRetryAttempt(
                 clusterService,

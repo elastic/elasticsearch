@@ -22,7 +22,7 @@ public interface Nameable {
     default String name() {
         NamedComponent[] annotationsByType = this.getClass().getAnnotationsByType(NamedComponent.class);
         if (annotationsByType.length == 1) {
-            return annotationsByType[0].name();
+            return annotationsByType[0].value();
         }
         return null;
     }

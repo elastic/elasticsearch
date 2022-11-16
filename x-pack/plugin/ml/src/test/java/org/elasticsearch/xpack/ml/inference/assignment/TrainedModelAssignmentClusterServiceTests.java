@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
@@ -1502,10 +1503,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         return new StartTrainedModelDeploymentAction.TaskParams(
             modelId,
             modelSize,
-            threadsPerAllocation,
             numberOfAllocations,
+            threadsPerAllocation,
             1024,
-            ByteSizeValue.ofBytes(modelSize)
+            ByteSizeValue.ofBytes(modelSize),
+            Priority.NORMAL
         );
     }
 

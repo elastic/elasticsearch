@@ -66,7 +66,7 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    fieldDataLookup(mapperService),
                     new SourceLookup.ReaderSourceProvider()
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);

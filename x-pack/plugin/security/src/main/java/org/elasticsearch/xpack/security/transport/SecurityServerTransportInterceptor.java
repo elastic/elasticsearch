@@ -242,7 +242,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RemoteAccessQcControls.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
+                    RemoteAccessControls.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
                     threadContext.putHeader(
                         REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
                         remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias)

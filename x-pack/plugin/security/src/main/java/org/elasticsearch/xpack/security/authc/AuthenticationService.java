@@ -86,7 +86,7 @@ public class AuthenticationService {
         AnonymousUser anonymousUser,
         TokenService tokenService,
         ApiKeyService apiKeyService,
-        CrossClusterService crossClusterService,
+        RemoteAccessService remoteAccessService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService
     ) {
@@ -113,7 +113,7 @@ public class AuthenticationService {
             new OAuth2TokenAuthenticator(tokenService),
             new ApiKeyAuthenticator(apiKeyService, nodeName),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache),
-            new CrossClusterAuthenticator(crossClusterService, nodeName)
+            new RemoteAccessAuthenticator(remoteAccessService, nodeName)
         );
     }
 

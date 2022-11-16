@@ -27,7 +27,7 @@ public interface RoleReferenceResolver {
     void resolveServiceAccountRoleReference(ServiceAccountRoleReference roleReference, ActionListener<RolesRetrievalResult> listener);
 
     void resolveCrossClusterRoleReference(
-        RoleReference.CrossClusterRoleReference crossClusterRoleReference,
+        RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
         ActionListener<RolesRetrievalResult> listener
     );
 }

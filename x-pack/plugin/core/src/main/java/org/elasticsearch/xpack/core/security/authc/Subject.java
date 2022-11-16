@@ -27,9 +27,9 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_FC_API_KEY_ID_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_QC_PRINCIPAL_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ROLE_DESCRIPTORS_INTERSECTION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_FC_API_KEY_ID_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_QC_PRINCIPAL_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
@@ -44,7 +44,7 @@ public class Subject {
         USER,
         API_KEY,
         SERVICE_ACCOUNT,
-        CROSS_CLUSTER
+        REMOTE_ACCESS
     }
 
     private final Version version;
@@ -71,9 +71,9 @@ public class Subject {
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
-        } else if (AuthenticationField.CROSS_CLUSTER_REALM_TYPE.equals(realm.getType())) {
-            assert AuthenticationField.CROSS_CLUSTER_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
-            this.type = Type.CROSS_CLUSTER;
+        } else if (AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.REMOTE_ACCESS_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
+            this.type = Type.REMOTE_ACCESS;
         } else {
             this.type = Type.USER;
         }
@@ -108,7 +108,7 @@ public class Subject {
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
-            case CROSS_CLUSTER:
+            case REMOTE_ACCESS:
                 return buildRoleReferencesForCrossCluster();
             default:
                 assert false : "unknown subject type: [" + type + "]";
@@ -235,19 +235,19 @@ public class Subject {
         if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             return null;
         }
-        final String qcPrincipal = (String) metadata.get(CROSS_CLUSTER_QC_PRINCIPAL_KEY);
+        final String qcPrincipal = (String) metadata.get(REMOTE_ACCESS_QC_PRINCIPAL_KEY);
         if (Strings.isEmpty(qcPrincipal)) {
             throw new ElasticsearchSecurityException("no QC principal found for Cross Cluster");
         }
-        final String fcApiKeyId = (String) metadata.get(CROSS_CLUSTER_FC_API_KEY_ID_KEY);
+        final String fcApiKeyId = (String) metadata.get(REMOTE_ACCESS_FC_API_KEY_ID_KEY);
         if (Strings.isEmpty(fcApiKeyId)) {
             throw new ElasticsearchSecurityException("no FC API Key Id found for Cross Cluster");
         }
-        final BytesReference combinedRoleDescriptorsBytes = (BytesReference) metadata.get(CROSS_CLUSTER_ROLE_DESCRIPTORS_INTERSECTION_KEY);
+        final BytesReference combinedRoleDescriptorsBytes = (BytesReference) metadata.get(REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY);
         if (isEmptyRoleDescriptorsBytes(combinedRoleDescriptorsBytes)) {
             throw new ElasticsearchSecurityException("no role descriptors found for Cross Cluster");
         }
-        final RoleReference.CrossClusterRoleReference roleDescriptorsReference = new RoleReference.CrossClusterRoleReference(
+        final RoleReference.RemoteAccessRoleReference roleDescriptorsReference = new RoleReference.RemoteAccessRoleReference(
             qcPrincipal,
             fcApiKeyId,
             combinedRoleDescriptorsBytes

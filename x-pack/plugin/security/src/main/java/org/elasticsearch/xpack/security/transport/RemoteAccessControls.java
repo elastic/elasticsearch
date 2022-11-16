@@ -39,9 +39,9 @@ import java.util.Set;
  * @param authentication QC Authentication instance of a successfully authenticated User or API Key.
  * @param roleDescriptorsBytesIntersection QC Authorizations instance for the QC Authenticated User or API Key.
  */
-public record RemoteAccessQcControls(Authentication authentication, Collection<BytesReference> roleDescriptorsBytesIntersection) {
+public record RemoteAccessControls(Authentication authentication, Collection<BytesReference> roleDescriptorsBytesIntersection) {
 
-    public static RemoteAccessQcControls readFromContext(final ThreadContext ctx) throws IOException {
+    public static RemoteAccessControls readFromContext(final ThreadContext ctx) throws IOException {
         final String header = ctx.getHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
         return Strings.isEmpty(header) ? null : decode(header);
     }
@@ -73,7 +73,7 @@ public record RemoteAccessQcControls(Authentication authentication, Collection<B
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    static RemoteAccessQcControls decode(final String header) throws IOException {
+    static RemoteAccessControls decode(final String header) throws IOException {
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);
         final Version version = Version.readVersion(in);
@@ -84,7 +84,7 @@ public record RemoteAccessQcControls(Authentication authentication, Collection<B
         for (int i = 0; i < outerCount; i++) {
             roleDescriptorsBytesIntersection.add(in.readBytesReference());
         }
-        return new RemoteAccessQcControls(authentication, roleDescriptorsBytesIntersection);
+        return new RemoteAccessControls(authentication, roleDescriptorsBytesIntersection);
     }
 
     public static Set<RoleDescriptor> parseRoleDescriptorsBytes(BytesReference bytesReference) {

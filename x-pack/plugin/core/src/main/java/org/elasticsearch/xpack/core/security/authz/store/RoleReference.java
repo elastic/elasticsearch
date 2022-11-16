@@ -182,14 +182,14 @@ public interface RoleReference {
     /**
      * Referencing Cross Cluster role descriptors. It is a list of 1-2 QC role descriptor sets and 2 FC role descriptor sets; 3-4 total.
      */
-    final class CrossClusterRoleReference implements RoleReference {
+    final class RemoteAccessRoleReference implements RoleReference {
 
         private final String qcPrincipal;
         private final String fcApiKeyId;
         private final BytesReference roleDescriptorsBytes;
         private RoleKey cacheKey = null;
 
-        public CrossClusterRoleReference(final String qcPrincipal, final String fcApiKeyId, final BytesReference roleDescriptorsBytes) {
+        public RemoteAccessRoleReference(final String qcPrincipal, final String fcApiKeyId, final BytesReference roleDescriptorsBytes) {
             this.qcPrincipal = qcPrincipal;
             this.fcApiKeyId = fcApiKeyId;
             this.roleDescriptorsBytes = roleDescriptorsBytes;

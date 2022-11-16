@@ -60,10 +60,10 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 /**
@@ -368,7 +368,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     private boolean isAuthenticatedCrossCluster() {
-        return AuthenticationType.CROSS_CLUSTER.equals(getAuthenticationType());
+        return AuthenticationType.REMOTE_ACCESS.equals(getAuthenticationType());
     }
 
     /**
@@ -390,7 +390,7 @@ public final class Authentication implements ToXContentObject {
      * Whether the effective user is a Cross Cluster credential.
      */
     public boolean isCrossCluster() {
-        return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER;
+        return effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
     }
 
     /**
@@ -506,7 +506,7 @@ public final class Authentication implements ToXContentObject {
             Authentication.AuthenticationType.TOKEN,
             Authentication.AuthenticationType.ANONYMOUS,
             Authentication.AuthenticationType.INTERNAL,
-            Authentication.AuthenticationType.CROSS_CLUSTER
+            Authentication.AuthenticationType.REMOTE_ACCESS
         ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
             : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
                 + EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
@@ -787,7 +787,7 @@ public final class Authentication implements ToXContentObject {
 
         static RealmRef newCrossClusterRealmRef(String nodeName) {
             // no domain for Cross Cluster
-            return new RealmRef(CROSS_CLUSTER_REALM_NAME, CROSS_CLUSTER_REALM_TYPE, nodeName, null);
+            return new RealmRef(REMOTE_ACCESS_REALM_NAME, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
         }
     }
 
@@ -886,7 +886,7 @@ public final class Authentication implements ToXContentObject {
         final Authentication.RealmRef authenticatedBy = newCrossClusterRealmRef(nodeName);
         Authentication authentication = new Authentication(
             new Subject(user, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
-            AuthenticationType.CROSS_CLUSTER
+            AuthenticationType.REMOTE_ACCESS
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;
@@ -976,7 +976,7 @@ public final class Authentication implements ToXContentObject {
         TOKEN,
         ANONYMOUS,
         INTERNAL,
-        CROSS_CLUSTER
+        REMOTE_ACCESS
     }
 
     public static class AuthenticationSerializationHelper {

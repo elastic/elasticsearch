@@ -27,12 +27,12 @@ public final class AuthenticationField {
     public static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     public static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
 
-    public static final String CROSS_CLUSTER_REALM_NAME = "_es_cross_cluster";
-    public static final String CROSS_CLUSTER_REALM_TYPE = CROSS_CLUSTER_REALM_NAME;
+    public static final String REMOTE_ACCESS_REALM_NAME = "_es_remote_access";
+    public static final String REMOTE_ACCESS_REALM_TYPE = REMOTE_ACCESS_REALM_NAME;
 
-    public static final String CROSS_CLUSTER_QC_PRINCIPAL_KEY = "_security_cross_cluster_qc_principal";
-    public static final String CROSS_CLUSTER_FC_API_KEY_ID_KEY = "_security_cross_cluster_fc_api_key_id";
-    public static final String CROSS_CLUSTER_ROLE_DESCRIPTORS_INTERSECTION_KEY = "_security_cross_cluster_role_descriptors_intersection";
+    public static final String REMOTE_ACCESS_QC_PRINCIPAL_KEY = "_security_remote_access_qc_principal";
+    public static final String REMOTE_ACCESS_FC_API_KEY_ID_KEY = "_security_remote_access_fc_api_key_id";
+    public static final String REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY = "_security_remote_access_role_descriptors_intersection";
 
     public static final String ANONYMOUS_REALM_NAME = "__anonymous";
     public static final String ANONYMOUS_REALM_TYPE = "__anonymous";

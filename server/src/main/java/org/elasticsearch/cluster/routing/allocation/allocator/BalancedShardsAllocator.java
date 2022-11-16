@@ -376,27 +376,37 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             if (forecastedShardSizeInBytes.isPresent()) {
                 indexDiskUsageInBytes = forecastedShardSizeInBytes.getAsLong() * numberOfCopies(indexMetadata);
             } else {
-                long totalSizeInBytes = 0;
-                int shardCount = 0;
-                ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
-                for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
-                    for (Boolean primary : List.of(true, false)) {
-                        Long shardSize = clusterInfo.getShardSize(new ShardId(indexMetadata.getIndex(), shardId), primary);
-                        if (shardSize != null) {
-                            totalSizeInBytes += shardSize;
-                            shardCount++;
-                        }
-                    }
-                }
-
-                // TODO: Should we go through the cluster info service and compute the average in this case?
-                if (shardCount != numberOfCopies(indexMetadata)) {
-                    indexDiskUsageInBytes = shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
-                } else {
-                    indexDiskUsageInBytes = totalSizeInBytes;
-                }
+                indexDiskUsageInBytes = getIndexDiskUsageInBytesFromClusterInfo(clusterInfoService, indexMetadata);
             }
             return indexDiskUsageInBytes;
+        }
+
+        private static long getIndexDiskUsageInBytesFromClusterInfo(ClusterInfoService clusterInfoService, IndexMetadata indexMetadata) {
+            long totalSizeInBytes = 0;
+            int shardCount = 0;
+            final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
+            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+                final ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
+
+                final Long primaryShardSize = clusterInfo.getShardSize(shardId, true);
+                if (primaryShardSize != null) {
+                    totalSizeInBytes += primaryShardSize;
+                    shardCount++;
+                }
+
+                final Long replicaShardSize = clusterInfo.getShardSize(shardId, false);
+                if (replicaShardSize != null) {
+                    totalSizeInBytes += (replicaShardSize * indexMetadata.getNumberOfReplicas());
+                    shardCount += indexMetadata.getNumberOfReplicas();
+                }
+            }
+
+            if (shardCount == numberOfCopies(indexMetadata)) {
+                return totalSizeInBytes;
+            }
+
+            // TODO: Should we go through the cluster info service and compute the average in this case?
+            return shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
         }
 
         private static int numberOfCopies(IndexMetadata indexMetadata) {

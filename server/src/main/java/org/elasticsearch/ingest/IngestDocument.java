@@ -51,6 +51,7 @@ public final class IngestDocument {
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
+    private final DelegatingMapView templateModel;
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
@@ -61,6 +62,7 @@ public final class IngestDocument {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
+        this.templateModel = initializeTemplateModel();
     }
 
     /**
@@ -93,6 +95,7 @@ public final class IngestDocument {
         }
         this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
         this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.templateModel = initializeTemplateModel();
     }
 
     /**
@@ -101,6 +104,11 @@ public final class IngestDocument {
     IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
         this.ctxMap = Objects.requireNonNull(ctxMap);
         this.ingestMetadata = Objects.requireNonNull(ingestMetadata);
+        this.templateModel = initializeTemplateModel();
+    }
+
+    private DelegatingMapView initializeTemplateModel() {
+        return new DelegatingMapView(ctxMap, Map.of(SourceFieldMapper.NAME, ctxMap, INGEST_KEY, ingestMetadata));
     }
 
     /**
@@ -425,8 +433,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        Map<String, Object> model = createTemplateModel();
-        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model));
+        appendFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
     }
 
     /**
@@ -443,8 +450,11 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
-        Map<String, Object> model = createTemplateModel();
-        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), allowDuplicates);
+        appendFieldValue(
+            fieldPathTemplate.newInstance(templateModel).execute(),
+            valueSource.copyAndResolve(templateModel),
+            allowDuplicates
+        );
     }
 
     /**
@@ -471,8 +481,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        Map<String, Object> model = createTemplateModel();
-        setFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel), false);
     }
 
     /**
@@ -486,8 +495,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
-        Map<String, Object> model = createTemplateModel();
-        Object value = valueSource.copyAndResolve(model);
+        Object value = valueSource.copyAndResolve(templateModel);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
             if (value == null) {
                 return;
@@ -498,7 +506,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
     }
 
     /**
@@ -512,7 +520,6 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
-        Map<String, Object> model = createTemplateModel();
         if (ignoreEmptyValue) {
             if (value == null) {
                 return;
@@ -524,7 +531,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
     }
 
     private void setFieldValue(String path, Object value, boolean append) {
@@ -698,11 +705,7 @@ public final class IngestDocument {
     }
 
     public String renderTemplate(TemplateScript.Factory template) {
-        return template.newInstance(createTemplateModel()).execute();
-    }
-
-    private Map<String, Object> createTemplateModel() {
-        return new DelegatingMapView(ctxMap, Map.of(SourceFieldMapper.NAME, ctxMap, INGEST_KEY, ingestMetadata));
+        return template.newInstance(templateModel).execute();
     }
 
     /**

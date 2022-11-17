@@ -40,7 +40,11 @@ public class RemoteClusterSecurityService {
             logger.debug("Header [{}] is absent", AuthenticationField.REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY);
             return null;
         } else {
-            logger.trace("Header [{}] is present [{}]", AuthenticationField.REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY, fc.fcApiKeyCredentials().getId());
+            logger.trace(
+                "Header [{}] is present [{}]",
+                AuthenticationField.REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY,
+                fc.fcApiKeyCredentials().getId()
+            );
         }
         // Header `_remote_access_authentication` contains QC user access (i.e. Authentication and Authorization)
         final RemoteClusterSecuritySubjectAccess qc;
@@ -50,11 +54,13 @@ public class RemoteClusterSecurityService {
                 logger.debug("Header [{}] is absent", AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY);
                 return null;
             }
-            logger.trace("Header [{}] is present [{}]",
-                AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY, qc.authentication().getEffectiveSubject());
+            logger.trace(
+                "Header [{}] is present [{}]",
+                AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY,
+                qc.authentication().getEffectiveSubject()
+            );
         } catch (IOException ex) {
-            logger.warn("Header [{}] parsing failed",
-                AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY, ex);
+            logger.warn("Header [{}] parsing failed", AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY, ex);
             return null;
         }
         return new RemoteAccessAuthenticationToken(qc, fc);
@@ -65,7 +71,8 @@ public class RemoteClusterSecurityService {
         RemoteAccessAuthenticationToken remoteAccessAuthenticationToken,
         ActionListener<AuthenticationResult<User>> listener
     ) {
-        final RemoteClusterSecuritySubjectAccess remoteClusterSecuritySubjectAccess = remoteAccessAuthenticationToken.getRemoteAccessControls();
+        final RemoteClusterSecuritySubjectAccess remoteClusterSecuritySubjectAccess = remoteAccessAuthenticationToken
+            .getRemoteAccessControls();
         if (remoteClusterSecuritySubjectAccess == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("Missing RemoteAccessUserAccess instance", null));
         } else if (remoteClusterSecuritySubjectAccess.authentication() == null) {

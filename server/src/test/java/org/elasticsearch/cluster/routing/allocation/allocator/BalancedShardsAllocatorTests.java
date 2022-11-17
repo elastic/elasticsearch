@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -55,9 +54,11 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.getIndexDiskUsageInBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
@@ -124,8 +125,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocator = new BalancedShardsAllocator(
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            testWriteLoadForecaster,
-            EmptyClusterInfoService.INSTANCE
+            testWriteLoadForecaster
         );
         var allocation = createRoutingAllocation(clusterState);
         allocator.allocate(allocation);
@@ -232,6 +232,81 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 getTargetShardPerNodeCount(reroutedState.getRoutingTable().index(relocatingShard.index())).containsValue(2),
                 equalTo(false)
             );
+        }
+    }
+
+    public void testGetIndexDiskUsageInBytes() {
+        {
+            final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
+                ClusterInfo.EMPTY,
+                IndexMetadata.builder("index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build()
+            );
+
+            // When no information is available we just return 0
+            assertThat(indexDiskUsageInBytes, is(equalTo(0L)));
+        }
+
+        {
+            final var shardSize = ByteSizeValue.ofGb(50).getBytes();
+
+            final Map<String, Long> shardSizes = new HashMap<>();
+            shardSizes.put("[index][0][p]", shardSize);
+            shardSizes.put("[index][0][r]", shardSize - randomLongBetween(0, 10240));
+
+            final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
+                randomBoolean() ? ClusterInfo.EMPTY : new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of()),
+                IndexMetadata.builder("index")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .shardSizeInBytesForecast(shardSize)
+                    .build()
+            );
+
+            // We only use the clusterInfo as a fallback
+            assertThat(indexDiskUsageInBytes, is(equalTo(shardSize * 2)));
+        }
+
+        {
+            final var shardSize = ByteSizeValue.ofGb(50).getBytes();
+
+            final Map<String, Long> shardSizes = new HashMap<>();
+            shardSizes.put("[index][0][p]", shardSize);
+            shardSizes.put("[index][0][r]", shardSize - randomLongBetween(0, 10240));
+
+            final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
+                new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of()),
+                IndexMetadata.builder("index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build()
+            );
+
+            // Fallback to clusterInfo when no forecast is available
+            assertThat(indexDiskUsageInBytes, is(equalTo(shardSizes.values().stream().mapToLong(size -> size).sum())));
+        }
+
+        {
+            // Only 2 of 4 shards sizes are available, therefore an average is calculated
+            // in order to compute the total index size
+            final Map<String, Long> shardSizes = new HashMap<>();
+            shardSizes.put("[index][0][p]", randomLongBetween(1024, 10240));
+            shardSizes.put("[index][0][r]", randomLongBetween(1024, 10240));
+            shardSizes.put("[index][1][p]", randomLongBetween(1024, 10240));
+            shardSizes.put("[index][1][r]", randomLongBetween(1024, 10240));
+
+            final var averageShardSize = shardSizes.values().stream().mapToLong(size -> size).sum() / shardSizes.size();
+
+            final var indexMetadata = IndexMetadata.builder("index")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(4)
+                .numberOfReplicas(1)
+                .build();
+
+            final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
+                new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of()),
+                indexMetadata
+            );
+
+            final var numberOfCopies = indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
+            assertThat(indexDiskUsageInBytes, is(equalTo(averageShardSize * numberOfCopies)));
         }
     }
 

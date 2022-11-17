@@ -445,6 +445,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             assertThat(values.get(4), equalTo(docs.get(i).tag));
         }
     }
+
     public void testEvalWithNull() {
         EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | sort nullsum | limit 1");
         logger.info(results);

@@ -24,7 +24,7 @@ public class FilteredBlock extends Block {
     private final Block block;
 
     public FilteredBlock(Block block, int[] positions) {
-        super(positions.length);
+        super(positions.length, block.nullsMask);
         this.positions = positions;
         this.block = block;
     }

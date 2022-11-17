@@ -163,7 +163,7 @@ public abstract class Block {
     }
 
     private final void assertNullValues() {
-        assert(mayHaveNull()) : "This block cannot have null values";
+        assert (mayHaveNull()) : "This block cannot have null values";
     }
 
     @Experimental

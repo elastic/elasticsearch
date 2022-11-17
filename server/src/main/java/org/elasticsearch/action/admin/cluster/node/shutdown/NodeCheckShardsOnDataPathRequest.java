@@ -18,6 +18,9 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * A node-specific request derived from the corresponding {@link CheckShardsOnDataPathRequest}.
+*/
 public class NodeCheckShardsOnDataPathRequest extends TransportRequest {
 
     private final Set<ShardId> shardIds;

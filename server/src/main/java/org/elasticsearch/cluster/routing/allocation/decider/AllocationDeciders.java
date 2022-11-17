@@ -15,8 +15,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collection;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Combines the decision of multiple {@link AllocationDecider} implementations into a single allocation decision.
@@ -24,6 +27,12 @@ import java.util.Collection;
 public class AllocationDeciders {
 
     private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);
+
+    private static final Decision NO_IGNORING_SHARD_FOR_NODE = Decision.single(
+        Decision.Type.NO,
+        "ignored_shards_for_node",
+        "shard temporarily ignored for node due to earlier failure"
+    );
 
     private final AllocationDecider[] allocations;
 
@@ -51,7 +60,7 @@ public class AllocationDeciders {
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -84,7 +93,7 @@ public class AllocationDeciders {
             if (logger.isTraceEnabled()) {
                 logger.trace("Shard [{}] should be ignored for node [{}]", shardRouting, node.nodeId());
             }
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         if (allocation.debugDecision()) {
@@ -203,7 +212,7 @@ public class AllocationDeciders {
         assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing " + shardRouting;
 
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider decider : allocations) {
@@ -250,7 +259,7 @@ public class AllocationDeciders {
 
     public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -275,5 +284,16 @@ public class AllocationDeciders {
             && (allocation.getDebugMode() == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
             ret.add(decision);
         }
+    }
+
+    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+        var result = Optional.<Set<String>>empty();
+        for (AllocationDecider allocationDecider : allocations) {
+            var r = allocationDecider.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
+            if (r.isPresent()) {
+                result = result.isEmpty() ? r : Optional.of(Sets.intersection(result.get(), r.get()));
+            }
+        }
+        return result;
     }
 }

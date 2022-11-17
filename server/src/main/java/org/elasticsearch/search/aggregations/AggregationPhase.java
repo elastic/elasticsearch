@@ -11,7 +11,7 @@ import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
+import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -52,8 +52,8 @@ public class AggregationPhase {
             context.queryCollectors().put(AggregationPhase.class, BucketCollector.NO_OP_COLLECTOR);
         } else {
             Collector collector = context.getProfilers() == null
-                ? bucketCollector
-                : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, List.of());
+                ? bucketCollector.asCollector()
+                : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION, List.of());
             context.queryCollectors().put(AggregationPhase.class, collector);
         }
     }

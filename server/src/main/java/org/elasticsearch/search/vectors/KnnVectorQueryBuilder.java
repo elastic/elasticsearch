@@ -104,6 +104,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME).field("field", fieldName).field("vector", queryVector).field("num_candidates", numCands);
+        if (filterQueries.isEmpty() == false) {
+            builder.startArray("filters");
+            for (QueryBuilder filterQuery : filterQueries) {
+                filterQuery.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
         builder.endObject();
     }
 

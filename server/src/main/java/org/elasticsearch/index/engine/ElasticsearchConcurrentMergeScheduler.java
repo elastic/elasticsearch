@@ -109,8 +109,8 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                 getSegmentName(merge),
                 merge.segments.size(),
                 totalNumDocs,
-                new ByteSizeValue(totalSizeInBytes),
-                new ByteSizeValue(merge.estimatedMergeBytes)
+                ByteSizeValue.ofBytes(totalSizeInBytes),
+                ByteSizeValue.ofBytes(merge.estimatedMergeBytes)
             );
         }
         try {
@@ -140,7 +140,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
             String message = String.format(
                 Locale.ROOT,
-                "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], " + "[%s throttled]",
+                "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled]",
                 getSegmentName(merge),
                 TimeValue.timeValueMillis(tookMS),
                 totalSizeInBytes / 1024f / 1024f,

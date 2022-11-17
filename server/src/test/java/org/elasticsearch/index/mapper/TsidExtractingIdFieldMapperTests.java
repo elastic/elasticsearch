@@ -585,6 +585,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testSourceDescription() throws IOException {

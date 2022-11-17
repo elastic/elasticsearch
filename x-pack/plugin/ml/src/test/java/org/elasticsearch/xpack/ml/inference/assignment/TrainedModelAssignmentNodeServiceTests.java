@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
@@ -33,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -624,7 +626,15 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong(), 1, 1, 1024);
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            modelId,
+            randomNonNegativeLong(),
+            1,
+            1,
+            1024,
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            randomFrom(Priority.values())
+        );
     }
 
     private TrainedModelAssignmentNodeService createService() {

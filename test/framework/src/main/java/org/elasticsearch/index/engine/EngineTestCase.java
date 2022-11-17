@@ -205,7 +205,7 @@ public abstract class EngineTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        CodecService codecService = new CodecService(null);
+        CodecService codecService = newCodecService();
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -259,7 +259,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -273,7 +273,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -287,7 +288,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -301,7 +302,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -315,7 +317,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -329,7 +331,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -833,7 +836,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             iwc.getAnalyzer(),
             iwc.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             eventListener,
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -847,7 +850,8 @@ public abstract class EngineTestCase extends ESTestCase {
             retentionLeasesSupplier,
             primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            System::nanoTime
         );
     }
 
@@ -869,7 +873,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -883,7 +887,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier()
         );
     }
 
@@ -1350,7 +1355,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+                assertThat(luceneOp.source(), equalTo(translogOp.source()));
             }
         }
     }
@@ -1613,5 +1618,9 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         // hard fail - we can't get the lazybits
         throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
+    }
+
+    static CodecService newCodecService() {
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 }

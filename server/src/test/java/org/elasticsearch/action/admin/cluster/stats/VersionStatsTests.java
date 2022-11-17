@@ -115,7 +115,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         ShardStats shardStats = new ShardStats(
             shardRouting,
             new ShardPath(false, path, path, shardRouting.shardId()),
-            new CommonStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
+            CommonStats.getShardLevelStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
             null,
             null,
             null
@@ -125,7 +125,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             ClusterHealthStatus.GREEN,
             null,
             null,
-            new ShardStats[] { shardStats }
+            new ShardStats[] { shardStats },
+            null
         );
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));

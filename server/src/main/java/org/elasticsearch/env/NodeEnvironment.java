@@ -495,9 +495,6 @@ public final class NodeEnvironment implements Closeable {
     /**
      * Checks to see if we can upgrade to this version based on the existing index state. Upgrading
      * from older versions can cause irreversible changes if allowed.
-     * @param logger
-     * @param dataPaths
-     * @throws IOException
      */
     static void checkForIndexCompatibility(Logger logger, DataPath... dataPaths) throws IOException {
         final Path[] paths = Arrays.stream(dataPaths).map(np -> np.path).toArray(Path[]::new);
@@ -520,14 +517,19 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
             throw new IllegalStateException(
-                "cannot upgrade node because incompatible indices created with version ["
+                "Cannot start this node because it holds metadata for indices created with version ["
                     + metadata.oldestIndexVersion()
-                    + "] exist, while the minimum compatible index version is ["
+                    + "] with which this node of version ["
+                    + Version.CURRENT
+                    + "] is incompatible. Revert this node to version ["
+                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
+                    + "] and delete any indices created in versions earlier than ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
-                    + "]. "
-                    + "Upgrade your older indices by reindexing them in version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
-                    + "] first."
+                    + "] before upgrading to version ["
+                    + Version.CURRENT
+                    + "]. If all such indices have already been deleted, revert this node to version ["
+                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
+                    + "] and wait for it to join the cluster to clean up any older indices from its metadata."
             );
         }
     }

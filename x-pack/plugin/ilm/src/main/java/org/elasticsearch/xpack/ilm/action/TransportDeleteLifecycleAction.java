@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -73,8 +74,8 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
         }
 
         /**
-         * Used by the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} for ILM
-         * {@link ImmutableLifecycleAction}
+         * Used by the {@link ReservedClusterStateHandler} for ILM
+         * {@link ReservedLifecycleAction}
          */
         DeleteLifecyclePolicyTask(String policyName) {
             this(new Request(policyName), null);
@@ -119,12 +120,12 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected Optional<String> immutableStateHandlerName() {
-        return Optional.of(ImmutableLifecycleAction.NAME);
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedLifecycleAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(Request request) {
+    public Set<String> modifiedKeys(Request request) {
         return Set.of(request.getPolicyName());
     }
 }

@@ -1,5 +1,0 @@
-pr: 88413
-summary: Ensure `CreateApiKey` always creates a new document
-area: Security
-type: bug
-issues: []

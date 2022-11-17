@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -155,7 +154,7 @@ public class RemoteFailureTests extends ESTestCase {
             """);
         int i = 0;
         while (tooBig.length() < RemoteFailure.MAX_RAW_RESPONSE) {
-            tooBig.append(String.format(Locale.ROOT, """
+            tooBig.append(formatted("""
                 "%04d" : "lots and lots and lots and lots and lots of words",
                 """, i++));
         }

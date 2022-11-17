@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -24,7 +25,6 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 
 /**
  * This indicator reports health for index lifecycle management component.
@@ -39,10 +39,18 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "ilm";
 
     public static final String HELP_URL = "https://ela.st/fix-ilm";
-    public static final UserAction ILM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("ilm-not-running", "Start Index Lifecycle Management using [POST /_ilm/start].", HELP_URL),
+    public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
+        new Diagnosis.Definition(
+            NAME,
+            "ilm_disabled",
+            "Index Lifecycle Management is stopped",
+            "Start Index Lifecycle Management using [POST /_ilm/start].",
+            HELP_URL
+        ),
         null
     );
+
+    public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
 
     private final ClusterService clusterService;
 
@@ -56,29 +64,21 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public String component() {
-        return DATA;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
-    }
-
-    @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No Index Lifecycle Management policies configured",
-                createDetails(explain, ilmMetadata),
+                createDetails(verbose, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
+                    NAME,
+                    AUTOMATION_DISABLED_IMPACT_ID,
                     3,
                     "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",
@@ -88,7 +88,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 YELLOW,
                 "Index Lifecycle Management is not running",
-                createDetails(explain, ilmMetadata),
+                createDetails(verbose, ilmMetadata),
                 impacts,
                 List.of(ILM_NOT_RUNNING)
             );
@@ -96,15 +96,15 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 GREEN,
                 "Index Lifecycle Management is running",
-                createDetails(explain, ilmMetadata),
+                createDetails(verbose, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean explain, IndexLifecycleMetadata metadata) {
-        if (explain) {
+    private static HealthIndicatorDetails createDetails(boolean verbose, IndexLifecycleMetadata metadata) {
+        if (verbose) {
             return new SimpleHealthIndicatorDetails(
                 Map.of("ilm_status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
             );

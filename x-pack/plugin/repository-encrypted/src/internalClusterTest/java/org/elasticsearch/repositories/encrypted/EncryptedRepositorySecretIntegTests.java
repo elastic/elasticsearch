@@ -118,7 +118,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
 
         if (randomBoolean()) {
             // stop the node with the missing password
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodeName));
+            internalCluster().stopNode(masterNodeName);
             ensureStableCluster(2);
         } else {
             // restart the node with the missing password
@@ -183,7 +183,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         expectThrows(RepositoryVerificationException.class, () -> client().admin().cluster().prepareVerifyRepository(repositoryName).get());
         if (randomBoolean()) {
             // stop the node with the missing password
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNodeName));
+            internalCluster().stopNode(otherNodeName);
             ensureStableCluster(1);
             // repository verification now succeeds
             VerifyRepositoryResponse verifyRepositoryResponse = client().admin().cluster().prepareVerifyRepository(repositoryName).get();
@@ -686,7 +686,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setIndices(indexName).setWaitForCompletion(false).get();
 
         // stop master
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
+        internalCluster().stopNode(masterNode);
         ensureStableCluster(3);
 
         otherNodeEncryptedRepo.unblockSnapshotShard();

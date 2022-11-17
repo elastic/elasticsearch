@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -48,9 +49,10 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer
     ) {
-        super(settings, networkService, threadPool, xContentRegistry, dispatcher, clusterSettings, sharedGroupFactory);
+        super(settings, networkService, threadPool, xContentRegistry, dispatcher, clusterSettings, sharedGroupFactory, tracer);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);

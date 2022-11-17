@@ -1,0 +1,5 @@
+pr: 91586
+summary: Reduce number of object allocations in H3#h3ToGeoBoundary
+area: Geo
+type: enhancement
+issues: []

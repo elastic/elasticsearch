@@ -124,7 +124,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
                     .stream()
                     .anyMatch(
                         d -> d.getExplanation().contains(SHARED_CACHE_SIZE_SETTING.getKey())
-                            && d.getExplanation().contains("frozen searchable snapshot shards cannot be allocated to this node")
+                            && d.getExplanation().contains("shards of partially mounted indices cannot be allocated to this node")
                     )
             );
         }
@@ -136,7 +136,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         final List<String> newNodeNames = internalCluster().startDataOnlyNodes(
             between(1, 3),
             Settings.builder()
-                .put(SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
                 .build()
         );
 
@@ -158,7 +158,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         final List<String> newNodeNames = internalCluster().startNodes(
             between(1, 3),
             Settings.builder()
-                .put(SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
                 .put(onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
                 .build()
         );
@@ -244,7 +244,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         final List<String> newNodes = internalCluster().startDataOnlyNodes(
             2,
             Settings.builder()
-                .put(SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
                 .build()
         );
         final ActionFuture<RestoreSnapshotResponse> responseFuture = client().execute(MountSearchableSnapshotAction.INSTANCE, req);

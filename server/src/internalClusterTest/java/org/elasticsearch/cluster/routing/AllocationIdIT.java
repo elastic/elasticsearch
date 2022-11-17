@@ -32,7 +32,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -98,13 +97,13 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         Settings node1DataPathSettings = internalCluster().dataPathSettings(node1);
         Settings node2DataPathSettings = internalCluster().dataPathSettings(node2);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+        internalCluster().stopNode(node1);
 
         // index more docs to node2 that marks node1 as stale
         int numExtraDocs = indexDocs(indexName, "foo", "bar2");
         assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
+        internalCluster().stopNode(node2);
 
         // create fake corrupted marker on node1
         putFakeCorruptionMarker(indexSettings, shardId, indexPath);

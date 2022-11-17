@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -17,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -58,11 +59,10 @@ public class TrainedModelAssignmentService {
     ) {
         ClusterState currentState = clusterService.state();
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("[{}] no master known for assignment update [{}]", request.getModelId(), request.getUpdate());
-            waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener, changePredicate);
+            waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
             return;
         }
         client.execute(
@@ -75,13 +75,7 @@ public class TrainedModelAssignmentService {
                         request.getModelId(),
                         request.getUpdate()
                     );
-                    waitForNewMasterAndRetry(
-                        observer,
-                        UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE,
-                        request,
-                        listener,
-                        changePredicate
-                    );
+                    waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
                     return;
                 }
                 listener.onFailure(failure);
@@ -133,7 +127,7 @@ public class TrainedModelAssignmentService {
 
     public interface WaitForAssignmentListener extends ActionListener<TrainedModelAssignment> {
         default void onTimeout(TimeValue timeout) {
-            onFailure(new IllegalStateException("Timed out when waiting for trained model assignment after " + timeout));
+            onFailure(new ElasticsearchStatusException("Starting deployment timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout));
         }
     }
 
@@ -141,8 +135,7 @@ public class TrainedModelAssignmentService {
         ClusterStateObserver observer,
         ActionType<AcknowledgedResponse> action,
         ActionRequest request,
-        ActionListener<AcknowledgedResponse> listener,
-        Predicate<ClusterState> changePredicate
+        ActionListener<AcknowledgedResponse> listener
     ) {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
@@ -161,7 +154,7 @@ public class TrainedModelAssignmentService {
                 // we wait indefinitely for a new master
                 assert false;
             }
-        }, changePredicate);
+        }, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
     }
 
     private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[] {

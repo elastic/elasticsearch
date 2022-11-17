@@ -42,6 +42,10 @@
               kill-phase-on: NEVER
               current-parameters: true
               git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+intake+multijob+part3
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
             - name: elastic+elasticsearch+%BRANCH%+intake+multijob+bwc-snapshots
               kill-phase-on: NEVER
               current-parameters: true

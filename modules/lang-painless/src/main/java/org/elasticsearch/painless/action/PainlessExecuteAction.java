@@ -56,6 +56,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -166,7 +167,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 }, DOCUMENT_FIELD);
                 PARSER.declareObject(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                    (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
                     QUERY_FIELD
                 );
             }
@@ -433,32 +434,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
     }
 
-    public abstract static class PainlessTestScript {
-
-        private final Map<String, Object> params;
-
-        public PainlessTestScript(Map<String, Object> params) {
-            this.params = params;
-        }
-
-        /** Return the parameters for this script. */
-        public Map<String, Object> getParams() {
-            return params;
-        }
-
-        public abstract Object execute();
-
-        public interface Factory {
-
-            PainlessTestScript newInstance(Map<String, Object> params);
-
-        }
-
-        public static final String[] PARAMETERS = {};
-        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("painless_test", Factory.class);
-
-    }
-
     public static class TransportAction extends TransportSingleShardAction<Request, Response> {
 
         private final ScriptService scriptService;
@@ -626,7 +601,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     );
                     GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<GeoPoint> points = new ArrayList<>();
-                    geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
+                    geoPointFieldScript.runForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
                     Function<List<GeoPoint>, List<Object>> format = GeometryFormatterFactory.getFormatter(
                         GeometryFormatterFactory.GEOJSON,

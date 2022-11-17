@@ -28,5 +28,6 @@ grant {
   // s3 client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 
-
+  // only for tests : org.elasticsearch.repositories.s3.S3RepositoryPlugin
+  permission java.util.PropertyPermission "es.allow_insecure_settings", "read,write";
 };

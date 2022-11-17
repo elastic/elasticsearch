@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -199,11 +200,21 @@ public class FollowersChecker {
             throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
 
-        transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(ActionRunnable.supply(listener, () -> {
-            logger.trace("responding to {} on slow path", request);
-            handleRequestAndUpdateState.accept(request);
-            return Empty.INSTANCE;
-        }));
+        transportService.getThreadPool()
+            .executor(Names.CLUSTER_COORDINATION)
+            .execute(ActionRunnable.supply(listener, new CheckedSupplier<>() {
+                @Override
+                public Empty get() {
+                    logger.trace("responding to {} on slow path", request);
+                    handleRequestAndUpdateState.accept(request);
+                    return Empty.INSTANCE;
+                }
+
+                @Override
+                public String toString() {
+                    return "responding to [" + request + "] on slow path";
+                }
+            }));
     }
 
     /**

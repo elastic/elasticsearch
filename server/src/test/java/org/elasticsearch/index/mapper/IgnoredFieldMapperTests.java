@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,7 +24,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IgnoredFieldMapperTests extends MapperServiceTestCase {
+public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return IgnoredFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
@@ -50,7 +64,11 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(
+                    mapperService::fieldType,
+                    fieldDataLookup(mapperService),
+                    new SourceLookup.ReaderSourceProvider()
+                );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
@@ -59,7 +77,7 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
     }

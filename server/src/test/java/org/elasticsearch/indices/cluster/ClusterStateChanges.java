@@ -93,6 +93,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -233,7 +234,8 @@ public class ClusterStateChanges {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             clusterSettings,
-            Collections.emptySet()
+            Collections.emptySet(),
+            Tracer.NOOP
         );
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(SETTINGS, xContentRegistry, null, null, null) {
             // metadata upgrader should do nothing
@@ -374,7 +376,7 @@ public class ClusterStateChanges {
             blockedIndices,
             blockedIndices.keySet().stream().collect(toMap(Function.identity(), CloseIndexResponse.IndexResult::new))
         );
-        return allocationService.reroute(newState, "indices closed");
+        return allocationService.reroute(newState, "indices closed", ActionListener.noop());
     }
 
     public ClusterState openIndices(ClusterState state, OpenIndexRequest request) {

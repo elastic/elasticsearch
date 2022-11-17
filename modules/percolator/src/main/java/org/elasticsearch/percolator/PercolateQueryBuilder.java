@@ -46,6 +46,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -232,7 +233,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             indexedDocumentVersion = null;
         }
-        documents = in.readList(StreamInput::readBytesReference);
+        documents = in.readImmutableList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
             documentXContentType = in.readEnum(XContentType.class);
         } else {
@@ -530,7 +531,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         String queryName = this.name != null ? this.name : pft.name();
         SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
-        ;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
@@ -640,8 +640,18 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             @Override
             @SuppressWarnings("unchecked")
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(delegate.getFullyQualifiedIndex().getName(), delegate::lookup);
+            public <IFD extends IndexFieldData<?>> IFD getForField(
+                MappedFieldType fieldType,
+                MappedFieldType.FielddataOperation fielddataOperation
+            ) {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(
+                    new FieldDataContext(
+                        delegate.getFullyQualifiedIndex().getName(),
+                        delegate::lookup,
+                        this::sourcePath,
+                        fielddataOperation
+                    )
+                );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);

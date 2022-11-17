@@ -9,13 +9,16 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -26,50 +29,88 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         this.indexed = randomBoolean();
     }
 
-    private DenseVectorFieldType createFieldType() {
-        return new DenseVectorFieldType("f", Version.CURRENT, 5, indexed, VectorSimilarity.cosine, Collections.emptyMap());
+    private DenseVectorFieldType createFloatFieldType() {
+        return new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            5,
+            indexed,
+            VectorSimilarity.cosine,
+            Collections.emptyMap()
+        );
+    }
+
+    private DenseVectorFieldType createByteFieldType() {
+        return new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.BYTE,
+            5,
+            true,
+            VectorSimilarity.cosine,
+            Collections.emptyMap()
+        );
     }
 
     public void testHasDocValues() {
-        DenseVectorFieldType ft = createFieldType();
-        assertNotEquals(indexed, ft.hasDocValues());
+        DenseVectorFieldType fft = createFloatFieldType();
+        assertNotEquals(indexed, fft.hasDocValues());
+        DenseVectorFieldType bft = createByteFieldType();
+        assertFalse(bft.hasDocValues());
     }
 
     public void testIsIndexed() {
-        DenseVectorFieldType ft = createFieldType();
-        assertEquals(indexed, ft.isIndexed());
+        DenseVectorFieldType fft = createFloatFieldType();
+        assertEquals(indexed, fft.isIndexed());
+        DenseVectorFieldType bft = createByteFieldType();
+        assertTrue(bft.isIndexed());
     }
 
     public void testIsSearchable() {
-        DenseVectorFieldType ft = createFieldType();
-        assertEquals(indexed, ft.isSearchable());
+        DenseVectorFieldType fft = createFloatFieldType();
+        assertEquals(indexed, fft.isSearchable());
+        DenseVectorFieldType bft = createByteFieldType();
+        assertTrue(bft.isSearchable());
     }
 
     public void testIsAggregatable() {
-        DenseVectorFieldType ft = createFieldType();
-        assertFalse(ft.isAggregatable());
+        DenseVectorFieldType fft = createFloatFieldType();
+        assertFalse(fft.isAggregatable());
+        DenseVectorFieldType bft = createByteFieldType();
+        assertFalse(bft.isAggregatable());
     }
 
     public void testFielddataBuilder() {
-        DenseVectorFieldType ft = createFieldType();
-        assertNotNull(ft.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); }));
+        DenseVectorFieldType fft = createFloatFieldType();
+        FieldDataContext fdc = new FieldDataContext("test", () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        assertNotNull(fft.fielddataBuilder(fdc));
+
+        DenseVectorFieldType bft = createByteFieldType();
+        FieldDataContext bdc = new FieldDataContext("test", () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        assertNotNull(bft.fielddataBuilder(bdc));
     }
 
     public void testDocValueFormat() {
-        DenseVectorFieldType ft = createFieldType();
-        expectThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
+        DenseVectorFieldType fft = createFloatFieldType();
+        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat(null, null));
+        DenseVectorFieldType bft = createByteFieldType();
+        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat(null, null));
     }
 
     public void testFetchSourceValue() throws IOException {
-        DenseVectorFieldType ft = createFieldType();
+        DenseVectorFieldType fft = createFloatFieldType();
         List<Double> vector = List.of(0.0, 1.0, 2.0, 3.0, 4.0);
-        assertEquals(vector, fetchSourceValue(ft, vector));
+        assertEquals(vector, fetchSourceValue(fft, vector));
+        DenseVectorFieldType bft = createByteFieldType();
+        assertEquals(vector, fetchSourceValue(bft, vector));
     }
 
-    public void testCreateKnnQuery() {
+    public void testFloatCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             false,
             VectorSimilarity.cosine,
@@ -84,6 +125,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
             VectorSimilarity.dot_product,
@@ -95,6 +137,36 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            3,
+            true,
+            VectorSimilarity.cosine,
+            Collections.emptyMap()
+        );
+        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
+        assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
+    }
+
+    public void testByteCreateKnnQuery() {
+        DenseVectorFieldType unindexedField = new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.BYTE,
+            3,
+            false,
+            VectorSimilarity.cosine,
+            Collections.emptyMap()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null)
+        );
+        assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
+
+        DenseVectorFieldType cosineField = new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.BYTE,
             3,
             true,
             VectorSimilarity.cosine,

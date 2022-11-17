@@ -192,9 +192,9 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         }
 
         {
-            final Settings settings = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "301s").build();
+            final Settings settings = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "601s").build();
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(settings));
-            assertThat(e.getMessage(), is("failed to parse value [301s] for setting [cluster.election.max_timeout], must be <= [300s]"));
+            assertThat(e.getMessage(), is("failed to parse value [601s] for setting [cluster.election.max_timeout], must be <= [600s]"));
         }
 
         {

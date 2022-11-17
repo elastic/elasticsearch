@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().getForField(ft)
+                context.searchLookup().getForField(ft, MappedFieldType.FielddataOperation.SEARCH)
             );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
@@ -60,6 +61,11 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+
+            @Override
             public void process(HitContext hit) throws IOException {
                 for (DocValueField f : fields) {
                     DocumentField hitField = hit.hit().field(f.field);
@@ -70,7 +76,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         hit.hit().setDocumentField(f.field, hitField);
                     }
                     List<Object> ignoredValues = new ArrayList<>();
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup(), ignoredValues));
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.source(), hit.docId(), ignoredValues));
                     // Doc value fetches should not return any ignored values
                     assert ignoredValues.isEmpty();
                 }

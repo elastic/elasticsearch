@@ -246,7 +246,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 (Optional)
 Indicates which <<mapping-source-field,source fields>> are returned for matching
 documents. These fields are returned in the `hits._source` property of
-the search response. Defaults to `true`. See <<source-filtering>>.
+the search response. Defaults to `true`. See <<source-filtering,source filtering>>.
 +
 .Valid values for `_source`
 [%collapsible%open]
@@ -383,7 +383,7 @@ Array of field patterns. The request returns values for field names matching
 these patterns in the `hits.fields` property of the response.
 +
 You can specify items in the array as a string or object. See
-<<search-fields-param>>.
+<<search-fields-param,the `fields` option>>.
 +
 .Properties of `fields` objects
 [%collapsible%open]
@@ -478,6 +478,36 @@ are supported.
 +
 A boost value greater than `1.0` increases the score. A boost value between
 `0` and `1.0` decreases the score.
+====
+
+experimental::[]
+[[search-api-knn]]
+`knn`::
+(Optional, object) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+
+`k`::
+(Required, integer) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
+
+`num_candidates`::
+(Required, integer) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+
+`query_vector`::
+(Required, array of floats)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 ====
 
 [[search-api-min-score]]
@@ -607,7 +637,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 (Optional)
 Indicates which <<mapping-source-field,source fields>> are returned for matching
 documents. These fields are returned in the `hits._source` property of
-the search response. Defaults to `true`. See <<source-filtering>>.
+the search response. Defaults to `true`. See <<source-filtering,source filtering>>.
 +
 .Valid values for `_source`
 [%collapsible%open]

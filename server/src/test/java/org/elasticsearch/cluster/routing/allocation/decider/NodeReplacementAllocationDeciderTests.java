@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -101,7 +102,11 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanForceAllocate() {
-        ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(
+            service.reroute(ClusterState.EMPTY_STATE, "initial state", ActionListener.noop()),
+            NODE_A.getId(),
+            NODE_B.getName()
+        );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -113,7 +118,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
         );
         assignedShard = assignedShard.initialize(NODE_A.getId(), null, 1);
-        assignedShard = assignedShard.moveToStarted();
+        assignedShard = assignedShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         Decision decision = decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
@@ -144,7 +149,11 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCannotRemainOnReplacedNode() {
-        ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(
+            service.reroute(ClusterState.EMPTY_STATE, "initial state", ActionListener.noop()),
+            NODE_A.getId(),
+            NODE_B.getName()
+        );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -170,7 +179,11 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
-        ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(
+            service.reroute(ClusterState.EMPTY_STATE, "initial state", ActionListener.noop()),
+            NODE_A.getId(),
+            NODE_B.getName()
+        );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -178,7 +191,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         ShardRouting testShard = this.shard;
         if (randomBoolean()) {
             testShard = shard.initialize(NODE_C.getId(), null, 1);
-            testShard = testShard.moveToStarted();
+            testShard = testShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
         Decision decision = decider.canAllocate(testShard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));

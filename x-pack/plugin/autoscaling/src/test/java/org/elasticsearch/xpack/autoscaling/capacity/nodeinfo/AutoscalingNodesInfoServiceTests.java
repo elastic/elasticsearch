@@ -33,6 +33,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -137,7 +138,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             );
             NodesInfoResponse responseInfo = new NodesInfoResponse(
                 ClusterName.DEFAULT,
-                succeedingNodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+                succeedingNodes.stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
                 List.of()
             );
             client.respondStats(response, () -> {
@@ -187,7 +188,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         );
         NodesInfoResponse responseInfo = new NodesInfoResponse(
             ClusterName.DEFAULT,
-            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
             List.of()
         );
 
@@ -223,7 +224,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         );
         NodesInfoResponse responseInfo = new NodesInfoResponse(
             ClusterName.DEFAULT,
-            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
             List.of()
         );
 
@@ -248,7 +249,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
         NodesInfoResponse responseInfo = new NodesInfoResponse(
             ClusterName.DEFAULT,
-            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
             List.of()
         );
 
@@ -271,7 +272,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
         NodesInfoResponse responseInfo = new NodesInfoResponse(
             ClusterName.DEFAULT,
-            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
             List.of()
         );
 
@@ -300,7 +301,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
         NodesInfoResponse restartedInfoResponse = new NodesInfoResponse(
             ClusterName.DEFAULT,
-            Sets.difference(restartedNodes, nodes).stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            Sets.difference(restartedNodes, nodes).stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
             List.of()
         );
 
@@ -326,7 +327,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         );
         NodesInfoResponse nodesInfoResponse = new NodesInfoResponse(
             ClusterName.DEFAULT,
-            nodes.stream().map(n -> infoForNode(n, randomIntBetween(0, 64))).collect(Collectors.toList()),
+            nodes.stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
             List.of()
         );
 
@@ -402,7 +403,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
                 equalTo(
                     new AutoscalingNodeInfo(
                         response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes(),
-                        infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getAllocatedProcessors()
+                        Processors.of(infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getFractionalAllocatedProcessors())
                     )
                 )
             );
@@ -445,7 +446,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private static org.elasticsearch.action.admin.cluster.node.info.NodeInfo infoForNode(DiscoveryNode node, int processors) {
-        OsInfo osInfo = new OsInfo(randomLong(), processors, processors, null, null, null, null);
+        OsInfo osInfo = new OsInfo(randomLong(), processors, Processors.of((double) processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
             Build.CURRENT,

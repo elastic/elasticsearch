@@ -283,7 +283,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
@@ -544,7 +544,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
@@ -586,7 +586,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         Consumer<InternalAvg> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     /**
@@ -616,7 +616,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
@@ -662,7 +662,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
@@ -680,7 +680,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         context = createAggregationContext(indexSearcher, null, fieldType);
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         avg = (InternalAvg) aggregator.buildAggregation(0L);

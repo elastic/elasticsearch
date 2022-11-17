@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
@@ -107,7 +106,7 @@ public class JobNodeSelector {
         int maxOpenJobs
     ) {
         List<DiscoveryNode> capableNodes = candidateNodes.stream().filter(n -> this.nodeFilter.apply(n) == null).toList();
-        NativeMemoryCapacity currentCapacityForMl = MlAutoscalingDeciderService.currentScale(
+        NativeMemoryCapacity currentCapacityForMl = NativeMemoryCapacity.currentScale(
             capableNodes,
             maxMachineMemoryPercent,
             useAutoMemoryPercentage

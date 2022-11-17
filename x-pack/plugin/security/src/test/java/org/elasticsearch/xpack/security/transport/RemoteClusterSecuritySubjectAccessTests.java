@@ -34,14 +34,14 @@ public class RemoteClusterSecuritySubjectAccessTests extends ESTestCase {
 
         final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
         final RemoteClusterSecuritySubjectAccess decoded = RemoteClusterSecuritySubjectAccess.decode(
-             RemoteClusterSecuritySubjectAccess.encode(expectedAuthentication, new RoleDescriptorsIntersection(expectedRoleDescriptors1))
-         );
+            RemoteClusterSecuritySubjectAccess.encode(expectedAuthentication, new RoleDescriptorsIntersection(expectedRoleDescriptors1))
+        );
 
-         assertThat(decoded.authentication(), equalTo(expectedAuthentication));
-         assertThat(
-             RemoteClusterSecuritySubjectAccess.parseRoleDescriptorsBytes(decoded.authorization().iterator().next()),
-             equalTo(expectedRoleDescriptors1.iterator().next())
-         );
+        assertThat(decoded.authentication(), equalTo(expectedAuthentication));
+        assertThat(
+            RemoteClusterSecuritySubjectAccess.parseRoleDescriptorsBytes(decoded.authorization().iterator().next()),
+            equalTo(expectedRoleDescriptors1.iterator().next())
+        );
     }
 
 }

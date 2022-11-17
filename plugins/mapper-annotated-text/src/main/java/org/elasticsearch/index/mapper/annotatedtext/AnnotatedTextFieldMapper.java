@@ -480,7 +480,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, true, store, tsi, isSyntheticSource, meta);
+            super(name, true, store, tsi, isSyntheticSource, null, meta);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {

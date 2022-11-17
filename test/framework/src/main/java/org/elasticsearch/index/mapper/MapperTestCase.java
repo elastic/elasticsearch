@@ -1094,7 +1094,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     LeafStoredFieldLoader storedLeaf = storedFieldLoader.getLoader(leaf, docIds);
                     for (int docId : docIds) {
                         storedLeaf.advanceTo(docId);
-                        assertThat("doc " + docId, sourceLoaderLeaf.source(storedLeaf, docId).utf8ToString(), equalTo(expected[i++]));
+                        String source = sourceLoaderLeaf.source(storedLeaf, docId).internalSourceRef().utf8ToString();
+                        assertThat("doc " + docId, source, equalTo(expected[i++]));
                     }
                 }
             }

@@ -135,7 +135,7 @@ class org.elasticsearch.script.field.vectors.DenseVector {
     DenseVector EMPTY
     float getMagnitude()
 
-    # handle List<Number> and float[] arguments
+    # handle List<Number>, float[], and byte[] arguments
     double dotProduct(Object)
     double l1Norm(Object)
     double l2Norm(Object)
@@ -147,23 +147,7 @@ class org.elasticsearch.script.field.vectors.DenseVector {
     int size()
 }
 
-# implementation of DenseVector
-class org.elasticsearch.script.field.vectors.BinaryDenseVector {
-}
-
-# implementation of DenseVector
-class org.elasticsearch.script.field.vectors.KnnDenseVector {
-}
-
 class org.elasticsearch.script.field.vectors.DenseVectorDocValuesField {
     DenseVector get()
     DenseVector get(DenseVector)
-}
-
-# implementation of DenseVectorDocValuesField
-class org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField {
-}
-
-# implementation of DenseVectorDocValuesField
-class org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField {
 }

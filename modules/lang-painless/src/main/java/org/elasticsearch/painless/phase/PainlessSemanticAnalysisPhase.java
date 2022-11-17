@@ -60,7 +60,7 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
             for (int i = 0; i < typeParameters.size(); ++i) {
                 Class<?> typeParameter = localFunction.getTypeParameters().get(i);
-                String parameterName = scriptClassInfo.getExecuteArguments().get(i).getName();
+                String parameterName = scriptClassInfo.getExecuteArguments().get(i).name();
                 functionScope.defineVariable(userFunctionNode.getLocation(), typeParameter, parameterName, false);
             }
 

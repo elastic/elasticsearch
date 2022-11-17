@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -24,6 +25,15 @@ restResources {
   restTests {
     // Pulls in all aggregation tests from core AND the forwards v7's core for forwards compatibility
     includeCore 'search.aggregation'
+  }
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }
 

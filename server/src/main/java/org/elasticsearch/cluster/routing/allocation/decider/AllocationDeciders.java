@@ -15,8 +15,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collection;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Combines the decision of multiple {@link AllocationDecider} implementations into a single allocation decision.
@@ -281,5 +284,16 @@ public class AllocationDeciders {
             && (allocation.getDebugMode() == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
             ret.add(decision);
         }
+    }
+
+    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+        var result = Optional.<Set<String>>empty();
+        for (AllocationDecider allocationDecider : allocations) {
+            var r = allocationDecider.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
+            if (r.isPresent()) {
+                result = result.isEmpty() ? r : Optional.of(Sets.intersection(result.get(), r.get()));
+            }
+        }
+        return result;
     }
 }

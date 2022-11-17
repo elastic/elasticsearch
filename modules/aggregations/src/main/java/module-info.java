@@ -15,6 +15,7 @@ module org.elasticsearch.aggs {
 
     exports org.elasticsearch.aggregations.bucket.histogram;
     exports org.elasticsearch.aggregations.bucket.adjacency;
+    exports org.elasticsearch.aggregations.bucket.timeseries;
     exports org.elasticsearch.aggregations.pipeline;
 
     opens org.elasticsearch.aggregations to org.elasticsearch.painless.spi; // whitelist resource access

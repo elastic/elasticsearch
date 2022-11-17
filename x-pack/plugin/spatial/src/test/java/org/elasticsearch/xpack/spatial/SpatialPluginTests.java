@@ -148,7 +148,6 @@ public class SpatialPluginTests extends ESTestCase {
                 new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null, null)
             );
             NullPointerException exception = expectThrows(NullPointerException.class, () -> builder.accept(aggregator));
-            exception.printStackTrace();
             assertThat(
                 "Incorrect exception testing " + aggName + " on field " + fieldTypeName,
                 exception.getMessage(),

@@ -1739,6 +1739,39 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(roleDescriptor.getIndicesPrivileges(), arrayContainingInAnyOrder(indicesPrivileges.toArray()));
     }
 
+    public void testGetRemoteAccessRoleDescriptorsIntersectionWithMultipleGroups() throws ExecutionException, InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutMatchingGroups() throws ExecutionException, InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final Role role = mockRoleWithRemoteIndices(
+            RemoteIndicesPermission.builder()
+                .addGroup(
+                    Set.of(concreteClusterAlias),
+                    IndexPrivilege.READ,
+                    new FieldPermissions(new FieldPermissionsDefinition(null, null)),
+                    null,
+                    randomBoolean(),
+                    generateRandomStringArray(3, 10, false, false)
+                )
+                .build()
+        );
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(
+            randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10)),
+            authorizationInfo,
+            future
+        );
+        final RoleDescriptorsIntersection actual = future.get();
+        assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
+    }
+
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {
         return indices.stream().filter(i -> i.getIndices().contains(name)).findFirst().get();
     }

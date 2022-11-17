@@ -83,8 +83,8 @@ public class IPFilterTests extends ESTestCase {
                 IPFilter.IP_FILTER_ENABLED_SETTING,
                 IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING,
-                IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING,
+                TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING : null,
+                TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING : null,
                 IPFilter.PROFILE_FILTER_ALLOW_SETTING,
                 IPFilter.PROFILE_FILTER_DENY_SETTING,
                 TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED : null

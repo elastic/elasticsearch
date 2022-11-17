@@ -18,6 +18,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -60,6 +61,8 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
                     IPFilter.IP_FILTER_ENABLED_SETTING,
                     IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                     IPFilter.TRANSPORT_FILTER_DENY_SETTING,
+                    TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING : null,
+                    TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING : null,
                     IPFilter.PROFILE_FILTER_ALLOW_SETTING,
                     IPFilter.PROFILE_FILTER_DENY_SETTING
                 )

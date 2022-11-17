@@ -113,6 +113,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -1730,9 +1731,12 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(actual.roleDescriptorsList().size(), equalTo(1));
         assertThat(actual.roleDescriptorsList().iterator().next().size(), equalTo(1));
         final RoleDescriptor roleDescriptor = actual.roleDescriptorsList().iterator().next().iterator().next();
-        final IndicesPrivileges[] actualIndices = roleDescriptor.getIndicesPrivileges();
-        assertThat(actualIndices, arrayContainingInAnyOrder(indicesPrivileges.toArray()));
-        // TODO assert other no other privileges
+        assertThat(roleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getClusterPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getApplicationPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getRunAs(), emptyArray());
+        assertThat(roleDescriptor.getMetadata().isEmpty(), is(true));
+        assertThat(roleDescriptor.getIndicesPrivileges(), arrayContainingInAnyOrder(indicesPrivileges.toArray()));
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

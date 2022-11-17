@@ -16,8 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,9 +44,9 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
 
         for (Setting.AffixSetting<?> profileSetting : transportProfileSettings) {
             Settings testSettings = Settings.builder()
-                .put(REMOTE_ACCESS_ENABLED.getKey(), true)
+                .put(REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
                 // We can just stick a random value in, even if it doesn't match the type - that validation happens at a different layer
-                .put(profileSetting.getConcreteSettingForNamespace(REMOTE_ACCESS_PROFILE).getKey(), randomAlphaOfLength(5))
+                .put(profileSetting.getConcreteSettingForNamespace(REMOTE_CLUSTER_PROFILE).getKey(), randomAlphaOfLength(5))
                 .build();
             expectThrows(IllegalArgumentException.class, () -> RemoteClusterPortSettings.validateRemoteAccessSettings(testSettings));
         }
@@ -55,7 +55,7 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
     public void testPortSettingsConstruction() {
         String hostValue = randomIp(true).getHostAddress();
         Settings.Builder testSettingsBuilder = Settings.builder()
-            .put(REMOTE_ACCESS_ENABLED.getKey(), true)
+            .put(REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
             .put(randomFrom(RemoteClusterPortSettings.HOST, TransportSettings.BIND_HOST, TransportSettings.HOST).getKey(), hostValue);
 
         boolean publishHostSet = randomBoolean();
@@ -174,7 +174,7 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
 
         Settings testSettings = testSettingsBuilder.build();
         TcpTransport.ProfileSettings profileSettings = RemoteClusterPortSettings.buildRemoteAccessProfileSettings(testSettings);
-        assertThat(profileSettings.profileName, equalTo(REMOTE_ACCESS_PROFILE));
+        assertThat(profileSettings.profileName, equalTo(REMOTE_CLUSTER_PROFILE));
         assertThat(profileSettings.bindHosts, contains(bindHostValue));
         assertThat(profileSettings.publishHosts, contains(publishHostValue));
         assertThat(profileSettings.portOrRange, equalTo(Integer.toString(portValue)));

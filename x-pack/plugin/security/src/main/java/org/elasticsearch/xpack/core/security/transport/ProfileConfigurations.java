@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_PREFIX;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public final class ProfileConfigurations {
@@ -49,9 +49,9 @@ public final class ProfileConfigurations {
 
         assert profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false;
         profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, defaultConfiguration);
-        if (REMOTE_ACCESS_ENABLED.get(settings)) {
-            assert profileConfiguration.containsKey(REMOTE_ACCESS_PROFILE) == false;
-            profileConfiguration.put(REMOTE_ACCESS_PROFILE, sslService.getSSLConfiguration(REMOTE_ACCESS_PREFIX + "ssl"));
+        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+            assert profileConfiguration.containsKey(REMOTE_CLUSTER_PROFILE) == false;
+            profileConfiguration.put(REMOTE_CLUSTER_PROFILE, sslService.getSSLConfiguration(REMOTE_CLUSTER_PREFIX + "ssl"));
         }
         return profileConfiguration;
     }

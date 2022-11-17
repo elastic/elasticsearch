@@ -64,7 +64,7 @@ public class RemoteClusterSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> PORT = intSetting(REMOTE_ACCESS_PREFIX + "port", 9400, 0, 65535, Setting.Property.NodeScope);
+    public static final Setting<Integer> PORT = intSetting(REMOTE_ACCESS_PREFIX + "port", 9900, 0, 65535, Setting.Property.NodeScope);
 
     public static final Setting<Integer> PUBLISH_PORT = intSetting(
         REMOTE_ACCESS_PREFIX + "publish_port",

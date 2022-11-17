@@ -22,6 +22,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
@@ -213,6 +215,9 @@ public class DesiredBalanceComputer {
         }
 
         final int iterationCountWarningInterval = computeIterationCountWarningInterval(routingAllocation);
+        final long timeWarningInterval = TimeUnit.MINUTES.toNanos(1);
+        long computationStartedTime = System.nanoTime();
+        long nextWarningTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
         boolean hasChanges = false;
@@ -263,12 +268,19 @@ public class DesiredBalanceComputer {
                 break;
             }
             if (i % 100 == 0) {
+                final int iterations = i;
+                final long currentTime = System.nanoTime();
+                final boolean shouldWarnByTime = nextWarningTime <= currentTime;
+                if (shouldWarnByTime) {
+                    nextWarningTime += timeWarningInterval;
+                }
                 logger.log(
-                    i % iterationCountWarningInterval == 0 ? Level.INFO : Level.DEBUG,
-                    Strings.format(
-                        "Desired balance computation for [%d] is still not converged after [%d] iterations",
+                    i % iterationCountWarningInterval == 0 || shouldWarnByTime ? Level.INFO : Level.DEBUG,
+                    () -> Strings.format(
+                        "Desired balance computation for [%d] is still not converged after [%d] [%d] iterations",
                         desiredBalanceInput.index(),
-                        i
+                        Duration.ofNanos(currentTime - computationStartedTime).toString(),
+                        iterations
                     )
                 );
             }

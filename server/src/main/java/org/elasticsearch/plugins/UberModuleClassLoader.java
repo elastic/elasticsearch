@@ -280,6 +280,14 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         }
     }
 
+    // For testing in cases where code must be given access to an unnamed module
+    void addReadsUnnamedModule(Module unnamed) {
+        if (unnamed.isNamed()) {
+            throw new IllegalArgumentException("Expected unnamed module but module was named");
+        }
+        moduleController.layer().modules().forEach(module -> moduleController.addReads(module, unnamed));
+    }
+
     /**
      * Returns the package name for the given class name
      */

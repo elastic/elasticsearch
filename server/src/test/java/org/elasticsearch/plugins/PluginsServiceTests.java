@@ -17,6 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
@@ -828,8 +829,19 @@ public class PluginsServiceTests extends ESTestCase {
             Collection<PluginInfo> stablePluginInfos = pluginService.getStablePluginRegistry()
                 .getPluginInfosForExtensible("org.elasticsearch.plugin.analysis.api.CharFilterFactory");
             assertThat(stablePluginInfos, hasSize(1));
-            PluginInfo stablePluginInfo = stablePluginInfos.stream().findFirst().orElseThrow();
-            assertThat(stablePluginInfo.loader(), instanceOf(UberModuleClassLoader.class));
+            ClassLoader stablePluginClassLoader = stablePluginInfos.stream().findFirst().orElseThrow().loader();
+            assertThat(stablePluginClassLoader, instanceOf(UberModuleClassLoader.class));
+
+            if (CharFilterFactory.class.getModule().isNamed() == false) {
+                // test frameworks run with stable api classes on classpath, so we
+                // have no choice but to let our class read the unnamed module that
+                // owns the stable api classes
+                UberModuleClassLoader umcl = (UberModuleClassLoader) stablePluginClassLoader;
+                umcl.addReadsUnnamedModule(CharFilterFactory.class.getClassLoader().getUnnamedModule());
+            }
+
+            Class<?> stableClass = stablePluginClassLoader.loadClass("p.A");
+            assertThat(stableClass.getModule().getName(), equalTo("synthetic.stable.plugin"));
 
             // TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
         } finally {

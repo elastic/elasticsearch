@@ -526,7 +526,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         } else if (plugin.isStable()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
             return LayerAndLoader.ofLoader(
-                UberModuleClassLoader.getInstance(pluginParentLoader, "synthetic." + toModuleName(plugin.getName()), bundle.allUrls)
+                UberModuleClassLoader.getInstance(
+                    pluginParentLoader,
+                    ModuleLayer.boot(),
+                    "synthetic." + toModuleName(plugin.getName()),
+                    bundle.allUrls,
+                    Set.of("org.elasticsearch.server") // TODO: instead of denying server, allow only jvm + stable API modules
+                )
             );
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");

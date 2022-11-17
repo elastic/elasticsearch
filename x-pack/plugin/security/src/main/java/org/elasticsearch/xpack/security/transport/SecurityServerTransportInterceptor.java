@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -39,6 +40,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.ApiKeyUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
@@ -48,7 +51,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
@@ -241,12 +243,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 logger.info("Got role descriptors intersection [{}] for cluster [{}]", roleDescriptorsIntersection, remoteClusterAlias);
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
+                final ApiKeyService.ApiKeyCredentials fcApiKey = ApiKeyUtil.toApiKeyCredentials(
+                    new SecureString(remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias).toCharArray())
+                );
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RemoteAccessControls.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
-                    threadContext.putHeader(
-                        REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
-                        remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias)
-                    );
+                    RemoteAccessUserAccess.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
+                    RemoteAccessClusterCredential.writeToContext(threadContext, fcApiKey);
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))

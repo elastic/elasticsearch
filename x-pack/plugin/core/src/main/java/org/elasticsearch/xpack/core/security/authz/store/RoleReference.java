@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -209,7 +210,7 @@ public interface RoleReference {
 
         @Override
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-            resolver.resolveCrossClusterRoleReference(this, listener);
+            resolver.resolveRemoteAccessRoleReferences(this, listener);
         }
 
         public String getQcPrincipal() {

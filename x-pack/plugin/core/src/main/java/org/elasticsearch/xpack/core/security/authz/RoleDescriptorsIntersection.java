@@ -17,12 +17,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDescriptorsList) implements ToXContentObject, Writeable {
-    public static final RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Set.of());
+public record RoleDescriptorsIntersection(List<Set<RoleDescriptor>> roleDescriptorsSets) implements ToXContentObject, Writeable {
+    public static final RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(List.of());
 
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
         this(in.readImmutableList(inner -> inner.readSet(RoleDescriptor::new)));
@@ -30,14 +29,14 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(roleDescriptorsList, StreamOutput::writeCollection);
+        out.writeCollection(roleDescriptorsSets, StreamOutput::writeCollection);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray();
         {
-            for (Set<RoleDescriptor> roleDescriptors : roleDescriptorsList) {
+            for (Set<RoleDescriptor> roleDescriptors : roleDescriptorsSets) {
                 builder.startObject();
                 for (RoleDescriptor roleDescriptor : roleDescriptors) {
                     builder.field(roleDescriptor.getName(), roleDescriptor);

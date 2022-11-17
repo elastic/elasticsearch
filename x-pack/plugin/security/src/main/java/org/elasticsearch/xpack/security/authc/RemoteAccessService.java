@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.transport.RemoteAccessControls;
+import org.elasticsearch.xpack.security.transport.RemoteAccessClusterCredential;
+import org.elasticsearch.xpack.security.transport.RemoteAccessUserAccess;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -29,52 +29,74 @@ public class RemoteAccessService {
         this.apiKeyService = apiKeyService;
     }
 
-    RemoteAccessCredentials getCredentialsFromHeader(final ThreadContext threadContext) {
+    RemoteAccessAuthenticationToken getCredentialsFromHeader(final ThreadContext threadContext) {
         // Header `_remote_access_authentication` contains QC remote access controls (i.e. Authentication and Authorization instances)
-        final RemoteAccessControls remoteAccessControls;
+        final RemoteAccessUserAccess remoteAccessUserAccess = getRemoteAccessControls(threadContext);
+        if (remoteAccessUserAccess == null) {
+            return null;
+        }
+        // Header `_remote_access_cluster_credential` contains an unverified FC API Key to be used for FC local access control
+        final RemoteAccessClusterCredential remoteAccessClusterCredential = RemoteAccessClusterCredential.readFromContext(threadContext);
+        if (remoteAccessClusterCredential == null) {
+            return null;
+        }
+        return new RemoteAccessAuthenticationToken(remoteAccessUserAccess, remoteAccessClusterCredential);
+    }
+
+    private static RemoteAccessUserAccess getRemoteAccessControls(ThreadContext threadContext) {
+        final RemoteAccessUserAccess remoteAccessUserAccess;
         try {
-            remoteAccessControls = RemoteAccessControls.readFromContext(threadContext);
-            if (remoteAccessControls == null) {
+            remoteAccessUserAccess = RemoteAccessUserAccess.readFromContext(threadContext);
+            if (remoteAccessUserAccess == null) {
                 logger.debug("Remote access authentication header is absent");
                 return null;
             }
-            logger.trace("Remote access authentication present [{}]", remoteAccessControls);
+            logger.trace("Remote access authentication present [{}]", remoteAccessUserAccess);
         } catch (IOException ex) {
             logger.warn("Remote access authentication parse failed", ex);
             return null;
         }
-        // TODO Header `_remote_access_cluster_credential` contains an unverified FC API Key to be used for FC local access control
-        final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials = new ApiKeyService.ApiKeyCredentials(
-            new String(""),
-            new SecureString(new char[] {})
-        );
-        // Combine
-        return new RemoteAccessCredentials(remoteAccessControls, fcApiKeyCredentials);
+        return remoteAccessUserAccess;
     }
 
     void tryAuthenticate(
         ThreadContext ctx,
-        RemoteAccessCredentials remoteAccessCredentials,
+        RemoteAccessAuthenticationToken remoteAccessAuthenticationToken,
         ActionListener<AuthenticationResult<User>> listener
     ) {
-        this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, remoteAccessCredentials.getApiKeyCredentials(), listener);
+        final RemoteAccessUserAccess remoteAccessUserAccess = remoteAccessAuthenticationToken.getRemoteAccessControls();
+        if (remoteAccessUserAccess == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing RemoteAccessUserAccess instance", null));
+        } else if (remoteAccessUserAccess.authentication() == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing Authentication instance", null));
+        } else if (remoteAccessUserAccess.authorization() == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing RoleDescriptorsBytesIntersection instance", null));
+        } else {
+            final RemoteAccessClusterCredential remoteAccessClusterCredential = remoteAccessAuthenticationToken
+                .getRemoteAccessClusterCredential();
+            final ApiKeyService.ApiKeyCredentials credentials = remoteAccessClusterCredential.fcApiKeyCredentials();
+            this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, credentials, listener);
+        }
     }
 
-    public static final class RemoteAccessCredentials implements AuthenticationToken, Closeable {
-        private final RemoteAccessControls remoteAccessControls;
-        private final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials;
+    public static final class RemoteAccessAuthenticationToken implements AuthenticationToken, Closeable {
+        private final RemoteAccessUserAccess remoteAccessUserAccess;
+        private final RemoteAccessClusterCredential fcRemoteAccessClusterCredential;
 
-        public RemoteAccessCredentials(RemoteAccessControls remoteAccessControls, ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
-            this.remoteAccessControls = remoteAccessControls;
-            this.fcApiKeyCredentials = fcApiKeyCredentials;
+        public RemoteAccessAuthenticationToken(
+            RemoteAccessUserAccess remoteAccessUserAccess,
+            RemoteAccessClusterCredential fcRemoteAccessClusterCredential
+        ) {
+            this.remoteAccessUserAccess = remoteAccessUserAccess;
+            this.fcRemoteAccessClusterCredential = fcRemoteAccessClusterCredential;
         }
 
-        RemoteAccessControls getRemoteAccessQcControls() {
-            return this.remoteAccessControls;
+        RemoteAccessUserAccess getRemoteAccessControls() {
+            return this.remoteAccessUserAccess;
         }
 
-        ApiKeyService.ApiKeyCredentials getApiKeyCredentials() {
-            return this.fcApiKeyCredentials;
+        RemoteAccessClusterCredential getRemoteAccessClusterCredential() {
+            return this.fcRemoteAccessClusterCredential;
         }
 
         @Override
@@ -84,19 +106,19 @@ public class RemoteAccessService {
 
         @Override
         public void close() {
-            this.fcApiKeyCredentials.close();
+            this.fcRemoteAccessClusterCredential.fcApiKeyCredentials().close();
         }
 
         @Override
         public String principal() {
-            return this.remoteAccessControls.authentication().getEffectiveSubject().getUser().principal()
+            return this.remoteAccessUserAccess.authentication().getEffectiveSubject().getUser().principal()
                 + "/"
-                + this.fcApiKeyCredentials.getId();
+                + this.fcRemoteAccessClusterCredential.fcApiKeyCredentials().getId();
         }
 
         @Override
         public Object credentials() {
-            return this.fcApiKeyCredentials;
+            return this.fcRemoteAccessClusterCredential.fcApiKeyCredentials();
         }
     }
 }

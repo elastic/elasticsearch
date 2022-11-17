@@ -42,11 +42,12 @@ class RemoteAccessAuthenticator implements Authenticator {
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
-        if (false == authenticationToken instanceof RemoteAccessService.RemoteAccessCredentials) {
+        if (false == authenticationToken instanceof RemoteAccessService.RemoteAccessAuthenticationToken) {
             listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
-        RemoteAccessService.RemoteAccessCredentials apiKeyCredentials = (RemoteAccessService.RemoteAccessCredentials) authenticationToken;
+        RemoteAccessService.RemoteAccessAuthenticationToken apiKeyCredentials =
+            (RemoteAccessService.RemoteAccessAuthenticationToken) authenticationToken;
         remoteAccessService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
                 final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);

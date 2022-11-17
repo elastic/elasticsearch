@@ -56,7 +56,7 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
             roleDescriptorsIntersection.writeTo(output);
             try (StreamInput input = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 RoleDescriptorsIntersection deserialized = new RoleDescriptorsIntersection(input);
-                assertThat(deserialized.roleDescriptorsList(), equalTo(roleDescriptorsIntersection.roleDescriptorsList()));
+                assertThat(deserialized.roleDescriptorsSets(), equalTo(roleDescriptorsIntersection.roleDescriptorsSets()));
             }
         }
     }

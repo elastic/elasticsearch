@@ -28,63 +28,43 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/**
- * Serializable record of QC Authentication and Authorizations.
- * It is transmitted from a QC to an FC.
- * @param authentication QC Authentication instance of a successfully authenticated User or API Key.
- * @param roleDescriptorsBytesIntersection QC Authorizations instance for the QC Authenticated User or API Key.
- */
-public record RemoteAccessControls(Authentication authentication, Collection<BytesReference> roleDescriptorsBytesIntersection) {
+public record RemoteAccessUserAccess(Authentication authentication, RoleDescriptorsIntersection authorization) {
 
-    public static RemoteAccessControls readFromContext(final ThreadContext ctx) throws IOException {
-        final String header = ctx.getHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
-        return Strings.isEmpty(header) ? null : decode(header);
+    public static RemoteAccessUserAccess readFromContext(final ThreadContext ctx) throws IOException {
+        final String headerValue = ctx.getHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
+        return Strings.isEmpty(headerValue) ? null : decode(headerValue);
     }
 
     public static void writeToContext(
         final ThreadContext ctx,
         final Authentication authentication,
-        final RoleDescriptorsIntersection roleDescriptorsIntersection
+        final RoleDescriptorsIntersection authorization
     ) throws IOException {
-        ctx.putHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode(authentication, roleDescriptorsIntersection));
+        ctx.putHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode(authentication, authorization));
     }
 
-    static String encode(final Authentication authentication, final RoleDescriptorsIntersection roleDescriptorsIntersection)
-        throws IOException {
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(authentication.getEffectiveSubject().getVersion());
-        Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
-        authentication.writeTo(out);
-        out.writeVInt(roleDescriptorsIntersection.roleDescriptorsList().size());
-        for (var roleDescriptors : roleDescriptorsIntersection.roleDescriptorsList()) {
-            final XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                builder.field(roleDescriptor.getName(), roleDescriptor);
-            }
-            builder.endObject();
-            out.writeBytesReference(BytesReference.bytes(builder));
-        }
-        return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
-    }
-
-    static RemoteAccessControls decode(final String header) throws IOException {
-        final byte[] bytes = Base64.getDecoder().decode(header);
+    static RemoteAccessUserAccess decode(final String headerValue) throws IOException {
+        final byte[] bytes = Base64.getDecoder().decode(headerValue);
         final StreamInput in = StreamInput.wrap(bytes);
         final Version version = Version.readVersion(in);
         in.setVersion(version);
         final Authentication authentication = new Authentication(in);
-        final Collection<BytesReference> roleDescriptorsBytesIntersection = new ArrayList<>();
-        final int outerCount = in.readVInt();
-        for (int i = 0; i < outerCount; i++) {
-            roleDescriptorsBytesIntersection.add(in.readBytesReference());
-        }
-        return new RemoteAccessControls(authentication, roleDescriptorsBytesIntersection);
+        final RoleDescriptorsIntersection authorization = new RoleDescriptorsIntersection(in);
+        return new RemoteAccessUserAccess(authentication, authorization);
+    }
+
+    static String encode(final Authentication authentication, final RoleDescriptorsIntersection authorization) throws IOException {
+        final Version version = authentication.getEffectiveSubject().getVersion();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        Version.writeVersion(version, out);
+        out.setVersion(version);
+        authentication.writeTo(out);
+        authorization.writeTo(out);
+        return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
     public static Set<RoleDescriptor> parseRoleDescriptorsBytes(BytesReference bytesReference) {

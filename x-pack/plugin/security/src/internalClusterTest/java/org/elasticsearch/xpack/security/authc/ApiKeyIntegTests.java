@@ -1425,7 +1425,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, randomBoolean());
         assertThat(
-            apiKeyInfo.getLimitedBy().roleDescriptorsList().iterator().next(),
+            apiKeyInfo.getLimitedBy().roleDescriptorsSets().iterator().next(),
             equalTo(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR))
         );
     }
@@ -1553,8 +1553,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         assertThat(future.actionGet().getApiKeyInfos().length, equalTo(1));
         final RoleDescriptorsIntersection limitedBy = future.actionGet().getApiKeyInfos()[0].getLimitedBy();
-        assertThat(limitedBy.roleDescriptorsList().size(), equalTo(1));
-        assertThat(limitedBy.roleDescriptorsList().iterator().next(), emptyIterable());
+        assertThat(limitedBy.roleDescriptorsSets().size(), equalTo(1));
+        assertThat(limitedBy.roleDescriptorsSets().iterator().next(), emptyIterable());
 
         // Check at the end to allow sometime for the operation to happen. Since an erroneous creation is
         // asynchronous so that the document is not available immediately.
@@ -2605,7 +2605,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     assertThat(
                         "useGetApiKey: " + useGetApiKey,
                         expectedRoleDescriptors,
-                        containsInAnyOrder(apiKeyInfo.getLimitedBy().roleDescriptorsList().iterator().next().toArray(RoleDescriptor[]::new))
+                        containsInAnyOrder(apiKeyInfo.getLimitedBy().roleDescriptorsSets().iterator().next().toArray(RoleDescriptor[]::new))
                     );
                 }
                 default -> throw new IllegalStateException("unexpected attribute name");
@@ -2873,7 +2873,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 assertThat(apiKeyInfo.getLimitedBy(), nullValue());
             } else {
                 assertThat(
-                    apiKeyInfo.getLimitedBy().roleDescriptorsList().iterator().next(),
+                    apiKeyInfo.getLimitedBy().roleDescriptorsSets().iterator().next(),
                     containsInAnyOrder(expectedLimitedByRoleDescriptors.toArray(RoleDescriptor[]::new))
                 );
             }

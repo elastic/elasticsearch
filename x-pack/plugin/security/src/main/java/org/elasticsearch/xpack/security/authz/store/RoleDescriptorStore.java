@@ -12,12 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceResolver;
@@ -27,11 +29,13 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.transport.RemoteAccessControls;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -137,17 +141,23 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }));
     }
 
-    @Override
-    public void resolveCrossClusterRoleReference(
+    public void resolveRemoteAccessRoleReferences(
         RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
-        ActionListener<RolesRetrievalResult> listener
+        ActionListener<RolesRetrievalResult> listener,
+        int index
     ) {
-        final Set<RoleDescriptor> roleDescriptors = RemoteAccessControls.parseRoleDescriptorsBytes(
-            remoteAccessRoleReference.getRoleDescriptorsBytes()
-        );
-        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
-        listener.onResponse(rolesRetrievalResult);
+        try {
+            final StreamInput in = StreamInput.wrap(remoteAccessRoleReference.getRoleDescriptorsBytes().array());
+            final RoleDescriptorsIntersection roleDescriptorsIntersection = new RoleDescriptorsIntersection(in);
+            final List<Set<RoleDescriptor>> roleDescriptorsSets = roleDescriptorsIntersection.roleDescriptorsSets();
+            final Set<RoleDescriptor> roleDescriptorsSet = roleDescriptorsSets.get(index);
+
+            final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+            rolesRetrievalResult.addDescriptors(roleDescriptorsSet);
+            listener.onResponse(rolesRetrievalResult);
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {

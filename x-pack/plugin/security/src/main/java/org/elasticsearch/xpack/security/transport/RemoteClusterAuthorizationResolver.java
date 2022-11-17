@@ -23,6 +23,7 @@ public class RemoteClusterAuthorizationResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(RemoteClusterAuthorizationResolver.class);
 
+    // TODO SecureString instead of String
     private final Map<String, String> apiKeys = ConcurrentCollections.newConcurrentMap();
 
     /**

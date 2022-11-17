@@ -100,7 +100,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.metadata = metadata == null ? Map.of() : metadata;
         this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
         // This assertion will need to be changed (or removed) when derived keys are properly supported
-        assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "can only have one set of limited-by role descriptors";
+        assert limitedBy == null || limitedBy.roleDescriptorsSets().size() == 1 : "can only have one set of limited-by role descriptors";
         this.limitedBy = limitedBy;
     }
 

@@ -117,7 +117,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -972,33 +971,7 @@ public class ApiKeyService {
             return null;
         }
         final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
-        if (apiKeyString != null) {
-            final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
-            char[] apiKeyCredChars = null;
-            try {
-                apiKeyCredChars = CharArrays.utf8BytesToChars(decodedApiKeyCredBytes);
-                int colonIndex = -1;
-                for (int i = 0; i < apiKeyCredChars.length; i++) {
-                    if (apiKeyCredChars[i] == ':') {
-                        colonIndex = i;
-                        break;
-                    }
-                }
-
-                if (colonIndex < 1) {
-                    throw new IllegalArgumentException("invalid ApiKey value");
-                }
-                return new ApiKeyCredentials(
-                    new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
-                    new SecureString(Arrays.copyOfRange(apiKeyCredChars, colonIndex + 1, apiKeyCredChars.length))
-                );
-            } finally {
-                if (apiKeyCredChars != null) {
-                    Arrays.fill(apiKeyCredChars, (char) 0);
-                }
-            }
-        }
-        return null;
+        return ApiKeyUtil.toApiKeyCredentials(apiKeyString);
     }
 
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {

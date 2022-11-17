@@ -242,6 +242,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 IndexMetadata.builder("index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build()
             );
 
+            // When no information is available we just return 0
             assertThat(indexDiskUsageInBytes, is(equalTo(0L)));
         }
 
@@ -254,7 +255,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
             final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
                 randomBoolean() ? ClusterInfo.EMPTY : new ClusterInfo(Map.of(), Map.of(), shardSizes, Map.of(), Map.of(), Map.of()),
-                IndexMetadata.builder("heavy-index")
+                IndexMetadata.builder("index")
                     .settings(settings(Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
@@ -262,6 +263,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     .build()
             );
 
+            // We only use the clusterInfo as a fallback
             assertThat(indexDiskUsageInBytes, is(equalTo(shardSize * 2)));
         }
 
@@ -277,6 +279,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 IndexMetadata.builder("index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build()
             );
 
+            // Fallback to clusterInfo when no forecast is available
             assertThat(indexDiskUsageInBytes, is(equalTo(shardSizes.values().stream().mapToLong(size -> size).sum())));
         }
 

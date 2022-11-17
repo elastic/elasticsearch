@@ -99,8 +99,8 @@ public final class IngestDocument {
      * Constructor to create an IngestDocument from its constituent maps
      */
     IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
-        this.ctxMap = ctxMap;
-        this.ingestMetadata = ingestMetadata;
+        this.ctxMap = Objects.requireNonNull(ctxMap);
+        this.ingestMetadata = Objects.requireNonNull(ingestMetadata);
     }
 
     /**

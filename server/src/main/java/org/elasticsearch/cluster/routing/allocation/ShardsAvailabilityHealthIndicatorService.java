@@ -46,7 +46,6 @@ import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,6 +67,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -107,7 +107,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -115,18 +115,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown, explain);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown, verbose);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, explain);
+                    status.addReplica(replicaShard, state, shutdown, verbose);
                 }
             }
         }
         return createIndicator(
             status.getStatus(),
-            status.getSummary(),
-            status.getDetails(explain),
+            status.getSymptom(),
+            status.getDetails(verbose),
             status.getImpacts(),
-            status.getUserActions(explain)
+            status.getDiagnosis(verbose)
         );
     }
 
@@ -376,9 +376,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int started = 0;
         private int relocating = 0;
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
-        private final Map<Diagnosis.Definition, Set<String>> userActions = new HashMap<>();
+        private final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -394,9 +394,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        if (explain) {
+                        if (verbose) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(
-                                definition -> addUserAction(definition, routing.getIndexName())
+                                definition -> addDefinition(definition, routing.getIndexName())
                             );
                         }
                     }
@@ -407,8 +407,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        private void addUserAction(Diagnosis.Definition actionDef, String indexName) {
-            userActions.computeIfAbsent(actionDef, (k) -> new HashSet<>()).add(indexName);
+        private void addDefinition(Diagnosis.Definition diagnosisDefinition, String indexName) {
+            diagnosisDefinitions.computeIfAbsent(diagnosisDefinition, (k) -> new HashSet<>()).add(indexName);
         }
     }
 
@@ -431,46 +431,46 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     /**
-     * Generate a list of actions for a user to take that should allow this shard to be assigned.
+     * Generate a list of diagnoses that'll contain the instructions for a user to take to allow this shard to be assigned.
      * @param shardRouting An unassigned shard routing
      * @param state State of the cluster
-     * @return A list of actions for the user to take for this shard
+     * @return A list of diagnoses for the provided unassigned shard
      */
     List<Diagnosis.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
-        List<Diagnosis.Definition> actions = new ArrayList<>();
+        List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
                 if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
-                    actions.add(ACTION_RESTORE_FROM_SNAPSHOT);
+                    diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 }
                 break;
             case NO_ATTEMPT:
                 if (shardRouting.unassignedInfo().isDelayed()) {
-                    actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
+                    diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 } else {
-                    actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+                    diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 }
                 break;
             case DECIDERS_NO:
-                actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+                diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
             case DELAYED_ALLOCATION:
-                actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
+                diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 break;
         }
-        if (actions.isEmpty()) {
-            actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
+        if (diagnosisDefs.isEmpty()) {
+            diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
         }
-        return actions;
+        return diagnosisDefs;
     }
 
     /**
      * For a shard that is unassigned due to a DECIDERS_NO result, this will explain the allocation and attempt to generate
-     * user actions that should allow the shard to be assigned.
+     * a list of diagnoses that should allow the shard to be assigned.
      * @param shardRouting The shard routing that is unassigned with a last status of DECIDERS_NO
      * @param state Current cluster state
-     * @return a list of actions for the user to take
+     * @return A list of diagnoses for the provided unassigned shard
      */
     private List<Diagnosis.Definition> explainAllocationsAndDiagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
         LOGGER.trace("Executing allocation explain on shard [{}]", shardRouting.shardId());
@@ -511,17 +511,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
             return diagnoseAllocationResults(shardRouting, state, nodeAllocationResults);
         } else {
-            return Collections.emptyList();
+            return List.of();
         }
     }
 
     /**
-     * Generates a list of user actions to take for an unassigned shard by inspecting a list of NodeAllocationResults for
+     * Generates a list of diagnoses for an unassigned shard by inspecting a list of NodeAllocationResults for
      * well known problems.
      * @param shardRouting The unassigned shard.
      * @param state Current cluster state.
      * @param nodeAllocationResults A list of results for each node in the cluster from the allocation explain api
-     * @return A list of user actions to take.
+     * @return A list of diagnoses for the provided unassigned shard
      */
     List<Diagnosis.Definition> diagnoseAllocationResults(
         ShardRouting shardRouting,
@@ -529,15 +529,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         List<NodeAllocationResult> nodeAllocationResults
     ) {
         IndexMetadata index = state.metadata().index(shardRouting.index());
-        List<Diagnosis.Definition> actions = new ArrayList<>();
+        List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (index != null) {
-            actions.addAll(checkIsAllocationDisabled(index, nodeAllocationResults));
-            actions.addAll(checkDataTierRelatedIssues(index, nodeAllocationResults, state));
+            diagnosisDefs.addAll(checkIsAllocationDisabled(index, nodeAllocationResults));
+            diagnosisDefs.addAll(checkDataTierRelatedIssues(index, nodeAllocationResults, state));
         }
-        if (actions.isEmpty()) {
-            actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
+        if (diagnosisDefs.isEmpty()) {
+            diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
         }
-        return actions;
+        return diagnosisDefs;
     }
 
     /**
@@ -554,13 +554,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     /**
-     * Generates a user action if a shard cannot be allocated anywhere because allocation is disabled for that shard
+     * Generates a list of diagnoses if a shard cannot be allocated anywhere because allocation is disabled for that shard
      * @param indexMetadata from the index shard being diagnosed
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
-     * @return A list of user actions to take.
+     * @return A list of diagnoses for the provided unassigned shard
      */
     List<Diagnosis.Definition> checkIsAllocationDisabled(IndexMetadata indexMetadata, List<NodeAllocationResult> nodeAllocationResults) {
-        List<Diagnosis.Definition> actions = new ArrayList<>();
+        List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (nodeAllocationResults.stream().allMatch(hasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
             // Check the routing settings for index
             Settings indexSettings = indexMetadata.getSettings();
@@ -571,29 +571,29 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             );
             if (EnableAllocationDecider.Allocation.ALL != indexLevelAllocation) {
                 // Index setting is not ALL
-                actions.add(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION);
+                diagnosisDefs.add(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION);
             }
             if (EnableAllocationDecider.Allocation.ALL != clusterLevelAllocation) {
                 // Cluster setting is not ALL
-                actions.add(ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION);
+                diagnosisDefs.add(ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION);
             }
         }
-        return actions;
+        return diagnosisDefs;
     }
 
     /**
-     * Generates user actions for common problems that keep a shard from allocating to nodes in a data tier.
+     * Generates a list of diagnoses for common problems that keep a shard from allocating to nodes in a data tier.
      * @param indexMetadata Index metadata for the shard being diagnosed.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
      * @param clusterState the current cluster state.
-     * @return a list of user actions to take.
+     * @return A list of diagnoses for the provided unassigned shard
      */
     List<Diagnosis.Definition> checkDataTierRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
         ClusterState clusterState
     ) {
-        List<Diagnosis.Definition> actions = new ArrayList<>();
+        List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
                 .filter(hasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
@@ -601,7 +601,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (dataTierAllocationResults.isEmpty()) {
                 // Shard must be allocated on specific tiers but no nodes were enabled for those tiers.
                 for (String tier : indexMetadata.getTierPreference()) {
-                    Optional.ofNullable(ACTION_ENABLE_TIERS_LOOKUP.get(tier)).ifPresent(actions::add);
+                    Optional.ofNullable(ACTION_ENABLE_TIERS_LOOKUP.get(tier)).ifPresent(diagnosisDefs::add);
                 }
             } else {
                 // Collect the nodes from the tiers this index is allowed on
@@ -624,14 +624,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     .orElse(null);
 
                 // Run checks for data tier specific problems
-                actions.addAll(
+                diagnosisDefs.addAll(
                     checkDataTierAtShardLimit(indexMetadata, clusterState, dataTierAllocationResults, dataTierNodes, preferredTier)
                 );
-                actions.addAll(checkDataTierShouldMigrate(indexMetadata, dataTierAllocationResults, preferredTier, dataTierNodes));
-                checkNotEnoughNodesInDataTier(dataTierAllocationResults, preferredTier).ifPresent(actions::add);
+                diagnosisDefs.addAll(checkDataTierShouldMigrate(indexMetadata, dataTierAllocationResults, preferredTier, dataTierNodes));
+                checkNotEnoughNodesInDataTier(dataTierAllocationResults, preferredTier).ifPresent(diagnosisDefs::add);
             }
         }
-        return actions;
+        return diagnosisDefs;
     }
 
     private List<Diagnosis.Definition> checkDataTierAtShardLimit(
@@ -643,7 +643,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     ) {
         // All tier nodes at shards limit?
         if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
-            List<Diagnosis.Definition> actions = new ArrayList<>();
+            List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
             // We need the routing nodes for the tiers this index is allowed on to determine the offending shard limits
             List<RoutingNode> dataTierRoutingNodes = clusterState.getRoutingNodes()
                 .stream()
@@ -673,28 +673,29 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 indexShardsPerNodeShouldChange = minShardCountInTier >= indexShardsPerNode;
             }
 
-            // Add appropriate user action
+            // Add appropriate diagnosis
             if (preferredTier != null) {
                 // We cannot allocate the shard to the most preferred tier because a shard limit is reached.
                 if (clusterShardsPerNodeShouldChange) {
-                    Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(preferredTier)).ifPresent(actions::add);
+                    Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(preferredTier))
+                        .ifPresent(diagnosisDefs::add);
                 }
                 if (indexShardsPerNodeShouldChange) {
-                    Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(preferredTier)).ifPresent(actions::add);
+                    Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(preferredTier)).ifPresent(diagnosisDefs::add);
                 }
             } else {
                 // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
                 // only `data` nodes. Give a generic ask for increasing the shard limit.
                 if (clusterShardsPerNodeShouldChange) {
-                    actions.add(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING);
+                    diagnosisDefs.add(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING);
                 }
                 if (indexShardsPerNodeShouldChange) {
-                    actions.add(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING);
+                    diagnosisDefs.add(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING);
                 }
             }
-            return actions;
+            return diagnosisDefs;
         } else {
-            return Collections.emptyList();
+            return List.of();
         }
     }
 
@@ -706,7 +707,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     ) {
         // Check if index has filter requirements on the old "data" attribute that might be keeping it from allocating.
         if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
-            List<Diagnosis.Definition> actions = new ArrayList<>();
+            List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
             Map<String, List<String>> requireAttributes = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
             List<String> requireDataAttributes = requireAttributes.get("data");
             DiscoveryNodeFilters requireFilter = requireDataAttributes == null
@@ -722,7 +723,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 // Check if the data tier nodes this shard is allowed on have data attributes that match
                 if (requireFilter != null && dataTierNodes.stream().noneMatch(requireFilter::match)) {
                     // No data tier nodes match the required data attribute
-                    actions.add(
+                    diagnosisDefs.add(
                         Optional.ofNullable(preferredTier)
                             .map(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP::get)
                             .orElse(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA)
@@ -730,16 +731,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
                 if (includeFilter != null && dataTierNodes.stream().noneMatch(includeFilter::match)) {
                     // No data tier nodes match the included data attributes
-                    actions.add(
+                    diagnosisDefs.add(
                         Optional.ofNullable(preferredTier)
                             .map(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP::get)
                             .orElse(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA)
                     );
                 }
             }
-            return actions;
+            return diagnosisDefs;
         } else {
-            return Collections.emptyList();
+            return List.of();
         }
     }
 
@@ -770,12 +771,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
-            primaries.increment(routing, state, shutdowns, explain);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            primaries.increment(routing, state, shutdowns, verbose);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
-            replicas.increment(routing, state, shutdowns, explain);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            replicas.increment(routing, state, shutdowns, verbose);
         }
 
         public HealthStatus getStatus() {
@@ -788,7 +789,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        public String getSummary() {
+        public String getSymptom() {
             var builder = new StringBuilder("This cluster has ");
             if (primaries.unassigned > 0
                 || primaries.unassigned_new > 0
@@ -797,11 +798,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
-                        createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
-                        createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
+                        createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
+                        createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
+                        createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {
@@ -818,8 +819,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public HealthIndicatorDetails getDetails(boolean explain) {
-            if (explain) {
+        public HealthIndicatorDetails getDetails(boolean verbose) {
+            if (verbose) {
                 return new SimpleHealthIndicatorDetails(
                     Map.of(
                         "unassigned_primaries",
@@ -890,39 +891,44 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         /**
-         * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
-         * @param explain true if user actions should be generated, false if they should be omitted.
-         * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
+         * Returns the diagnosis for unassigned primary and replica shards.
+         * @param verbose true if the diagnosis should be generated, false if they should be omitted.
+         * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or verbose is false.
          */
-        public List<Diagnosis> getUserActions(boolean explain) {
-            if (explain) {
-                Map<Diagnosis.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
-                replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
-                    Set<String> indicesWithPrimariesUnassigned = actionsToAffectedIndices.get(actionDefinition);
+        public List<Diagnosis> getDiagnosis(boolean verbose) {
+            if (verbose) {
+                Map<Diagnosis.Definition, Set<String>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
+                replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
+                    Set<String> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);
                     if (indicesWithPrimariesUnassigned == null) {
-                        actionsToAffectedIndices.put(actionDefinition, indicesWithReplicasUnassigned);
+                        diagnosisToAffectedIndices.put(diagnosisDef, indicesWithReplicasUnassigned);
                     } else {
                         indicesWithPrimariesUnassigned.addAll(indicesWithReplicasUnassigned);
                     }
                 });
-                if (actionsToAffectedIndices.isEmpty()) {
-                    return Collections.emptyList();
+                if (diagnosisToAffectedIndices.isEmpty()) {
+                    return List.of();
                 } else {
-                    return actionsToAffectedIndices.entrySet()
+                    return diagnosisToAffectedIndices.entrySet()
                         .stream()
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                e.getValue()
-                                    .stream()
-                                    .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
-                                    .collect(Collectors.toList())
+                                List.of(
+                                    new Diagnosis.Resource(
+                                        INDEX,
+                                        e.getValue()
+                                            .stream()
+                                            .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                            .collect(Collectors.toList())
+                                    )
+                                )
                             )
                         )
                         .collect(Collectors.toList());
                 }
             } else {
-                return Collections.emptyList();
+                return List.of();
             }
         }
     }

@@ -1,5 +1,0 @@
-pr: 88311
-summary: Use chunked REST serialization for large REST responses
-area: Network
-type: enhancement
-issues: []

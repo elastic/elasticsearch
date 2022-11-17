@@ -62,3 +62,6 @@ org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, j
 org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.Object[])
 org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.Object)
 org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.Object, java.lang.Object)
+
+@defaultMessage Use WriteLoadForecaster#getForecastedWriteLoad instead
+org.elasticsearch.cluster.metadata.IndexMetadata#getForecastedWriteLoad()

@@ -178,6 +178,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         }));
         assertThat(mapperService, notNullValue());
         assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
-        assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).getIgnoreMalformed(), is(false));
+        assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));
     }
 }

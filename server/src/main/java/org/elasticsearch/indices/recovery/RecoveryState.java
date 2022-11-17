@@ -24,7 +24,6 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -109,12 +108,27 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
+        this(shardRouting.shardId(), shardRouting.primary(), shardRouting.recoverySource(), sourceNode, targetNode, index, new Timer());
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
-        RecoverySource recoverySource = shardRouting.recoverySource();
-        assert (recoverySource.getType() == RecoverySource.Type.PEER) == (sourceNode != null)
-            : "peer recovery requires source node, recovery type: " + recoverySource.getType() + " source node: " + sourceNode;
-        this.shardId = shardRouting.shardId();
-        this.primary = shardRouting.primary();
+        assert (shardRouting.recoverySource().getType() == RecoverySource.Type.PEER) == (sourceNode != null)
+            : "peer recovery requires source node, recovery type: "
+                + shardRouting.recoverySource().getType()
+                + " source node: "
+                + sourceNode;
+        timer.start();
+    }
+
+    private RecoveryState(
+        ShardId shardId,
+        boolean primary,
+        RecoverySource recoverySource,
+        DiscoveryNode sourceNode,
+        DiscoveryNode targetNode,
+        Index index,
+        Timer timer
+    ) {
+        this.shardId = shardId;
+        this.primary = primary;
         this.recoverySource = recoverySource;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
@@ -122,8 +136,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
-        timer = new Timer();
-        timer.start();
+        this.timer = timer;
     }
 
     private RecoveryState(StreamInput in) throws IOException {
@@ -214,6 +227,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
+    }
+
+    /**
+     * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
+     * information
+     */
+    public RecoveryState reset() {
+        return new RecoveryState(shardId, primary, recoverySource, sourceNode, targetNode, new Index(), timer);
     }
 
     public synchronized RecoveryState setLocalTranslogStage() {
@@ -687,13 +708,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, new ByteSizeValue(length));
+            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, ByteSizeValue.ofBytes(length));
             builder.field(Fields.REUSED, reused);
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recovered));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recovered));
             builder.humanReadableField(
                 Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
                 Fields.RECOVERED_FROM_SNAPSHOT,
-                new ByteSizeValue(recoveredFromSnapshot)
+                ByteSizeValue.ofBytes(recoveredFromSnapshot)
             );
             builder.endObject();
             return builder;
@@ -1081,13 +1102,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // stream size first, as it matters more and the files section can be long
             builder.startObject(Fields.SIZE);
-            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalBytes()));
-            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, new ByteSizeValue(reusedBytes()));
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recoveredBytes()));
+            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, ByteSizeValue.ofBytes(totalBytes()));
+            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, ByteSizeValue.ofBytes(reusedBytes()));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recoveredBytes()));
             builder.humanReadableField(
                 Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
                 Fields.RECOVERED_FROM_SNAPSHOT,
-                new ByteSizeValue(recoveredFromSnapshotBytes())
+                ByteSizeValue.ofBytes(recoveredFromSnapshotBytes())
             );
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();
@@ -1107,15 +1128,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public synchronized String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-                builder.startObject();
-                toXContent(builder, EMPTY_PARAMS);
-                builder.endObject();
-                return Strings.toString(builder);
-            } catch (IOException e) {
-                return "{ \"error\" : \"" + e.getMessage() + "\"}";
-            }
+            return Strings.toString(this);
         }
 
         public synchronized FileDetail getFileDetails(String dest) {

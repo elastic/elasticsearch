@@ -69,6 +69,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     return;
                 }
                 assert authentication != null : "authentication should never be null at this point";
+                assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
                 tokenService.createOAuth2Tokens(

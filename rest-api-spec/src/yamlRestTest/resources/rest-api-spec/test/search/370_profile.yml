@@ -22,8 +22,8 @@ setup:
 ---
 fetch fields:
   - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
 
   - do:
       search:
@@ -42,8 +42,9 @@ fetch fields:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 1 }
+  - length: { profile.shards.0.fetch.children: 2 }
   - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
@@ -52,8 +53,8 @@ fetch fields:
 ---
 fetch source:
   - skip:
-      version: ' - 7.99.99'
-      reason:  fetch profiling implemented in 8.0.0 to be backported to 7.16.0
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
 
   - do:
       search:
@@ -70,19 +71,20 @@ fetch source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 1 }
+  - length: { profile.shards.0.fetch.children: 2 }
   - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - match: { profile.shards.0.fetch.children.0.debug.fast_path: 1 }
+  - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
 
 ---
 fetch nested source:
   - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
 
   - do:
       indices.create:
@@ -133,7 +135,7 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 2 }
+  - length: { profile.shards.0.fetch.children: 3 }
   - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
@@ -144,6 +146,7 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.2.type: StoredFieldsPhase }
 
 ---
 disabling stored fields removes fetch sub phases:
@@ -229,7 +232,7 @@ dfs knn vector profiling:
   - gt: { profile.shards.0.dfs.knn.collector.0.time_in_nanos: 0 }
 
 ---
-dfs without knn vector profiling:
+dfs profile for search with dfs_query_then_fetch:
   - skip:
       version: ' - 8.5.99'
       reason: dfs profiling implemented in 8.6.0
@@ -239,11 +242,49 @@ dfs without knn vector profiling:
         index: keywords
         body:
           settings:
-            index.number_of_shards: 1
+            index.number_of_shards: 2
           mappings:
             properties:
               keyword:
                 type: "keyword"
+
+  # test with no indexed documents
+  # expect both shards to have dfs profiles
+  - do:
+      search:
+        index: keywords
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 0 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  # expect no shards to have dfs profiles
+  - do:
+      search:
+        index: keywords
+        search_type: query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 0 }
+  - is_false: profile.shards.0.dfs
+
+  # test with two indexed documents
   - do:
       index:
         index: keywords
@@ -253,9 +294,79 @@ dfs without knn vector profiling:
           keyword: "a"
 
   - do:
+      index:
+        index: keywords
+        id: "2"
+        refresh: true
+        body:
+          keyword: "b"
+
+  # expect both shards to have dfs profiles
+  - do:
       search:
         index: keywords
         search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  - do:
+      search:
+        index: keywords
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "b"
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  - do:
+      search:
+        index: keywords
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "c"
+
+  - match: { hits.total.value: 0 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  # expect no shards to have dfs profiles
+  - do:
+      search:
+        index: keywords
+        search_type: query_then_fetch
         body:
           profile: true
           query:
@@ -273,7 +384,20 @@ dfs without knn vector profiling:
           profile: true
           query:
             term:
-              keyword: "a"
+              keyword: "b"
 
   - match: { hits.total.value: 1 }
+  - is_false: profile.shards.0.dfs
+
+  - do:
+      search:
+        index: keywords
+        search_type: query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "c"
+
+  - match: { hits.total.value: 0 }
   - is_false: profile.shards.0.dfs

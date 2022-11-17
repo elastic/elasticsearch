@@ -244,8 +244,7 @@ GET /_search
 }
 --------------------------------------------------
 
-The score from each `match` clause is added together, then divided by the
-number of `match` clauses.
+The score from each `match` clause is added together, just like a `bool` query.
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, and `zero_terms_query`.

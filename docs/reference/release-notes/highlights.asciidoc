@@ -40,6 +40,7 @@ with peaks of ~95% (from 600ms to 20ms).
 For both new and existing Index Lifecycle Management (ILM) policies,
 the rollover action will only execute if an index has at least one document.
 
+
 For indices with a `max_age` condition that are no longer being written
 to, this will mean that they will no longer roll over every time their
 `max_age` is reached.

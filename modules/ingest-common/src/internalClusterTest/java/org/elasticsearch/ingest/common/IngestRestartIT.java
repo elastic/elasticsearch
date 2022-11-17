@@ -61,7 +61,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startMasterOnlyNode();
         final String pipelineId = "foo";
-        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray("""
+        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray(formatted("""
             {
               "processors": [
                 {
@@ -81,7 +81,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                   }
                 }
               ]
-            }""".formatted(MockScriptEngine.NAME)), XContentType.JSON).get();
+            }""", MockScriptEngine.NAME)), XContentType.JSON).get();
 
         Exception e = expectThrows(
             Exception.class,
@@ -109,10 +109,10 @@ public class IngestRestartIT extends ESIntegTestCase {
         String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
         internalCluster().startNode();
 
-        BytesReference pipelineWithScript = new BytesArray("""
+        BytesReference pipelineWithScript = new BytesArray(formatted("""
             {
               "processors": [ { "script": { "lang": "%s", "source": "my_script" } } ]
-            }""".formatted(MockScriptEngine.NAME));
+            }""", MockScriptEngine.NAME));
         BytesReference pipelineWithoutScript = new BytesArray("""
             {
               "processors": [ { "set": { "field": "y", "value": 0 } } ]
@@ -179,9 +179,9 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray("""
+        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray(formatted("""
             {"script": {"lang": "%s", "source": "my_script"} }
-            """.formatted(MockScriptEngine.NAME)), XContentType.JSON).get();
+            """, MockScriptEngine.NAME)), XContentType.JSON).get();
         BytesReference pipeline = new BytesArray("""
             {
               "processors" : [

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -21,6 +23,7 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfi
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource;
@@ -50,22 +53,29 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
             double minimumSupport = args[1] == null ? DEFAULT_MINIMUM_SUPPORT : (double) args[1];
             int minimumSetSize = args[2] == null ? DEFAULT_MINIMUM_SET_SIZE : (int) args[2];
             int size = args[3] == null ? DEFAULT_SIZE : (int) args[3];
+            QueryBuilder filter = (QueryBuilder) args[4];
 
-            return new FrequentItemSetsAggregationBuilder(context, fields, minimumSupport, minimumSetSize, size);
+            return new FrequentItemSetsAggregationBuilder(context, fields, minimumSupport, minimumSetSize, size, filter);
         }
     );
 
     static {
-        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.parserBuilder(
+        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> fieldsParser = MultiValuesSourceFieldConfig.parserBuilder(
             false,  // scriptable
             false,  // timezone aware
-            false,  // filtered
+            false,  // filtered (not defined per field, but for all fields below)
             false   // format
         );
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, n) -> metricParser.parse(p, null).build(), FIELDS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, n) -> fieldsParser.parse(p, null).build(), FIELDS);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SUPPORT);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SET_SIZE);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Aggregation.CommonFields.SIZE);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, context) -> AbstractQueryBuilder.parseTopLevelQuery(p),
+            MultiValuesSourceFieldConfig.FILTER,
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     static final ValuesSourceRegistry.RegistryKey<ItemSetMapReduceValueSource.ValueSourceSupplier> REGISTRY_KEY =
@@ -92,13 +102,15 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     private final double minimumSupport;
     private final int minimumSetSize;
     private final int size;
+    private final QueryBuilder filter;
 
     public FrequentItemSetsAggregationBuilder(
         String name,
         List<MultiValuesSourceFieldConfig> fields,
         double minimumSupport,
         int minimumSetSize,
-        int size
+        int size,
+        QueryBuilder filter
     ) {
         super(name);
         this.fields = fields;
@@ -118,6 +130,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
             throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
         }
         this.size = size;
+        this.filter = filter;
     }
 
     public FrequentItemSetsAggregationBuilder(StreamInput in) throws IOException {
@@ -126,6 +139,11 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         this.minimumSupport = in.readDouble();
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        } else {
+            this.filter = null;
+        }
     }
 
     @Override
@@ -135,7 +153,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new FrequentItemSetsAggregationBuilder(name, fields, minimumSupport, minimumSetSize, size);
+        return new FrequentItemSetsAggregationBuilder(name, fields, minimumSupport, minimumSetSize, size, filter);
     }
 
     @Override
@@ -149,6 +167,9 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         out.writeDouble(minimumSupport);
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalNamedWriteable(filter);
+        }
     }
 
     @Override
@@ -164,7 +185,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
             fields,
             minimumSupport,
             minimumSetSize,
-            size
+            size,
+            filter
         );
     }
 
@@ -179,6 +201,9 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         builder.field(MINIMUM_SUPPORT.getPreferredName(), minimumSupport);
         builder.field(MINIMUM_SET_SIZE.getPreferredName(), minimumSetSize);
         builder.field(Aggregation.CommonFields.SIZE.getPreferredName(), size);
+        if (filter != null) {
+            builder.field(MultiValuesSourceFieldConfig.FILTER.getPreferredName(), filter);
+        }
         builder.endObject();
         return builder;
     }

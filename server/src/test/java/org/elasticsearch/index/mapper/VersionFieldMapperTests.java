@@ -53,7 +53,7 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             VersionFieldMapper.VersionFieldType ft = (VersionFieldMapper.VersionFieldType) mapperService.fieldType("_version");
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
-                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                fieldDataLookup(mapperService),
                 new SourceLookup.ReaderSourceProvider()
             );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
@@ -62,7 +62,7 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
+            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), 0, Collections.emptyList()));
         });
     }
 

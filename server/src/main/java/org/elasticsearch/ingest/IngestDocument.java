@@ -91,8 +91,8 @@ public final class IngestDocument {
                 }
             }
         }
-        this.ingestMetadata = new HashMap<>(ingestMetadata);
         this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
     }
 
     /**

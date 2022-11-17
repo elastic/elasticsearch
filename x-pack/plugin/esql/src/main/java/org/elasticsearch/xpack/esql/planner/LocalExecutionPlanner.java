@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunction.AggregatorFunctionFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.GroupingAggregatorFunctionFactory;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -199,6 +201,12 @@ public class LocalExecutionPlanner {
                             throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
                         }
 
+                        final Supplier<BlockHash> blockHash;
+                        if (grpAttrib.dataType() == DataTypes.KEYWORD) {
+                            blockHash = () -> BlockHash.newBytesRefHash(BigArrays.NON_RECYCLING_INSTANCE);
+                        } else {
+                            blockHash = () -> BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE);
+                        }
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.get(grpAttrib.id()),
@@ -209,7 +217,7 @@ public class LocalExecutionPlanner {
                                         source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
                                 ),
-                                BigArrays.NON_RECYCLING_INSTANCE,
+                                blockHash,
                                 AggregatorMode.INITIAL
                             );
                             layout.put(alias.id(), 1);  // <<<< TODO: this one looks suspicious
@@ -217,7 +225,7 @@ public class LocalExecutionPlanner {
                             operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.get(grpAttrib.id()),
                                 List.of(new GroupingAggregatorFactory(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
-                                BigArrays.NON_RECYCLING_INSTANCE,
+                                blockHash,
                                 AggregatorMode.FINAL
                             );
                             layout.put(alias.id(), 1);

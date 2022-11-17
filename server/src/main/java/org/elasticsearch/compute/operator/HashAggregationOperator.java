@@ -8,11 +8,10 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.data.Block;
@@ -21,6 +20,7 @@ import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -38,14 +38,14 @@ public class HashAggregationOperator implements Operator {
 
     private final int groupByChannel;
 
-    private final LongHash longHash;
+    private final BlockHash blockHash;
 
     private final List<GroupingAggregator> aggregators;
 
     public record HashAggregationOperatorFactory(
         int groupByChannel,
         List<GroupingAggregatorFactory> aggregators,
-        BigArrays bigArrays,
+        Supplier<BlockHash> blockHash,
         AggregatorMode mode
     ) implements OperatorFactory {
 
@@ -54,7 +54,7 @@ public class HashAggregationOperator implements Operator {
             return new HashAggregationOperator(
                 groupByChannel,
                 aggregators.stream().map(GroupingAggregatorFactory::get).toList(),
-                bigArrays
+                blockHash.get()
             );
         }
 
@@ -68,12 +68,12 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    public HashAggregationOperator(int groupByChannel, List<GroupingAggregator> aggregators, BigArrays bigArrays) {
+    public HashAggregationOperator(int groupByChannel, List<GroupingAggregator> aggregators, BlockHash blockHash) {
         Objects.requireNonNull(aggregators);
         // checkNonEmpty(aggregators);
         this.groupByChannel = groupByChannel;
         this.aggregators = aggregators;
-        this.longHash = new LongHash(1, bigArrays);
+        this.blockHash = blockHash;
         state = NEEDS_INPUT;
     }
 
@@ -87,11 +87,10 @@ public class HashAggregationOperator implements Operator {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
 
-        LongArrayBlock block = (LongArrayBlock) page.getBlock(groupByChannel);
+        Block block = page.getBlock(groupByChannel);
         long[] groups = new long[block.getPositionCount()];
         for (int i = 0; i < block.getPositionCount(); i++) {
-            long value = block.getLong(i);
-            long bucketOrd = longHash.add(value);
+            long bucketOrd = blockHash.add(block, i);
             if (bucketOrd < 0) { // already seen
                 bucketOrd = -1 - bucketOrd;
             }
@@ -113,11 +112,7 @@ public class HashAggregationOperator implements Operator {
         state = FINISHING;  // << allows to produce output step by step
 
         Block[] blocks = new Block[aggregators.size() + 1];
-        long[] values = new long[(int) longHash.size()];
-        for (int i = 0; i < (int) longHash.size(); i++) {
-            values[i] = longHash.get(i);
-        }
-        blocks[0] = new LongArrayBlock(values, values.length);
+        blocks[0] = blockHash.getKeys();
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
             blocks[i + 1] = aggregator.evaluate();
@@ -141,7 +136,9 @@ public class HashAggregationOperator implements Operator {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        blockHash.close();
+    }
 
     private static void checkState(boolean condition, String msg) {
         if (condition == false) {

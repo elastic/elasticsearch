@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,17 +72,31 @@ public class EsqlActionIT extends ESIntegTestCase {
                     "count_d",
                     "type=double",
                     "time",
-                    "type=date"
+                    "type=date",
+                    "color",
+                    "type=keyword"
                 )
                 .get()
         );
         long timestamp = epoch;
         for (int i = 0; i < 10; i++) {
             client().prepareBulk()
-                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++))
-                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++))
-                .add(new IndexRequest("test").id("3" + i).source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++))
-                .add(new IndexRequest("test").id("4" + i).source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++))
+                .add(
+                    new IndexRequest("test").id("1" + i)
+                        .source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++, "color", "red")
+                )
+                .add(
+                    new IndexRequest("test").id("2" + i)
+                        .source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++, "color", "blue")
+                )
+                .add(
+                    new IndexRequest("test").id("3" + i)
+                        .source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++, "color", "green")
+                )
+                .add(
+                    new IndexRequest("test").id("4" + i)
+                        .source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++, "color", "red")
+                )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
@@ -230,6 +245,29 @@ public class EsqlActionIT extends ESIntegTestCase {
         List<Long> expectedValues = LongStream.range(0, 40).map(i -> epoch + i).sorted().boxed().toList();
         List<Long> actualValues = IntStream.range(0, 40).mapToLong(i -> (Long) results.values().get(i).get(0)).sorted().boxed().toList();
         assertEquals(expectedValues, actualValues);
+    }
+
+    public void testFromStatsGroupingByKeyword() {
+        EsqlQueryResponse results = run("from test | stats avg(count) by color");
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+        Assert.assertEquals(3, results.values().size());
+
+        // assert column metadata
+        assertEquals("color", results.columns().get(0).name());
+        assertEquals("keyword", results.columns().get(0).type());
+        assertEquals("avg(count)", results.columns().get(1).name());
+        assertEquals("double", results.columns().get(1).type());
+        record Group(String color, double avg) {
+
+        }
+        List<Group> expectedGroups = List.of(new Group("blue", 42), new Group("green", 44), new Group("red", 43));
+        List<Group> actualGroups = results.values()
+            .stream()
+            .map(l -> new Group((String) l.get(0), (Double) l.get(1)))
+            .sorted(Comparator.comparing(c -> c.color))
+            .toList();
+        assertThat(actualGroups, equalTo(expectedGroups));
     }
 
     public void testFrom() {

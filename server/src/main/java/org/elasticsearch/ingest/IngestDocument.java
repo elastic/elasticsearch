@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
@@ -26,6 +25,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -702,14 +702,7 @@ public final class IngestDocument {
     }
 
     private Map<String, Object> createTemplateModel() {
-        return new LazyMap<>(() -> {
-            Map<String, Object> model = new HashMap<>(ctxMap);
-            model.put(SourceFieldMapper.NAME, ctxMap);
-            // If there is a field in the source with the name '_ingest' it gets overwritten here,
-            // if access to that field is required then it get accessed via '_source._ingest'
-            model.put(INGEST_KEY, ingestMetadata);
-            return model;
-        });
+        return new DelegatingMapView(ctxMap, Map.of(SourceFieldMapper.NAME, ctxMap, INGEST_KEY, ingestMetadata));
     }
 
     /**
@@ -971,6 +964,84 @@ public final class IngestDocument {
             result.errorMessage = errorMessage;
             return result;
 
+        }
+    }
+
+    /**
+     * Provides a shallowly read-only, very limited, map-like view of two maps. The only methods that are implemented are
+     * {@link Map#get(Object)} and {@link Map#containsKey(Object)}, everything else throws UnsupportedOperationException.
+     *
+     * The overrides map has higher priority than the primary map -- values in that map under some key will take priority over values
+     * in the primary map under the same key.
+     *
+     * @param primary the primary map
+     * @param overrides the overrides map
+     */
+    private record DelegatingMapView(Map<String, Object> primary, Map<String, Object> overrides) implements Map<String, Object> {
+
+        @Override
+        public boolean containsKey(Object key) {
+            // most normal uses of this in practice will end up passing in keys that match the primary, rather than the overrides,
+            // in which case we can shortcut by checking the primary first
+            return primary.containsKey(key) || overrides.containsKey(key);
+        }
+
+        @Override
+        public Object get(Object key) {
+            // null values in the overrides map are treated as *key not present*, so we don't have to do a containsKey check here --
+            // if the overrides map returns null we can simply delegate to the primary
+            Object result = overrides.get(key);
+            return result != null ? result : primary.get(key);
+        }
+
+        @Override
+        public int size() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ?> m) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<String> keySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Collection<Object> values() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            throw new UnsupportedOperationException();
         }
     }
 }

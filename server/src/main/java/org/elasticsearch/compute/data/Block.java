@@ -30,7 +30,7 @@ public abstract class Block {
 
     private final int positionCount;
     @Nullable
-    private final BitSet nullsMask;
+    final BitSet nullsMask;
 
     protected Block(int positionCount) {
         this(positionCount, new BitSet(positionCount));

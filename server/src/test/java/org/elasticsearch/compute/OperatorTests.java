@@ -992,7 +992,7 @@ public class OperatorTests extends ESTestCase {
         List<Long> outputValues = new ArrayList<>();
         int limit = randomIntBetween(1, 20);
         Driver driver = new Driver(
-            List.of(new SequenceLongBlockSourceOperator(values), new TopNOperator(0, true, limit), new PageConsumerOperator(page -> {
+            List.of(new SequenceLongBlockSourceOperator(values), new TopNOperator(0, true, limit, true), new PageConsumerOperator(page -> {
                 Block block = page.getBlock(0);
                 for (int i = 0; i < block.getPositionCount(); i++) {
                     outputValues.add(block.getLong(i));

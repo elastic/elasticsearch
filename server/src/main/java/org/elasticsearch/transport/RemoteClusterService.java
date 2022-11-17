@@ -327,6 +327,24 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     /**
+     * This method checks if the given connection targets a node that belongs to a remote cluster and returns its alias.
+     * @param connection the transport connection for which to return a remote cluster alias
+     * @return a remote cluster alias or {@code null} if given connection does not target a remote cluster
+     */
+    public String getRemoteClusterAliasForConnection(Transport.Connection connection) {
+        if (transportService.getLocalNodeConnection() == connection) {
+            return null;
+        }
+        return getConnections().stream().filter(rcc -> {
+            try {
+                return rcc.getConnection(connection.getNode()) == connection;
+            } catch (NoSuchRemoteClusterException e) {
+                return false;
+            }
+        }).map(rcc -> rcc.getConnectionInfo().getClusterAlias()).findFirst().orElse(null);
+    }
+
+    /**
      * Connects to all remote clusters in a blocking fashion. This should be called on node startup to establish an initial connection
      * to all configured seed nodes.
      */

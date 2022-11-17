@@ -89,21 +89,23 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         });
         authzService.authorize(authentication, AuthenticateAction.INSTANCE.name(), AuthenticateRequest.INSTANCE, authzListener);
         latch.await();
+        final RoleDescriptorsIntersection actualIntersection = actual.get();
+        final String generatedRoleName = actualIntersection.roleDescriptorsList().iterator().next().iterator().next().getName();
         assertThat(
-            actual.get(),
+            actualIntersection,
             equalTo(
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                roleName,
+                                generatedRoleName,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read").build() },
                                 null,
                                 null,
                                 null,
-                                Map.of(AuthenticationField.REMOTE_ACCESS_ROLE_NAMES_KEY, List.of(roleName)),
+                                null,
                                 null
                             )
                         )

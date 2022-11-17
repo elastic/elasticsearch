@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -698,25 +699,18 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
 
-        // A role descriptor can only store one name, whereas the role may have multiple names. To work around this, we will include the
-        // complete list of role names in the role descriptor metadata, and simply use the first name for the role descriptor as a
-        // place-holder.
-        final List<String> roleNames = Arrays.stream(role.names()).toList();
-        assert false == roleNames.isEmpty() : "must have at least one role name";
-        final String roleDescriptorName = roleNames.iterator().next();
         listener.onResponse(
             new RoleDescriptorsIntersection(
                 List.of(
                     Set.of(
                         new RoleDescriptor(
-                            roleDescriptorName,
+                            UUIDs.randomBase64UUID(),
                             null,
                             indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[0]),
                             null,
                             null,
                             null,
-                            // The fulfilling cluster should rely on this metadata field for auditing role names
-                            Map.of(AuthenticationField.REMOTE_ACCESS_ROLE_NAMES_KEY, roleNames),
+                            null,
                             null
                         )
                     )

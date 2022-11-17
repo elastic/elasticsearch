@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBui
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -92,15 +91,12 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -1689,8 +1685,9 @@ public class RBACEngineTests extends ESTestCase {
 
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
-        final RoleDescriptorsIntersection actual = future.get();
 
+        final RoleDescriptorsIntersection actual = future.get();
+        final String generatedRoleName = actual.roleDescriptorsList().iterator().next().iterator().next().getName();
         assertThat(
             actual,
             equalTo(
@@ -1698,13 +1695,13 @@ public class RBACEngineTests extends ESTestCase {
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                role.names()[0],
+                                generatedRoleName,
                                 null,
                                 new IndicesPrivileges[] { expectedIndexPrivilege },
                                 null,
                                 null,
                                 null,
-                                Map.of(AuthenticationField.REMOTE_ACCESS_ROLE_NAMES_KEY, Arrays.stream(role.names()).toList()),
+                                null,
                                 null
                             )
                         )

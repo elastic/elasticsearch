@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -63,31 +64,20 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
-        final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
-        final String type = randomAlphaOfLengthBetween(5, 16);
         final Authentication authentication = Authentication.newRealmAuthentication(
             new User(randomAlphaOfLengthBetween(5, 16), roleName),
-            new Authentication.RealmRef(realmName, type, nodeName)
+            new Authentication.RealmRef(
+                randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16),
+                randomAlphaOfLengthBetween(5, 16),
+                nodeName
+            )
         );
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
-        // This is set during authentication; since we are not authenticating, set it explicitly as it's required for the `authorize`
-        // call below
-        AuditUtil.generateRequestId(threadContext);
-        // Authorize to populate thread context with authz info
-        ActionListener<Void> authzListener = ActionTestUtils.assertNoFailureListener(ignored -> {
-            authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-                concreteClusterAlias,
-                authentication.getEffectiveSubject(),
-                ActionTestUtils.assertNoFailureListener(roleDescriptorsIntersection -> {
-                    actual.set(roleDescriptorsIntersection);
-                    latch.countDown();
-                })
-            );
-        });
-        authzService.authorize(authentication, AuthenticateAction.INSTANCE.name(), AuthenticateRequest.INSTANCE, authzListener);
-        latch.await();
-        final RoleDescriptorsIntersection actualIntersection = actual.get();
+        final RoleDescriptorsIntersection actualIntersection = authorizeThenRetrieveRemoteAccessDescriptors(
+            threadContext,
+            authzService,
+            authentication,
+            concreteClusterAlias
+        );
         final String generatedRoleName = actualIntersection.roleDescriptorsList().iterator().next().iterator().next().getName();
         assertThat(
             actualIntersection,
@@ -123,37 +113,52 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             .internal(randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser))
             .build();
         final String concreteClusterAlias = randomAlphaOfLength(10);
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
+
+        // For internal users, we support the situation where there is no authorization information populated in thread context
+        // We test both scenarios, one where we don't authorize and don't have authorization info in thread context, and one where we do
         if (randomBoolean()) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
             authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                 concreteClusterAlias,
                 authentication.getEffectiveSubject(),
-                ActionTestUtils.assertNoFailureListener(roleDescriptorsIntersection -> {
-                    actual.set(roleDescriptorsIntersection);
-                    latch.countDown();
-                })
+                new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(actual::set), latch)
             );
+            latch.await();
+            assertThat(actual.get(), equalTo(RoleDescriptorsIntersection.EMPTY));
         } else {
-            // This is set during authentication; since we are not authenticating set it explicitly as it's required for the `authorize`
-            // call below
+            assertThat(
+                authorizeThenRetrieveRemoteAccessDescriptors(threadContext, authzService, authentication, concreteClusterAlias),
+                equalTo(RoleDescriptorsIntersection.EMPTY)
+            );
+        }
+    }
+
+    private RoleDescriptorsIntersection authorizeThenRetrieveRemoteAccessDescriptors(
+        final ThreadContext threadContext,
+        final AuthorizationService authzService,
+        final Authentication authentication,
+        final String concreteClusterAlias
+    ) throws InterruptedException {
+        try (var ignored = threadContext.stashContext()) {
+            final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
+            final CountDownLatch latch = new CountDownLatch(1);
+            // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
+            // explicitly
             AuditUtil.generateRequestId(threadContext);
             // Authorize to populate thread context with authz info
-            ActionListener<Void> authzListener = ActionTestUtils.assertNoFailureListener(ignored -> {
+            // Note that if the outer listener throws, we will not count down on the latch, however, we also won't get to the await call
+            // since the exception will be thrown before -- so no deadlock
+            final ActionListener<Void> authzListener = ActionTestUtils.assertNoFailureListener(nothing -> {
                 authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                     concreteClusterAlias,
                     authentication.getEffectiveSubject(),
-                    ActionTestUtils.assertNoFailureListener(roleDescriptorsIntersection -> {
-                        actual.set(roleDescriptorsIntersection);
-                        latch.countDown();
-                    })
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(actual::set), latch)
                 );
             });
             authzService.authorize(authentication, AuthenticateAction.INSTANCE.name(), AuthenticateRequest.INSTANCE, authzListener);
+            latch.await();
+            return actual.get();
         }
-
-        latch.await();
-        assertThat(actual.get(), equalTo(RoleDescriptorsIntersection.EMPTY));
     }
-
 }

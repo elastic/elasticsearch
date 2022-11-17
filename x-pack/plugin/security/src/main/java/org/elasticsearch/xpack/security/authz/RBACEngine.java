@@ -719,6 +719,11 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
+    /**
+     * This may return more than a single index privilege for the indices group because an index privilege can contain at most one query
+     * and FLS group definition, whereas an indices group can contain multiple. We therefore "unfold" the group into multiple privileges,
+     * if necessary.
+     */
     private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);

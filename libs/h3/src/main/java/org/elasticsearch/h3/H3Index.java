@@ -206,8 +206,9 @@ final class H3Index {
         }
         // if we're here we have the potential for an "overage"; i.e., it is
         // possible that c lies on an adjacent face
-
-        CoordIJK origIJK = new CoordIJK(fijk.coord.i, fijk.coord.j, fijk.coord.k);
+        int origI = fijk.coord.i;
+        int origJ = fijk.coord.j;
+        int origK = fijk.coord.k;
 
         // if we're in Class III, drop into the next finer Class II grid
         int res = H3Index.H3_get_resolution(h3);
@@ -234,7 +235,7 @@ final class H3Index {
                 fijk.coord.upAp7r();
             }
         } else if (res != H3Index.H3_get_resolution(h3)) {
-            fijk.coord = origIJK;
+            fijk.coord.reset(origI, origJ, origK);
         }
         return fijk;
     }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.plugin.profiler;
+package org.elasticsearch.xpack.profiler;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;

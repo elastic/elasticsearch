@@ -5,13 +5,11 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-//TODO: Implement these tests
-//apply plugin: 'elasticsearch.internal-yaml-rest-test'
-//apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
   name 'x-pack-profiling'
   description 'The profiler plugin adds support for retrieving data from Universal Profiler.'
-  classname 'org.elasticsearch.plugin.profiler.ProfilingPlugin'
+  classname 'org.elasticsearch.xpack.profiler.ProfilingPlugin'
 }

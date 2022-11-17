@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.plugin.profiler.utils;
+package org.elasticsearch.xpack.profiler.utils;
 
 import java.util.Map;
 

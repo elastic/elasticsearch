@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.plugin.profiler;
+package org.elasticsearch.xpack.profiler;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;

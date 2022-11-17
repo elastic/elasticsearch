@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.plugin.profiler;
+package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.plugin.profiler.utils.MapExtractor;
+import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 

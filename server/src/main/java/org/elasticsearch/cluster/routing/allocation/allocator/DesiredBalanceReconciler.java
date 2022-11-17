@@ -415,13 +415,17 @@ public class DesiredBalanceReconciler {
     ) {
         for (final var nodeId : desiredNodeIds) {
             // TODO consider ignored nodes here too?
-            if (nodeId.equals(shardRouting.currentNodeId()) == false) {
-                final var currentNode = routingNodes.node(nodeId);
-                final var decision = canAllocateDecider.apply(shardRouting, currentNode);
-                logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
-                if (decision.type() == Decision.Type.YES) {
-                    return currentNode.node();
-                }
+            if (nodeId.equals(shardRouting.currentNodeId())) {
+                continue;
+            }
+            final var node = routingNodes.node(nodeId);
+            if (node == null) { // node theft the cluster while reconciliation is still in progress
+                continue;
+            }
+            final var decision = canAllocateDecider.apply(shardRouting, node);
+            logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
+            if (decision.type() == Decision.Type.YES) {
+                return node.node();
             }
         }
 

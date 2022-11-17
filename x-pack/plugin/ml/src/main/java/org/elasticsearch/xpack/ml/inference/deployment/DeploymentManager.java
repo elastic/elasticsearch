@@ -77,12 +77,14 @@ public class DeploymentManager {
     private final ExecutorService executorServiceForProcess;
     private final ThreadPool threadPool;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
+    private final int maxProcesses;
 
     public DeploymentManager(
         Client client,
         NamedXContentRegistry xContentRegistry,
         ThreadPool threadPool,
-        PyTorchProcessFactory pyTorchProcessFactory
+        PyTorchProcessFactory pyTorchProcessFactory,
+        int maxProcesses
     ) {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -90,6 +92,7 @@ public class DeploymentManager {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.executorServiceForDeployment = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME);
+        this.maxProcesses = maxProcesses;
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
@@ -123,6 +126,13 @@ public class DeploymentManager {
 
     // function exposed for testing
     ProcessContext addProcessContext(Long id, ProcessContext processContext) {
+        if (processContextByAllocation.size() >= maxProcesses) {
+            throw ExceptionsHelper.serverError(
+                "[{}] Could not start inference process as the node reached the max number [{}] of processes",
+                processContext.task.getModelId(),
+                maxProcesses
+            );
+        }
         return processContextByAllocation.putIfAbsent(id, processContext);
     }
 

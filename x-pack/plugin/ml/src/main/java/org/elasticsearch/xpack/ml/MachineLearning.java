@@ -699,6 +699,12 @@ public class MachineLearning extends Plugin
      */
     public static final int MAX_TRAINED_MODEL_DEPLOYMENTS = 100;
 
+    /**
+     * The number of low priority models each node can host.
+     * Effectively, a value of 100 means the limit is purely based on memory.
+     */
+    public static final int MAX_LOW_PRIORITY_MODELS_PER_NODE = 100;
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -1041,7 +1047,9 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
-        this.deploymentManager.set(new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory));
+        this.deploymentManager.set(
+            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+        );
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(
@@ -1465,14 +1473,15 @@ public class MachineLearning extends Plugin
 
         // 3 threads per native inference process: for input, c++ logger output, and result processing.
         // As we cannot assign more models than the number of allocated processors, this thread pool's
-        // size is limited by the number of allocated processors on this node.
+        // size is limited by the number of allocated processors on this node. Additionally, we add
+        // the number of low priority model deployments per node.
         // Only use this thread pool for the main long-running process associated with a native inference model deployment.
         // (Using it for some other purpose could mean that an unrelated pytorch model assignment fails to start
         // or that whatever needed the thread for another purpose has to queue for a very long time.)
         ScalingExecutorBuilder pytorchComms = new ScalingExecutorBuilder(
             NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
             3,
-            getAllocatedProcessors().roundUp() * 3,
+            getMaxModelDeploymentsPerNode() * 3,
             TimeValue.timeValueMinutes(1),
             false,
             "xpack.ml.native_inference_comms_thread_pool"
@@ -1499,6 +1508,10 @@ public class MachineLearning extends Plugin
         );
 
         return List.of(jobComms, pytorchComms, utility, datafeed);
+    }
+
+    private int getMaxModelDeploymentsPerNode() {
+        return getAllocatedProcessors().roundUp() + MAX_LOW_PRIORITY_MODELS_PER_NODE;
     }
 
     @Override

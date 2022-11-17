@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
@@ -588,17 +589,17 @@ public class OperatorTests extends ESTestCase {
                         new HashAggregationOperator(
                             3, // group by channel
                             List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 3)),
-                            BigArrays.NON_RECYCLING_INSTANCE
+                            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new HashAggregationOperator(
                             0, // group by channel
                             List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 1)),
-                            BigArrays.NON_RECYCLING_INSTANCE
+                            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new HashAggregationOperator(
                             0, // group by channel
                             List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 1)),
-                            BigArrays.NON_RECYCLING_INSTANCE
+                            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new PageConsumerOperator(page -> {
                             logger.info("New page: {}", page);
@@ -692,7 +693,7 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INITIAL, 1),
                         new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 1)
                     ),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
@@ -703,7 +704,7 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INTERMEDIATE, 4),
                         new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 5)
                     ),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
@@ -714,7 +715,7 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.FINAL, 4),
                         new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 5)
                     ),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new PageConsumerOperator(page -> {
                     logger.info("New page: {}", page);
@@ -872,7 +873,7 @@ public class OperatorTests extends ESTestCase {
                 partialAggregatorOperator = new HashAggregationOperator(
                     0, // group by channel
                     List.of(new GroupingAggregator(aggFunction, AggregatorMode.INITIAL, 1)),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 );
                 partialAggregatorOperators.add(partialAggregatorOperator);
             }
@@ -887,7 +888,7 @@ public class OperatorTests extends ESTestCase {
                 interAggregatorOperator = new HashAggregationOperator(
                     0, // group by channel
                     List.of(new GroupingAggregator(aggFunction, AggregatorMode.INTERMEDIATE, 1)),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 );
                 interAggregatorOperators.add(interAggregatorOperator);
             }
@@ -898,7 +899,7 @@ public class OperatorTests extends ESTestCase {
         HashAggregationOperator finalAggregationOperator = new HashAggregationOperator(
             0, // group by channel
             List.of(new GroupingAggregator(aggFunction, AggregatorMode.FINAL, 1)),
-            BigArrays.NON_RECYCLING_INSTANCE
+            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
         );
         intermediatePages.stream().forEach(finalAggregationOperator::addInput);
         finalAggregationOperator.finish();

@@ -284,7 +284,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             clusterInfoService.addIndex(shardSizeByIndex.getKey(), shardSizeByIndex.getValue());
         }
 
-        final var tuple = createNewAllocationService(Settings.EMPTY, threadPool, clusterService, clusterInfoService);
+        final var tuple = createNewAllocationService(threadPool, clusterService, clusterInfoService);
         final var allocationService = tuple.getKey();
 
         final var initializingPrimaries = allocationService.executeWithRoutingAllocation(
@@ -467,7 +467,6 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
     }
 
     private Map.Entry<MockAllocationService, ShardsAllocator> createNewAllocationService(
-        Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
         ClusterInfoService clusterInfoService
@@ -475,8 +474,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             new BalancedShardsAllocator(
-                settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 SIMULATION_WRITE_LOAD_FORECASTER
             ),
             threadPool,
@@ -485,7 +484,11 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         );
         var strategy = new MockAllocationService(
-            randomAllocationDeciders(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+            randomAllocationDeciders(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                random()
+            ),
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,

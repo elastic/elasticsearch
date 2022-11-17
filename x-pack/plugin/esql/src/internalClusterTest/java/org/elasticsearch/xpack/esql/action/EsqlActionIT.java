@@ -290,6 +290,45 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(43, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("avg_count", "double"))), 1d);
     }
 
+    public void testWhere() {
+        EsqlQueryResponse results = run("from test | where count > 40");
+        logger.info(results);
+        Assert.assertEquals(30, results.values().size());
+        int countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(countIndex), greaterThan(40L));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/396")
+    public void testProjectWhere() {
+        EsqlQueryResponse results = run("from test | project count | where count > 40");
+        logger.info(results);
+        Assert.assertEquals(30, results.values().size());
+        int countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(countIndex), greaterThan(40L));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/396")
+    public void testEvalWhere() {
+        EsqlQueryResponse results = run("from test | eval x = count / 2 | where x > 20");
+        logger.info(results);
+        Assert.assertEquals(20, results.values().size());
+        int countIndex = results.columns().indexOf(new ColumnInfo("x", "long"));
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(countIndex), greaterThan(20L));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/396")
+    public void testStatsWhere() {
+        EsqlQueryResponse results = run("from test | stats x = avg(count) | where x > 100");
+        logger.info(results);
+        Assert.assertEquals(0, results.values().size());
+    }
+
     public void testRefreshSearchIdleShards() throws Exception {
         String indexName = "test_refresh";
         ElasticsearchAssertions.assertAcked(

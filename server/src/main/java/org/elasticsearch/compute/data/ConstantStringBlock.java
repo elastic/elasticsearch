@@ -32,6 +32,11 @@ public class ConstantStringBlock extends Block {
     }
 
     @Override
+    public Block filter(int... positions) {
+        return new ConstantStringBlock(value, positions.length);
+    }
+
+    @Override
     public String toString() {
         return "ConstantStringBlock{positions=" + getPositionCount() + "}";
     }

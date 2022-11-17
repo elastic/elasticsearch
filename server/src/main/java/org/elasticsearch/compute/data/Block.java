@@ -106,37 +106,15 @@ public abstract class Block {
     @Experimental
     // TODO: improve implementation not to waste as much space
     public Block getRow(int position) {
-        Block curr = this;
-        return new Block(1) {
-            @Override
-            public int getInt(int ignored) {
-                return curr.getInt(position);
-            }
+        return filter(position);
+    }
 
-            @Override
-            public long getLong(int ignored) {
-                return curr.getLong(position);
-            }
-
-            @Override
-            public double getDouble(int ignored) {
-                return curr.getDouble(position);
-            }
-
-            @Override
-            public BytesRef getBytesRef(int ignored, BytesRef spare) {
-                return curr.getBytesRef(position, spare);
-            }
-
-            @Override
-            public Object getObject(int ignored) {
-                return curr.getObject(position);
-            }
-
-            @Override
-            public String toString() {
-                return "only-position " + position + ": " + curr;
-            }
-        };
+    /**
+     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * @param positions the positions to retain
+     * @return a filtered block
+     */
+    public Block filter(int... positions) {
+        return new FilteredBlock(this, positions);
     }
 }

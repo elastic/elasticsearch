@@ -38,6 +38,11 @@ public final class ConstantLongBlock extends Block {
     }
 
     @Override
+    public Block filter(int... positions) {
+        return new ConstantLongBlock(value, positions.length);
+    }
+
+    @Override
     public String toString() {
         return "ConstantLongBlock{positions=" + getPositionCount() + ", value=" + value + '}';
     }

@@ -42,34 +42,8 @@ public class ConstantIntBlock extends Block {
     }
 
     @Override
-    public Block getRow(int position) {
-        Block curr = this;
-        return new ConstantIntBlock(value, 1) {
-            @Override
-            public int getInt(int ignored) {
-                return curr.getInt(position);
-            }
-
-            @Override
-            public long getLong(int ignored) {
-                return curr.getLong(position);
-            }
-
-            @Override
-            public double getDouble(int ignored) {
-                return curr.getDouble(position);
-            }
-
-            @Override
-            public Object getObject(int ignored) {
-                return curr.getObject(position);
-            }
-
-            @Override
-            public String toString() {
-                return "only-position " + position + ": " + curr;
-            }
-        };
+    public Block filter(int... positions) {
+        return new ConstantIntBlock(value, positions.length);
     }
 
     @Override

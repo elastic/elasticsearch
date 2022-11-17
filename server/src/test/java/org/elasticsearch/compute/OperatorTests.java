@@ -40,6 +40,8 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LongGroupingOperator;
 import org.elasticsearch.compute.operator.LongMaxOperator;
@@ -56,6 +58,7 @@ import org.elasticsearch.compute.operator.exchange.RandomExchanger;
 import org.elasticsearch.compute.operator.exchange.RandomUnionSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -82,12 +85,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 @Experimental
@@ -914,6 +919,72 @@ public class OperatorTests extends ESTestCase {
         var expectedValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, expectedValueGenerator));
         var actualValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, valuesBlock::getDouble));
         assertEquals(expectedValues, actualValues);
+    }
+
+    public void testFilterOperator() {
+        var positions = 1000;
+        var values = randomList(positions, positions, ESTestCase::randomLong);
+        Predicate<Long> condition = l -> l % 2 == 0;
+
+        var results = new ArrayList<Long>();
+
+        var driver = new Driver(
+            List.of(
+                new SequenceLongBlockSourceOperator(values),
+                new FilterOperator((page, position) -> condition.test(page.getBlock(0).getLong(position))),
+                new PageConsumerOperator(page -> {
+                    Block block = page.getBlock(0);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        results.add(block.getLong(i));
+                    }
+                })
+            ),
+            () -> {}
+        );
+
+        driver.run();
+
+        assertThat(results, contains(values.stream().filter(condition).toArray()));
+    }
+
+    public void testFilterEvalFilter() {
+        var positions = 1000;
+        var values = randomList(positions, positions, ESTestCase::randomLong);
+        Predicate<Long> condition1 = l -> l % 2 == 0;
+        Function<Long, Long> transformation = l -> l + 1;
+        Predicate<Long> condition2 = l -> l % 3 == 0;
+
+        var results = new ArrayList<Tuple<Long, Long>>();
+
+        var driver = new Driver(
+            List.of(
+                new SequenceLongBlockSourceOperator(values),
+                new FilterOperator((page, position) -> condition1.test(page.getBlock(0).getLong(position))),
+                new EvalOperator((page, position) -> transformation.apply(page.getBlock(0).getLong(position)), Long.TYPE),
+                new FilterOperator((page, position) -> condition2.test(page.getBlock(1).getLong(position))),
+                new PageConsumerOperator(page -> {
+                    Block block1 = page.getBlock(0);
+                    Block block2 = page.getBlock(1);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        results.add(Tuple.tuple(block1.getLong(i), block2.getLong(i)));
+                    }
+                })
+            ),
+            () -> {}
+        );
+
+        driver.run();
+
+        assertThat(
+            results,
+            contains(
+                values.stream()
+                    .filter(condition1)
+                    .map(l -> Tuple.tuple(l, transformation.apply(l)))
+                    .filter(t -> condition2.test(t.v2()))
+                    .toArray()
+            )
+        );
     }
 
     public void testTopN() {

@@ -50,8 +50,7 @@ class RemoteAccessAuthenticator implements Authenticator {
             (RemoteAccessService.RemoteAccessAuthenticationToken) authenticationToken;
         remoteAccessService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
-                // TODO Authentication.newRemoteAccessAuthentication
-                final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
+                final Authentication authentication = Authentication.newCrossClusterAuthentication(authResult, nodeName);
                 listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)

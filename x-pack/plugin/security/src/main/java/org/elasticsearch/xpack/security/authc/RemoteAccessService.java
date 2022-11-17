@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -19,6 +21,8 @@ import org.elasticsearch.xpack.security.transport.RemoteAccessUserAccess;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RemoteAccessService {
     private static final Logger logger = LogManager.getLogger(RemoteAccessService.class);
@@ -75,7 +79,17 @@ public class RemoteAccessService {
             final RemoteAccessClusterCredential remoteAccessClusterCredential = remoteAccessAuthenticationToken
                 .getRemoteAccessClusterCredential();
             final ApiKeyService.ApiKeyCredentials credentials = remoteAccessClusterCredential.fcApiKeyCredentials();
-            this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, credentials, listener);
+            this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(authRes -> {
+                // TODO handle auth failure
+                final User apiKeyUser = authRes.getValue();
+                final User user = new User(apiKeyUser.principal(), Strings.EMPTY_ARRAY, "fullName", "email", apiKeyUser.metadata(), true);
+                final Map<String, Object> authResultMetadata = new HashMap<>(authRes.getMetadata());
+                authResultMetadata.put(
+                    AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY,
+                    remoteAccessUserAccess.authorization()
+                );
+                listener.onResponse(AuthenticationResult.success(user, authResultMetadata));
+            }, listener::onFailure));
         }
     }
 

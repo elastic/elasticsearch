@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -153,14 +152,18 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             // Authorize to populate thread context with authz info
             // Note that if the outer listener throws, we will not count down on the latch, however, we also won't get to the await call
             // since the exception will be thrown before -- so no deadlock
-            final ActionListener<Void> authzListener = ActionTestUtils.assertNoFailureListener(nothing -> {
-                authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-                    concreteClusterAlias,
-                    authentication.getEffectiveSubject(),
-                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(actual::set), latch)
-                );
-            });
-            authzService.authorize(authentication, AuthenticateAction.INSTANCE.name(), AuthenticateRequest.INSTANCE, authzListener);
+            authzService.authorize(
+                authentication,
+                AuthenticateAction.INSTANCE.name(),
+                AuthenticateRequest.INSTANCE,
+                ActionTestUtils.assertNoFailureListener(nothing -> {
+                    authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                        concreteClusterAlias,
+                        authentication.getEffectiveSubject(),
+                        new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(actual::set), latch)
+                    );
+                })
+            );
             latch.await();
             return actual.get();
         }

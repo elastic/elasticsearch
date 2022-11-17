@@ -41,6 +41,7 @@ public class RemoteClusterPortSettings {
 
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
+    public static final String REMOTE_CLUSTER_SSL_PREFIX = REMOTE_CLUSTER_PREFIX + "ssl.";
 
     public static final Setting<Boolean> REMOTE_CLUSTER_PORT_ENABLED = boolSetting(
         REMOTE_CLUSTER_PREFIX + "enabled",

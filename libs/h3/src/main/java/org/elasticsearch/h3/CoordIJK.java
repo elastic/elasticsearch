@@ -90,8 +90,20 @@ final class CoordIJK {
     }
 
     /**
-     * Find the center point in 2D cartesian coordinates of a hex.
+     * Reset the value of the IJK coordinates to the provided ones.
      *
+     * @param i the i coordinate
+     * @param j the j coordinate
+     * @param k the k coordinate
+     */
+    void reset(int i, int j, int k) {
+        this.i = i;
+        this.j = j;
+        this.k = k;
+    }
+
+    /**
+     * Find the center point in 2D cartesian coordinates of a hex.
      */
     public Vec2d ijkToHex2d() {
         int i = this.i - this.k;
@@ -128,41 +140,13 @@ final class CoordIJK {
 
     /**
      * Normalizes ijk coordinates by setting the ijk coordinates
-     * to the smallest possible values.
+     * to the smallest possible positive values.
      */
     public void ijkNormalize() {
-        // remove any negative values
-        if (i < 0) {
-            j -= i;
-            k -= i;
-            i = 0;
-        }
-
-        if (j < 0) {
-            i -= j;
-            k -= j;
-            j = 0;
-        }
-
-        if (k < 0) {
-            i -= k;
-            j -= k;
-            k = 0;
-        }
-
-        // remove the min value if needed
-        int min = i;
-        if (j < min) {
-            min = j;
-        }
-        if (k < min) {
-            min = k;
-        }
-        if (min > 0) {
-            i -= min;
-            j -= min;
-            k -= min;
-        }
+        final int min = Math.min(i, Math.min(j, k));
+        i -= min;
+        j -= min;
+        k -= min;
     }
 
     /**
@@ -321,26 +305,11 @@ final class CoordIJK {
      * INVALID_DIGIT on failure.
      */
     public int unitIjkToDigit() {
-        ijkNormalize();
-        int digit = Direction.INVALID_DIGIT.digit();
-        for (int i = Direction.CENTER_DIGIT.digit(); i < Direction.NUM_DIGITS.digit(); i++) {
-            if (ijkMatches(UNIT_VECS[i])) {
-                digit = i;
-                break;
-            }
+        // should be call on a normalized object
+        if (Math.min(i, Math.min(j, k)) < 0 || Math.max(i, Math.max(j, k)) > 1) {
+            return Direction.INVALID_DIGIT.digit();
         }
-        return digit;
-    }
-
-    /**
-     * Returns whether or not two ijk coordinates contain exactly the same
-     * component values.
-     *
-     * @param c The  set of ijk coordinates.
-     * @return true if the two addresses match, 0 if they do not.
-     */
-    private boolean ijkMatches(int[] c) {
-        return (i == c[0] && j == c[1] && k == c[2]);
+        return i << 2 | j << 1 | k;
     }
 
     /**
@@ -349,22 +318,21 @@ final class CoordIJK {
      * @param digit Indexing digit (between 1 and 6 inclusive)
      */
     public static int rotate60cw(int digit) {
-        switch (digit) {
-            case 1: // K_AXES_DIGIT
-                return Direction.JK_AXES_DIGIT.digit();
-            case 3: // JK_AXES_DIGIT:
-                return Direction.J_AXES_DIGIT.digit();
-            case 2: // J_AXES_DIGIT:
-                return Direction.IJ_AXES_DIGIT.digit();
-            case 6: // IJ_AXES_DIGIT
-                return Direction.I_AXES_DIGIT.digit();
-            case 4: // I_AXES_DIGIT
-                return Direction.IK_AXES_DIGIT.digit();
-            case 5: // IK_AXES_DIGIT
-                return Direction.K_AXES_DIGIT.digit();
-            default:
-                return digit;
-        }
+        return switch (digit) {
+            case 1 -> // K_AXES_DIGIT
+                Direction.JK_AXES_DIGIT.digit();
+            case 3 -> // JK_AXES_DIGIT:
+                Direction.J_AXES_DIGIT.digit();
+            case 2 -> // J_AXES_DIGIT:
+                Direction.IJ_AXES_DIGIT.digit();
+            case 6 -> // IJ_AXES_DIGIT
+                Direction.I_AXES_DIGIT.digit();
+            case 4 -> // I_AXES_DIGIT
+                Direction.IK_AXES_DIGIT.digit();
+            case 5 -> // IK_AXES_DIGIT
+                Direction.K_AXES_DIGIT.digit();
+            default -> digit;
+        };
     }
 
     /**
@@ -373,22 +341,21 @@ final class CoordIJK {
      * @param digit Indexing digit (between 1 and 6 inclusive)
      */
     public static int rotate60ccw(int digit) {
-        switch (digit) {
-            case 1: // K_AXES_DIGIT
-                return Direction.IK_AXES_DIGIT.digit();
-            case 5: // IK_AXES_DIGIT
-                return Direction.I_AXES_DIGIT.digit();
-            case 4: // I_AXES_DIGIT
-                return Direction.IJ_AXES_DIGIT.digit();
-            case 6: // IJ_AXES_DIGIT
-                return Direction.J_AXES_DIGIT.digit();
-            case 2: // J_AXES_DIGIT:
-                return Direction.JK_AXES_DIGIT.digit();
-            case 3: // JK_AXES_DIGIT:
-                return Direction.K_AXES_DIGIT.digit();
-            default:
-                return digit;
-        }
+        return switch (digit) {
+            case 1 -> // K_AXES_DIGIT
+                Direction.IK_AXES_DIGIT.digit();
+            case 5 -> // IK_AXES_DIGIT
+                Direction.I_AXES_DIGIT.digit();
+            case 4 -> // I_AXES_DIGIT
+                Direction.IJ_AXES_DIGIT.digit();
+            case 6 -> // IJ_AXES_DIGIT
+                Direction.J_AXES_DIGIT.digit();
+            case 2 -> // J_AXES_DIGIT:
+                Direction.JK_AXES_DIGIT.digit();
+            case 3 -> // JK_AXES_DIGIT:
+                Direction.K_AXES_DIGIT.digit();
+            default -> digit;
+        };
     }
 
 }

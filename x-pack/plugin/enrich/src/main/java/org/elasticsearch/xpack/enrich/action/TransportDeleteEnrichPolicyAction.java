@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichProcessor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks.EnrichPolicyLock;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.util.ArrayList;
@@ -82,14 +83,14 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
         DeleteEnrichPolicyAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
+    ) {
         final String policyName = request.getName();
         final EnrichPolicy policy = EnrichStore.getPolicy(policyName, state); // ensure the policy exists first
         if (policy == null) {
             throw new ResourceNotFoundException("policy [{}] not found", policyName);
         }
 
-        enrichPolicyLocks.lockPolicy(policyName);
+        EnrichPolicyLock policyLock = enrichPolicyLocks.lockPolicy(policyName);
         try {
             final List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
             final List<String> pipelinesWithProcessors = new ArrayList<>();
@@ -115,27 +116,26 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
                 );
             }
         } catch (Exception e) {
-            enrichPolicyLocks.releasePolicy(policyName);
+            policyLock.close();
             listener.onFailure(e);
             return;
         }
 
-        final GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.getBaseName(policyName) + "-*")
-            .indicesOptions(IndicesOptions.lenientExpand());
+        try {
+            final GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.getBaseName(policyName) + "-*")
+                .indicesOptions(IndicesOptions.lenientExpand());
 
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, indices);
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, indices);
 
-        // the wildcard expansion could be too wide (e.g. in the case of a policy named policy-1 and another named policy-10),
-        // so we need to filter down to just the concrete indices that are actually indices for this policy
-        concreteIndices = Stream.of(concreteIndices).filter(i -> EnrichPolicy.isPolicyForIndex(policyName, i)).toArray(String[]::new);
+            // the wildcard expansion could be too wide (e.g. in the case of a policy named policy-1 and another named policy-10),
+            // so we need to filter down to just the concrete indices that are actually indices for this policy
+            concreteIndices = Stream.of(concreteIndices).filter(i -> EnrichPolicy.isPolicyForIndex(policyName, i)).toArray(String[]::new);
 
-        deleteIndicesAndPolicy(concreteIndices, policyName, ActionListener.wrap((response) -> {
-            enrichPolicyLocks.releasePolicy(policyName);
-            listener.onResponse(response);
-        }, (exc) -> {
-            enrichPolicyLocks.releasePolicy(policyName);
-            listener.onFailure(exc);
-        }));
+            deleteIndicesAndPolicy(concreteIndices, policyName, ActionListener.runBefore(listener, policyLock::close));
+        } catch (Exception e) {
+            policyLock.close();
+            listener.onFailure(e);
+        }
     }
 
     private void deleteIndicesAndPolicy(String[] indices, String name, ActionListener<AcknowledgedResponse> listener) {
@@ -160,7 +160,7 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             } else {
                 deletePolicy(name, listener);
             }
-        }, (error) -> listener.onFailure(error)));
+        }, listener::onFailure));
     }
 
     private void deletePolicy(String name, ActionListener<AcknowledgedResponse> listener) {

@@ -388,6 +388,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
+    private final boolean nodeBandwidthSettingsExist;
     private volatile int maxConcurrentSnapshotFileDownloads;
     private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
 
@@ -419,6 +420,7 @@ public class RecoverySettings {
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
         this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
         validateNodeBandwidthRecoverySettings(settings);
+        this.nodeBandwidthSettingsExist = hasNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
         if (DiscoveryNode.canContainData(settings)) {
             clusterSettings.addSettingsUpdateConsumer(
@@ -490,6 +492,7 @@ public class RecoverySettings {
         }
 
         final long availableBytesPerSec = Math.min(readBytesPerSec, writeBytesPerSec);
+        assert nodeBandwidthSettingsExist == (availableBytesPerSec != 0L);
 
         long maxBytesPerSec;
         if (availableBytesPerSec == 0L                                      // no node recovery bandwidths
@@ -607,7 +610,7 @@ public class RecoverySettings {
         }
     }
 
-    ByteSizeValue getMaxBytesPerSec() {
+    public ByteSizeValue getMaxBytesPerSec() {
         return maxBytesPerSec;
     }
 
@@ -625,6 +628,10 @@ public class RecoverySettings {
 
     private void setMaxConcurrentOperations(int maxConcurrentOperations) {
         this.maxConcurrentOperations = maxConcurrentOperations;
+    }
+
+    public boolean nodeBandwidthSettingsExist() {
+        return nodeBandwidthSettingsExist;
     }
 
     public boolean getUseSnapshotsDuringRecovery() {
@@ -687,5 +694,14 @@ public class RecoverySettings {
                     + " are configured."
             );
         }
+    }
+
+    /**
+     * Whether the node bandwidth recovery settings are set.
+     */
+    public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
+        return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
+            .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
+            .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();
     }
 }

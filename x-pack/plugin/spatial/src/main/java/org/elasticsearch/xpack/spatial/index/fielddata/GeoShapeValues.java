@@ -12,6 +12,8 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -47,6 +49,13 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
      */
     protected GeoShapeValues() {
         super(CoordinateEncoder.GEO, GeoShapeValues.GeoShapeValue::new, new GeoShapeIndexer(Orientation.CCW, "missing"));
+    }
+
+    /**
+     * Geo data is limited to geographic lat/lon degrees, so we use the GeographyValidator
+     */
+    public GeometryValidator geometryValidator() {
+        return GeographyValidator.instance(true);
     }
 
     /**

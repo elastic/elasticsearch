@@ -18,19 +18,20 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
@@ -64,18 +66,21 @@ public class MetadataRolloverService {
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final SystemIndices systemIndices;
+    private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
     public MetadataRolloverService(
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         MetadataIndexAliasesService indexAliasesService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        WriteLoadForecaster writeLoadForecaster
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.systemIndices = systemIndices;
+        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
@@ -101,7 +106,7 @@ public class MetadataRolloverService {
         Instant now,
         boolean silent,
         boolean onlyValidate,
-        @Nullable IndexWriteLoad sourceIndexWriteLoad
+        @Nullable IndexMetadataStats sourceIndexStats
     ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
@@ -125,7 +130,7 @@ public class MetadataRolloverService {
                 now,
                 silent,
                 onlyValidate,
-                sourceIndexWriteLoad
+                sourceIndexStats
             );
             default ->
                 // the validate method above prevents this case
@@ -236,7 +241,7 @@ public class MetadataRolloverService {
         Instant now,
         boolean silent,
         boolean onlyValidate,
-        @Nullable IndexWriteLoad sourceIndexWriteLoad
+        @Nullable IndexMetadataStats sourceIndexStats
     ) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
@@ -296,18 +301,50 @@ public class MetadataRolloverService {
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
 
-        newState = ClusterState.builder(newState)
-            .metadata(
-                Metadata.builder(newState.metadata())
-                    .put(
-                        IndexMetadata.builder(newState.metadata().index(originalWriteIndex))
-                            .indexWriteLoad(sourceIndexWriteLoad)
-                            .putRolloverInfo(rolloverInfo)
-                    )
-            )
-            .build();
+        Metadata.Builder metadataBuilder = Metadata.builder(newState.metadata())
+            .put(
+                IndexMetadata.builder(newState.metadata().index(originalWriteIndex)).stats(sourceIndexStats).putRolloverInfo(rolloverInfo)
+            );
+
+        metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
+        metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
+
+        newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
+    }
+
+    public Metadata.Builder withShardSizeForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+        final DataStream dataStream = metadata.dataStream(dataStreamName);
+
+        if (dataStream == null) {
+            return metadata;
+        }
+
+        final List<IndexMetadataStats> indicesStats = dataStream.getIndices()
+            .stream()
+            .map(metadata::getSafe)
+            .map(IndexMetadata::getStats)
+            .filter(Objects::nonNull)
+            .toList();
+
+        long totalSizeInBytes = 0;
+        int shardCount = 0;
+        for (IndexMetadataStats stats : indicesStats) {
+            var averageShardSize = stats.averageShardSize();
+            totalSizeInBytes += averageShardSize.totalSizeInBytes();
+            shardCount += averageShardSize.numberOfShards();
+        }
+
+        if (shardCount == 0) {
+            return metadata;
+        }
+
+        long shardSizeInBytesForecast = totalSizeInBytes / shardCount;
+        final IndexMetadata writeIndex = metadata.getSafe(dataStream.getWriteIndex());
+        metadata.put(IndexMetadata.builder(writeIndex).shardSizeInBytesForecast(shardSizeInBytesForecast).build(), false);
+
+        return metadata;
     }
 
     static String generateRolloverIndexName(String sourceIndexName) {

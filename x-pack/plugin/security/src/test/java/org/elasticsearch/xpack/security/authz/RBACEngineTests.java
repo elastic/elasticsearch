@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -1729,6 +1730,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(actual.roleDescriptorsList().size(), equalTo(1));
         assertThat(actual.roleDescriptorsList().iterator().next().size(), equalTo(1));
         final RoleDescriptor roleDescriptor = actual.roleDescriptorsList().iterator().next().iterator().next();
+        assertNull(NativeRealmValidationUtil.validateRoleName(roleDescriptor.getName(), false));
         assertThat(roleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
         assertThat(roleDescriptor.getClusterPrivileges(), emptyArray());
         assertThat(roleDescriptor.getApplicationPrivileges(), emptyArray());
@@ -1798,6 +1800,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(actual.roleDescriptorsList().size(), equalTo(1));
         assertThat(actual.roleDescriptorsList().iterator().next().size(), equalTo(1));
         final RoleDescriptor roleDescriptor = actual.roleDescriptorsList().iterator().next().iterator().next();
+        assertNull(NativeRealmValidationUtil.validateRoleName(roleDescriptor.getName(), false));
         assertThat(roleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
         assertThat(roleDescriptor.getClusterPrivileges(), emptyArray());
         assertThat(roleDescriptor.getApplicationPrivileges(), emptyArray());

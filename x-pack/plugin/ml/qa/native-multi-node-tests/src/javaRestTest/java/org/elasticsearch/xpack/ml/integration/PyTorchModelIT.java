@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -755,8 +756,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1);
-        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1);
+        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
+        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1, Priority.NORMAL);
 
         // Check second model did not get any allocations
         assertAllocationCount(modelId2, 0);
@@ -797,7 +798,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1)
+            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL)
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
         assertThat(
@@ -833,7 +834,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1);
+        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
 
         {
             Request request = new Request(
@@ -942,13 +943,27 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
-        startDeployment(modelId, "started", 2, 1);
+        startDeployment(modelId, "started", 2, 1, Priority.NORMAL);
 
         assertBusy(() -> assertAllocationCount(modelId, 2));
 
         updateDeployment(modelId, 1);
 
         assertBusy(() -> assertAllocationCount(modelId, 1));
+    }
+
+    public void testStartMultipleLowPriorityDeployments() throws Exception {
+        String modelId1 = "start_multiple_low_priority_deployments_1";
+        String modelId2 = "start_multiple_low_priority_deployments_2";
+        String modelId3 = "start_multiple_low_priority_deployments_3";
+        String modelId4 = "start_multiple_low_priority_deployments_4";
+        for (String modelId : List.of(modelId1, modelId2, modelId3, modelId4)) {
+            createPassThroughModel(modelId);
+            putModelDefinition(modelId);
+            putVocabulary(List.of("these", "are", "my", "words"), modelId);
+            startDeployment(modelId, "started", 1, 1, Priority.LOW);
+            assertAllocationCount(modelId, 1);
+        }
     }
 
     private void putModelDefinition(String modelId) throws IOException {

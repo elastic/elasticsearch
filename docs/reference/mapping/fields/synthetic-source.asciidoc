@@ -89,6 +89,37 @@ Will become:
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
+This can cause some arrays to vanish:
+
+[source,console,id=synthetic-source-leaf-arrays-example-sneaky]
+----
+PUT idx/_doc/1
+{
+  "foo": [
+    {
+      "bar": 1
+    },
+    {
+      "baz": 2
+    }
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "foo": {
+    "bar": 1,
+    "baz": 2
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
 [[synthetic-source-modifications-field-names]]
 ====== Fields named as they are mapped
 Synthetic source names fields as they are named in the mapping. When used

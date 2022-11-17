@@ -17,18 +17,22 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -41,7 +45,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         super(NAME, GetHealthAction.Response::new);
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContent {
 
         private final ClusterName clusterName;
         @Nullable
@@ -83,18 +87,32 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            if (status != null) {
-                builder.field("status", status.xContentValue());
-            }
-            builder.field("cluster_name", clusterName.value());
-            builder.startObject("indicators");
-            for (HealthIndicatorResult result : indicators) {
-                builder.field(result.name(), result, params);
-            }
-            builder.endObject();
-            return builder.endObject();
+        @SuppressWarnings("unchecked")
+        public Iterator<? extends ToXContent> toXContentChunked() {
+            return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+                builder.startObject();
+                if (status != null) {
+                    builder.field("status", status.xContentValue());
+                }
+                builder.field("cluster_name", clusterName.value());
+                builder.startObject("indicators");
+                return builder;
+            }),
+                Iterators.concat(
+                    indicators.stream()
+                        .map(
+                            indicator -> Iterators.concat(
+                                // having the indicator name printed here prevents us from flat mapping all
+                                // indicators however the affected resources which are the O(indices) fields are
+                                // flat mapped over all diagnoses within the indicator
+                                Iterators.single((ToXContent) (builder, params) -> builder.field(indicator.name())),
+                                indicator.toXContentChunked()
+                            )
+                        )
+                        .toArray(Iterator[]::new)
+                ),
+                Iterators.single((b, p) -> b.endObject().endObject())
+            );
         }
 
         @Override
@@ -122,22 +140,27 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static class Request extends ActionRequest {
         private final String indicatorName;
-        private final boolean explain;
+        private final boolean verbose;
 
-        public Request(boolean explain) {
+        public Request(boolean verbose) {
             // We never compute details if no indicator name is given because of the runtime cost:
             this.indicatorName = null;
-            this.explain = explain;
+            this.verbose = verbose;
         }
 
-        public Request(String indicatorName, boolean explain) {
+        public Request(String indicatorName, boolean verbose) {
             this.indicatorName = indicatorName;
-            this.explain = explain;
+            this.verbose = verbose;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
     }
 
@@ -163,10 +186,11 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
+            assert task instanceof CancellableTask;
             healthService.getHealth(
                 client,
                 request.indicatorName,
-                request.explain,
+                request.verbose,
                 responseListener.map(
                     healthIndicatorResults -> new Response(
                         clusterService.getClusterName(),

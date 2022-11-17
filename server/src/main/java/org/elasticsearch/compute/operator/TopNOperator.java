@@ -47,7 +47,7 @@ public class TopNOperator implements Operator {
                 if (blockA.isNull(0)) {
                     return asc;
                 } else if (blockB.isNull(0)) {
-                    return !asc;
+                    return asc == false;
                 }
                 if (asc) {
                     return blockA.getLong(0) > blockB.getLong(0);

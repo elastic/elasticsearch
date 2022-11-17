@@ -54,6 +54,42 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `nodes`::
     (object) Prevalidation result for the removal of each of the provided nodes.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`<node>`::
+    (object) Contains information about removal prevalidation of a specific node.
++
+.Properties of `<node>`
+[%collapsible%open]
+=======
+`id`::
+    (string)
+`name`::
+    (string)
+`external_id`::
+    (string)
+`result`::
+    (object) Contains removal prevalidation results of the node.
++
+.Properties of `result`
+[%collapsible%open]
+========
+`is_safe`::
+    (boolean)
+`reason`::
+    (string)
++
+--
+    * `non_red_cluster_status`
+    * `no_red_shards_on_node`
+--
+`message`::
+    (Optional, string) Detailed information about the removal prevalidation result.
+========
+=======
+====
 
 [[prevalidate-node-removal-api-example]]
 ==== {api-examples-title}
@@ -80,6 +116,7 @@ The API returns the following response:
       "external_id" : "node1-externalId",
       "result" : {
         "is_safe": true,
+        "reason": "",
         "message": ""
       }
     },
@@ -89,6 +126,7 @@ The API returns the following response:
       "external_id" : "node2-externalId",
       "result" : {
         "is_safe": false,
+        "reason": "", 
         "message": "node may contain a copy of a red index shard"
       }
     }

@@ -10,9 +10,6 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ServiceAccountRoleReference;
 
-import java.util.Collection;
-import java.util.Set;
-
 /**
  * Implementation of this interface knows how to turn different subtypes of {@link RoleReference} into concrete role descriptors.
  */
@@ -29,9 +26,13 @@ public interface RoleReferenceResolver {
 
     void resolveServiceAccountRoleReference(ServiceAccountRoleReference roleReference, ActionListener<RolesRetrievalResult> listener);
 
-    void resolveRemoteAccessRoleReferences(
-        RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
-        ActionListener<RolesRetrievalResult> listener,
-        int index
+    void resolveRemoteClusterRoleReference(
+        RoleReference.RemoteAccessRoleReference roleReference,
+        ActionListener<RolesRetrievalResult> listener
     );
+
+    // void resolveRemoteAccessRoleReferences(
+    // RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
+    // ActionListener<RolesRetrievalResult> listener
+    // );
 }

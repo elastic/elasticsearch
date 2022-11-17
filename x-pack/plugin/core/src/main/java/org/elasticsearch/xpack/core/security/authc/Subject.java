@@ -9,27 +9,25 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_FC_API_KEY_ID_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_QC_PRINCIPAL_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
@@ -109,7 +107,7 @@ public class Subject {
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
             case REMOTE_ACCESS:
-                return buildRoleReferencesForCrossCluster();
+                return buildRoleReferencesForRemoteAccess();
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -231,28 +229,43 @@ public class Subject {
         );
     }
 
-    private RoleReferenceIntersection buildRoleReferencesForCrossCluster() {
-        if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
-            return null;
-        }
-        final String qcPrincipal = (String) metadata.get(REMOTE_ACCESS_QC_PRINCIPAL_KEY);
-        if (Strings.isEmpty(qcPrincipal)) {
-            throw new ElasticsearchSecurityException("no QC principal found for Cross Cluster");
-        }
-        final String fcApiKeyId = (String) metadata.get(REMOTE_ACCESS_FC_API_KEY_ID_KEY);
-        if (Strings.isEmpty(fcApiKeyId)) {
-            throw new ElasticsearchSecurityException("no FC API Key Id found for Cross Cluster");
-        }
-        final BytesReference combinedRoleDescriptorsBytes = (BytesReference) metadata.get(REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY);
-        if (isEmptyRoleDescriptorsBytes(combinedRoleDescriptorsBytes)) {
-            throw new ElasticsearchSecurityException("no role descriptors found for Cross Cluster");
-        }
-        final RoleReference.RemoteAccessRoleReference roleDescriptorsReference = new RoleReference.RemoteAccessRoleReference(
-            qcPrincipal,
-            fcApiKeyId,
-            combinedRoleDescriptorsBytes
+    // TODO
+    // private RoleReferenceIntersection buildRoleReferencesForCrossCluster() {
+    // if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+    // return null;
+    // }
+    // final String qcPrincipal = (String) metadata.get(REMOTE_ACCESS_QC_PRINCIPAL_KEY);
+    // if (Strings.isEmpty(qcPrincipal)) {
+    // throw new ElasticsearchSecurityException("no QC principal found for Cross Cluster");
+    // }
+    // final String fcApiKeyId = (String) metadata.get(REMOTE_ACCESS_FC_API_KEY_ID_KEY);
+    // if (Strings.isEmpty(fcApiKeyId)) {
+    // throw new ElasticsearchSecurityException("no FC API Key Id found for Cross Cluster");
+    // }
+    // final BytesReference combinedRoleDescriptorsBytes =(BytesReference) metadata.get(REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY);
+    // if (isEmptyRoleDescriptorsBytes(combinedRoleDescriptorsBytes)) {
+    // throw new ElasticsearchSecurityException("no role descriptors found for Cross Cluster");
+    // }
+    // final RoleReference.RemoteAccessRoleReference roleDescriptorsReference = new RoleReference.RemoteAccessRoleReference(
+    //// qcPrincipal,
+    //// fcApiKeyId,
+    // combinedRoleDescriptorsBytes
+    // );
+    // return new RoleReferenceIntersection(roleDescriptorsReference);
+    // }
+
+    // TODO
+    public RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
+        final RoleReferenceIntersection remoteAccessKeyIntersection = buildRoleReferencesForApiKey();
+        final List<RoleReference> references = new ArrayList<>(remoteAccessKeyIntersection.getRoleReferences());
+        @SuppressWarnings("unchecked")
+        final Collection<BytesReference> roleDescriptorsBytes = (Collection<BytesReference>) metadata.get(
+            "_remote_access_role_descriptors"
         );
-        return new RoleReferenceIntersection(roleDescriptorsReference);
+        for (var rd : roleDescriptorsBytes) {
+            references.add(new RoleReference.RemoteAccessRoleReference(rd));
+        }
+        return new RoleReferenceIntersection(List.copyOf(references));
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,11 +26,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
-public record RemoteAccessUserAccess(Authentication authentication, RoleDescriptorsIntersection authorization) {
+public record RemoteAccessUserAccess(Authentication authentication, Collection<BytesReference> authorization) {
 
     public static RemoteAccessUserAccess readFromContext(final ThreadContext ctx) throws IOException {
         final String headerValue = ctx.getHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
@@ -47,15 +47,17 @@ public record RemoteAccessUserAccess(Authentication authentication, RoleDescript
         ctx.putHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode(authentication, authorization));
     }
 
-    static RemoteAccessUserAccess decode(final String headerValue) throws IOException {
-        final byte[] bytes = Base64.getDecoder().decode(headerValue);
-        final StreamInput in = StreamInput.wrap(bytes);
-        final Version version = Version.readVersion(in);
-        in.setVersion(version);
-        final Authentication authentication = new Authentication(in);
-        final RoleDescriptorsIntersection authorization = new RoleDescriptorsIntersection(in);
-        return new RemoteAccessUserAccess(authentication, authorization);
-    }
+    // static RemoteAccessUserAccess decode(final String headerValue) throws IOException {
+    // final byte[] bytes = Base64.getDecoder().decode(headerValue);
+    // final StreamInput in = StreamInput.wrap(bytes);
+    // final Version version = Version.readVersion(in);
+    // in.setVersion(version);
+    // final Authentication authentication = new Authentication(in);
+    // // TODO
+    //
+    // final RoleDescriptorsIntersection authorization = new RoleDescriptorsIntersection(in); // TODO Different format
+    // return new RemoteAccessUserAccess(authentication, authorization);
+    // }
 
     static String encode(final Authentication authentication, final RoleDescriptorsIntersection authorization) throws IOException {
         final Version version = authentication.getEffectiveSubject().getVersion();
@@ -83,5 +85,36 @@ public record RemoteAccessUserAccess(Authentication authentication, RoleDescript
             throw new UncheckedIOException(e);
         }
         return roleDescriptors;
+    }
+
+    static RemoteAccessUserAccess decode(final String header) throws IOException {
+        final byte[] bytes = Base64.getDecoder().decode(header);
+        final StreamInput in = StreamInput.wrap(bytes);
+        final Version version = Version.readVersion(in);
+        in.setVersion(version);
+        final Authentication authentication = new Authentication(in);
+        final Collection<BytesReference> roleDescriptorsBytesIntersection = new ArrayList<>();
+        final int outerCount = in.readVInt();
+        for (int i = 0; i < outerCount; i++) {
+            roleDescriptorsBytesIntersection.add(in.readBytesReference());
+        }
+        return new RemoteAccessUserAccess(authentication, roleDescriptorsBytesIntersection);
+    }
+
+    static Set<RoleDescriptor> parseRoleDescriptorBytes(final BytesReference roleDescriptorBytes) {
+        try (
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, roleDescriptorBytes, XContentType.JSON)
+        ) {
+            final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
+            parser.nextToken();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                parser.nextToken();
+                final String roleName = parser.currentName();
+                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+            }
+            return Set.copyOf(roleDescriptors);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

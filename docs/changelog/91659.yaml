@@ -1,0 +1,5 @@
+pr: 91659
+summary: Avoid NPE when `disassociateDeadNodes`
+area: Allocation
+type: bug
+issues: []

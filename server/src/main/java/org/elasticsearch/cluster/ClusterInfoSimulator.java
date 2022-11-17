@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.LazyCopyOnWriteMap;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -26,7 +27,7 @@ public class ClusterInfoSimulator {
     public ClusterInfoSimulator(ClusterInfo clusterInfo) {
         this.leastAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeMostAvailableDiskUsages());
-        this.shardSizes = new HashMap<>(clusterInfo.shardSizes);
+        this.shardSizes = new LazyCopyOnWriteMap<>(clusterInfo.shardSizes);
         this.shardDataSetSizes = Map.copyOf(clusterInfo.shardDataSetSizes);
         this.dataPath = Map.copyOf(clusterInfo.dataPath);
     }
@@ -101,6 +102,13 @@ public class ClusterInfoSimulator {
     }
 
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, shardDataSetSizes, dataPath, Map.of());
+        return new ClusterInfo(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes.toImmutableMap(),
+            shardDataSetSizes,
+            dataPath,
+            Map.of()
+        );
     }
 }

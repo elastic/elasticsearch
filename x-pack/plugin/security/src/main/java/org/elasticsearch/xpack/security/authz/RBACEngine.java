@@ -722,13 +722,14 @@ public class RBACEngine implements AuthorizationEngine {
     private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
-        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
         // We need to force at least one iteration even if there is no FLS/DLS, so we use Collections.singleton(null) in the loops below
         // if either FLS or DLS is not specified
-        for (BytesReference query : (queries.isEmpty() ? Collections.<BytesReference>singleton(null) : queries)) {
-            for (FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup : (fieldGrantExcludeGroups.isEmpty()
-                ? Collections.<FieldPermissionsDefinition.FieldGrantExcludeGroup>singleton(null)
-                : fieldGrantExcludeGroups)) {
+        final Set<BytesReference> queriesOrNullSingleton = queries.isEmpty() ? Collections.singleton(null) : queries;
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroupsOrNullSingleton = fieldGrantExcludeGroups
+            .isEmpty() ? Collections.singleton(null) : fieldGrantExcludeGroups;
+        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+        for (BytesReference query : queriesOrNullSingleton) {
+            for (FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup : fieldGrantExcludeGroupsOrNullSingleton) {
                 final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
                     .indices(indicesGroup.indices())
                     .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())

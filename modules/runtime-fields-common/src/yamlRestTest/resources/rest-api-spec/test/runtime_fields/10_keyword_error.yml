@@ -1,0 +1,42 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              first_char:
+                type: keyword
+                script: |
+                  emit(doc['name'].value.substring(0,1));
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: testindex
+        refresh: true
+        body: |
+          {"index":{}}
+          {"name": "foo"}
+          {"index":{}}
+          {"name": ""}
+
+---
+"first char":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char: "f"
+          fields: [name, first_char]
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields.name: [foo] }
+  - match: {hits.hits.0.fields.first_char: [f] }

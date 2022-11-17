@@ -38,6 +38,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return true;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck(
             "enabled",

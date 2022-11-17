@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -31,6 +32,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
 
@@ -72,15 +74,17 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 nodeName
             )
         );
-        final RoleDescriptorsIntersection actualIntersection = authorizeThenRetrieveRemoteAccessDescriptors(
+        final RoleDescriptorsIntersection actual = authorizeThenRetrieveRemoteAccessDescriptors(
             threadContext,
             authzService,
             authentication,
             concreteClusterAlias
         );
-        final String generatedRoleName = actualIntersection.roleDescriptorsList().iterator().next().iterator().next().getName();
+        final String generatedRoleName = actual.roleDescriptorsList().iterator().next().iterator().next().getName();
+        assertNull(NativeRealmValidationUtil.validateRoleName(generatedRoleName, false));
+        assertThat(generatedRoleName, not(equalTo(roleName)));
         assertThat(
-            actualIntersection,
+            actual,
             equalTo(
                 new RoleDescriptorsIntersection(
                     List.of(

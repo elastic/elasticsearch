@@ -725,6 +725,7 @@ public class RBACEngine implements AuthorizationEngine {
     private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
+
         // We need to force at least one iteration even if there is no FLS/DLS, so we use Collections.singleton(null) in the loops below
         // if either FLS or DLS is not specified
         final Set<BytesReference> queriesOrNullSingleton = queries.isEmpty() ? Collections.singleton(null) : queries;

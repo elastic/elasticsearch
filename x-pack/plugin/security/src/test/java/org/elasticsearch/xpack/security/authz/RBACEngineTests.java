@@ -1684,7 +1684,7 @@ public class RBACEngineTests extends ESTestCase {
                 expectedIndicesPrivileges.add(builder.build());
             }
         } else {
-            // we have both queries AND FLS groups, so we get numQueries * numFlsGroups index privileges
+            // We have both queries AND FLS groups, so we get numQueries * numFlsGroups index privileges
             queries = new HashSet<>();
             flsGroups = new HashSet<>();
             for (int i = 0; i < numQueries; i++) {

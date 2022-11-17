@@ -170,7 +170,7 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         NON_RED_CLUSTER_STATUS("non_red_cluster_status"),
         NO_RED_SHARDS_ON_NODE("no_red_shards_on_node"),
         RED_INDICES_ARE_SEARCHABLE_SNAPSHOT("red_indices_are_searchable_snapshot_based"),
-        NO_RESPONSE_FROM_NODE("no_response_from_node"),
+        ERROR_CONTACTING_NODE("error_contacting_node"),
         MAY_CONTAIN_RED_SHARD_COPY("may_contain_red_shard_copy");
 
         private final String reason;

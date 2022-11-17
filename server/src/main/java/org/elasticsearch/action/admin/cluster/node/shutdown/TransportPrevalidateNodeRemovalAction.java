@@ -275,7 +275,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     node.getExternalId(),
                     new Result(
                         false,
-                        NodesRemovalPrevalidation.Reason.NO_RESPONSE_FROM_NODE,
+                        NodesRemovalPrevalidation.Reason.ERROR_CONTACTING_NODE,
                         Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage())
                     )
                 )

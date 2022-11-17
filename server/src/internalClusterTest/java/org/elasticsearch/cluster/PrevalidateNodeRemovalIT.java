@@ -214,7 +214,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertThat(nodeResult.name(), equalTo(node2));
         assertFalse(nodeResult.result().isSafe());
         assertThat(nodeResult.result().message(), startsWith("failed contacting the node"));
-        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NO_RESPONSE_FROM_NODE));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.ERROR_CONTACTING_NODE));
     }
 
     private void ensureRed(String indexName) throws Exception {

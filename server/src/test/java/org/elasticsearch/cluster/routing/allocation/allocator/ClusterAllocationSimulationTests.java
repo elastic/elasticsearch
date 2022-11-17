@@ -542,6 +542,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 diskSpaceUsage.compute(shardRouting.currentNodeId(), (k, currentUsage) -> {
                     if (currentUsage == null) {
                         logger.error("Failed to find node [{}]", k);
+                        return null;
                     }
                     return currentUsage.copyWithFreeBytes(currentUsage.freeBytes() - shardSize);
                 });

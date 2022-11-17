@@ -239,6 +239,18 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     @Override
+    public long getLongLE(int index) {
+        int i = getOffsetIndex(index);
+        int idx = index - offsets[i];
+        int end = idx + 8;
+        BytesReference wholeDoublesLivesHere = references[i];
+        if (end <= wholeDoublesLivesHere.length()) {
+            return wholeDoublesLivesHere.getLongLE(idx);
+        }
+        return super.getLongLE(index);
+    }
+
+    @Override
     public double getDoubleLE(int index) {
         int i = getOffsetIndex(index);
         int idx = index - offsets[i];

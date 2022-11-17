@@ -261,6 +261,13 @@ public class BigArrays {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int size = (int) size();
+            out.writeVInt(size * 8);
+            out.write(array, 0, size * Long.BYTES);
+        }
     }
 
     private static class ByteArrayAsDoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {

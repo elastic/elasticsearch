@@ -310,7 +310,7 @@ public class IPFilterTests extends ESTestCase {
      * remote_cluster filters are not set.
      */
     public void testThatRemoteAccessFallsBackToDefault() throws Exception {
-        assumeTrue("this test assumes RCS2.0's feature flag is enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings settings = Settings.builder()
             .put("xpack.security.transport.filter.allow", "192.168.0.1")
             .put("xpack.security.transport.filter.deny", "_all")
@@ -327,7 +327,7 @@ public class IPFilterTests extends ESTestCase {
      * This test is very similar to {@link #testThatProfilesAreUpdateable()}, but specifically checks the remote cluster port settings.
      */
     public void testThatRemoteAccessIsUpdateable() throws Exception {
-        assumeTrue("this test assumes RCS2.0's feature flag is enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings settings = Settings.builder()
             .put("xpack.security.transport.filter.allow", "localhost")
             .put("xpack.security.transport.filter.deny", "_all")

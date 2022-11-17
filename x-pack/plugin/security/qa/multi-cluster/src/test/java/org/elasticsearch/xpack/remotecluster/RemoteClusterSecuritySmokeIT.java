@@ -23,6 +23,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }
+
     @Override
     protected boolean preserveDataStreamsUponCompletion() {
         return true;
@@ -54,6 +55,5 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             assertThat(totalHits, equalTo(50));
         }
     }
-
 
 }

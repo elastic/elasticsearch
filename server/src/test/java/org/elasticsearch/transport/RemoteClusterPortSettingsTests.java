@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -53,19 +54,19 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
     }
 
     public void testPortSettingsConstruction() {
-        String hostValue = randomIp(true).getHostAddress();
+        String hostValue = NetworkAddress.format(randomIp(true));
         Settings.Builder testSettingsBuilder = Settings.builder()
             .put(REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
             .put(randomFrom(RemoteClusterPortSettings.HOST, TransportSettings.BIND_HOST, TransportSettings.HOST).getKey(), hostValue);
 
         boolean publishHostSet = randomBoolean();
-        String publishHostValue = publishHostSet ? randomIp(true).getHostAddress() : hostValue;
+        String publishHostValue = publishHostSet ? NetworkAddress.format(randomIp(true)) : hostValue;
         if (publishHostSet) {
             testSettingsBuilder.put(RemoteClusterPortSettings.PUBLISH_HOST.getKey(), publishHostValue);
         }
 
         boolean bindHostSet = randomBoolean();
-        String bindHostValue = bindHostSet ? randomIp(true).getHostAddress() : hostValue;
+        String bindHostValue = bindHostSet ? NetworkAddress.format(randomIp(true)) : hostValue;
         if (bindHostSet) {
             testSettingsBuilder.put(RemoteClusterPortSettings.BIND_HOST.getKey(), bindHostValue);
         }

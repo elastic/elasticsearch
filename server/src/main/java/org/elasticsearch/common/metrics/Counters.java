@@ -110,7 +110,7 @@ public class Counters implements Writeable {
                     "Failed to convert counter '" + counter.getKey() + "' because this is the path of another metric."
                 );
             } else {
-                currentLevel.put(parts[parts.length - 1], counter.getValue().count());
+                currentLevel.put(leaf, counter.getValue().count());
             }
         }
         return root;

@@ -20,7 +20,7 @@ public class ClusterInfoSimulator {
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
-    private final Map<String, Long> shardSizes;
+    private final LazyCopyOnWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<ClusterInfo.NodeAndShard, String> dataPath;
 

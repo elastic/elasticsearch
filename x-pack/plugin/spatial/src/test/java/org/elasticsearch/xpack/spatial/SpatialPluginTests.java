@@ -94,12 +94,6 @@ public class SpatialPluginTests extends ESTestCase {
         }, "cartesian_centroid", "point");
     }
 
-    private static class TestValuesSourceConfig extends ValuesSourceConfig {
-        private TestValuesSourceConfig(ValuesSourceType sourceType) {
-            super(sourceType, null, true, null, null, null, null, null, null);
-        }
-    }
-
     public void testCartesianPointBoundsLicenseCheck() {
         CartesianPointValuesSourceType sourceType = CartesianPointValuesSourceType.instance();
         TestValuesSourceConfig sourceConfig = new TestValuesSourceConfig(sourceType);
@@ -201,6 +195,12 @@ public class SpatialPluginTests extends ESTestCase {
                     fail("Unexpected exception testing " + aggName + " at license level " + operationMode + ": " + e.getMessage());
                 }
             }
+        }
+    }
+
+    private static class TestValuesSourceConfig extends ValuesSourceConfig {
+        private TestValuesSourceConfig(ValuesSourceType sourceType) {
+            super(sourceType, null, true, null, null, null, null, null, null);
         }
     }
 }

@@ -1209,7 +1209,6 @@ public class TransportSearchActionTests extends ESTestCase {
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
-            ;
             if (--numReadOnly >= 0) {
                 if (randomBoolean()) {
                     blocksBuilder.addIndexBlock(indices[i], IndexMetadata.INDEX_WRITE_BLOCK);

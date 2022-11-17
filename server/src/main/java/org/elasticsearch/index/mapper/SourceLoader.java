@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -51,14 +52,7 @@ public interface SourceLoader {
          * @param storedFields a loader for stored fields
          * @param docId the doc to load
          */
-        BytesReference source(LeafStoredFieldLoader storedFields, int docId) throws IOException;
-
-        Leaf EMPTY_OBJECT = (storedFields, docId) -> {
-            // TODO accept a requested xcontent type
-            try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                return BytesReference.bytes(b.startObject().endObject());
-            }
-        };
+        Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException;
     }
 
     /**
@@ -72,7 +66,7 @@ public interface SourceLoader {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
-            return (storedFieldLoader, docId) -> storedFieldLoader.source();
+            return (storedFieldLoader, docId) -> Source.fromBytes(storedFieldLoader.source());
         }
 
         @Override
@@ -89,7 +83,7 @@ public interface SourceLoader {
         private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
 
         public Synthetic(Mapping mapping) {
-            loader = mapping.getRoot().syntheticFieldLoader();
+            loader = mapping.syntheticFieldLoader();
             storedFieldLoaders = Map.copyOf(loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         }
 
@@ -116,7 +110,7 @@ public interface SourceLoader {
             }
 
             @Override
-            public BytesReference source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
+            public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
                 for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
                     SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
                     if (loader != null) {
@@ -133,7 +127,7 @@ public interface SourceLoader {
                     } else {
                         b.startObject().endObject();
                     }
-                    return BytesReference.bytes(b);
+                    return Source.fromBytes(BytesReference.bytes(b), b.contentType());
                 }
             }
         }

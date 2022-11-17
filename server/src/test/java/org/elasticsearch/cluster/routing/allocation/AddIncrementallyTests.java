@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -106,7 +107,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         nodes.add(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
-        clusterState = service.reroute(clusterState, "reroute");
+        clusterState = service.reroute(clusterState, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node2").shardsWithState(INITIALIZING).size(), equalTo(2));
@@ -171,7 +172,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         nodes.add(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
-        clusterState = service.reroute(clusterState, "reroute");
+        clusterState = service.reroute(clusterState, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node2").shardsWithState(INITIALIZING).size(), equalTo(2));
@@ -242,7 +243,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
-        clusterState = service.reroute(clusterState, "reroute");
+        clusterState = service.reroute(clusterState, "reroute", ActionListener.noop());
 
         // move initializing to started
         return applyStartedShardsUntilNoChange(clusterState, service);
@@ -282,7 +283,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
-        clusterState = service.reroute(clusterState, "reroute");
+        clusterState = service.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("restart all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(service, clusterState);
@@ -314,7 +315,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         Metadata metadata = metadataBuilder.build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTableBuilder.build()).build();
-        clusterState = service.reroute(clusterState, "reroute");
+        clusterState = service.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("restart all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(service, clusterState);
@@ -349,7 +350,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(service, clusterState);
 
         logger.info("rebalancing");
-        clusterState = service.reroute(clusterState, "reroute");
+        clusterState = service.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("complete rebalancing");
         clusterState = applyStartedShardsUntilNoChange(clusterState, service);

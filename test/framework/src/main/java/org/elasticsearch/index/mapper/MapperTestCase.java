@@ -34,7 +34,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -241,7 +243,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("field");
             value.accept(b);
         });
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            "didn't throw while parsing " + source.source().utf8ToString(),
+            () -> mapperService.documentMapper().parse(source)
+        );
         assertThat(
             "incorrect exception while parsing " + source.source().utf8ToString(),
             e.getCause().getMessage(),
@@ -272,15 +278,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertThat(fields, equalTo(new IndexableField[0]));
-            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(ignoredFields()));
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(new String[] { "field" }));
         }
-    }
-
-    /**
-     * The field names that are saved in {@code _ignored} when ignoring a malformed value.
-     */
-    protected String[] ignoredFields() {
-        return new String[] { "field" };
     }
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
@@ -364,8 +363,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             minimalMapping(b);
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
-        assertParseMinimalWarnings();
+        assertThat(e.getMessage(), containsString("field name cannot be an empty string"));
+    }
+
+    public final void testBlankName() {
+        Version version = getVersion();
+        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(Version.V_8_6_0));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(version, mapping(b -> {
+            b.startObject("  ");
+            minimalMapping(b);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("field name cannot contain only whitespaces"));
     }
 
     public final void testMinimalSerializesToItself() throws IOException {
@@ -500,7 +509,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    fieldDataLookup(mapperService),
                     new SourceLookup.ReaderSourceProvider()
                 );
                 ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
@@ -512,6 +521,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
         );
         return result.get();
+    }
+
+    protected final void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher)
+        throws IOException {
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", sourceValue))).rootDoc()); },
+            iw -> {
+                IndexSearcher searcher = newSearcher(iw);
+                MappedFieldType ft = mapperService.fieldType("field");
+                SearchLookup searchLookup = new SearchLookup(null, null, mapperService.mappingLookup().getSourceProvider());
+                IndexFieldData<?> sfd = ft.fielddataBuilder(
+                    new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                ).build(null, null);
+                LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+                DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
+                sff.setNextDocId(0);
+                assertThat(sff.toScriptDocValues(), dvMatcher);
+            }
+        );
     }
 
     private class UpdateCheck {
@@ -778,11 +807,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(
-            inv -> fieldDataLookup(mapperService.mappingLookup()::sourcePaths).apply(
-                ft,
-                () -> { throw new UnsupportedOperationException(); },
-                fdt
-            )
+            inv -> fieldDataLookup(mapperService).apply(ft, () -> { throw new UnsupportedOperationException(); }, fdt)
         );
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
@@ -1069,7 +1094,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     LeafStoredFieldLoader storedLeaf = storedFieldLoader.getLoader(leaf, docIds);
                     for (int docId : docIds) {
                         storedLeaf.advanceTo(docId);
-                        assertThat("doc " + docId, sourceLoaderLeaf.source(storedLeaf, docId).utf8ToString(), equalTo(expected[i++]));
+                        String source = sourceLoaderLeaf.source(storedLeaf, docId).internalSourceRef().utf8ToString();
+                        assertThat("doc " + docId, source, equalTo(expected[i++]));
                     }
                 }
             }

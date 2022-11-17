@@ -216,7 +216,7 @@ public class DesiredBalanceComputer {
 
         final int iterationCountWarningInterval = computeIterationCountWarningInterval(routingAllocation);
         final long timeWarningInterval = TimeUnit.MINUTES.toNanos(1);
-        long computationStartedTime = System.nanoTime();
+        final long computationStartedTime = System.nanoTime();
         long nextWarningTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;

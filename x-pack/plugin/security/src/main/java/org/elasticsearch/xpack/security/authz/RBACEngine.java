@@ -676,17 +676,15 @@ public class RBACEngine implements AuthorizationEngine {
         final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         final RemoteIndicesPermission remoteIndicesPermission;
         try {
-            // TODO we will need to implement this to support API keys with assigned role descriptors
             remoteIndicesPermission = role.remoteIndices().forCluster(remoteClusterAlias);
         } catch (UnsupportedOperationException e) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Cannot retrieve remote access role descriptors for API keys with assigned role descriptors.",
-                    e
-                )
-            );
+            // TODO we will need to implement this to support API keys with assigned role descriptors
+            final String message = "Cannot retrieve remote access role descriptors for API keys with assigned role descriptors.";
+            assert false : message;
+            listener.onFailure(new IllegalArgumentException(message, e));
             return;
         }
+
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
             listener.onResponse(RoleDescriptorsIntersection.EMPTY);
             return;

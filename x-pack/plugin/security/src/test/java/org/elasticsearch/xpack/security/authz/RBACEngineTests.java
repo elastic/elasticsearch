@@ -113,7 +113,6 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -1635,7 +1634,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
     }
 
-    public void testGetRemoteAccessRoleDescriptorsIntersectionAccountsForFlsAndDls() throws ExecutionException, InterruptedException {
+    public void testGetRemoteAccessRoleDescriptorsIntersectionWithSingleGroup() throws ExecutionException, InterruptedException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final int numQueries = randomIntBetween(0, 3);
@@ -1645,7 +1644,7 @@ public class RBACEngineTests extends ESTestCase {
         final boolean allowRestrictedIndices = randomBoolean();
         final Set<BytesReference> queries;
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> flsGroups;
-        final List<IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+        final List<IndicesPrivileges> expectedIndicesPrivileges = new ArrayList<>();
         if (numQueries == 0 && numFlsGroups == 0) {
             queries = null;
             flsGroups = Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null));
@@ -1654,7 +1653,7 @@ public class RBACEngineTests extends ESTestCase {
                 .indices(indexNames)
                 .privileges("read")
                 .allowRestrictedIndices(allowRestrictedIndices);
-            indicesPrivileges.add(builder.build());
+            expectedIndicesPrivileges.add(builder.build());
         } else if (numQueries == 0 && numFlsGroups > 0) {
             // Without queries, we get one index privilege per FLS group
             queries = null;
@@ -1668,7 +1667,7 @@ public class RBACEngineTests extends ESTestCase {
                     .allowRestrictedIndices(allowRestrictedIndices)
                     .grantedFields(group.getGrantedFields())
                     .deniedFields(group.getExcludedFields());
-                indicesPrivileges.add(builder.build());
+                expectedIndicesPrivileges.add(builder.build());
             }
         } else if (numQueries > 0 && numFlsGroups == 0) {
             // Without FLS groups, we get one index privilege per query
@@ -1682,7 +1681,7 @@ public class RBACEngineTests extends ESTestCase {
                     .privileges("read")
                     .allowRestrictedIndices(allowRestrictedIndices)
                     .query(query);
-                indicesPrivileges.add(builder.build());
+                expectedIndicesPrivileges.add(builder.build());
             }
         } else {
             // we have both queries AND FLS groups, so we get numQueries * numFlsGroups index privileges
@@ -1703,7 +1702,7 @@ public class RBACEngineTests extends ESTestCase {
                         .query(query)
                         .grantedFields(group.getGrantedFields())
                         .deniedFields(group.getExcludedFields());
-                    indicesPrivileges.add(builder.build());
+                    expectedIndicesPrivileges.add(builder.build());
                 }
             }
         }
@@ -1736,11 +1735,76 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(roleDescriptor.getApplicationPrivileges(), emptyArray());
         assertThat(roleDescriptor.getRunAs(), emptyArray());
         assertThat(roleDescriptor.getMetadata().isEmpty(), is(true));
-        assertThat(roleDescriptor.getIndicesPrivileges(), arrayContainingInAnyOrder(indicesPrivileges.toArray()));
+        assertThat(roleDescriptor.getIndicesPrivileges(), arrayContainingInAnyOrder(expectedIndicesPrivileges.toArray()));
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithMultipleGroups() throws ExecutionException, InterruptedException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final int numGroups = 3;
+        final List<IndicesPrivileges> expectedIndicesPrivileges = new ArrayList<>();
+        for (int i = 0; i < numGroups; i++) {
+            final String[] indexNames = generateRandomStringArray(3, 10, false, false);
+            final boolean allowRestrictedIndices = randomBoolean();
+            final boolean hasFls = randomBoolean();
+            final FieldPermissionsDefinition.FieldGrantExcludeGroup group = hasFls
+                ? randomFieldGrantExcludeGroup()
+                : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null);
+            final BytesReference query = randomBoolean() ? randomDlsQuery() : null;
+            final IndicesPrivileges.Builder builder = IndicesPrivileges.builder()
+                .indices(indexNames)
+                .privileges("read")
+                .allowRestrictedIndices(allowRestrictedIndices)
+                .query(query);
+            if (hasFls) {
+                builder.grantedFields(group.getGrantedFields());
+                builder.deniedFields(group.getExcludedFields());
+            }
+            expectedIndicesPrivileges.add(builder.build());
+            remoteIndicesBuilder.addGroup(
+                Set.of(randomFrom(concreteClusterAlias, "*")),
+                IndexPrivilege.READ,
+                new FieldPermissions(new FieldPermissionsDefinition(Set.of(group))),
+                query == null ? null : Set.of(query),
+                allowRestrictedIndices,
+                indexNames
+            );
+        }
+        final String mismatchedConcreteClusterAlias = randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10));
+        // Add some groups that don't match the alias
+        final int numMismatchedGroups = randomIntBetween(0, 3);
+        for (int i = 0; i < numMismatchedGroups; i++) {
+            remoteIndicesBuilder.addGroup(
+                Set.of(mismatchedConcreteClusterAlias),
+                IndexPrivilege.READ,
+                new FieldPermissions(
+                    new FieldPermissionsDefinition(Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)))
+                ),
+                null,
+                randomBoolean(),
+                generateRandomStringArray(3, 10, false, false)
+            );
+        }
+
+        final Role role = mockRoleWithRemoteIndices(remoteIndicesBuilder.build());
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
+        final RoleDescriptorsIntersection actual = future.get();
+
+        assertThat(actual.roleDescriptorsList().size(), equalTo(1));
+        assertThat(actual.roleDescriptorsList().iterator().next().size(), equalTo(1));
+        final RoleDescriptor roleDescriptor = actual.roleDescriptorsList().iterator().next().iterator().next();
+        assertThat(roleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getClusterPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getApplicationPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getRunAs(), emptyArray());
+        assertThat(roleDescriptor.getMetadata().isEmpty(), is(true));
+        assertThat(roleDescriptor.getIndicesPrivileges(), arrayContainingInAnyOrder(expectedIndicesPrivileges.toArray()));
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutMatchingGroups() throws ExecutionException, InterruptedException {

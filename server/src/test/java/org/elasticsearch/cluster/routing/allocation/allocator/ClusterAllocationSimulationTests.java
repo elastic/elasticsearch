@@ -103,6 +103,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var shardCount = DataTier.DATA_HOT.equals(tier) ? hotShards : shrunkShards;
                 final var replicaCount = DataTier.DATA_COLD.equals(tier) ? 0 : 1;
                 final var indexWriteLoad = index == indexCount - 1 ? (scaledRandomIntBetween(1, 8000) / 1000.0) : 0.0;
+                final var shardSize = approxIndexSize.getBytes() / shardCount + randomLongBetween(-maxSizeVariance, maxSizeVariance);
 
                 metadataBuilder.put(
                     IndexMetadata.builder(indexName)
@@ -114,8 +115,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier", tier)
                         )
                         .indexWriteLoadForecast(indexWriteLoad)
+                        .shardSizeInBytesForecast(shardSize)
                 );
-                final var shardSize = approxIndexSize.getBytes() / shardCount + randomLongBetween(-maxSizeVariance, maxSizeVariance);
+
                 shardSizesByIndex.put(indexName, shardSize);
                 tierSizes.computeIfPresent(tier, (ignored, size) -> size + shardSize * shardCount * (replicaCount + 1));
                 tierWriteLoads.computeIfPresent(tier, (ignored, writeLoad) -> writeLoad + indexWriteLoad * shardCount * (replicaCount + 1));

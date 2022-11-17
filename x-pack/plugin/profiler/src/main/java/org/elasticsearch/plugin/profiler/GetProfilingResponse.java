@@ -21,7 +21,6 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
-//TODO: Doc comment
 public class GetProfilingResponse extends ActionResponse implements StatusToXContentObject {
     @Nullable
     private final Map<String, StackTrace> stackTraces;
@@ -44,8 +43,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         this.stackTraceEvents = null;
         this.totalFrames = 0;
         this.error = in.readBoolean() ? in.readException() : null;
-        // TODO: Remove me
-        // this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
     }
 
     public GetProfilingResponse(

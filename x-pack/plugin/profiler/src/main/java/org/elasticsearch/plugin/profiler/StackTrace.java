@@ -13,7 +13,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Map;
 
 final class StackTrace implements ToXContent {
@@ -33,149 +32,15 @@ final class StackTrace implements ToXContent {
 
     private static final String SAFE_BASE64_ENCODER = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234456789-_";
 
+    // tag::noformat
     private static final int[] SAFE_BASE64_DECODER = new int[] {
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        62,
-        0,
-        0,
-        52,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        60,
-        61,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        0,
-        0,
-        0,
-        0,
-        63,
-        0,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
-        37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        43,
-        44,
-        45,
-        46,
-        47,
-        48,
-        49,
-        50,
-        51,
-        0,
-        0,
-        0,
-        0,
-        0 };
-
-    public static int[] runLengthDecodeBase64UrlSimple(String input, int size, int capacity) {
-        int[] output = new int[capacity];
-        byte[] decoded = Base64.getDecoder().decode(input);
-        // encodes tuples of length and value and must therefore always be of even length.
-        assert decoded.length % 2 == 0;
-        int outputIdx = 0;
-        for (int idx = 0; idx < decoded.length; idx += 2) {
-            // unpack the tuple (length, value) and repeat `value`, `length` times.
-            Arrays.fill(output, outputIdx, outputIdx + decoded[idx], decoded[idx + 1]);
-            outputIdx += decoded[idx];
-        }
-        return output;
-    }
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+        25, 0, 0, 0, 0, 63, 0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
+        45, 46, 47, 48, 49, 50, 51, 0, 0, 0, 0, 0
+    };
+    // end::noformat
 
     /**
      *
@@ -196,9 +61,8 @@ final class StackTrace implements ToXContent {
      *
      * @return Corresponding numbers that are encoded in the input.
      */
-    // TODO: Make private - this is public only for testing
-    // TODO: We could optimize this and only store byte
-    public static int[] runLengthDecodeBase64Url(String input, int size, int capacity) {
+    // package-private for testing
+    static int[] runLengthDecodeBase64Url(String input, int size, int capacity) {
         int[] output = new int[capacity];
         int multipleOf8 = size / 8;
         int remainder = size % 8;
@@ -266,8 +130,8 @@ final class StackTrace implements ToXContent {
         return output;
     }
 
-    // TODO: Make private - temporarily public to test this
-    public static int getAddressFromStackFrameID(String frameID) {
+    // package-private for testing
+    static int getAddressFromStackFrameID(String frameID) {
         int address = charCodeAt(frameID, 21) & 0xf;
         address <<= 6;
         address += charCodeAt(frameID, 22);
@@ -296,9 +160,8 @@ final class StackTrace implements ToXContent {
         return SAFE_BASE64_DECODER[input.charAt(i) & 0x7f];
     }
 
-    // TODO: Make private - temporarily public to test this
-    public static String getFileIDFromStackFrameID(String frameID) {
-        // TODO: Can we write this more idiomatically?
+    // package-private for testing
+    static String getFileIDFromStackFrameID(String frameID) {
         return frameID.substring(0, 21) + SAFE_BASE64_ENCODER.charAt(frameID.charAt(21) & 0x30);
     }
 

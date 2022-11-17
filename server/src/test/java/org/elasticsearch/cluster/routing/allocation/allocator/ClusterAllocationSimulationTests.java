@@ -43,7 +43,6 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -64,7 +63,6 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROL
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
 
-@TestLogging(reason = "progress reporting", value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer:DEBUG")
 public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
     private static final Logger logger = LogManager.getLogger(ClusterAllocationSimulationTests.class);
@@ -77,6 +75,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         ) + between(0, 2);
     }
 
+    /**
+     * This test creates a somewhat realistic cluster and runs the shards allocator until convergence, then reports on the balance quality
+     * of the resulting allocation. This is useful for exploring changes to the balancer (although such experiments may want to increase the
+     * size of the cluster somewhat) and by running it in CI we can at least be sure that the balancer doesn't throw anything unexpected and
+     * does eventually converge in these situations.
+     */
     public void testBalanceQuality() throws IOException {
 
         final var shardSizesByIndex = new HashMap<String, Long>();
@@ -453,7 +457,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
             results.endObject();
             results.flush();
-            logger.info("\n\n{}\n\n", bos.bytes().utf8ToString());
+            logger.debug("\n\n{}\n\n", bos.bytes().utf8ToString());
         }
     }
 

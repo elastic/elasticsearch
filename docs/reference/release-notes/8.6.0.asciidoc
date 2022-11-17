@@ -5,4 +5,219 @@ coming[8.6.0]
 
 Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
 
+[[bug-8.6.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* GeoBoundsAggregations reject sub aggregations {es-pull}91073[#91073] (issue: {es-issue}91072[#91072])
+
+Allocation::
+* Check `NodesShutdownMetadata` type before assuming restart {es-pull}90807[#90807]
+
+Authorization::
+* Avoid potential unsupported operation exception in doc bitset cache {es-pull}91490[#91490]
+* Security remove datemath special handling {es-pull}91047[#91047]
+
+Cluster Coordination::
+* Fix `TransportMasterNodeAction` holding a CS reference needlessly {es-pull}90724[#90724] (issue: {es-issue}89220[#89220])
+
+EQL::
+* EQL sequences: support join on multi-values {es-pull}89965[#89965]
+* Refine bwc version checks on `EqlSearchRequest` {es-pull}91510[#91510]
+
+Graph::
+* Fix potential issue with graph api's timed out field in response {es-pull}91006[#91006]
+
+Health::
+* SLM unhealthy policies diagnosis recommends correct URL in action {es-pull}91506[#91506]
+
+Infra/Core::
+* Datastream unavailable exception metadata {es-pull}91461[#91461]
+* Fix `BytesRefArray` on append empty `BytesRef` {es-pull}91364[#91364]
+* Fix index expression options for requests with a single name or pattern {es-pull}91231[#91231]
+* Index expression exclusions never trigger "not found" {es-pull}90902[#90902]
+* Update error states from inside the main state executor {es-pull}90346[#90346] (issue: {es-issue}90337[#90337])
+
+Infra/Scripting::
+* Fix compile with hex literals ending with d/f {es-pull}91501[#91501] (issue: {es-issue}88614[#88614])
+
+Ingest Node::
+* Fixing a race condition in `EnrichCoordinatorProxyAction` that can leave an item stuck in its queue {es-pull}90688[#90688] (issue: {es-issue}90598[#90598])
+* Refactor `DatabaseNodeService` as a cluster state listener {es-pull}91567[#91567] (issue: {es-issue}86999[#86999])
+
+Machine Learning::
+* Copy more settings when creating DF analytics destination index {es-pull}91546[#91546] (issue: {es-issue}89795[#89795])
+
+Mapping::
+* Consolidate field name validation when parsing mappings and documents {es-pull}91328[#91328]
+* Fix handling empty key case in the terms aggregation {es-pull}90822[#90822]
+
+Monitoring::
+* Fix logstash loadavg (xpack cases) {es-pull}90494[#90494]
+* [Stack Monitoring] Update ES module mappings {es-pull}90649[#90649]
+
+Search::
+* Allow different decay values depending on the score function {es-pull}91195[#91195] (issue: {es-issue}78887[#78887])
+
+Vector Search::
+* Make `knn` search requests fully cancellable {es-pull}90612[#90612]
+
+[[deprecation-8.6.0]]
+[float]
+=== Deprecations
+
+Allocation::
+* Deprecate state field in /_cluster/reroute response {es-pull}90399[#90399]
+
+Ingest Node::
+* Deprecate 'remove_binary' default of false for ingest attachment processor {es-pull}90460[#90460]
+
+Mapping::
+* Deprecate silently ignoring type, fields, copy_to and boost in metadata field definition {es-pull}90989[#90989] (issue: {es-issue}35389[#35389])
+
+[[enhancement-8.6.0]]
+[float]
+=== Enhancements
+
+Allocation::
+* Clear up forecasted write load and shard size from previous write index during rollovers {es-pull}91590[#91590]
+* Forecast average shard size during rollovers {es-pull}91561[#91561]
+* Forecast write load during rollovers {es-pull}91425[#91425]
+* Improve shard balancing {es-pull}91603[#91603]
+* Introduce desired-balance allocator {es-pull}91343[#91343]
+* Limit shard realocation retries {es-pull}90296[#90296]
+* Prevalidate node removal API {es-pull}88952[#88952]
+* Store write load in the `IndexMetadata` during data streams rollovers {es-pull}91019[#91019]
+* `DesiredBalance:` expose it via _internal/desired_balance {es-pull}91038[#91038] (issue: {es-issue}90583[#90583])
+
+CRUD::
+* Keep track of average shard write load {es-pull}90768[#90768] (issue: {es-issue}90102[#90102])
+
+EQL::
+* Remove version limitations for CCS {es-pull}91409[#91409]
+
+Geo::
+* Centroid aggregation for cartesian points and shapes {es-pull}89216[#89216]
+* Improve H3#hexRing logic and add H3#areNeighborCells method {es-pull}91140[#91140]
+* Move SpatialUtils to geo library {es-pull}88088[#88088] (issue: {es-issue}86607[#86607])
+* Reduce number of object allocations in H3#geoToH3 and speed up computations {es-pull}91492[#91492]
+* Support `cartesian_bounds` aggregation on point and shape {es-pull}91298[#91298] (issue: {es-issue}90157[#90157])
+
+ILM+SLM::
+* ILM: Get policy support wildcard name {es-pull}89238[#89238]
+
+Infra/Core::
+* Handle APM global labels as affix setting {es-pull}91438[#91438] (issue: {es-issue}91278[#91278])
+* Improve date math exclusions in expressions {es-pull}90298[#90298]
+* Introduce a phase to use String.equals on constant strings, rather than def equality {es-pull}91362[#91362] (issue: {es-issue}91235[#91235])
+* More actionable error for ancient indices {es-pull}91243[#91243]
+* Operator/index templates {es-pull}90143[#90143]
+* Operator/ingest {es-pull}89735[#89735]
+* Transport threads and `_hot_threads` {es-pull}90482[#90482] (issue: {es-issue}90334[#90334])
+* Upgrade XContent to Jackson 2.14.0 and enable Fast Double Parser {es-pull}90553[#90553]
+
+Infra/Plugins::
+* Create placeholder plugin when loading stable plugins {es-pull}90870[#90870]
+* Example stable plugin {es-pull}90805[#90805]
+* Make `extendedPlugins,` `HasNativeController` and `moduleName` optional in plugin descriptor {es-pull}90835[#90835]
+* Rename `NamedComponent` name parameter to value {es-pull}91306[#91306]
+
+Infra/Scripting::
+* Use an explicit null check for null receivers in painless, rather than an NPE {es-pull}91347[#91347] (issue: {es-issue}91236[#91236])
+
+Machine Learning::
+* Add a filter parameter to frequent items {es-pull}91137[#91137]
+* Add a regex to the output of the `categorize_text` aggregation {es-pull}90723[#90723]
+* Add ability to filter and sort buckets by `change_point` numeric values {es-pull}91299[#91299]
+* Add api to update trained model deployment `number_of_allocations` {es-pull}90728[#90728]
+* Alias timestamp to @timestamp in anomaly detection results index {es-pull}90812[#90812]
+* Allow `model_aliases` to be used with Pytorch trained models {es-pull}91296[#91296]
+* Allow overriding timestamp field to null in file structure finder {es-pull}90764[#90764]
+* Low priority trained model deployments {es-pull}91234[#91234] (issue: {es-issue}91024[#91024])
+* Provide additional information about anomaly score factors {es-pull}90675[#90675]
+
+Mapping::
+* Don't create IndexCaps objects when recording unmapped fields {es-pull}90806[#90806] (issue: {es-issue}90796[#90796])
+* aggregate metric double add a max min validation {es-pull}90381[#90381]
+
+Recovery::
+* Remove resize index settings once shards are started {es-pull}90391[#90391] (issue: {es-issue}90127[#90127])
+
+Rollup::
+* Test downsample runtime fields and security {es-pull}90593[#90593]
+
+Search::
+* Add LimitedOffsetsEnum to Limited offset token {es-pull}86110[#86110] (issue: {es-issue}86109[#86109])
+* Add profiling and documentation for dfs phase {es-pull}90536[#90536] (issue: {es-issue}89713[#89713])
+* Bulk merge field-caps responses using mapping hash {es-pull}86323[#86323]
+* Enhance nested depth tracking when parsing queries {es-pull}90425[#90425]
+* Expose telemetry about search usage {es-pull}91528[#91528]
+* Return docs when using nested mappings in archive indices {es-pull}90585[#90585] (issue: {es-issue}90523[#90523])
+* Use `IndexOrDocValues` query for IP range queries {es-pull}90303[#90303] (issue: {es-issue}83658[#83658])
+
+Snapshot/Restore::
+* Increase snaphot pool max size to 10 {es-pull}90282[#90282] (issue: {es-issue}89608[#89608])
+* Tie snapshot speed to node bandwidth settings {es-pull}91021[#91021] (issue: {es-issue}57023[#57023])
+
+Store::
+* Allow plugins to wrap Lucene directories created by the `IndexModule` {es-pull}91556[#91556]
+
+TLS::
+* Add certificate start/expiry dates to SSL Diagnostic message {es-pull}89461[#89461]
+
+TSDB::
+* Generate 'index.routing_path' from dynamic mapping templates {es-pull}90552[#90552] (issue: {es-issue}90528[#90528])
+* Support malformed numbers in synthetic `_source` {es-pull}90428[#90428]
+* Support synthetic `_source` for `_doc_count` field {es-pull}91465[#91465]
+* Synthetic _source: support `field` in many cases {es-pull}89950[#89950]
+* Synthetic `_source`: `ignore_malformed` for `ip` {es-pull}90038[#90038]
+* Synthetic `_source`: support `wildcard` field {es-pull}90196[#90196]
+
+Transform::
+* Add a health section to transform stats {es-pull}90760[#90760]
+* Support `aggregate_metric_double` field type in transform aggregations {es-pull}91045[#91045]
+
+Vector Search::
+* Add profiling information for knn vector queries {es-pull}90200[#90200]
+
+[[feature-8.6.0]]
+[float]
+=== New features
+
+Distributed::
+* Add "index" and "search" node roles with feature flag and setting {es-pull}90993[#90993]
+
+EQL::
+* EQL samples {es-pull}91312[#91312]
+
+Health::
+* Use chunked encoding for `RestGetHealthAction` {es-pull}91515[#91515] (issue: {es-issue}90223[#90223])
+* [HealthAPI] Use the `RestCancellableNodeClient` infrastructure {es-pull}91587[#91587]
+
+Machine Learning::
+* Make `categorize_text` aggregation GA {es-pull}88600[#88600]
+
+Vector Search::
+* Add fielddata and scripting support for byte-sized vectors {es-pull}91184[#91184]
+* Add support for indexing byte-sized knn vectors {es-pull}90774[#90774]
+
+[[regression-8.6.0]]
+[float]
+=== Regressions
+
+Infra/Core::
+* Revert "Remove `ImmutableOpenMap` from snapshot services" {es-pull}90287[#90287]
+
+[[upgrade-8.6.0]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.19.0 {es-pull}90589[#90589] (issue: {es-issue}90584[#90584])
+
+Network::
+* Upgrade to Netty 4.1.82.Final {es-pull}90604[#90604]
+* Upgrade to Netty 4.1.84 {es-pull}91271[#91271]
+
 

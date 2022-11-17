@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -283,9 +284,15 @@ public class ClusterStateTests extends ESTestCase {
                     "timestamp_range": {
                       "shards": []
                     },
-                    "write_load": {
-                      "loads": [-1.0],
-                      "uptimes": [-1]
+                    "stats": {
+                        "write_load": {
+                          "loads": [-1.0],
+                          "uptimes": [-1]
+                        },
+                        "avg_size": {
+                            "total_size_in_bytes": 120,
+                            "shard_count": 1
+                        }
                     },
                     "write_load_forecast" : 8.0
                   }
@@ -500,13 +507,19 @@ public class ClusterStateTests extends ESTestCase {
                     "timestamp_range" : {
                       "shards" : [ ]
                     },
-                    "write_load" : {
-                      "loads" : [
-                        -1.0
-                      ],
-                      "uptimes" : [
-                        -1
-                      ]
+                    "stats" : {
+                      "write_load" : {
+                        "loads" : [
+                          -1.0
+                        ],
+                        "uptimes" : [
+                          -1
+                        ]
+                      },
+                      "avg_size" : {
+                        "total_size_in_bytes" : 120,
+                        "shard_count" : 1
+                      }
                     },
                     "write_load_forecast" : 8.0
                   }
@@ -728,13 +741,19 @@ public class ClusterStateTests extends ESTestCase {
                     "timestamp_range" : {
                       "shards" : [ ]
                     },
-                    "write_load" : {
-                      "loads" : [
-                        -1.0
-                      ],
-                      "uptimes" : [
-                        -1
-                      ]
+                    "stats" : {
+                      "write_load" : {
+                        "loads" : [
+                          -1.0
+                        ],
+                        "uptimes" : [
+                          -1
+                        ]
+                      },
+                      "avg_size" : {
+                        "total_size_in_bytes" : 120,
+                        "shard_count" : 1
+                      }
                     },
                     "write_load_forecast" : 8.0
                   }
@@ -925,7 +944,7 @@ public class ClusterStateTests extends ESTestCase {
             })
             .numberOfReplicas(2)
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
-            .indexWriteLoad(IndexWriteLoad.builder(1).build())
+            .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
             .indexWriteLoadForecast(8.0)
             .build();
 

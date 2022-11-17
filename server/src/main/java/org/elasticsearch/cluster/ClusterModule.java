@@ -136,7 +136,8 @@ public class ClusterModule extends AbstractModule {
             clusterPlugins,
             clusterService,
             this::reconcile,
-            writeLoadForecaster
+            writeLoadForecaster,
+            clusterInfoService
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
@@ -348,7 +349,8 @@ public class ClusterModule extends AbstractModule {
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        WriteLoadForecaster writeLoadForecaster
+        WriteLoadForecaster writeLoadForecaster,
+        ClusterInfoService clusterInfoService
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster));

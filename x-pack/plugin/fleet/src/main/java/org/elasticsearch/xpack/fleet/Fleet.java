@@ -343,6 +343,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Arrays.asList(new RestGetGlobalCheckpointsAction(), new RestFleetSearchAction(), new RestFleetMultiSearchAction(settings));
+        return Arrays.asList(
+            new RestGetGlobalCheckpointsAction(),
+            new RestFleetSearchAction(restController.getSearchUsageHolder()),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder())
+        );
     }
 }

@@ -12,9 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -39,7 +36,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -243,7 +239,7 @@ public class FetchPhase {
             if (requiresSource) {
                 try {
                     profiler.startLoadingSource();
-                    source = Source.fromBytes(sourceLoader.source(leafStoredFieldLoader, subDocId));
+                    source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                     SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                     scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
                     scriptSourceLookup.setSourceProvider(new SourceLookup.BytesSourceProvider(source.internalSourceRef()));
@@ -278,7 +274,6 @@ public class FetchPhase {
      *     setting it on {@link HitContext#source()}. This allows fetch subphases that
      *     use the hit context to access the preloaded source.
      */
-    @SuppressWarnings("unchecked")
     private static HitContext prepareNestedHitContext(
         SearchContext context,
         boolean requiresSource,
@@ -290,16 +285,13 @@ public class FetchPhase {
     ) throws IOException {
 
         String rootId;
-        Map<String, Object> rootSourceAsMap = null;
-        XContentType rootSourceContentType = null;
+        Source rootSource = Source.empty(XContentType.JSON);
 
         if (context instanceof InnerHitsContext.InnerHitSubContext innerHitsContext) {
             rootId = innerHitsContext.getRootId();
 
             if (requiresSource) {
-                Source rootLookup = innerHitsContext.getRootLookup();
-                rootSourceAsMap = rootLookup.source();
-                rootSourceContentType = rootLookup.sourceContentType();
+                rootSource = innerHitsContext.getRootLookup();
             }
         } else {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(requiresSource, Collections.emptySet()));
@@ -309,11 +301,7 @@ public class FetchPhase {
 
             if (requiresSource) {
                 if (leafRootLoader.source() != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(leafRootLoader.source(), false);
-                    rootSourceAsMap = tuple.v2();
-                    rootSourceContentType = tuple.v1();
-                } else {
-                    rootSourceAsMap = Collections.emptyMap();
+                    rootSource = Source.fromBytes(leafRootLoader.source());
                 }
             }
         }
@@ -321,41 +309,11 @@ public class FetchPhase {
         childFieldLoader.advanceTo(nestedInfo.doc());
 
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
+        assert nestedIdentity != null;
+        Source nestedSource = nestedIdentity.extractSource(rootSource);
 
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-
-        if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
-            // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
-            // structure with the nested json array object being the actual content. The latter is important, so that
-            // features like source filtering and highlighting work consistent regardless of whether the field points
-            // to a json object array for consistency reasons on how we refer to fields
-            Map<String, Object> nestedSourceAsMap = new HashMap<>();
-            Map<String, Object> current = nestedSourceAsMap;
-            for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
-                String nestedPath = nested.getField().string();
-                current.put(nestedPath, new HashMap<>());
-                List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
-                if (nestedParsedSource == null) {
-                    throw new IllegalStateException("Couldn't find nested source for path " + nestedPath);
-                }
-                rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
-                if (nested.getChild() == null) {
-                    current.put(nestedPath, rootSourceAsMap);
-                } else {
-                    Map<String, Object> next = new HashMap<>();
-                    current.put(nestedPath, next);
-                    current = next;
-                }
-            }
-            return new HitContext(
-                hit,
-                subReaderContext,
-                nestedInfo.doc(),
-                childFieldLoader.storedFields(),
-                Source.fromMap(nestedSourceAsMap, rootSourceContentType)
-            );
-        }
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), Source.empty(null));
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
     }
 
     interface Profiler {

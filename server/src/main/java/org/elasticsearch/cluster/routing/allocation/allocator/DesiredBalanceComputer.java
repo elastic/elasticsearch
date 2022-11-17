@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Strings;
@@ -211,6 +212,8 @@ public class DesiredBalanceComputer {
             }
         }
 
+        final int iterationCountWarningInterval = computeIterationCountWarningInterval(routingAllocation);
+
         int i = 0;
         boolean hasChanges = false;
         while (true) {
@@ -260,9 +263,8 @@ public class DesiredBalanceComputer {
                 break;
             }
             if (i % 100 == 0) {
-                // TODO this warning should be time based, iteration count should be proportional to the number of shards
                 logger.log(
-                    i % 1000000 == 0 ? Level.INFO : Level.DEBUG,
+                    i % iterationCountWarningInterval == 0 ? Level.INFO : Level.DEBUG,
                     Strings.format(
                         "Desired balance computation for [%d] is still not converged after [%d] iterations",
                         desiredBalanceInput.index(),
@@ -346,5 +348,14 @@ public class DesiredBalanceComputer {
             info.getFailedNodeIds(),
             info.getLastAllocatedNodeId()
         );
+    }
+
+    private static int computeIterationCountWarningInterval(RoutingAllocation allocation) {
+        final int relativeSize = allocation.metadata().getTotalNumberOfShards();
+        int iterations = 1000;
+        while (iterations < relativeSize) {
+            iterations *= 10;
+        }
+        return iterations;
     }
 }

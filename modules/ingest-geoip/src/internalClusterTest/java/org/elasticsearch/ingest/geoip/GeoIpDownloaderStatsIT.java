@@ -66,6 +66,11 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
     }
 
     public void testStats() throws Exception {
+        assumeTrue(
+            "Testing without the geoip endpoint fixture falls back to https://storage.googleapis.com/, which can cause this test "
+                + "to run too slowly to pass",
+            ENDPOINT != null
+        );
         GeoIpDownloaderStatsAction.Request req = new GeoIpDownloaderStatsAction.Request();
         GeoIpDownloaderStatsAction.Response response = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
         XContentTestUtils.JsonMapView jsonMapView = new XContentTestUtils.JsonMapView(convertToMap(response));

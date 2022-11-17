@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -1458,7 +1459,6 @@ public class RBACEngineTests extends ESTestCase {
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.READ, dataStreamName)
@@ -1481,24 +1481,27 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         SearchRequest request = new SearchRequest("*");
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, SearchAction.NAME),
-            lookup
+            lookup,
+            () -> ignore -> {}
         );
-        // The authorized indices is the lazily loading set implementation
-        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndicesSet.class));
-        assertThat(authorizedIndices, hasItem(dataStreamName));
+        assertThat(authorizedIndices, instanceOf(AuthorizedIndices.class));
+        assertThat(authorizedIndices.allAuthorizedAndAvailable().getOrCompute(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.isAuthorized(dataStreamName), is(true));
         assertThat(
-            authorizedIndices,
+            authorizedIndices.allAuthorizedAndAvailable().getOrCompute(),
             hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY))
         );
+        for (String index : backingIndices.stream().map(im -> im.getIndex().getName()).toList()) {
+            assertThat(authorizedIndices.isAuthorized(index), is(true));
+        }
     }
 
     public void testExplicitMappingUpdatesAreNotGrantedWithIngestPrivileges() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.emptySet(), Collections.emptyList())
             .add(IndexPrivilege.CREATE, "my_*")
@@ -1523,14 +1526,14 @@ public class RBACEngineTests extends ESTestCase {
 
         PutMappingRequest request = new PutMappingRequest("*");
         request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, PutMappingAction.NAME),
-            lookup
+            lookup,
+            () -> ignore -> {}
         );
-        // The authorized indices is the lazily loading set implementation
-        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndicesSet.class));
-        assertThat(authorizedIndices.isEmpty(), is(true));
+        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndices.class));
+        assertThat(authorizedIndices.allAuthorizedAndAvailable().getOrCompute().isEmpty(), is(true));
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {

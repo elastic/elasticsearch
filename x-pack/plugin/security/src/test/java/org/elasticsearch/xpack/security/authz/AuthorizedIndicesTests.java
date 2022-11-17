@@ -23,6 +23,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -41,17 +42,19 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithoutRoles() {
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             Role.EMPTY,
             getRequestInfo(""),
-            Metadata.EMPTY_METADATA.getIndicesLookup()
+            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            () -> ignore -> {}
         );
-        assertTrue(authorizedIndices.isEmpty());
+        assertTrue(authorizedIndices.allAuthorizedAndAvailable().getOrCompute().isEmpty());
     }
 
     public void testAuthorizedIndicesUserWithSomeRoles() {
@@ -105,36 +108,43 @@ public class AuthorizedIndicesTests extends ESTestCase {
             future
         );
         Role roles = future.actionGet();
-        Set<String> list = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices list = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(SearchAction.NAME),
-            metadata.getIndicesLookup()
+            metadata.getIndicesLookup(),
+            () -> ignore -> {}
         );
-        assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
-        assertFalse(list.contains("bbbbb"));
-        assertFalse(list.contains("ba"));
-        assertThat(list, not(contains(internalSecurityIndex)));
-        assertThat(list, not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains("bbbbb")));
+        assertThat(list.isAuthorized("bbbbb"), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains("ba")));
+        assertThat(list.isAuthorized("ba"), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains(internalSecurityIndex)));
+        assertThat(list.isAuthorized(internalSecurityIndex), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(list.isAuthorized(SecuritySystemIndices.SECURITY_MAIN_ALIAS), is(false));
     }
 
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetadata() {
         Role role = Role.builder(RESTRICTED_INDICES, "role").add(IndexPrivilege.ALL, "*").build();
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(SearchAction.NAME),
-            Metadata.EMPTY_METADATA.getIndicesLookup()
+            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            () -> ignore -> {}
         );
-        assertTrue(authorizedIndices.isEmpty());
+        assertTrue(authorizedIndices.allAuthorizedAndAvailable().getOrCompute().isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
         Role role = Role.builder(RESTRICTED_INDICES, "user_role").add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(SearchAction.NAME),
-            Metadata.EMPTY_METADATA.getIndicesLookup()
+            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            () -> ignore -> {}
         );
-        assertTrue(authorizedIndices.isEmpty());
+        assertTrue(authorizedIndices.allAuthorizedAndAvailable().getOrCompute().isEmpty());
     }
 
     public void testSecurityIndicesAreRestrictedForDefaultRole() {
@@ -160,14 +170,19 @@ public class AuthorizedIndicesTests extends ESTestCase {
             )
             .build();
 
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(SearchAction.NAME),
-            metadata.getIndicesLookup()
+            metadata.getIndicesLookup(),
+            () -> ignore -> {}
         );
-        assertThat(authorizedIndices, containsInAnyOrder("an-index", "another-index"));
-        assertThat(authorizedIndices, not(contains(internalSecurityIndex)));
-        assertThat(authorizedIndices, not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(authorizedIndices.allAuthorizedAndAvailable().getOrCompute(), containsInAnyOrder("an-index", "another-index"));
+        assertThat(authorizedIndices.isAuthorized("an-index"), is(true));
+        assertThat(authorizedIndices.isAuthorized("another-index"), is(true));
+        assertThat(authorizedIndices.allAuthorizedAndAvailable().getOrCompute(), not(contains(internalSecurityIndex)));
+        assertThat(authorizedIndices.isAuthorized(internalSecurityIndex), is(false));
+        assertThat(authorizedIndices.allAuthorizedAndAvailable().getOrCompute(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(authorizedIndices.isAuthorized(SecuritySystemIndices.SECURITY_MAIN_ALIAS), is(false));
     }
 
     public void testSecurityIndicesAreNotRemovedFromUnrestrictedRole() {
@@ -193,23 +208,25 @@ public class AuthorizedIndicesTests extends ESTestCase {
             )
             .build();
 
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(SearchAction.NAME),
-            metadata.getIndicesLookup()
+            metadata.getIndicesLookup(),
+            () -> ignore -> {}
         );
         assertThat(
-            authorizedIndices,
+            authorizedIndices.allAuthorizedAndAvailable().getOrCompute(),
             containsInAnyOrder("an-index", "another-index", SecuritySystemIndices.SECURITY_MAIN_ALIAS, internalSecurityIndex)
         );
 
-        Set<String> authorizedIndicesSuperUser = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndicesSuperUser = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(SearchAction.NAME),
-            metadata.getIndicesLookup()
+            metadata.getIndicesLookup(),
+            () -> ignore -> {}
         );
         assertThat(
-            authorizedIndicesSuperUser,
+            authorizedIndicesSuperUser.allAuthorizedAndAvailable().getOrCompute(),
             containsInAnyOrder("an-index", "another-index", SecuritySystemIndices.SECURITY_MAIN_ALIAS, internalSecurityIndex)
         );
     }
@@ -273,17 +290,23 @@ public class AuthorizedIndicesTests extends ESTestCase {
             future
         );
         Role roles = future.actionGet();
-        Set<String> list = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices list = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(SearchAction.NAME),
-            metadata.getIndicesLookup()
+            metadata.getIndicesLookup(),
+            () -> ignore -> {}
         );
-        assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
-        assertFalse(list.contains("bbbbb"));
-        assertFalse(list.contains("ba"));
-        assertFalse(list.contains("adatastream1"));
-        assertThat(list, not(contains(internalSecurityIndex)));
-        assertThat(list, not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains("bbbbb")));
+        assertThat(list.isAuthorized("bbbbb"), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains("ba")));
+        assertThat(list.isAuthorized("ba"), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains("adatastream1")));
+        assertThat(list.isAuthorized("adatastream1"), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains(internalSecurityIndex)));
+        assertThat(list.isAuthorized(internalSecurityIndex), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(list.isAuthorized(SecuritySystemIndices.SECURITY_MAIN_ALIAS), is(false));
     }
 
     public void testDataStreamsAreIncludedInAuthorizedIndices() {
@@ -347,12 +370,24 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[] { "a*" });
         AuthorizationEngine.RequestInfo requestInfo = getRequestInfo(request, SearchAction.NAME);
-        Set<String> list = RBACEngine.resolveAuthorizedIndicesFromRole(roles, requestInfo, metadata.getIndicesLookup());
-        assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
-        assertFalse(list.contains("bbbbb"));
-        assertFalse(list.contains("ba"));
-        assertThat(list, not(contains(internalSecurityIndex)));
-        assertThat(list, not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        AuthorizedIndices list = RBACEngine.resolveAuthorizedIndicesFromRole(
+            roles,
+            requestInfo,
+            metadata.getIndicesLookup(),
+            () -> ignore -> {}
+        );
+        assertThat(
+            list.allAuthorizedAndAvailable().getOrCompute(),
+            containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex)
+        );
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains("bbbbb")));
+        assertThat(list.isAuthorized("bbbbb"), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains("ba")));
+        assertThat(list.isAuthorized("ba"), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains(internalSecurityIndex)));
+        assertThat(list.isAuthorized(internalSecurityIndex), is(false));
+        assertThat(list.allAuthorizedAndAvailable().getOrCompute(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(list.isAuthorized(SecuritySystemIndices.SECURITY_MAIN_ALIAS), is(false));
     }
 
     public static AuthorizationEngine.RequestInfo getRequestInfo(String action) {

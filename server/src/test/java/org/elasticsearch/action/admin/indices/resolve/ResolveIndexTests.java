@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -211,13 +212,15 @@ public class ResolveIndexTests extends ESTestCase {
             { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY },
             { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY } };
         Metadata metadata = buildMetadata(new Object[][] {}, indices);
+        Set<String> authorizedIndices = Set.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix);
 
         String requestedIndex = "<logs-pgsql-prod-{now/d}>";
         List<String> resolvedIndices = resolver.resolveIndexAbstractions(
             List.of(requestedIndex),
             IndicesOptions.LENIENT_EXPAND_OPEN,
             metadata,
-            List.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix),
+            new LazyInitializable<>(() -> authorizedIndices),
+            authorizedIndices::contains,
             randomBoolean()
         );
         assertThat(resolvedIndices.size(), is(1));

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -179,7 +180,7 @@ public interface AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         Map<String, IndexAbstraction> indicesLookup,
-        ActionListener<Set<String>> listener
+        ActionListener<AuthorizationEngine.AuthorizedIndices> listener
     );
 
     /**
@@ -255,6 +256,12 @@ public interface AuthorizationEngine {
         default AuthorizationInfo getAuthenticatedUserAuthorizationInfo() {
             return this;
         }
+    }
+
+    interface AuthorizedIndices {
+        LazyInitializable<Set<String>, RuntimeException> allAuthorizedAndAvailable();
+
+        boolean isAuthorized(String name);
     }
 
     /**

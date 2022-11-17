@@ -102,18 +102,26 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     // package private for testing
     ServerSocketChannel setupSocket() {
-        InetAddress localhost = InetAddress.getLoopbackAddress();
-        int portNumber = PORT.get(environment.settings());
+        var settings = environment.settings();
+        int portNumber = PORT.get(settings);
         assert portNumber >= 0;
+
+        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+            try {
+                return socketAddress(InetAddress.getByName("0"), portNumber);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+            }
+        });
 
         try {
             serverChannel = ServerSocketChannel.open();
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
-                    serverChannel.bind(socketAddress(localhost, portNumber));
+                    serverChannel.bind(socketAddress);
                 } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
+                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
                 }
                 return null;
             });
@@ -129,7 +137,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 }
             }
         } catch (Exception e) {
-            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(localhost, portNumber), e);
+            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
         }
 
         return serverChannel;

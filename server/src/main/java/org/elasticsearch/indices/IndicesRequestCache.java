@@ -324,10 +324,17 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         if (currentKeysToClean.isEmpty() == false || currentFullClean.isEmpty() == false) {
             for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
+                CleanupKey cleanupKey = new CleanupKey(key.entity, key.readerCacheKey);
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {
+                    if (registeredClosedListeners.containsKey(cleanupKey)) {
+                        registeredClosedListeners.remove(cleanupKey);
+                    }
                     iterator.remove();
                 } else {
-                    if (currentKeysToClean.contains(new CleanupKey(key.entity, key.readerCacheKey))) {
+                    if (currentKeysToClean.contains(cleanupKey)) {
+                        if (registeredClosedListeners.containsKey(cleanupKey)) {
+                            registeredClosedListeners.remove(cleanupKey);
+                        }
                         iterator.remove();
                     }
                 }

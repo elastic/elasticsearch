@@ -93,6 +93,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             cache.clear(entity);
         }
         cache.cleanCache();
+        assertEquals(0, cache.numRegisteredCloseListeners());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
@@ -189,6 +190,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             cache.clear(secondEntity);
         }
         cache.cleanCache();
+        assertEquals(0, cache.numRegisteredCloseListeners());
         assertEquals(2, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
         assertTrue(loader.loadedFromCache);
@@ -268,6 +270,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             cache.clear(secondEntity);
         }
         cache.cleanCache();
+        assertEquals(0, cache.numRegisteredCloseListeners());
         assertEquals(2, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
         assertTrue(loader.loadedFromCache);
@@ -275,6 +278,99 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(0L, requestCacheStats.stats().getMemorySize().getBytes());
 
         IOUtils.close(reader, writer, dir, cache);
+        assertEquals(0, cache.numRegisteredCloseListeners());
+    }
+
+    public void testCacheNotCloseReaders() throws Exception {
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        if (randomBoolean()) {
+            writer.flush();
+            IOUtils.close(writer);
+            writer = new IndexWriter(dir, newIndexWriterConfig());
+        }
+        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
+        DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+
+        // initial cache
+        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        assertEquals(0, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+        assertTrue(requestCacheStats.stats().getMemorySize().getBytes() > value.length());
+        final long cacheSize = requestCacheStats.stats().getMemorySize().getBytes();
+        assertEquals(1, cache.numRegisteredCloseListeners());
+
+        // cache the second
+        TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
+        loader = new Loader(secondReader, 0);
+        value = cache.getOrCompute(entity, loader, mappingKey, secondReader, termBytes);
+        assertEquals("bar", value.streamInput().readString());
+        assertEquals(0, requestCacheStats.stats().getHitCount());
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(2, cache.count());
+        assertTrue(requestCacheStats.stats().getMemorySize().getBytes() > cacheSize + value.length());
+        assertEquals(2, cache.numRegisteredCloseListeners());
+
+        secondEntity = new TestEntity(requestCacheStats, indexShard);
+        loader = new Loader(secondReader, 0);
+        value = cache.getOrCompute(secondEntity, loader, mappingKey, secondReader, termBytes);
+        assertEquals("bar", value.streamInput().readString());
+        assertEquals(1, requestCacheStats.stats().getHitCount());
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(2, cache.count());
+
+        entity = new TestEntity(requestCacheStats, indexShard);
+        loader = new Loader(reader, 0);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        assertEquals(2, requestCacheStats.stats().getHitCount());
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(2, cache.count());
+
+        // Closing the cache doesn't change returned entities
+        reader.close();
+        cache.cleanCache();
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+        assertEquals(cacheSize, requestCacheStats.stats().getMemorySize().getBytes());
+        assertEquals(1, cache.numRegisteredCloseListeners());
+
+        // Closed shard but reader is still open
+        indexShard.set(false);
+        cache.clear(secondEntity);
+        //reader still open
+        assertEquals(1, secondReader.getRefCount());
+        assertEquals(0, cache.numRegisteredCloseListeners());
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(0, cache.count());
+        assertEquals(0L, requestCacheStats.stats().getMemorySize().getBytes());
+
+        IOUtils.close(secondReader, writer, dir, cache);
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
@@ -491,6 +587,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             cache.clear(entity);
         }
         cache.cleanCache();
+        assertEquals(0, cache.numRegisteredCloseListeners());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());

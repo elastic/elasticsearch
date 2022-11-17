@@ -14,7 +14,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.Optional;
 
-public final class RemoteClusterAliasResolver {
+public class RemoteClusterAliasResolver {
 
     private final ClusterService clusterService;
     private final Client client;

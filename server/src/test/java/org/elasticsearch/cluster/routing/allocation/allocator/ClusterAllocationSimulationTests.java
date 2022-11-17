@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -39,7 +38,6 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
@@ -55,7 +53,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -79,19 +76,6 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             Math.max((int) Math.ceil(tierWriteLoad / nodeIndexingThreads), minCount)
         ) + between(0, 2);
     }
-
-    private static final WriteLoadForecaster SIMULATION_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
-        @Override
-        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
-            throw new AssertionError("should not be rolling over in simulation");
-        }
-
-        @Override
-        @SuppressForbidden(reason = "This is simulation implementation")
-        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
-            return indexMetadata.getForecastedWriteLoad();
-        }
-    };
 
     public void testBalanceQuality() throws IOException {
 

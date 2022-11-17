@@ -43,10 +43,11 @@ import java.util.stream.Collectors;
 public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
-    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
+    public static final String SOURCE_KEY = SourceFieldMapper.NAME; // "_source"
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
-    private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
+    private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
+    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
 
     private final IngestCtxMap ctxMap;
@@ -108,7 +109,7 @@ public final class IngestDocument {
     }
 
     private DelegatingMapView initializeTemplateModel() {
-        return new DelegatingMapView(ctxMap, Map.of(SourceFieldMapper.NAME, ctxMap, INGEST_KEY, ingestMetadata));
+        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap, INGEST_KEY, ingestMetadata));
     }
 
     /**

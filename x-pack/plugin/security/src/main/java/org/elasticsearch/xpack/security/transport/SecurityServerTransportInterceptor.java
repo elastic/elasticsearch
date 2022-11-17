@@ -247,8 +247,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     new SecureString(remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias).toCharArray())
                 );
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RemoteAccessUserAccess.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
-                    RemoteAccessClusterCredential.writeToContext(threadContext, fcApiKey);
+                    RemoteClusterSecuritySubjectAccess.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
+                    RemoteClusterSecurityClusterCredential.writeToContext(threadContext, fcApiKey);
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))

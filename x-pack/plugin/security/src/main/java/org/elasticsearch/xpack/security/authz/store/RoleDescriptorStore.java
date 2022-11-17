@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.RemoteAccessService;
+import org.elasticsearch.xpack.security.authc.RemoteClusterSecurityService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.transport.RemoteAccessUserAccess;
+import org.elasticsearch.xpack.security.transport.RemoteClusterSecuritySubjectAccess;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -54,7 +54,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private final RoleProviders roleProviders;
     private final ApiKeyService apiKeyService;
     private final ServiceAccountService serviceAccountService;
-    private final RemoteAccessService remoteAccessService;
+    private final RemoteClusterSecurityService remoteClusterSecurityService;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
@@ -63,7 +63,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     public RoleDescriptorStore(
         RoleProviders roleProviders,
         ApiKeyService apiKeyService,
-        RemoteAccessService remoteAccessService,
+        RemoteClusterSecurityService remoteClusterSecurityService,
         ServiceAccountService serviceAccountService,
         Cache<String, Boolean> negativeLookupCache,
         XPackLicenseState licenseState,
@@ -72,7 +72,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         this.roleProviders = roleProviders;
         this.apiKeyService = Objects.requireNonNull(apiKeyService);
-        this.remoteAccessService = Objects.requireNonNull(remoteAccessService);
+        this.remoteClusterSecurityService = Objects.requireNonNull(remoteClusterSecurityService);
         this.serviceAccountService = Objects.requireNonNull(serviceAccountService);
         this.licenseState = Objects.requireNonNull(licenseState);
         this.threadContext = threadContext;
@@ -137,34 +137,15 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }));
     }
 
-    public void resolveRemoteClusterRoleReference(
-        RoleReference.RemoteAccessRoleReference roleReference,
+    public void resolveRemoteClusterSecurityRoleReference(
+        RoleReference.RemoteClusterSecurityRoleReference roleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        final Set<RoleDescriptor> roleDescriptors = RemoteAccessUserAccess.parseRoleDescriptorsBytes(roleReference.roleDescriptorsBytes());
+        final Set<RoleDescriptor> roleDescriptors = RemoteClusterSecuritySubjectAccess.parseRoleDescriptorsBytes(roleReference.roleDescriptorsBytes());
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
         listener.onResponse(rolesRetrievalResult);
     }
-
-    // public void resolveRemoteAccessRoleReferences(
-    // RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
-    // ActionListener<RolesRetrievalResult> listener,
-    // int index
-    // ) {
-    // try {
-    // final StreamInput in = StreamInput.wrap(remoteAccessRoleReference.getRoleDescriptorsBytes().array());
-    // final RoleDescriptorsIntersection roleDescriptorsIntersection = new RoleDescriptorsIntersection(in);
-    // final List<Set<RoleDescriptor>> roleDescriptorsSets = roleDescriptorsIntersection.roleDescriptorsSets();
-    // final Set<RoleDescriptor> roleDescriptorsSet = roleDescriptorsSets.get(index);
-    //
-    // final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-    // rolesRetrievalResult.addDescriptors(roleDescriptorsSet);
-    // listener.onResponse(rolesRetrievalResult);
-    // } catch (IOException e) {
-    // listener.onFailure(e);
-    // }
-    // }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {

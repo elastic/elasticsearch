@@ -42,7 +42,7 @@ public class Subject {
         USER,
         API_KEY,
         SERVICE_ACCOUNT,
-        REMOTE_ACCESS
+        REMOTE_CLUSTER_SECURITY
     }
 
     private final Version version;
@@ -69,9 +69,9 @@ public class Subject {
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
-        } else if (AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(realm.getType())) {
-            assert AuthenticationField.REMOTE_ACCESS_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
-            this.type = Type.REMOTE_ACCESS;
+        } else if (AuthenticationField.REMOTE_CLUSTER_SECURITY_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.REMOTE_CLUSTER_SECURITY_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
+            this.type = Type.REMOTE_CLUSTER_SECURITY;
         } else {
             this.type = Type.USER;
         }
@@ -106,7 +106,7 @@ public class Subject {
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
-            case REMOTE_ACCESS:
+            case REMOTE_CLUSTER_SECURITY:
                 return buildRoleReferencesForRemoteAccess();
             default:
                 assert false : "unknown subject type: [" + type + "]";
@@ -263,7 +263,7 @@ public class Subject {
             "_remote_access_role_descriptors"
         );
         for (var rd : roleDescriptorsBytes) {
-            references.add(new RoleReference.RemoteAccessRoleReference(rd));
+            references.add(new RoleReference.RemoteClusterSecurityRoleReference(rd));
         }
         return new RoleReferenceIntersection(List.copyOf(references));
     }

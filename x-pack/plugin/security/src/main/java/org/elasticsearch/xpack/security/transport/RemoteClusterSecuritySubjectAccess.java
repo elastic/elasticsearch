@@ -32,10 +32,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public record RemoteAccessUserAccess(Authentication authentication, Collection<BytesReference> authorization) {
+/**
+ * Record of QC Subject's authentication and authorization instances.
+ * @param authentication QC Subject's authentication instance
+ * @param authorization QC Subject's authorization instance
+ */
+public record RemoteClusterSecuritySubjectAccess(Authentication authentication, Collection<BytesReference> authorization) {
 
-    public static RemoteAccessUserAccess readFromContext(final ThreadContext ctx) throws IOException {
-        final String headerValue = ctx.getHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
+    public static RemoteClusterSecuritySubjectAccess readFromContext(final ThreadContext ctx) throws IOException {
+        final String headerValue = ctx.getHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY);
         return Strings.isEmpty(headerValue) ? null : decode(headerValue);
     }
 
@@ -44,20 +49,8 @@ public record RemoteAccessUserAccess(Authentication authentication, Collection<B
         final Authentication authentication,
         final RoleDescriptorsIntersection authorization
     ) throws IOException {
-        ctx.putHeader(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode(authentication, authorization));
+        ctx.putHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY, encode(authentication, authorization));
     }
-
-    // static RemoteAccessUserAccess decode(final String headerValue) throws IOException {
-    // final byte[] bytes = Base64.getDecoder().decode(headerValue);
-    // final StreamInput in = StreamInput.wrap(bytes);
-    // final Version version = Version.readVersion(in);
-    // in.setVersion(version);
-    // final Authentication authentication = new Authentication(in);
-    // // TODO
-    //
-    // final RoleDescriptorsIntersection authorization = new RoleDescriptorsIntersection(in); // TODO Different format
-    // return new RemoteAccessUserAccess(authentication, authorization);
-    // }
 
     static String encode(final Authentication authentication, final RoleDescriptorsIntersection authorization) throws IOException {
         final Version version = authentication.getEffectiveSubject().getVersion();
@@ -69,11 +62,11 @@ public record RemoteAccessUserAccess(Authentication authentication, Collection<B
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    public static Set<RoleDescriptor> parseRoleDescriptorsBytes(BytesReference bytesReference) {
+    public static Set<RoleDescriptor> parseRoleDescriptorsBytes(final BytesReference bytesReference) {
         if (bytesReference == null) {
             return Collections.emptySet();
         }
-        final LinkedHashSet<RoleDescriptor> roleDescriptors = new LinkedHashSet<>();
+        final Set<RoleDescriptor> roleDescriptors = new LinkedHashSet<>();
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, bytesReference, XContentType.JSON)) {
             parser.nextToken(); // skip outer start object
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -87,8 +80,8 @@ public record RemoteAccessUserAccess(Authentication authentication, Collection<B
         return roleDescriptors;
     }
 
-    static RemoteAccessUserAccess decode(final String header) throws IOException {
-        final byte[] bytes = Base64.getDecoder().decode(header);
+    static RemoteClusterSecuritySubjectAccess decode(final String headerValue) throws IOException {
+        final byte[] bytes = Base64.getDecoder().decode(headerValue);
         final StreamInput in = StreamInput.wrap(bytes);
         final Version version = Version.readVersion(in);
         in.setVersion(version);
@@ -98,7 +91,7 @@ public record RemoteAccessUserAccess(Authentication authentication, Collection<B
         for (int i = 0; i < outerCount; i++) {
             roleDescriptorsBytesIntersection.add(in.readBytesReference());
         }
-        return new RemoteAccessUserAccess(authentication, roleDescriptorsBytesIntersection);
+        return new RemoteClusterSecuritySubjectAccess(authentication, roleDescriptorsBytesIntersection);
     }
 
     static Set<RoleDescriptor> parseRoleDescriptorBytes(final BytesReference roleDescriptorBytes) {

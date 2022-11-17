@@ -179,7 +179,7 @@ public interface RoleReference {
         }
     }
 
-    record RemoteAccessRoleReference(BytesReference roleDescriptorsBytes) implements RoleReference {
+    record RemoteClusterSecurityRoleReference(BytesReference roleDescriptorsBytes) implements RoleReference {
         @Override
         public RoleKey id() {
             final String roleDescriptorsHash = MessageDigests.toHexString(
@@ -190,56 +190,9 @@ public interface RoleReference {
 
         @Override
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-            resolver.resolveRemoteClusterRoleReference(this, listener);
-            // resolver.resolveRemoteAccessRoleReferences(this, listener);
+            resolver.resolveRemoteClusterSecurityRoleReference(this, listener);
         }
     }
-
-    // /**
-    // * Referencing Cross Cluster role descriptors. It is a list of 1-2 QC role descriptor sets and 2 FC role descriptor sets; 3-4 total.
-    // */
-    // final class RemoteAccessRoleReference implements RoleReference {
-    //
-    // private final String qcPrincipal;
-    // private final String fcApiKeyId;
-    // private final BytesReference roleDescriptorsBytes;
-    // private RoleKey cacheKey = null;
-    //
-    // public RemoteAccessRoleReference(final String qcPrincipal, final String fcApiKeyId, final BytesReference roleDescriptorsBytes) {
-    // this.qcPrincipal = qcPrincipal;
-    // this.fcApiKeyId = fcApiKeyId;
-    // this.roleDescriptorsBytes = roleDescriptorsBytes;
-    // }
-    //
-    // @Override
-    // public RoleKey id() {
-    // // Hashing can be expensive. memorize the result in case the method is called multiple times.
-    // if (this.cacheKey == null) {
-    // final String roleDescriptorsHash = MessageDigests.toHexString(
-    // MessageDigests.digest(this.roleDescriptorsBytes, MessageDigests.sha256())
-    // );
-    // this.cacheKey = new RoleKey(Set.of("crossCluster:" + roleDescriptorsHash), "crossCluster");
-    // }
-    // return this.cacheKey;
-    // }
-    //
-    // @Override
-    // public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-    // resolver.resolveRemoteAccessRoleReferences(this, listener);
-    // }
-    //
-    // public String getQcPrincipal() {
-    // return this.qcPrincipal;
-    // }
-    //
-    // public String getFcApiKeyId() {
-    // return this.fcApiKeyId;
-    // }
-    //
-    // public BytesReference getRoleDescriptorsBytes() {
-    // return this.roleDescriptorsBytes;
-    // }
-    // }
 
     /**
      * The type of one set of API key roles.

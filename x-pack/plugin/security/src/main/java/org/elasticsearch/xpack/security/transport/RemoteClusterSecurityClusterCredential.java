@@ -14,15 +14,15 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.ApiKeyUtil;
 
-public record RemoteAccessClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
+public record RemoteClusterSecurityClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
 
-    public static RemoteAccessClusterCredential readFromContext(final ThreadContext ctx) {
-        final String fcApiKeyBase64 = ctx.getHeader(AuthenticationField.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
-        return (Strings.isEmpty(fcApiKeyBase64)) ? null : new RemoteAccessClusterCredential(decode(fcApiKeyBase64));
+    public static RemoteClusterSecurityClusterCredential readFromContext(final ThreadContext ctx) {
+        final String fcApiKeyBase64 = ctx.getHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY);
+        return (Strings.isEmpty(fcApiKeyBase64)) ? null : new RemoteClusterSecurityClusterCredential(decode(fcApiKeyBase64));
     }
 
     public static void writeToContext(final ThreadContext threadContext, ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
-        threadContext.putHeader(AuthenticationField.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, encode(fcApiKeyCredentials));
+        threadContext.putHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY, encode(fcApiKeyCredentials));
     }
 
     private static ApiKeyService.ApiKeyCredentials decode(final String fcApiKey) {

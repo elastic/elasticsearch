@@ -17,15 +17,15 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import static org.elasticsearch.core.Strings.format;
 
-class RemoteAccessAuthenticator implements Authenticator {
+class RemoteClusterSecurityAuthenticator implements Authenticator {
 
-    private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticator.class);
+    private static final Logger logger = LogManager.getLogger(RemoteClusterSecurityAuthenticator.class);
 
-    private final RemoteAccessService remoteAccessService;
+    private final RemoteClusterSecurityService remoteClusterSecurityService;
     private final String nodeName;
 
-    RemoteAccessAuthenticator(RemoteAccessService remoteAccessService, String nodeName) {
-        this.remoteAccessService = remoteAccessService;
+    RemoteClusterSecurityAuthenticator(RemoteClusterSecurityService remoteClusterSecurityService, String nodeName) {
+        this.remoteClusterSecurityService = remoteClusterSecurityService;
         this.nodeName = nodeName;
     }
 
@@ -36,19 +36,19 @@ class RemoteAccessAuthenticator implements Authenticator {
 
     @Override
     public AuthenticationToken extractCredentials(Context context) {
-        return remoteAccessService.getCredentialsFromHeader(context.getThreadContext());
+        return remoteClusterSecurityService.getCredentialsFromHeader(context.getThreadContext());
     }
 
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
-        if (false == authenticationToken instanceof RemoteAccessService.RemoteAccessAuthenticationToken) {
+        if (false == authenticationToken instanceof RemoteClusterSecurityService.RemoteAccessAuthenticationToken) {
             listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
-        RemoteAccessService.RemoteAccessAuthenticationToken apiKeyCredentials =
-            (RemoteAccessService.RemoteAccessAuthenticationToken) authenticationToken;
-        remoteAccessService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
+        RemoteClusterSecurityService.RemoteAccessAuthenticationToken apiKeyCredentials =
+            (RemoteClusterSecurityService.RemoteAccessAuthenticationToken) authenticationToken;
+        remoteClusterSecurityService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
                 final Authentication authentication = Authentication.newCrossClusterAuthentication(authResult, nodeName);
                 listener.onResponse(AuthenticationResult.success(authentication));

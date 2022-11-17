@@ -17,11 +17,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 import java.util.Set;
 
-public record RoleDescriptorsIntersection(List<Set<RoleDescriptor>> roleDescriptorsSets) implements ToXContentObject, Writeable {
-    public static final RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(List.of());
+public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDescriptorsSets) implements ToXContentObject, Writeable {
+    public static final RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Set.of());
 
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
         this(in.readImmutableList(inner -> inner.readSet(RoleDescriptor::new)));
@@ -52,10 +52,10 @@ public record RoleDescriptorsIntersection(List<Set<RoleDescriptor>> roleDescript
         if (xContentParser.currentToken() == null) {
             xContentParser.nextToken();
         }
-        final List<Set<RoleDescriptor>> roleDescriptorsList = XContentParserUtils.parseList(xContentParser, p -> {
+        final Collection<Set<RoleDescriptor>> roleDescriptorsList = XContentParserUtils.parseList(xContentParser, p -> {
             XContentParser.Token token = p.currentToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, p);
-            final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
+            final Collection<RoleDescriptor> roleDescriptors = new ArrayList<>();
             while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, p);
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
@@ -63,6 +63,6 @@ public record RoleDescriptorsIntersection(List<Set<RoleDescriptor>> roleDescript
             }
             return Set.copyOf(roleDescriptors);
         });
-        return new RoleDescriptorsIntersection(List.copyOf(roleDescriptorsList));
+        return new RoleDescriptorsIntersection(Set.copyOf(roleDescriptorsList));
     }
 }

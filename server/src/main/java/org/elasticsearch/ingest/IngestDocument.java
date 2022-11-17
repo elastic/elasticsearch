@@ -52,6 +52,12 @@ public final class IngestDocument {
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
+
+    /**
+     * Shallowly read-only, very limited, map-like view of the ctxMap and ingestMetadata,
+     * for providing as a model to TemplateScript and ValueSource instances. This avoids the cost of
+     * constructing a purpose-built map on each template evaluation.
+     */
     private final DelegatingMapView templateModel;
 
     // Contains all pipelines that have been executed for this document

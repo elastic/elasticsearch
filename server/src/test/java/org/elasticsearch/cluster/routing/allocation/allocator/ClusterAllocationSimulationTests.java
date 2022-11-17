@@ -86,10 +86,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var maxSizeVariance = ByteSizeValue.ofMb(20).getBytes();
 
         final var metadataBuilder = Metadata.builder();
-        for (var dataStreamIndex = between(10, 50); dataStreamIndex >= 0; dataStreamIndex -= 1) {
-            final var hotIndices = between(2, 20);
-            final var warmIndices = between(10, 30);
-            final var coldIndices = between(10, 100);
+        for (var dataStreamIndex = between(5, 10); dataStreamIndex >= 0; dataStreamIndex -= 1) {
+            final var hotIndices = between(2, 10);
+            final var warmIndices = between(10, 20);
+            final var coldIndices = between(10, 40);
             final var hotShards = randomFrom(1, 2, 4, 8);
             final var shrunkShards = randomFrom(1, 2);
             final var approxIndexSize = randomFrom(ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(10), ByteSizeValue.ofGb(50));

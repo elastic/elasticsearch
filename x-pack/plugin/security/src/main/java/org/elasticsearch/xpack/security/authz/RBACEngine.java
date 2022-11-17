@@ -820,18 +820,16 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(IndicesPermission.Group group) {
-        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
         if (group.getFieldPermissions().hasFieldLevelSecurity()) {
             final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
                 .getFieldPermissionsDefinitions();
             assert fieldPermissionsDefinitions.size() == 1
                 : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
             final FieldPermissionsDefinition definition = fieldPermissionsDefinitions.get(0);
-            fieldSecurity = definition.getFieldGrantExcludeGroups();
+            return definition.getFieldGrantExcludeGroups();
         } else {
-            fieldSecurity = Collections.emptySet();
+            return Collections.emptySet();
         }
-        return fieldSecurity;
     }
 
     static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {

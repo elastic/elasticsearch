@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.AggregationOperator.AggregationOperato
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorFactory;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -339,6 +342,9 @@ public class LocalExecutionPlanner {
                 mask.set(i, outputSet.contains(input.get(i)));
             }
             return new PhysicalOperation(new ProjectOperatorFactory(mask), layout);
+        } else if (node instanceof FilterExec filter) {
+            PhysicalOperation source = plan(filter.child(), context);
+            return new PhysicalOperation(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout, source);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }
@@ -426,6 +432,14 @@ public class LocalExecutionPlanner {
                 return (page, pos) -> ((Number) e1.computeRow(page, pos)).doubleValue() / ((Number) e2.computeRow(page, pos)).doubleValue();
             } else {
                 return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() / ((Number) e2.computeRow(page, pos)).longValue();
+            }
+        } else if (exp instanceof GreaterThan gt) {
+            ExpressionEvaluator e1 = toEvaluator(gt.left(), layout);
+            ExpressionEvaluator e2 = toEvaluator(gt.right(), layout);
+            if (gt.left().dataType().isRational()) {
+                return (page, pos) -> ((Number) e1.computeRow(page, pos)).doubleValue() > ((Number) e2.computeRow(page, pos)).doubleValue();
+            } else {
+                return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() > ((Number) e2.computeRow(page, pos)).longValue();
             }
         } else if (exp instanceof Attribute attr) {
             int channel = layout.get(attr.id());

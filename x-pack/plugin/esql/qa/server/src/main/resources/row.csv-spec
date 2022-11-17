@@ -46,3 +46,16 @@ row a = 1, b = 2 | eval y = round(-123.56789, 3) + ROUND(a + b / 2);
 a:integer | b:integer | y:double
 1 | 2 | -121.568
 ;
+
+filterRow
+row a = 1 | where a > 0;
+
+a:integer
+1
+;
+
+filterRow2
+row a = 1 | where a > 10;
+
+a:integer
+;

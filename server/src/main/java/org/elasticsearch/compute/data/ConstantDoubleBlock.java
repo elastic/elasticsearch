@@ -32,6 +32,11 @@ public final class ConstantDoubleBlock extends Block {
     }
 
     @Override
+    public Block filter(int... positions) {
+        return new ConstantDoubleBlock(value, positions.length);
+    }
+
+    @Override
     public String toString() {
         return "ConstantDoubleBlock{positions=" + getPositionCount() + ", value=" + value + '}';
     }

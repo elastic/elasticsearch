@@ -16,13 +16,13 @@ import org.elasticsearch.xpack.security.authc.ApiKeyUtil;
 
 public record RemoteClusterSecurityClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
 
-    public static RemoteClusterSecurityClusterCredential readFromContext(final ThreadContext ctx) {
-        final String fcApiKeyBase64 = ctx.getHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY);
+    public static RemoteClusterSecurityClusterCredential readFromThreadContextHeader(final ThreadContext ctx) {
+        final String fcApiKeyBase64 = ctx.getHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY);
         return (Strings.isEmpty(fcApiKeyBase64)) ? null : new RemoteClusterSecurityClusterCredential(decode(fcApiKeyBase64));
     }
 
     public static void writeToContext(final ThreadContext threadContext, ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
-        threadContext.putHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY, encode(fcApiKeyCredentials));
+        threadContext.putHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY, encode(fcApiKeyCredentials));
     }
 
     private static ApiKeyService.ApiKeyCredentials decode(final String fcApiKey) {

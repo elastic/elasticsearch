@@ -27,8 +27,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -39,8 +37,8 @@ import java.util.Set;
  */
 public record RemoteClusterSecuritySubjectAccess(Authentication authentication, Collection<BytesReference> authorization) {
 
-    public static RemoteClusterSecuritySubjectAccess readFromContext(final ThreadContext ctx) throws IOException {
-        final String headerValue = ctx.getHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY);
+    public static RemoteClusterSecuritySubjectAccess readFromThreadContextHeader(final ThreadContext ctx) throws IOException {
+        final String headerValue = ctx.getHeader(AuthenticationField.RCS_SUBJECT_ACCESS_HEADER_KEY);
         return Strings.isEmpty(headerValue) ? null : decode(headerValue);
     }
 
@@ -49,7 +47,7 @@ public record RemoteClusterSecuritySubjectAccess(Authentication authentication, 
         final Authentication authentication,
         final RoleDescriptorsIntersection authorization
     ) throws IOException {
-        ctx.putHeader(AuthenticationField.REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY, encode(authentication, authorization));
+        ctx.putHeader(AuthenticationField.RCS_SUBJECT_ACCESS_HEADER_KEY, encode(authentication, authorization));
     }
 
     static String encode(final Authentication authentication, final RoleDescriptorsIntersection authorization) throws IOException {
@@ -60,24 +58,6 @@ public record RemoteClusterSecuritySubjectAccess(Authentication authentication, 
         authentication.writeTo(out);
         authorization.writeTo(out);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
-    }
-
-    public static Set<RoleDescriptor> parseRoleDescriptorsBytes(final BytesReference bytesReference) {
-        if (bytesReference == null) {
-            return Collections.emptySet();
-        }
-        final Set<RoleDescriptor> roleDescriptors = new LinkedHashSet<>();
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, bytesReference, XContentType.JSON)) {
-            parser.nextToken(); // skip outer start object
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                parser.nextToken(); // role name
-                String roleName = parser.currentName();
-                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return roleDescriptors;
     }
 
     static RemoteClusterSecuritySubjectAccess decode(final String headerValue) throws IOException {

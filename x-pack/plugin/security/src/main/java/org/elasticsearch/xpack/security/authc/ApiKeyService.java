@@ -775,24 +775,10 @@ public class ApiKeyService {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
-
-        List<RoleDescriptor> roleDescriptors = new ArrayList<>();
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                XContentParserConfiguration.EMPTY.withDeprecationHandler(new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)),
-                bytesReference,
-                XContentType.JSON
-            )
-        ) {
-            parser.nextToken(); // skip outer start object
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                parser.nextToken(); // role name
-                String roleName = parser.currentName();
-                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
+        );
+        final List<RoleDescriptor> roleDescriptors = RoleDescriptor.parseRoleDescriptorsBytes(config, bytesReference);
         return replaceLegacySuperuserRoleDescriptor ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors) : roleDescriptors;
     }
 

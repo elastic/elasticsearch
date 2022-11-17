@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.RemoteClusterSecurityService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.transport.RemoteClusterSecuritySubjectAccess;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -141,12 +140,11 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.RemoteClusterSecurityRoleReference roleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        final Set<RoleDescriptor> roleDescriptors = RemoteClusterSecuritySubjectAccess.parseRoleDescriptorsBytes(
-            roleReference.roleDescriptorsBytes()
-        );
-        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
-        listener.onResponse(rolesRetrievalResult);
+        final RolesRetrievalResult result = new RolesRetrievalResult();
+        if (roleReference.roleDescriptorsBytes() != null) {
+            result.addDescriptors(Set.copyOf(RemoteClusterSecurityService.parseRoleDescriptorsBytes(roleReference.roleDescriptorsBytes())));
+        }
+        listener.onResponse(result);
     }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {

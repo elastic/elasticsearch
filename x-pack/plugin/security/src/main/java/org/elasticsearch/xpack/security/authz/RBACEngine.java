@@ -680,7 +680,7 @@ public class RBACEngine implements AuthorizationEngine {
         } catch (UnsupportedOperationException e) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "Cannot retrieve remote access role descriptors for API keys with assigned role descriptors.",
+                    "Cannot retrieve remote cluster security role descriptors for API keys with assigned role descriptors.",
                     e
                 )
             );

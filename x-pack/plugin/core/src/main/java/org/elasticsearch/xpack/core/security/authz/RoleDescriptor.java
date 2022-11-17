@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -449,6 +451,24 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             null,
             remoteIndicesPrivileges
         );
+    }
+
+    public static List<RoleDescriptor> parseRoleDescriptorsBytes(
+        final XContentParserConfiguration config,
+        final BytesReference bytesReference
+    ) {
+        final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
+        try (XContentParser parser = XContentHelper.createParser(config, bytesReference, XContentType.JSON)) {
+            parser.nextToken(); // skip outer start object
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                parser.nextToken(); // role name
+                String roleName = parser.currentName();
+                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return roleDescriptors;
     }
 
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {

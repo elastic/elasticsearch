@@ -37,13 +37,18 @@ public final class AuthenticationField {
     /* Cross Cluster Security */
 
     // TODO Would _remote_cluster_security_cluster_credential be a better name?
-    public static final String REMOTE_CLUSTER_SECURITY_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
+    public static final String RCS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
     // TODO Would _remote_cluster_security_subject_access be a better name?
-    public static final String REMOTE_CLUSTER_SECURITY_SUBJECT_ACCESS_HEADER_KEY = "_remote_access_authentication";
-    public static final String REMOTE_CLUSTER_SECURITY_REALM_NAME = "_es_remote_cluster_security";
-    public static final String REMOTE_CLUSTER_SECURITY_REALM_TYPE = REMOTE_CLUSTER_SECURITY_REALM_NAME;
-    public static final String REMOTE_CLUSTER_SECURITY_ROLE_DESCRIPTORS_INTERSECTION_KEY =
-        "_security_cluster_security_role_descriptors_intersection";
+    public static final String RCS_SUBJECT_ACCESS_HEADER_KEY = "_remote_access_authentication";
+    public static final String RCS_REALM_NAME = "_es_remote_cluster_security";
+    public static final String RCS_REALM_TYPE = RCS_REALM_NAME;
+    public static final String RCS_FC_API_KEY_ID_KEY = "_remote_cluster_security_fc_api_key_id";
+    public static final String RCS_FC_API_KEY_ROLE_DESCRIPTORS_KEY = "_remote_cluster_security_fc_api_key_role_descriptors";
+    public static final String RCS_FC_SUBJECT_ROLE_DESCRIPTORS_KEY = "_remote_cluster_security_fc_subject_role_descriptors";
+    public static final String RCS_QC_API_KEY_ROLE_DESCRIPTORS_KEY = "_remote_cluster_security_qc_api_key_role_descriptors";
+    public static final String RCS_QC_SUBJECT_ROLE_DESCRIPTORS_KEY = "_remote_cluster_security_qc_subject_role_descriptors";
+    public static final String RCS_QC_SUBJECT_AUTHENTICATION_KEY = "_remote_cluster_security_qc_subject_authentication";
+    public static final String RCS_ROLE_DESCRIPTORS_INTERSECTION_KEY = "abd";
 
     private AuthenticationField() {}
 }

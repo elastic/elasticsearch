@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.security.authc.RemoteClusterSecurityService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,7 +40,7 @@ public class RemoteClusterSecuritySubjectAccessTests extends ESTestCase {
 
         assertThat(decoded.authentication(), equalTo(expectedAuthentication));
         assertThat(
-            RemoteClusterSecuritySubjectAccess.parseRoleDescriptorsBytes(decoded.authorization().iterator().next()),
+            RemoteClusterSecurityService.parseRoleDescriptorsBytes(decoded.authorization().iterator().next()),
             equalTo(expectedRoleDescriptors1.iterator().next())
         );
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -19,15 +20,21 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersecti
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_FC_API_KEY_ID_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_FC_API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_FC_SUBJECT_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_SUBJECT_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_SUBJECT_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
@@ -69,8 +76,8 @@ public class Subject {
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
-        } else if (AuthenticationField.REMOTE_CLUSTER_SECURITY_REALM_TYPE.equals(realm.getType())) {
-            assert AuthenticationField.REMOTE_CLUSTER_SECURITY_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
+        } else if (AuthenticationField.RCS_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.RCS_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
             this.type = Type.REMOTE_CLUSTER_SECURITY;
         } else {
             this.type = Type.USER;
@@ -107,7 +114,7 @@ public class Subject {
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
             case REMOTE_CLUSTER_SECURITY:
-                return buildRoleReferencesForRemoteAccess();
+                return buildRoleReferencesForRemoteClusterSecurity();
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -229,43 +236,71 @@ public class Subject {
         );
     }
 
-    // TODO
-    // private RoleReferenceIntersection buildRoleReferencesForCrossCluster() {
-    // if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
-    // return null;
-    // }
-    // final String qcPrincipal = (String) metadata.get(REMOTE_ACCESS_QC_PRINCIPAL_KEY);
-    // if (Strings.isEmpty(qcPrincipal)) {
-    // throw new ElasticsearchSecurityException("no QC principal found for Cross Cluster");
-    // }
-    // final String fcApiKeyId = (String) metadata.get(REMOTE_ACCESS_FC_API_KEY_ID_KEY);
-    // if (Strings.isEmpty(fcApiKeyId)) {
-    // throw new ElasticsearchSecurityException("no FC API Key Id found for Cross Cluster");
-    // }
-    // final BytesReference combinedRoleDescriptorsBytes =(BytesReference) metadata.get(REMOTE_ACCESS_ROLE_DESCRIPTORS_INTERSECTION_KEY);
-    // if (isEmptyRoleDescriptorsBytes(combinedRoleDescriptorsBytes)) {
-    // throw new ElasticsearchSecurityException("no role descriptors found for Cross Cluster");
-    // }
-    // final RoleReference.RemoteAccessRoleReference roleDescriptorsReference = new RoleReference.RemoteAccessRoleReference(
-    //// qcPrincipal,
-    //// fcApiKeyId,
-    // combinedRoleDescriptorsBytes
-    // );
-    // return new RoleReferenceIntersection(roleDescriptorsReference);
-    // }
+    public RoleReferenceIntersection buildRoleReferencesForRemoteClusterSecurity() {
+        return buildRoleReferencesForRemoteClusterSecurityStatic(metadata);
+    }
 
-    // TODO
-    public RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
-        final RoleReferenceIntersection remoteAccessKeyIntersection = buildRoleReferencesForApiKey();
-        final List<RoleReference> references = new ArrayList<>(remoteAccessKeyIntersection.getRoleReferences());
-        @SuppressWarnings("unchecked")
-        final Collection<BytesReference> roleDescriptorsBytes = (Collection<BytesReference>) metadata.get(
-            "_remote_access_role_descriptors"
+    public static RoleReferenceIntersection buildRoleReferencesForRemoteClusterSecurityStatic(Map<String, Object> metadata) {
+        final String fcApiKeyId = (String) metadata.get(RCS_FC_API_KEY_ID_KEY);
+        assert fcApiKeyId != null;
+        final BytesReference fcApiKeyRoleDescriptorsBytes = (BytesReference) metadata.get(RCS_FC_API_KEY_ROLE_DESCRIPTORS_KEY);
+        final BytesReference fcSubjectRoleDescriptorsBytes = (BytesReference) metadata.get(RCS_FC_SUBJECT_ROLE_DESCRIPTORS_KEY);
+        assert fcSubjectRoleDescriptorsBytes != null;
+
+        final BytesReference qcApiKeyRoleDescriptorsBytes = (BytesReference) metadata.get(RCS_QC_API_KEY_ROLE_DESCRIPTORS_KEY);
+        final BytesReference qcSubjectRoleDescriptorsBytes = (BytesReference) metadata.get(RCS_QC_SUBJECT_ROLE_DESCRIPTORS_KEY);
+        assert qcSubjectRoleDescriptorsBytes != null;
+
+        final RoleReference.ApiKeyRoleReference fcApiKeyRoleReference = (fcApiKeyRoleDescriptorsBytes == null)
+            ? null
+            : new RoleReference.ApiKeyRoleReference(fcApiKeyId, fcApiKeyRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY);
+        final RoleReference.ApiKeyRoleReference fcSubjectRoleReference = new RoleReference.ApiKeyRoleReference(
+            fcApiKeyId,
+            fcSubjectRoleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.ASSIGNED
         );
-        for (var rd : roleDescriptorsBytes) {
-            references.add(new RoleReference.RemoteClusterSecurityRoleReference(rd));
-        }
-        return new RoleReferenceIntersection(List.copyOf(references));
+        final RoleReference.RemoteClusterSecurityRoleReference qcApiKeyRoleReference = (qcApiKeyRoleDescriptorsBytes == null)
+            ? null
+            : new RoleReference.RemoteClusterSecurityRoleReference(qcApiKeyRoleDescriptorsBytes);
+        final RoleReference.RemoteClusterSecurityRoleReference qcSubjectRoleReference =
+            new RoleReference.RemoteClusterSecurityRoleReference(qcSubjectRoleDescriptorsBytes);
+
+        final List<RoleReference> nonNullRoleReferences = Arrays.stream(
+            new RoleReference[] { fcApiKeyRoleReference, fcSubjectRoleReference, qcApiKeyRoleReference, qcSubjectRoleReference }
+        ).filter(Objects::nonNull).toList();
+
+        return new RoleReferenceIntersection(nonNullRoleReferences);
+    }
+
+    public static User buildRemoteClusterSecurityUser(final Authentication qcAuthentication, final User fcApiKeyUser) {
+        final Map<String, Object> fcApiKeyMetadata = fcApiKeyUser.metadata();
+        final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY);
+        final BytesReference fcApiKeyRoleDescriptorsBytes = (BytesReference) fcApiKeyMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
+        final BytesReference fcSubjectRoleDescriptorsBytes = (BytesReference) fcApiKeyMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
+
+        final User qcEffectiveUser = qcAuthentication.getEffectiveSubject().getUser();
+        final String qcPrincipal = qcEffectiveUser.principal();
+        final String qcEmail = qcEffectiveUser.email();
+        final String qcFullName = qcEffectiveUser.fullName();
+        final Map<String, Object> qcApiKeyMetadata = qcEffectiveUser.metadata();
+        final BytesReference qcApiKeyRoleDescriptorsBytes = (BytesReference) qcApiKeyMetadata.get(RCS_QC_API_KEY_ROLE_DESCRIPTORS_KEY);
+        final BytesReference qcSubjectRoleDescriptorsBytes = (BytesReference) qcApiKeyMetadata.get(RCS_QC_SUBJECT_ROLE_DESCRIPTORS_KEY);
+
+        final Map<String, Object> rcsFcMetadata = Map.of(
+            RCS_FC_API_KEY_ID_KEY,
+            fcApiKeyId,
+            RCS_FC_API_KEY_ROLE_DESCRIPTORS_KEY,
+            fcApiKeyRoleDescriptorsBytes,
+            RCS_FC_SUBJECT_ROLE_DESCRIPTORS_KEY,
+            fcSubjectRoleDescriptorsBytes,
+            RCS_QC_SUBJECT_AUTHENTICATION_KEY,
+            qcAuthentication,
+            RCS_QC_API_KEY_ROLE_DESCRIPTORS_KEY,
+            qcApiKeyRoleDescriptorsBytes,
+            RCS_QC_SUBJECT_ROLE_DESCRIPTORS_KEY,
+            qcSubjectRoleDescriptorsBytes
+        );
+        return new User(qcPrincipal, Strings.EMPTY_ARRAY, qcFullName, qcEmail, rcsFcMetadata, true);
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

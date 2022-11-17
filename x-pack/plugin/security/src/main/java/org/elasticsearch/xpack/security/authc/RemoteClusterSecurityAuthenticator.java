@@ -31,12 +31,12 @@ class RemoteClusterSecurityAuthenticator implements Authenticator {
 
     @Override
     public String name() {
-        return "Cross Cluster";
+        return "Remote Cluster Security";
     }
 
     @Override
     public AuthenticationToken extractCredentials(Context context) {
-        return remoteClusterSecurityService.getCredentialsFromHeader(context.getThreadContext());
+        return remoteClusterSecurityService.getRemoteAccessAuthenticationTokenFromThreadContextHeader(context.getThreadContext());
     }
 
     @Override
@@ -56,17 +56,17 @@ class RemoteClusterSecurityAuthenticator implements Authenticator {
                 Exception e = (authResult.getException() != null)
                     ? authResult.getException()
                     : Exceptions.authenticationError(authResult.getMessage());
-                logger.debug(() -> "Remote access terminated authentication for request [" + context.getRequest() + "]", e);
+                logger.debug(() -> "Remote cluster security terminated authentication for request [" + context.getRequest() + "]", e);
                 listener.onFailure(e);
             } else {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {
                         logger.warn(
-                            () -> format("Authentication using remote access failed - %s", authResult.getMessage()),
+                            () -> format("Authentication using remote cluster security failed - %s", authResult.getMessage()),
                             authResult.getException()
                         );
                     } else {
-                        logger.warn("Authentication using remote access failed - {}", authResult.getMessage());
+                        logger.warn("Authentication using remote cluster security failed - {}", authResult.getMessage());
                     }
                 }
                 listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));

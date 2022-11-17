@@ -62,8 +62,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_CLUSTER_SECURITY_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_CLUSTER_SECURITY_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 /**
@@ -787,7 +787,7 @@ public final class Authentication implements ToXContentObject {
 
         static RealmRef newCrossClusterRealmRef(String nodeName) {
             // no domain for Cross Cluster
-            return new RealmRef(REMOTE_CLUSTER_SECURITY_REALM_NAME, REMOTE_CLUSTER_SECURITY_REALM_TYPE, nodeName, null);
+            return new RealmRef(RCS_REALM_NAME, RCS_REALM_TYPE, nodeName, null);
         }
     }
 

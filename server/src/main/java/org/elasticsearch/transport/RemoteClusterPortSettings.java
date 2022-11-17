@@ -33,10 +33,13 @@ import static org.elasticsearch.transport.TransportSettings.TCP_RECEIVE_BUFFER_S
 import static org.elasticsearch.transport.TransportSettings.TCP_REUSE_ADDRESS_PROFILE;
 import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE_PROFILE;
 
-public class RemoteClusterSettings {
-    private static final Logger logger = LogManager.getLogger(RemoteClusterSettings.class);
+/**
+ * Contains the settings and some associated logic for the settings related to the Remote Access port, used by Remote Cluster Security 2.0.
+ */
+public class RemoteClusterPortSettings {
+    private static final Logger logger = LogManager.getLogger(RemoteClusterPortSettings.class);
 
-    public static final String REMOTE_ACCESS_PROFILE = "_remote_access";
+    public static final String REMOTE_ACCESS_PROFILE = "_remote_cluster";
     public static final String REMOTE_ACCESS_PREFIX = "remote_cluster.";
 
     public static final Setting<Boolean> REMOTE_ACCESS_ENABLED = boolSetting(

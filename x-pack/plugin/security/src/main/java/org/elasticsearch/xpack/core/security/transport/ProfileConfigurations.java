@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_ACCESS_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_ACCESS_PREFIX;
-import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_ACCESS_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_PREFIX;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_PROFILE;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public final class ProfileConfigurations {

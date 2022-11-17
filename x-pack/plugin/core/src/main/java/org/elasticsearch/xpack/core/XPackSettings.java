@@ -25,11 +25,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
-
 import javax.crypto.SecretKeyFactory;
 import javax.net.ssl.SSLContext;
 
-import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_ACCESS_PREFIX;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_ACCESS_PREFIX;
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_LITERAL_USERNAME_SETTING;

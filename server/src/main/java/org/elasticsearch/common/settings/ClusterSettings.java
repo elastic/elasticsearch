@@ -110,6 +110,7 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
@@ -537,7 +538,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportHealthNodeAction.HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT,
         WriteAckDelay.WRITE_ACK_DELAY_INTERVAL,
         WriteAckDelay.WRITE_ACK_DELAY_RANDOMNESS_BOUND,
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION : null
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.REMOTE_ACCESS_ENABLED : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.HOST : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.PUBLISH_HOST : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.BIND_HOST : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.PORT : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.PUBLISH_PORT : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_KEEP_ALIVE : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_KEEP_IDLE : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_KEEP_INTERVAL : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_KEEP_COUNT : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_NO_DELAY : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_REUSE_ADDRESS : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE : null
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

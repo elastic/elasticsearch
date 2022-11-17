@@ -415,6 +415,10 @@ public class TransportService extends AbstractLifecycleComponent
         return transport.boundAddress();
     }
 
+    public BoundTransportAddress boundRemoteAccessAddress() {
+        return transport.boundRemoteAccessAddress();
+    }
+
     public List<String> getDefaultSeedAddresses() {
         return transport.getDefaultSeedAddresses();
     }

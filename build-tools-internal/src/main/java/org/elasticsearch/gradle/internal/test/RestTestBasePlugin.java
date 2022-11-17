@@ -37,6 +37,8 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_CLUSTER_NAME = "tests.clustername";
     private static final String TESTS_CLUSTER_READINESS = "tests.cluster.readiness";
 
+    private static final String TESTS_CLUSTER_REMOTE_ACCESS = "tests.cluster.remote_access";
+
     private ProviderFactory providerFactory;
 
     @Inject
@@ -71,6 +73,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
                 runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
                 runnerNonInputProperties.systemProperty(TESTS_CLUSTER_READINESS, () -> String.join(",", cluster.getAllReadinessPortURI()));
+                runnerNonInputProperties.systemProperty(
+                    TESTS_CLUSTER_REMOTE_ACCESS,
+                    () -> String.join(",", cluster.getAllRemoteAccessPortURI())
+                );
             } else {
                 if (systemProperty(TESTS_CLUSTER) == null || systemProperty(TESTS_CLUSTER_NAME) == null) {
                     throw new IllegalArgumentException(

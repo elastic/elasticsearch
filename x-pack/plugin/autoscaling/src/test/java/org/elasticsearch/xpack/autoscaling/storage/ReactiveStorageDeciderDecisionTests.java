@@ -501,6 +501,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private void withRoutingAllocation(Consumer<RoutingAllocation> block) {
         RoutingAllocation allocation = createRoutingAllocation(state, createAllocationDeciders());
+        allocation.getGatewayAllocations(); // stop tracking straight away
         block.accept(allocation);
         state = ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
     }

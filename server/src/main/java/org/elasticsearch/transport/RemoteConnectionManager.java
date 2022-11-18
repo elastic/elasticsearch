@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -81,11 +82,7 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-        delegate.openConnection(
-            node,
-            profile,
-            listener.delegateFailure((l, connection) -> l.onResponse(wrapRemoteConnectionWithClusterAlias(connection)))
-        );
+        delegate.openConnection(node, profile, listener);
     }
 
     @Override
@@ -263,7 +260,15 @@ public class RemoteConnectionManager implements ConnectionManager {
         return new RemoteClusterAliasAwareConnection(clusterAlias, connection);
     }
 
-    public static final class RemoteClusterAliasAwareConnection implements Transport.Connection {
+    public static Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
+        Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
+        if (unwrapped instanceof RemoteConnectionManager.RemoteClusterAliasAwareConnection remoteConnection) {
+            return Optional.of(remoteConnection.getClusterAlias());
+        }
+        return Optional.empty();
+    }
+
+    private static final class RemoteClusterAliasAwareConnection implements Transport.Connection {
 
         private final String clusterAlias;
         private final Transport.Connection wrapped;
@@ -271,10 +276,6 @@ public class RemoteConnectionManager implements ConnectionManager {
         public RemoteClusterAliasAwareConnection(String clusterAlias, Transport.Connection wrapped) {
             this.clusterAlias = clusterAlias;
             this.wrapped = wrapped;
-        }
-
-        public Transport.Connection unwrap() {
-            return wrapped;
         }
 
         public String getClusterAlias() {

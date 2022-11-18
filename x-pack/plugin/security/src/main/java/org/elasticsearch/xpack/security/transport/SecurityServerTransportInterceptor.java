@@ -93,7 +93,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
-                final Optional<String> remoteClusterAlias = resolveRemoteClusterAlias(connection);
+                final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
                 if (remoteClusterAlias.isPresent()) {
                     logger.info(
                         "Sending request [" + request.getClass().getSimpleName() + "] to remote cluster [" + remoteClusterAlias.get() + "]."
@@ -147,13 +147,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     }
             }
         };
-    }
-
-    private Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
-        if (connection instanceof RemoteConnectionManager.RemoteClusterAliasAwareConnection remoteConnection) {
-            return Optional.of(remoteConnection.getClusterAlias());
-        }
-        return Optional.empty();
     }
 
     private <T extends TransportResponse> void sendWithUser(

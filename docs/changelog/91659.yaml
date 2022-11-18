@@ -1,6 +1,6 @@
 pr: 91659
-summary: Avoid NPE when disassociateDeadNodes is executed for a node present in the desired balance
+summary: Avoid NPE when disassociateDeadNodes is executed for a node present in the
+  desired balance
 area: Allocation
 type: bug
-issues:
-  - 91517
+issues: []

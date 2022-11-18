@@ -691,10 +691,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                             .entry("delegate", "FilterByFilterAggregator")
                             .entry(
                                 "delegate_debug",
-                                matchesMap().entry("segments_with_deleted_docs", 0)
+                                matchesMap().entry("segments_with_deleted_docs", greaterThanOrEqualTo(0))
                                     .entry("segments_with_doc_count_field", 0)
                                     .entry("segments_counted", 0)
-                                    .entry("segments_with_deleted_docs", greaterThanOrEqualTo(0))
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",

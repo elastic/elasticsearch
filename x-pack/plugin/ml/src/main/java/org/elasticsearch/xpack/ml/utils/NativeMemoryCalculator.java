@@ -34,7 +34,7 @@ public final class NativeMemoryCalculator {
     // Maximum permitted JVM heap size when auto-configured.
     // Must match the value used in MachineDependentHeap.MachineNodeRole.ML_ONLY.
     public static final long STATIC_JVM_UPPER_THRESHOLD = ByteSizeValue.ofGb(31).getBytes();
-    public static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofGb(1).getBytes();
+    public static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofMb(512).getBytes();
     private static final long OS_OVERHEAD = ByteSizeValue.ofMb(200).getBytes();
     // Memory size beyond which the JVM is given 10% of memory instead of 40%.
     // Must match the value used in MachineDependentHeap.MachineNodeRole.ML_ONLY.

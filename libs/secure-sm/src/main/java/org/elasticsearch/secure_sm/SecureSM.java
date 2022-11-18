@@ -164,7 +164,7 @@ public class SecureSM extends SecurityManager {
 
         // first, check if we can modify threads at all.
         boolean isInnocuousThread = isInnocuousThread(t);
-        if(isInnocuousThread == false){
+        if (isInnocuousThread == false) {
             checkPermission(MODIFY_THREAD_PERMISSION);
         }
 

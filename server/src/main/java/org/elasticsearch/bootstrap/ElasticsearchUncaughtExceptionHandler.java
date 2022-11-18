@@ -11,7 +11,6 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader;
 
 import java.io.IOError;
 import java.security.AccessController;
@@ -57,15 +56,11 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {
-        System.err.println("Thread name"  + Thread.currentThread().getName());
         final String message = "uncaught exception in thread [" + threadName + "]";
-        AccessController.doPrivileged(
-            (PrivilegedAction<Void>) () -> {
-                logger.error(message, t);
-                return null;
-            }
-        );
-
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            logger.error(message, t);
+            return null;
+        });
 
     }
 

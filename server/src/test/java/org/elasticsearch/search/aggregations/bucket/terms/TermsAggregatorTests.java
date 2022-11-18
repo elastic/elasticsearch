@@ -800,6 +800,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         termsAggregatorWithNestedMaxAgg(ValueType.LONG, fieldType, Integer::longValue, val -> luceneFieldFactory.apply(val, false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91679")
     public void testDoubleTermsAggregator() throws Exception {
         BiFunction<Double, Boolean, List<IndexableField>> luceneFieldFactory = (val, mv) -> {
             if (mv) {

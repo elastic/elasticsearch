@@ -56,19 +56,35 @@ public class RollupShardTask extends CancellableTask {
         return new RollupShardStatus(shardId, rollupStartTime, numReceived, numSent, numIndexed, numFailed);
     }
 
-    public AtomicLong getNumReceived() {
-        return numReceived;
+    public long getNumReceived() {
+        return numReceived.get();
     }
 
-    public AtomicLong getNumSent() {
-        return numSent;
+    public long getNumSent() {
+        return numSent.get();
     }
 
-    public AtomicLong getNumIndexed() {
-        return numIndexed;
+    public long getNumIndexed() {
+        return numIndexed.get();
     }
 
-    public AtomicLong getNumFailed() {
-        return numFailed;
+    public long getNumFailed() {
+        return numFailed.get();
+    }
+
+    public void addNumReceived(long count) {
+        numReceived.addAndGet(count);
+    }
+
+    public void addNumSent(long count) {
+        numSent.addAndGet(count);
+    }
+
+    public void addNumIndexed(long count) {
+        numIndexed.addAndGet(count);
+    }
+
+    public void addNumFailed(long count) {
+        numFailed.addAndGet(count);
     }
 }

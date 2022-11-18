@@ -59,7 +59,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -92,10 +91,6 @@ class RollupShardIndexer {
     private final String[] metricFields;
     private final String[] labelFields;
     private final Map<String, FieldValueFetcher> fieldValueFetchers;
-    private final AtomicLong numReceived;
-    private final AtomicLong numSent;
-    private final AtomicLong numIndexed;
-    private final AtomicLong numFailed;
 
     private final RollupShardTask task;
     private volatile boolean abort = false;
@@ -112,10 +107,6 @@ class RollupShardIndexer {
         String[] labelFields
     ) {
         this.task = task;
-        this.numReceived = task.getNumReceived();
-        this.numSent = task.getNumSent();
-        this.numIndexed = task.getNumIndexed();
-        this.numFailed = task.getNumFailed();
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
         this.config = config;
@@ -158,26 +149,26 @@ class RollupShardIndexer {
         logger.info(
             "Shard [{}] successfully sent [{}], received source doc [{}], indexed rollup doc [{}], failed [{}], took [{}]",
             indexShard.shardId(),
-            numReceived.get(),
-            numSent.get(),
-            numIndexed.get(),
-            numFailed.get(),
+            task.getNumReceived(),
+            task.getNumSent(),
+            task.getNumIndexed(),
+            task.getNumFailed(),
             TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
         );
 
-        if (numIndexed.get() != numSent.get()) {
+        if (task.getNumIndexed() != task.getNumSent()) {
             throw new ElasticsearchException(
                 "Shard ["
                     + indexShard.shardId()
                     + "] failed to index all rollup documents. Sent ["
-                    + numSent.get()
+                    + task.getNumSent()
                     + "], indexed ["
-                    + numIndexed.get()
+                    + task.getNumIndexed()
                     + "]."
             );
         }
 
-        return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), numIndexed.get());
+        return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(),task.getNumIndexed());
     }
 
     private void checkCancelled() {
@@ -185,9 +176,9 @@ class RollupShardIndexer {
             logger.warn(
                 "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
-                numSent.get(),
-                numIndexed.get(),
-                numFailed.get()
+                task.getNumSent(),
+                task.getNumIndexed(),
+                task.getNumFailed()
             );
             throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
         }
@@ -197,17 +188,17 @@ class RollupShardIndexer {
         final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
-                numSent.addAndGet(request.numberOfActions());
+                task.addNumSent(request.numberOfActions());
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                numIndexed.addAndGet(request.numberOfActions());
+                task.addNumIndexed(request.numberOfActions());
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
                         .collect(Collectors.toList());
-                    numFailed.addAndGet(failedItems.size());
+                    task.addNumFailed(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()
                         .collect(
@@ -228,7 +219,7 @@ class RollupShardIndexer {
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 if (failure != null) {
                     long items = request.numberOfActions();
-                    numFailed.addAndGet(items);
+                    task.addNumFailed(items);
                     logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
 
                     // cancel rollup task
@@ -268,7 +259,7 @@ class RollupShardIndexer {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
-                    numReceived.incrementAndGet();
+                    task.addNumReceived(1);
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final int tsidOrd = aggCtx.getTsidOrd();

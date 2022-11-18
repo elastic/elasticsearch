@@ -151,6 +151,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
 
@@ -921,22 +922,28 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .size(size)
                         .shardSize(size)
                         .field("field")
+                        .showTermDocCountError(true)
                         .order(bucketOrder);
 
-                    Terms result = searchAndReduce(
-                        indexSearcher,
-                        new AggTestConfig(aggregationBuilder, fieldType).withSplitLeavesIntoSeperateAggregators(false)
-                    );
+                    AggTestConfig aggTestConfig = new AggTestConfig(aggregationBuilder, fieldType);
+                    Terms result = searchAndReduce(indexSearcher, aggTestConfig);
                     assertEquals(size, result.getBuckets().size());
+                    HashMap<Object, Long> expectedCounts = new HashMap<>();
                     for (int i = 0; i < size; i++) {
                         Map.Entry<T, Integer> expected = expectedBuckets.get(i);
+                        Object key = (valueType == ValueType.IP) ? String.valueOf(expected.getKey()).substring(1) : expected.getKey();
+                        expectedCounts.put(key, expected.getValue().longValue());
+                    }
+                    long docCountError = result.getDocCountError();
+                    for (int i = 0; i < size; i++) {
                         Terms.Bucket actual = result.getBuckets().get(i);
-                        if (valueType == ValueType.IP) {
-                            assertEquals(String.valueOf(expected.getKey()).substring(1), actual.getKey());
-                        } else {
-                            assertEquals(expected.getKey(), actual.getKey());
+                        long expectedCount = expectedCounts.getOrDefault(actual.getKey(), 0L);
+                        if (aggTestConfig.splitLeavesIntoSeparateAggregators() == false || indexReader.leaves().size() == 1) {
+                            assertThat("Count mismatch for " + actual.getKey(), actual.getDocCount(), equalTo(expectedCount));
+                        } else if (order == false) {
+                            long diff = Math.abs(expectedCount - actual.getDocCount());
+                            assertThat("Count error too large for " + actual.getKey(), diff, lessThanOrEqualTo(docCountError));
                         }
-                        assertEquals(expected.getValue().longValue(), actual.getDocCount());
                     }
 
                     if (multiValued == false) {

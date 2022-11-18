@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -91,6 +93,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
+                final Optional<String> remoteClusterAlias = resolveRemoteClusterAlias(connection);
+                if (remoteClusterAlias.isPresent()) {
+                    logger.info(
+                        "Sending request [" + request.getClass().getSimpleName() + "] to remote cluster [" + remoteClusterAlias.get() + "]."
+                    );
+                }
+
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
@@ -138,6 +147,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     }
             }
         };
+    }
+
+    private Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
+        if (connection instanceof RemoteConnectionManager.RemoteClusterAliasAwareConnection remoteConnection) {
+            return Optional.of(remoteConnection.getClusterAlias());
+        }
+        return Optional.empty();
     }
 
     private <T extends TransportResponse> void sendWithUser(

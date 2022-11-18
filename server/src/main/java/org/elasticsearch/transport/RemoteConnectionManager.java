@@ -81,13 +81,20 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-        delegate.openConnection(node, profile, listener);
+        delegate.openConnection(
+            node,
+            profile,
+            ActionListener.wrap(
+                connection -> { listener.onResponse(wrapRemoteConnectionWithClusterAlias(connection)); },
+                listener::onFailure
+            )
+        );
     }
 
     @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
         try {
-            return delegate.getConnection(node);
+            return getConnectionInternal(node);
         } catch (NodeNotConnectedException e) {
             return new ProxyConnection(getAnyRemoteConnection(), node);
         }
@@ -116,7 +123,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         if (localConnectedNodes.isEmpty() == false) {
             DiscoveryNode nextNode = localConnectedNodes.get(Math.floorMod(curr, localConnectedNodes.size()));
             try {
-                return delegate.getConnection(nextNode);
+                return getConnectionInternal(nextNode);
             } catch (NodeNotConnectedException e) {
                 // Ignore. We will manually create an iterator of open nodes
             }
@@ -124,7 +131,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         Set<DiscoveryNode> allConnectionNodes = getAllConnectedNodes();
         for (DiscoveryNode connectedNode : allConnectionNodes) {
             try {
-                return delegate.getConnection(connectedNode);
+                return getConnectionInternal(connectedNode);
             } catch (NodeNotConnectedException e) {
                 // Ignore. We will try the next one until all are exhausted.
             }
@@ -248,5 +255,99 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         @Override
         public void onRemoved() {}
+    }
+
+    private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
+        Transport.Connection connection = delegate.getConnection(node);
+        return wrapRemoteConnectionWithClusterAlias(connection);
+    }
+
+    private Transport.Connection wrapRemoteConnectionWithClusterAlias(Transport.Connection connection) {
+        return new RemoteClusterAliasAwareConnection(clusterAlias, connection);
+    }
+
+    public static final class RemoteClusterAliasAwareConnection implements Transport.Connection {
+
+        private final String clusterAlias;
+        private final Transport.Connection wrapped;
+
+        public RemoteClusterAliasAwareConnection(String clusterAlias, Transport.Connection wrapped) {
+            this.clusterAlias = clusterAlias;
+            this.wrapped = wrapped;
+        }
+
+        public Transport.Connection unwrap() {
+            return wrapped;
+        }
+
+        public String getClusterAlias() {
+            return clusterAlias;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return wrapped.getNode();
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            wrapped.sendRequest(requestId, action, request, options);
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            wrapped.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return wrapped.isClosed();
+        }
+
+        @Override
+        public Version getVersion() {
+            return Transport.Connection.super.getVersion();
+        }
+
+        @Override
+        public Object getCacheKey() {
+            return Transport.Connection.super.getCacheKey();
+        }
+
+        @Override
+        public void close() {
+            wrapped.close();
+        }
+
+        @Override
+        public void onRemoved() {
+            wrapped.onRemoved();
+        }
+
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            wrapped.addRemovedListener(listener);
+        }
+
+        @Override
+        public void incRef() {
+            wrapped.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return wrapped.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return wrapped.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return wrapped.hasReferences();
+        }
     }
 }

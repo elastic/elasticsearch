@@ -28,8 +28,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicenseRestTestCase {
 
@@ -63,7 +65,10 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
                   "clusters": ["remote-a", "*"],
-                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}"
+                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}",
+                  "field_security" : {
+                    "grant": ["field"]
+                  }
                 }
               ]
             }""");
@@ -88,6 +93,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .indices("index-a", "*")
                         .query("{\"match\":{\"field\":\"a\"}}")
                         .privileges("read")
+                        .grantedFields("field")
                         .build() }
             )
         );
@@ -119,7 +125,10 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
                   "clusters": ["remote-a", "*"],
-                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}"
+                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}",
+                  "field_security" : {
+                    "grant": ["field"]
+                  }
                 }
               ]
             }""");
@@ -156,6 +165,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .indices("index-a", "*")
                         .privileges("read")
                         .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
                         .build() }
             )
         );
@@ -170,13 +180,10 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
                   "clusters": ["remote-a", "*"],
-                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}"
-                },
-                {
-                  "names": ["index-a", "*"],
-                  "privileges": ["read"],
-                  "clusters": ["remote-a", "*"],
-                  "query": "{\\"match\\":{\\"field\\":\\"b\\"}}"
+                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}",
+                  "field_security": {
+                    "grant": ["field"]
+                  }
                 }
               ]
             }""");
@@ -185,7 +192,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
 
         final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse1);
-        assertThat(responseAsMap(getUserPrivilegesResponse1), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+        assertThat(responseAsMap(getUserPrivilegesResponse1), equalTo(mapFromJson("""
             {
               "cluster": [],
               "global": [],
@@ -198,17 +205,11 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "privileges": ["read"],
                   "allow_restricted_indices": false,
                   "clusters": ["remote-a", "*"],
-                  "query": ["{\\"match\\":{\\"field\\":\\"a\\"}}"]
-                },
-                {
-                  "names": ["*", "index-a"],
-                  "privileges": ["read"],
-                  "allow_restricted_indices": false,
-                  "clusters": ["remote-a", "*"],
-                  "query": ["{\\"match\\":{\\"field\\":\\"b\\"}}"]
+                  "query": ["{\\"match\\":{\\"field\\":\\"a\\"}}"],
+                  "field_security": [{"grant": ["field"]}]
                 }
               ]
-            }""", false)));
+            }""")));
 
         final var putRoleRequest2 = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest2.setJsonEntity("""
@@ -233,7 +234,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
 
         final Response getUserPrivilegesResponse2 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse2);
-        assertThat(responseAsMap(getUserPrivilegesResponse2), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+        assertThat(responseAsMap(getUserPrivilegesResponse2), equalTo(mapFromJson("""
             {
               "cluster": ["all"],
               "global": [],
@@ -254,7 +255,65 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "clusters": ["remote-a", "*"]
                 }
               ]
-            }""", false)));
+            }""")));
+    }
+
+    public void testGetUserPrivilegesWithMultipleFlsDlsDefinitionsPreservesGroupPerIndexPrivilege() throws IOException {
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"],
+                  "query": "{\\"match\\":{\\"field-a\\":\\"a\\"}}",
+                  "field_security": {
+                    "grant": ["field-a"]
+                  }
+                },
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"],
+                  "query": "{\\"match\\":{\\"field-b\\":\\"b\\"}}",
+                  "field_security": {
+                    "grant": ["field-b"]
+                  }
+                }
+              ]
+            }""");
+        final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
+        assertOK(putRoleResponse1);
+
+        final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
+        assertOK(getUserPrivilegesResponse1);
+        final Map<String, Object> actual = responseAsMap(getUserPrivilegesResponse1);
+        // The order of remote indices is not deterministic, so manually extract remote indices from map response to compare ignoring order
+        @SuppressWarnings("unchecked")
+        final List<Object> rawRemoteIndices = (List<Object>) actual.get("remote_indices");
+        assertThat(rawRemoteIndices, notNullValue());
+        assertThat(rawRemoteIndices, containsInAnyOrder(mapFromJson("""
+            {
+              "names": ["*", "index-a"],
+              "privileges": ["read"],
+              "allow_restricted_indices": false,
+              "clusters": ["remote-a", "*"],
+              "query": ["{\\"match\\":{\\"field-a\\":\\"a\\"}}"],
+              "field_security": [{"grant": ["field-a"]}]
+            }"""), mapFromJson("""
+            {
+              "names": ["*", "index-a"],
+              "privileges": ["read"],
+              "allow_restricted_indices": false,
+              "clusters": ["remote-a", "*"],
+              "query": ["{\\"match\\":{\\"field-b\\":\\"b\\"}}"],
+              "field_security": [{"grant": ["field-b"]}]
+            }""")));
+    }
+
+    private static Map<String, Object> mapFromJson(String json) {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
     }
 
     private Response executeAsRemoteSearchUser(final Request request) throws IOException {

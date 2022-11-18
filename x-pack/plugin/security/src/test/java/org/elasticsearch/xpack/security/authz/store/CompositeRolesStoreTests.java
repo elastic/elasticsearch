@@ -66,7 +66,9 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -1078,6 +1080,76 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
         assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias), indexGroup("index-1"));
+    }
+
+    public void testBuildRoleWithFlsAndDlsInRemoteIndicesDefinition() {
+        String clusterAlias = randomFrom("remote-1", "*");
+        Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias)
+                        .indices("index-1")
+                        .privileges("read")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
+        assertHasIndexGroupsForClusters(
+            role.remoteIndices(),
+            Set.of(clusterAlias),
+            indexGroup(
+                IndexPrivilege.READ,
+                false,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null),
+                "index-1"
+            )
+        );
+
+        role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias)
+                        .indices("index-1")
+                        .privileges("read")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .build() }
+            ),
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias)
+                        .indices("index-1")
+                        .privileges("read")
+                        .query("{\"match\":{\"field\":\"b\"}}")
+                        .grantedFields("other")
+                        .build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
+        assertHasIndexGroupsForClusters(
+            role.remoteIndices(),
+            Set.of(clusterAlias),
+            indexGroup(
+                IndexPrivilege.READ,
+                false,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null),
+                "index-1"
+            ),
+            indexGroup(
+                IndexPrivilege.READ,
+                false,
+                "{\"match\":{\"field\":\"b\"}}",
+                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "other" }, null),
+                "index-1"
+            )
+        );
     }
 
     public void testBuildRoleWithEmptyOrNoneRemoteIndices() {
@@ -2618,6 +2690,22 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final boolean allowRestrictedIndices,
         final String... indices
     ) {
+        return indexGroup(
+            privilege,
+            allowRestrictedIndices,
+            null,
+            new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+            indices
+        );
+    }
+
+    private static Matcher<IndicesPermission.Group> indexGroup(
+        final IndexPrivilege privilege,
+        final boolean allowRestrictedIndices,
+        @Nullable final String query,
+        final FieldPermissionsDefinition.FieldGrantExcludeGroup flsGroup,
+        final String... indices
+    ) {
         return new BaseMatcher<>() {
             @Override
             public boolean matches(Object o) {
@@ -2625,8 +2713,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     return false;
                 }
                 final IndicesPermission.Group group = (IndicesPermission.Group) o;
-                return equalTo(privilege).matches(group.privilege())
+                return equalTo(query == null ? null : Set.of(new BytesArray(query))).matches(group.getQuery())
+                    && equalTo(privilege).matches(group.privilege())
                     && equalTo(allowRestrictedIndices).matches(group.allowRestrictedIndices())
+                    && equalTo(new FieldPermissions(new FieldPermissionsDefinition(Set.of(flsGroup)))).matches(group.getFieldPermissions())
                     && arrayContaining(indices).matches(group.indices());
             }
 
@@ -2640,6 +2730,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         + allowRestrictedIndices
                         + ", indices="
                         + Strings.arrayToCommaDelimitedString(indices)
+                        + ", query="
+                        + query
+                        + ", fieldGrantExcludeGroup="
+                        + flsGroup
                         + '}'
                 );
             }

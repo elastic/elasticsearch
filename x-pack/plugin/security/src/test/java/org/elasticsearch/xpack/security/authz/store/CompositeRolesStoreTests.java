@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -439,6 +440,32 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
         trySuccessfullyLoadSuperuserRole(compositeRolesStore);
         tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("No privileges for you!")));
+    }
+
+    public void testErrorForInvalidIndexNameRegex() {
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            "_mock_role",
+            null,
+            new IndicesPrivileges[] {
+                // invalid regex missing closing bracket
+                IndicesPrivileges.builder().indices("/~(([.]|ilm-history-).*/").privileges("read").build() },
+            null
+        );
+
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> callback.onResponse(
+            RoleRetrievalResult.success(Set.of(roleDescriptor))
+        );
+        final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onResponse(
+            List.of()
+        );
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
+
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(compositeRolesStore, Set.of("_mock_role"), future);
+
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("The set of patterns [/~(([.]|ilm-history-).*/] is invalid"));
+        assertThat(e.getCause().getClass(), is(IllegalArgumentException.class));
     }
 
     private CompositeRolesStore setupRolesStore(

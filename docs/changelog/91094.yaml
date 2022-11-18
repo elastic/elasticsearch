@@ -1,5 +1,0 @@
-pr: 91094
-summary: Add privileges for crawler logs indices in Enterprise Search service account
-area: Authorization
-type: enhancement
-issues: []

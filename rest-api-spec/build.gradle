@@ -75,6 +75,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search_shards/10_basic/Search shards aliases with and without filters", "Filter representation no longer outputs default boosts")
   task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
   task.skipTest("search/330_fetch_fields/Test disable source", "Error no longer thrown")
+  task.skipTest("search/370_profile/fetch fields", "profile output has changed")
+  task.skipTest("search/370_profile/fetch source", "profile output has changed")
+  task.skipTest("search/370_profile/fetch nested source", "profile output has changed")
   task.skipTest("search/240_date_nanos/doc value fields are working as expected across date and date_nanos fields", "Fetching docvalues field multiple times is no longer allowed")
 
   task.replaceValueInMatch("_type", "_doc")

@@ -913,7 +913,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             if (listenerHasBeenCalled.getAndSet(true)) {
-                logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
                 assert false : "A listener was unexpectedly called more than once";
             } else {
                 long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;

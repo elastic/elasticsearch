@@ -255,9 +255,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -307,10 +305,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachDecoration(new IRDName("$bootstrapDef"));
             irFunctionNode.attachDecoration(new IRDReturnType(CallSite.class));
             irFunctionNode.attachDecoration(
-                new IRDTypeParameters(Arrays.asList(Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class))
+                new IRDTypeParameters(List.of(Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class))
             );
             irFunctionNode.attachDecoration(
-                new IRDParameterNames(Arrays.asList("methodHandlesLookup", "name", "type", "initialDepth", "flavor", "args"))
+                new IRDParameterNames(List.of("methodHandlesLookup", "name", "type", "initialDepth", "flavor", "args"))
             );
             irFunctionNode.attachCondition(IRCStatic.class);
             irFunctionNode.attachCondition(IRCVarArgs.class);
@@ -369,7 +367,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     ),
                     null,
                     null,
-                    null
+                    Map.of()
                 )
             );
             invokeCallNode.setBox(DefBootstrap.class);
@@ -635,8 +633,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             .getMangledName();
         irFunctionNode.attachDecoration(new IRDName(mangledName));
         irFunctionNode.attachDecoration(new IRDReturnType(returnType));
-        irFunctionNode.attachDecoration(new IRDTypeParameters(new ArrayList<>(localFunction.getTypeParameters())));
-        irFunctionNode.attachDecoration(new IRDParameterNames(new ArrayList<>(userFunctionNode.getParameterNames())));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
+        irFunctionNode.attachDecoration(new IRDParameterNames(userFunctionNode.getParameterNames()));
 
         if (userFunctionNode.isStatic()) {
             irFunctionNode.attachCondition(IRCStatic.class);
@@ -907,8 +905,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irCompoundNode = stringConcatenationNode;
 
                 // must handle the StringBuilder case for java version <= 8
-                if (irLoadNode instanceof BinaryImplNode && WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
-                    ((DupNode) ((BinaryImplNode) irLoadNode).getLeftNode()).attachDecoration(new IRDDepth(1));
+                if (irLoadNode instanceof BinaryImplNode bin && WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
+                    bin.getLeftNode().attachDecoration(new IRDDepth(1));
                 }
                 // handles when the operation is mathematical
             } else {
@@ -1006,8 +1004,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irValueNode = irDupNode;
             }
 
-            if (irAssignmentNode instanceof BinaryImplNode) {
-                ((UnaryNode) ((BinaryImplNode) irAssignmentNode).getRightNode()).setChildNode(irValueNode);
+            if (irAssignmentNode instanceof BinaryImplNode bin) {
+                ((UnaryNode) bin.getRightNode()).setChildNode(irValueNode);
             } else {
                 ((UnaryNode) irAssignmentNode).setChildNode(irValueNode);
             }
@@ -1392,10 +1390,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         irFunctionNode.attachDecoration(new IRDName(scriptScope.getDecoration(userLambdaNode, MethodNameDecoration.class).methodName()));
         irFunctionNode.attachDecoration(new IRDReturnType(scriptScope.getDecoration(userLambdaNode, ReturnType.class).returnType()));
         irFunctionNode.attachDecoration(
-            new IRDTypeParameters(new ArrayList<>(scriptScope.getDecoration(userLambdaNode, TypeParameters.class).typeParameters()))
+            new IRDTypeParameters(scriptScope.getDecoration(userLambdaNode, TypeParameters.class).typeParameters())
         );
         irFunctionNode.attachDecoration(
-            new IRDParameterNames(new ArrayList<>(scriptScope.getDecoration(userLambdaNode, ParameterNames.class).parameterNames()))
+            new IRDParameterNames(scriptScope.getDecoration(userLambdaNode, ParameterNames.class).parameterNames())
         );
         if (scriptScope.getCondition(userLambdaNode, InstanceCapturingLambda.class)) {
             irFunctionNode.attachCondition(IRCInstanceCapture.class);
@@ -1412,12 +1410,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         List<Variable> captures = scriptScope.getDecoration(userLambdaNode, CapturesDecoration.class).captures();
 
         if (captures.isEmpty() == false) {
-            List<String> captureNames = new ArrayList<>();
-
-            for (Variable capture : captures) {
-                captureNames.add(capture.name());
-            }
-
+            List<String> captureNames = captures.stream().map(Variable::name).toList();
             irExpressionNode.attachDecoration(new IRDCaptureNames(captureNames));
         }
 
@@ -1458,7 +1451,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         );
 
         if (capturesDecoration != null) {
-            irReferenceNode.attachDecoration(new IRDCaptureNames(Collections.singletonList(capturesDecoration.captures().get(0).name())));
+            irReferenceNode.attachDecoration(new IRDCaptureNames(List.of(capturesDecoration.captures().get(0).name())));
 
             if (scriptScope.getCondition(userFunctionRefNode, CaptureBox.class)) {
                 irReferenceNode.attachCondition(IRCCaptureBox.class);
@@ -1508,8 +1501,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             new IRDName(scriptScope.getDecoration(userNewArrayFunctionRefNode, MethodNameDecoration.class).methodName())
         );
         irFunctionNode.attachDecoration(new IRDReturnType(returnType));
-        irFunctionNode.attachDecoration(new IRDTypeParameters(Collections.singletonList(int.class)));
-        irFunctionNode.attachDecoration(new IRDParameterNames(Collections.singletonList("size")));
+        irFunctionNode.attachDecoration(new IRDTypeParameters(List.of(int.class)));
+        irFunctionNode.attachDecoration(new IRDParameterNames(List.of("size")));
         irFunctionNode.attachCondition(IRCStatic.class);
         irFunctionNode.attachCondition(IRCSynthetic.class);
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));

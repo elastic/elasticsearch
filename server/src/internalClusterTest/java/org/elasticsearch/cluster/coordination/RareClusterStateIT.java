@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
@@ -105,7 +106,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 routingTable.addAsRecovery(updatedState.metadata().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
-                return allocationService.reroute(updatedState, "reroute");
+                return allocationService.reroute(updatedState, "reroute", ActionListener.noop());
             }
 
             @Override

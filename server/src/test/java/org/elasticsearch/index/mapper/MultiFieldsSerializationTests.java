@@ -41,7 +41,7 @@ public class MultiFieldsSerializationTests extends ESTestCase {
         }
 
         Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, Version.CURRENT);
-        FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.ROOT);
+        FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.root(false));
 
         String serialized = Strings.toString(multiFields);
         int lastStart = 0;

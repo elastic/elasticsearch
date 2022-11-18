@@ -243,6 +243,26 @@ ensures the `@timestamp` ranges for neighboring backing indices always border
 but never overlap.
 
 [discrete]
+[[tsds-accepted-time-range]]
+==== Accepted time range for adding data
+
+A TSDS is designed to ingest current metrics data. When the TSDS is first
+created the initial backing index has:
+
+* an `index.time_series.start_time` value set to `now - index.look_ahead_time`
+* an `index.time_series.end_time` value set to `now + index.look_ahead_time`
+
+Only data that falls inside that range can be indexed.
+
+In our <<tsds-create-index-settings-component-template,TSDS example>>,
+`index.look_ahead_time` is set to three hours, so only documents with a
+`@timestamp` value that is within three hours previous or subsequent to the
+present time are accepted for indexing.
+
+You can use the <<indices-get-data-stream,get data stream API>> to check the
+accepted time range for writing to any TSDS.
+
+[discrete]
 [[dimension-based-routing]]
 ==== Dimension-based routing
 

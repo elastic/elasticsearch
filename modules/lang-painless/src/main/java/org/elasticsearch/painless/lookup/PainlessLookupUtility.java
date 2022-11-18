@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * PainlessLookupUtility contains methods shared by {@link PainlessLookupBuilder}, {@link PainlessLookup}, and other classes within
@@ -114,7 +115,7 @@ public final class PainlessLookupUtility {
             type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
             if (type != null) {
-                char arrayBraces[] = new char[arrayDimensions];
+                char[] arrayBraces = new char[arrayDimensions];
                 Arrays.fill(arrayBraces, '[');
                 String javaTypeName = new String(arrayBraces);
 
@@ -174,24 +175,7 @@ public final class PainlessLookupUtility {
      * of classes or a mixed list of classes and types to a list of canonical type names as a string as well.
      */
     public static String typesToCanonicalTypeNames(List<Class<?>> types) {
-        StringBuilder typesStringBuilder = new StringBuilder("[");
-
-        int anyTypesSize = types.size();
-        int anyTypesIndex = 0;
-
-        for (Class<?> painlessType : types) {
-            String canonicalTypeName = typeToCanonicalTypeName(painlessType);
-
-            typesStringBuilder.append(canonicalTypeName);
-
-            if (++anyTypesIndex < anyTypesSize) {
-                typesStringBuilder.append(",");
-            }
-        }
-
-        typesStringBuilder.append("]");
-
-        return typesStringBuilder.toString();
+        return types.stream().map(PainlessLookupUtility::typeToCanonicalTypeName).collect(Collectors.joining(",", "[", "]"));
     }
 
     /**

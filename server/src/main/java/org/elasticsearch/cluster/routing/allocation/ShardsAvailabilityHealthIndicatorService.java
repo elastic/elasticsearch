@@ -107,7 +107,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -115,18 +115,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown, explain);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown, verbose);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, explain);
+                    status.addReplica(replicaShard, state, shutdown, verbose);
                 }
             }
         }
         return createIndicator(
             status.getStatus(),
             status.getSymptom(),
-            status.getDetails(explain),
+            status.getDetails(verbose),
             status.getImpacts(),
-            status.getDiagnosis(explain)
+            status.getDiagnosis(verbose)
         );
     }
 
@@ -378,7 +378,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
         private final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -394,7 +394,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        if (explain) {
+                        if (verbose) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(
                                 definition -> addDefinition(definition, routing.getIndexName())
                             );
@@ -771,12 +771,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
-            primaries.increment(routing, state, shutdowns, explain);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            primaries.increment(routing, state, shutdowns, verbose);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
-            replicas.increment(routing, state, shutdowns, explain);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            replicas.increment(routing, state, shutdowns, verbose);
         }
 
         public HealthStatus getStatus() {
@@ -819,8 +819,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public HealthIndicatorDetails getDetails(boolean explain) {
-            if (explain) {
+        public HealthIndicatorDetails getDetails(boolean verbose) {
+            if (verbose) {
                 return new SimpleHealthIndicatorDetails(
                     Map.of(
                         "unassigned_primaries",
@@ -892,11 +892,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         /**
          * Returns the diagnosis for unassigned primary and replica shards.
-         * @param explain true if the diagnosis should be generated, false if they should be omitted.
-         * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or explain is false.
+         * @param verbose true if the diagnosis should be generated, false if they should be omitted.
+         * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or verbose is false.
          */
-        public List<Diagnosis> getDiagnosis(boolean explain) {
-            if (explain) {
+        public List<Diagnosis> getDiagnosis(boolean verbose) {
+            if (verbose) {
                 Map<Diagnosis.Definition, Set<String>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
                     Set<String> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);

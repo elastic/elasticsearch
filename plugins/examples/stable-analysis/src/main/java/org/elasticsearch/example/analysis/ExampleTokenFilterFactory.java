@@ -14,7 +14,7 @@ import org.elasticsearch.example.analysis.lucene.Skip1TokenFilter;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
 
-@NamedComponent(name = "example_token_filter_factory")
+@NamedComponent( "example_token_filter_factory")
 public class ExampleTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {

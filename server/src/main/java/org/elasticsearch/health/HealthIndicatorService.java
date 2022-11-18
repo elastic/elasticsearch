@@ -22,7 +22,7 @@ public interface HealthIndicatorService {
 
     String name();
 
-    HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo);
+    HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the

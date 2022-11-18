@@ -60,7 +60,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueT
 import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
-import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeriesTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -139,8 +138,7 @@ public class AggregationsTests extends ESTestCase {
         new InternalBinaryRangeTests(),
         new InternalTopHitsTests(),
         new InternalCompositeTests(),
-        new InternalMedianAbsoluteDeviationTests(),
-        new InternalTimeSeriesTests()
+        new InternalMedianAbsoluteDeviationTests()
     );
 
     @Override

@@ -171,6 +171,7 @@ public class IpFieldMapper extends FieldMapper {
                 ),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
+                context.isSourceSynthetic(),
                 this
             );
         }
@@ -428,6 +429,7 @@ public class IpFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final boolean stored;
     private final boolean ignoreMalformed;
+    private final boolean storeIgnored;
     private final boolean dimension;
 
     private final InetAddress nullValue;
@@ -440,7 +442,14 @@ public class IpFieldMapper extends FieldMapper {
     private final FieldValues<InetAddress> scriptValues;
     private final ScriptCompiler scriptCompiler;
 
-    private IpFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    private IpFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean storeIgnored,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();
@@ -454,6 +463,7 @@ public class IpFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
+        this.storeIgnored = storeIgnored;
     }
 
     @Override
@@ -479,7 +489,7 @@ public class IpFieldMapper extends FieldMapper {
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
-                if (context.isSyntheticSource()) {
+                if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
                     context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
                 }

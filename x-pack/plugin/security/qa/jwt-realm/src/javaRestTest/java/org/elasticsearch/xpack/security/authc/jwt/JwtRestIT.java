@@ -209,6 +209,7 @@ public class JwtRestIT extends ESRestTestCase {
                 hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
             );
             assertThat(description, assertList(response, User.Fields.ROLES), Matchers.containsInAnyOrder(roles.toArray(String[]::new)));
+            assertThat(description, assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
 
             // The user has no real role (we never define them) so everything they try to do will be FORBIDDEN
             final ResponseException exception = expectThrows(
@@ -392,6 +393,7 @@ public class JwtRestIT extends ESRestTestCase {
         assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_sub", principal));
         assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_aud", List.of("jwt3-audience")));
         assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_iss", "jwt3-issuer"));
+        assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
     }
 
     public void testAuthenticateToOtherRealmsInChain() throws IOException, URISyntaxException {

@@ -135,7 +135,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             metric.preIngest();
             processor.execute(ingestDocument, (result, e) -> {
                 if (listenerHasBeenCalled.getAndSet(true)) {
-                    logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                    logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
                     assert false : "A listener was unexpectedly called more than once";
                 } else {
                     long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;

@@ -98,6 +98,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         var settings = Settings.builder()
+            // allow as many parallel rebalances as needed
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 10)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
@@ -135,9 +136,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         var allocator = new BalancedShardsAllocator(
             Settings.builder()
+                // allow as many parallel rebalances as needed
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 10)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
+                // enable disk based balancing
                 .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
                 .build()
         );
@@ -320,6 +323,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     .addShard(
                         TestShardRouting.newShardRouting(
                             new ShardId(build.getIndex(), 0),
+                            // allocate indices on excluded node so that they are rebalanced according to the weights later on in test
                             "node-3",
                             null,
                             true,

@@ -436,7 +436,6 @@ public class CompositeRolesStore {
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
 
         final Map<Set<String>, Set<IndicesPrivileges>> remoteIndicesPrivilegesByCluster = new HashMap<>();
-        final Map<Set<String>, Set<IndicesPrivileges>> restrictedRemoteIndicesPrivilegesByCluster = new HashMap<>();
 
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
@@ -458,9 +457,7 @@ public class CompositeRolesStore {
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
-                final RemoteIndicesPrivileges[] remoteIndicesPrivileges = descriptor.getRemoteIndicesPrivileges();
-                groupPrivilegesByCluster(remoteIndicesPrivileges, true, restrictedRemoteIndicesPrivilegesByCluster);
-                groupPrivilegesByCluster(remoteIndicesPrivileges, false, remoteIndicesPrivilegesByCluster);
+                groupPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
             }
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -506,24 +503,10 @@ public class CompositeRolesStore {
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
                     ),
-                    newHashSet(privilege.getQuery()),
-                    IndexPrivilege.get(newHashSet(privilege.getPrivileges())),
-                    false,
-                    newHashSet(privilege.getIndices()).toArray(new String[0])
-                )
-            );
-        });
-        restrictedRemoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
-            remoteIndicesPrivilegesForCluster.forEach(
-                (privilege) -> builder.addRemoteGroup(
-                    clusterAliasKey,
-                    fieldPermissionsCache.getFieldPermissions(
-                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
-                    ),
-                    newHashSet(privilege.getQuery()),
-                    IndexPrivilege.get(newHashSet(privilege.getPrivileges())),
-                    true,
-                    newHashSet(privilege.getIndices()).toArray(new String[0])
+                    privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
+                    IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
+                    privilege.allowRestrictedIndices(),
+                    newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
                 )
             );
         });
@@ -592,7 +575,6 @@ public class CompositeRolesStore {
 
     private static void groupPrivilegesByCluster(
         final RemoteIndicesPrivileges[] remoteIndicesPrivileges,
-        final boolean allowsRestrictedIndices,
         final Map<Set<String>, Set<IndicesPrivileges>> remoteIndexPrivilegesByCluster
     ) {
         assert remoteIndicesPrivileges != null;
@@ -605,9 +587,6 @@ public class CompositeRolesStore {
         }
         for (final RemoteIndicesPrivileges remoteIndicesPrivilege : remoteIndicesPrivileges) {
             final IndicesPrivileges indicesPrivilege = remoteIndicesPrivilege.indicesPrivileges();
-            if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
-                continue;
-            }
             final Set<String> clusterAliasKey = newHashSet(remoteIndicesPrivilege.remoteClusters());
             remoteIndexPrivilegesByCluster.computeIfAbsent(clusterAliasKey, k -> new HashSet<>()).add(indicesPrivilege);
         }
@@ -665,41 +644,33 @@ public class CompositeRolesStore {
                 return;
             }
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                collatePrivilegesByIndices(indicesPrivilege, allowsRestrictedIndices, indicesPrivilegesMap);
-            }
-        }
-
-        private static void collatePrivilegesByIndices(
-            final IndicesPrivileges indicesPrivilege,
-            final boolean allowsRestrictedIndices,
-            final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
-        ) {
-            if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
-                return;
-            }
-            final Set<String> key = newHashSet(indicesPrivilege.getIndices());
-            indicesPrivilegesMap.compute(key, (k, value) -> {
-                if (value == null) {
-                    return new MergeableIndicesPrivilege(
-                        indicesPrivilege.getIndices(),
-                        indicesPrivilege.getPrivileges(),
-                        indicesPrivilege.getGrantedFields(),
-                        indicesPrivilege.getDeniedFields(),
-                        indicesPrivilege.getQuery()
-                    );
-                } else {
-                    value.merge(
-                        new MergeableIndicesPrivilege(
+                if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
+                    continue;
+                }
+                final Set<String> key = newHashSet(indicesPrivilege.getIndices());
+                indicesPrivilegesMap.compute(key, (k, value) -> {
+                    if (value == null) {
+                        return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),
                             indicesPrivilege.getPrivileges(),
                             indicesPrivilege.getGrantedFields(),
                             indicesPrivilege.getDeniedFields(),
                             indicesPrivilege.getQuery()
-                        )
-                    );
-                    return value;
-                }
-            });
+                        );
+                    } else {
+                        value.merge(
+                            new MergeableIndicesPrivilege(
+                                indicesPrivilege.getIndices(),
+                                indicesPrivilege.getPrivileges(),
+                                indicesPrivilege.getGrantedFields(),
+                                indicesPrivilege.getDeniedFields(),
+                                indicesPrivilege.getQuery()
+                            )
+                        );
+                        return value;
+                    }
+                });
+            }
         }
     }
 

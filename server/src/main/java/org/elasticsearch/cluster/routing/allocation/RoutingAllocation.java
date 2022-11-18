@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -70,10 +69,8 @@ public class RoutingAllocation {
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
-    private final GatewayAllocatorObserver gatewayAllocatorObserver = new GatewayAllocatorObserver();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
         nodesChangedObserver,
-        gatewayAllocatorObserver,
         indexMetadataUpdater,
         restoreInProgressUpdater,
         resizeSourceIndexUpdater
@@ -410,7 +407,17 @@ public class RoutingAllocation {
     }
 
     public RoutingAllocation immutableClone() {
-        return new RoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        return new RoutingAllocation(
+            deciders,
+            routingNodesChanged()
+                ? ClusterState.builder(clusterState)
+                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
+                    .build()
+                : clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime
+        );
     }
 
     public RoutingAllocation mutableCloneForSimulation() {
@@ -423,21 +430,6 @@ public class RoutingAllocation {
             currentNanoTime,
             true
         );
-    }
-
-    private Map<ShardRouting, String> gatewayAllocations = null;
-
-    public Map<ShardRouting, String> getGatewayAllocations() {
-        return gatewayAllocations;
-    }
-
-    public Releasable trackGatewayAllocations() {
-        assert gatewayAllocations == null : gatewayAllocations;
-        gatewayAllocatorObserver.startTracking();
-        return () -> {
-            assert gatewayAllocations == null : gatewayAllocations;
-            gatewayAllocations = gatewayAllocatorObserver.stopTracking();
-        };
     }
 
     public enum DebugMode {

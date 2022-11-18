@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * The input to the desired balance computation.
@@ -23,19 +22,13 @@ import java.util.Map;
  * @param routingAllocation a copy of (the immutable parts of) the context for the allocation decision process
  * @param ignoredShards     a list of the shards for which earlier allocators have claimed responsibility
  */
-public record DesiredBalanceInput(
-    long index,
-    RoutingAllocation routingAllocation,
-    List<ShardRouting> ignoredShards,
-    Map<ShardRouting, String> gatewayAllocations
-) {
+public record DesiredBalanceInput(long index, RoutingAllocation routingAllocation, List<ShardRouting> ignoredShards) {
 
     public static DesiredBalanceInput create(long index, RoutingAllocation routingAllocation) {
         return new DesiredBalanceInput(
             index,
             routingAllocation.immutableClone(),
-            List.copyOf(routingAllocation.routingNodes().unassigned().ignored()),
-            routingAllocation.getGatewayAllocations()
+            List.copyOf(routingAllocation.routingNodes().unassigned().ignored())
         );
     }
 }

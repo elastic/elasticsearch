@@ -514,9 +514,7 @@ public class AllocationService {
 
         removeDelayMarkers(allocation);
 
-        try (var ignored = allocation.trackGatewayAllocations()) {
-            allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
-        }
+        allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         routingAllocationConsumer.accept(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }

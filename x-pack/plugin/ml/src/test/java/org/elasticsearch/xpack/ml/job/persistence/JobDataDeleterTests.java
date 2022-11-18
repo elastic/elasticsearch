@@ -76,12 +76,10 @@ public class JobDataDeleterTests extends ESTestCase {
             String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
             assertThat(dbqQueryString, not(containsString("timestamp")));
             assertThat(dbqQueryString, not(containsString("event")));
-            assertThat(dbqQueryString, containsString("_xpack"));
-
             if (deleteUserAnnotations) {
-                assertThat(dbqQueryString, containsString("elastic"));
+                assertThat(dbqQueryString, not(containsString("_xpack")));
             } else {
-                assertThat(dbqQueryString, not(containsString("elastic")));
+                assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
     }
@@ -112,11 +110,10 @@ public class JobDataDeleterTests extends ESTestCase {
             String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
             assertThat(dbqQueryString, containsString("timestamp"));
             assertThat(dbqQueryString, not(containsString("event")));
-            assertThat(dbqQueryString, containsString("_xpack"));
             if (deleteUserAnnotations) {
-                assertThat(dbqQueryString, containsString("elastic"));
+                assertThat(dbqQueryString, not(containsString("_xpack")));
             } else {
-                assertThat(dbqQueryString, not(containsString("elastic")));
+                assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
     }
@@ -142,11 +139,10 @@ public class JobDataDeleterTests extends ESTestCase {
             String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
             assertThat(dbqQueryString, not(containsString("timestamp")));
             assertThat(dbqQueryString, containsString("event"));
-            assertThat(dbqQueryString, containsString("_xpack"));
             if (deleteUserAnnotations) {
-                assertThat(dbqQueryString, containsString("elastic"));
+                assertThat(dbqQueryString, not(containsString("_xpack")));
             } else {
-                assertThat(dbqQueryString, not(containsString("elastic")));
+                assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
     }

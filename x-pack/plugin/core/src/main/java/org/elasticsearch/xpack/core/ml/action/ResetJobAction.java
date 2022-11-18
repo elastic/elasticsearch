@@ -64,7 +64,11 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             skipJobStateValidation = in.readBoolean();
-            deleteUserAnnotations = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+                deleteUserAnnotations = in.readBoolean();
+            } else {
+                deleteUserAnnotations = false;
+            }
         }
 
         @Override
@@ -72,6 +76,9 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(skipJobStateValidation);
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+                out.writeBoolean(deleteUserAnnotations);
+            }
         }
 
         public void setSkipJobStateValidation(boolean skipJobStateValidation) {
@@ -118,7 +125,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, skipJobStateValidation);
+            return Objects.hash(jobId, skipJobStateValidation, deleteUserAnnotations);
         }
 
         @Override
@@ -126,7 +133,9 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || o.getClass() != getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(jobId, that.jobId) && skipJobStateValidation == that.skipJobStateValidation;
+            return Objects.equals(jobId, that.jobId)
+                && skipJobStateValidation == that.skipJobStateValidation
+                && deleteUserAnnotations == that.deleteUserAnnotations;
         }
     }
 }

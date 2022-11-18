@@ -31,13 +31,7 @@ public class GetProfilingActionIT extends ESIntegTestCase {
     }
 
     private void createIndex(String name, String bodyFileName) throws Exception {
-        client()
-            .admin()
-            .indices()
-            .prepareCreate(name)
-            .setSource(read(bodyFileName), XContentType.JSON)
-            .execute()
-            .get();
+        client().admin().indices().prepareCreate(name).setSource(read(bodyFileName), XContentType.JSON).execute().get();
     }
 
     private void indexDoc(String index, String id, Map<String, Object> source) {
@@ -58,14 +52,23 @@ public class GetProfilingActionIT extends ESIntegTestCase {
 
         // ensure that we have this in every index, so we find an event
         for (String idx : EventsIndex.indexNames()) {
-            indexDoc(idx, "QjoLteG7HX3VUUXr-J4kHQ",
-                Map.of("@timestamp", 1668761065, "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1));
+            indexDoc(
+                idx,
+                "QjoLteG7HX3VUUXr-J4kHQ",
+                Map.of("@timestamp", 1668761065, "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
+            );
         }
 
-        indexDoc("profiling-stacktraces", "QjoLteG7HX3VUUXr-J4kHQ",
-            Map.of("Stacktrace.frame.ids", "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf", "Stacktrace.frame.types", "AQI"));
-        indexDoc("profiling-stackframes", "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf",
-            Map.of("Stackframe.function.name", "_raw_spin_unlock_irqrestore"));
+        indexDoc(
+            "profiling-stacktraces",
+            "QjoLteG7HX3VUUXr-J4kHQ",
+            Map.of("Stacktrace.frame.ids", "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf", "Stacktrace.frame.types", "AQI")
+        );
+        indexDoc(
+            "profiling-stackframes",
+            "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf",
+            Map.of("Stackframe.function.name", "_raw_spin_unlock_irqrestore")
+        );
         indexDoc("profiling-executables", "QCCDqjSg3bMK1C4YRK6Tiw", Map.of("Executable.file.name", "libc.so.6"));
 
         refresh();
@@ -78,10 +81,10 @@ public class GetProfilingActionIT extends ESIntegTestCase {
         assertEquals(1, response.getTotalFrames());
         assertNotNull(response.getStackTraces());
         StackTrace stackTrace = response.getStackTraces().get("QjoLteG7HX3VUUXr-J4kHQ");
-        assertArrayEquals(new int[] {1083999}, stackTrace.addressOrLines);
-        assertArrayEquals(new String[] {"QCCDqjSg3bMK1C4YRK6Tiw"}, stackTrace.fileIds);
-        assertArrayEquals(new String[] {"QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"}, stackTrace.frameIds);
-        assertArrayEquals(new int[] {2}, stackTrace.typeIds);
+        assertArrayEquals(new int[] { 1083999 }, stackTrace.addressOrLines);
+        assertArrayEquals(new String[] { "QCCDqjSg3bMK1C4YRK6Tiw" }, stackTrace.fileIds);
+        assertArrayEquals(new String[] { "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf" }, stackTrace.frameIds);
+        assertArrayEquals(new int[] { 2 }, stackTrace.typeIds);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf");

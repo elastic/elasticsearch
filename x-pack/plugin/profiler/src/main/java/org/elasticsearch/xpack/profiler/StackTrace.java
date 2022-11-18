@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 
 import java.io.IOException;
 import java.util.Arrays;

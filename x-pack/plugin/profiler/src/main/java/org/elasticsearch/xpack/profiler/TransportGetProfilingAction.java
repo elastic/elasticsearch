@@ -16,13 +16,13 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -163,41 +163,39 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
 
-            this.nodeClient
-                .prepareMultiGet()
+            this.nodeClient.prepareMultiGet()
                 .addIds("profiling-stackframes", stackFrameIds)
                 .setRealtime(true)
                 .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    handler.onStackFramesResponse(multiGetItemResponses);
-                }
+                    @Override
+                    public void onResponse(MultiGetResponse multiGetItemResponses) {
+                        handler.onStackFramesResponse(multiGetItemResponses);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        submitListener.onFailure(e);
+                    }
+                });
         }
         // no data dependency - we can do this concurrently
         if (executableIds.isEmpty()) {
             handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
-            this.nodeClient
-                .prepareMultiGet()
+            this.nodeClient.prepareMultiGet()
                 .addIds("profiling-executables", executableIds)
                 .setRealtime(true)
                 .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    handler.onExecutableDetailsResponse(multiGetItemResponses);
-                }
+                    @Override
+                    public void onResponse(MultiGetResponse multiGetItemResponses) {
+                        handler.onExecutableDetailsResponse(multiGetItemResponses);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        submitListener.onFailure(e);
+                    }
+                });
         }
     }
 

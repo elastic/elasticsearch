@@ -35,16 +35,24 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
     private final Exception error;
 
     public GetProfilingResponse(StreamInput in) throws IOException {
-        this.stackTraces = in.readBoolean() ? in.readMap(
-            StreamInput::readString,
-            i -> new StackTrace(i.readIntArray(), i.readStringArray(), i.readStringArray(), i.readIntArray())) : null;
-        this.stackFrames = in.readBoolean() ? in.readMap(StreamInput::readString,
-            i -> new StackFrame(
-                i.readOptionalString(),
-                i.readOptionalString(),
-                i.readOptionalInt(),
-                i.readOptionalInt(),
-                i.readOptionalInt())) : null;
+        this.stackTraces = in.readBoolean()
+            ? in.readMap(
+                StreamInput::readString,
+                i -> new StackTrace(i.readIntArray(), i.readStringArray(), i.readStringArray(), i.readIntArray())
+            )
+            : null;
+        this.stackFrames = in.readBoolean()
+            ? in.readMap(
+                StreamInput::readString,
+                i -> new StackFrame(
+                    i.readOptionalString(),
+                    i.readOptionalString(),
+                    i.readOptionalInt(),
+                    i.readOptionalInt(),
+                    i.readOptionalInt()
+                )
+            )
+            : null;
         this.executables = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readString) : null;
         this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readInt) : null;
         this.totalFrames = in.readInt();

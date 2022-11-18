@@ -178,7 +178,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         private final RollupIndexerAction.Request request;
         private final ActionListener<RollupIndexerAction.Response> listener;
         private final Task task;
-        private volatile boolean hasCancelled = false;
+        private volatile boolean hasCancelledOtherShardOperations = false;
 
         protected Async(Task task, RollupIndexerAction.Request request, ActionListener<RollupIndexerAction.Response> listener) {
             super(task, request, listener);
@@ -206,7 +206,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         }
 
         private void cancelOtherShardIndexers() {
-            if (false == hasCancelled) {
+            if (false == hasCancelledOtherShardOperations) {
                 client.admin()
                     .cluster()
                     .cancelTasks(
@@ -221,7 +221,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
                                 return;
                             }
                             logger.info("[{}] rollup cancel other shard indexers", request.getRollupRequest().getSourceIndex());
-                            hasCancelled = true;
+                            hasCancelledOtherShardOperations = true;
                         },
                             e -> {
                                 logger.warn(

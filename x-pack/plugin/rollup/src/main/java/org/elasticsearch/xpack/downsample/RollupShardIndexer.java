@@ -168,7 +168,7 @@ class RollupShardIndexer {
             );
         }
 
-        return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(),task.getNumIndexed());
+        return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), task.getNumIndexed());
     }
 
     private void checkCancelled() {

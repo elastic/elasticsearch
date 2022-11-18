@@ -19,7 +19,7 @@ setup:
 "Usage stats on the health API":
   - skip:
       version: "- 8.6.99"
-      reason: "the verbose parameter was only added in 8.7"
+      reason: "the health api stats were only added to the usage api in 8.7"
 
   - do:
       xpack.usage: {}

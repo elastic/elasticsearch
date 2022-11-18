@@ -757,6 +757,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
+    public Repository createRepository(RepositoryMetadata repositoryMetadata) {
+        return createRepository(repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+    }
+
     private static Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
         throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
     }

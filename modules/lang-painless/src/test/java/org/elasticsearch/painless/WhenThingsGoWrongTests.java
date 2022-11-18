@@ -840,4 +840,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("doesNotExist(1, 'string', false)"));
         assertEquals(iae.getMessage(), "Unknown call [doesNotExist] with [3] arguments.");
     }
+
+    public void testArrayToArrayException() {
+        expectScriptThrows(IllegalArgumentException.class, () -> exec("return new String[] {'a'}.toArray(String[]::new)"));
+    }
 }

@@ -55,21 +55,22 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
     }
 
     public void testRemoteIndexPrivileges() throws IOException {
-        var putRoleRequest = new Request("PUT", "_security/role/" + REMOTE_SEARCH_ROLE);
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
               "remote_indices": [
                 {
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
-                  "clusters": ["remote-a", "*"]
+                  "clusters": ["remote-a", "*"],
+                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}"
                 }
               ]
             }""");
         final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
         assertOK(putRoleResponse1);
 
-        final Response getRoleResponse = adminClient().performRequest(new Request("GET", "_security/role/" + REMOTE_SEARCH_ROLE));
+        final Response getRoleResponse = adminClient().performRequest(new Request("GET", "/_security/role/" + REMOTE_SEARCH_ROLE));
         assertOK(getRoleResponse);
         expectRoleDescriptorInResponse(
             getRoleResponse,
@@ -83,7 +84,11 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                 null,
                 null,
                 new RoleDescriptor.RemoteIndicesPrivileges[] {
-                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-a", "*").indices("index-a", "*").privileges("read").build() }
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-a", "*")
+                        .indices("index-a", "*")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .privileges("read")
+                        .build() }
             )
         );
 
@@ -113,7 +118,8 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                 {
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
-                  "clusters": ["remote-a", "*"]
+                  "clusters": ["remote-a", "*"],
+                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}"
                 }
               ]
             }""");
@@ -146,7 +152,11 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                 null,
                 null,
                 new RoleDescriptor.RemoteIndicesPrivileges[] {
-                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-a", "*").indices("index-a", "*").privileges("read").build() }
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-a", "*")
+                        .indices("index-a", "*")
+                        .privileges("read")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .build() }
             )
         );
     }
@@ -159,7 +169,14 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                 {
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
-                  "clusters": ["remote-a", "*"]
+                  "clusters": ["remote-a", "*"],
+                  "query": "{\\"match\\":{\\"field\\":\\"a\\"}}"
+                },
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"],
+                  "query": "{\\"match\\":{\\"field\\":\\"b\\"}}"
                 }
               ]
             }""");
@@ -180,7 +197,15 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["*", "index-a"],
                   "privileges": ["read"],
                   "allow_restricted_indices": false,
-                  "clusters": ["remote-a", "*"]
+                  "clusters": ["remote-a", "*"],
+                  "query": ["{\\"match\\":{\\"field\\":\\"a\\"}}"]
+                },
+                {
+                  "names": ["*", "index-a"],
+                  "privileges": ["read"],
+                  "allow_restricted_indices": false,
+                  "clusters": ["remote-a", "*"],
+                  "query": ["{\\"match\\":{\\"field\\":\\"b\\"}}"]
                 }
               ]
             }""", false)));

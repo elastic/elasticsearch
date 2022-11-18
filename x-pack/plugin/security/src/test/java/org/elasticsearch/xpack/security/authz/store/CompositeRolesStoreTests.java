@@ -1129,7 +1129,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("foo")), equalTo(false));
     }
 
-    public void testBuildRoleWithRemoteIndicesMergesRemotesAndLocalsSeparately() {
+    public void testBuildRoleWithRemoteIndicesDoesNotCombineRemotesAndLocals() {
         Role role = buildRole(
             roleDescriptorWithIndicesPrivileges(
                 "r1",

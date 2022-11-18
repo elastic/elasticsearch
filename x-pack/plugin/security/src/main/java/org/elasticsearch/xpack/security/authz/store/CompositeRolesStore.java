@@ -457,7 +457,7 @@ public class CompositeRolesStore {
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
-                groupPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
+                groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
             }
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -573,7 +573,7 @@ public class CompositeRolesStore {
         return negativeLookupCache.get(key) != null;
     }
 
-    private static void groupPrivilegesByCluster(
+    private static void groupIndexPrivilegesByCluster(
         final RemoteIndicesPrivileges[] remoteIndicesPrivileges,
         final Map<Set<String>, Set<IndicesPrivileges>> remoteIndexPrivilegesByCluster
     ) {

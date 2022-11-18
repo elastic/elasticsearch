@@ -231,7 +231,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             randomStringSet(8),
             Sets.newHashSet(
                 randomArray(
-                    3,
+                    1,
                     FieldGrantExcludeGroup[]::new,
                     () -> new FieldGrantExcludeGroup(
                         generateRandomStringArray(3, 5, false, false),
@@ -239,7 +239,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                     )
                 )
             ),
-            randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet()),
+            randomStringSet(1).stream().map(BytesArray::new).collect(Collectors.toSet()),
             randomBoolean()
         );
     }

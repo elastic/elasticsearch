@@ -320,7 +320,6 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        IndicesOptions options = context.getOptions();
         ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[] { Metadata.ALL };
@@ -330,7 +329,7 @@ public class IndexNameExpressionResolver {
 
         final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         for (String expression : expressions) {
-            if (options.ignoreUnavailable() == false) {
+            if (context.getOptions().ignoreUnavailable() == false) {
                 ensureAliasOrIndexExists(context, expression);
             }
             IndexAbstraction indexAbstraction = context.state.metadata().getIndicesLookup().get(expression);
@@ -362,7 +361,7 @@ public class IndexNameExpressionResolver {
                     concreteIndices.add(writeIndex);
                 }
             } else {
-                if (indexAbstraction.getIndices().size() > 1 && options.allowAliasesToMultipleIndices() == false) {
+                if (indexAbstraction.getIndices().size() > 1 && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (Index indexName : indexAbstraction.getIndices()) {
@@ -379,14 +378,14 @@ public class IndexNameExpressionResolver {
                 }
 
                 for (Index index : indexAbstraction.getIndices()) {
-                    if (shouldTrackConcreteIndex(context, options, index)) {
+                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                         concreteIndices.add(index);
                     }
                 }
             }
         }
 
-        if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
+        if (context.getOptions().allowNoIndices() == false && concreteIndices.isEmpty()) {
             throw notFoundException(indexExpressions);
         }
         checkSystemIndexAccess(context, concreteIndices);

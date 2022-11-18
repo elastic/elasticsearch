@@ -92,6 +92,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -118,6 +119,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -1637,8 +1639,9 @@ public class RBACEngineTests extends ESTestCase {
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithSingleGroup() throws ExecutionException, InterruptedException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
+        // Only test cases where queries or groups are present, but not both - presence of both is tested separately
         final int numQueries = randomIntBetween(0, 3);
-        final int numFlsGroups = numQueries > 1 ? randomIntBetween(0, 1) : randomIntBetween(0, 3);
+        final int numFlsGroups = numQueries == 0 ? randomIntBetween(0, 3) : 0;
 
         final String[] indexNames = generateRandomStringArray(3, 10, false, false);
         final boolean allowRestrictedIndices = randomBoolean();
@@ -1670,7 +1673,7 @@ public class RBACEngineTests extends ESTestCase {
                 expectedIndicesPrivileges.add(builder.build());
             }
         } else {
-            // Without FLS groups, we get one index privilege per query
+            // We have no FLS groups, so we get one index privilege per query
             queries = new HashSet<>();
             flsGroups = Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null));
             for (int i = 0; i < numQueries; i++) {
@@ -1714,7 +1717,77 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(roleDescriptor.getApplicationPrivileges(), emptyArray());
         assertThat(roleDescriptor.getRunAs(), emptyArray());
         assertThat(roleDescriptor.getMetadata().isEmpty(), is(true));
+
         assertThat(roleDescriptor.getIndicesPrivileges(), arrayContainingInAnyOrder(expectedIndicesPrivileges.toArray()));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionWithSingleGroupWithDlsAndFls() throws ExecutionException,
+        InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final int numQueries = randomIntBetween(1, 3);
+        final int numFlsGroups = randomIntBetween(1, 3);
+
+        final String[] indexNames = generateRandomStringArray(3, 10, false, false);
+        final boolean allowRestrictedIndices = randomBoolean();
+        final Set<BytesReference> queries = new HashSet<>();
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> flsGroups = new HashSet<>();
+        for (int i = 0; i < numQueries; i++) {
+            queries.add(randomDlsQuery());
+        }
+        for (int j = 0; j < numFlsGroups; j++) {
+            flsGroups.add(randomFieldGrantExcludeGroup());
+        }
+
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final Role role = mockRoleWithRemoteIndices(
+            RemoteIndicesPermission.builder()
+                .addGroup(
+                    Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                    IndexPrivilege.READ,
+                    new FieldPermissions(new FieldPermissionsDefinition(flsGroups)),
+                    queries,
+                    allowRestrictedIndices,
+                    indexNames
+                )
+                .build()
+        );
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
+        final RoleDescriptorsIntersection actual = future.get();
+
+        assertThat(actual.roleDescriptorsList().size(), equalTo(1));
+        assertThat(actual.roleDescriptorsList().iterator().next().size(), equalTo(1));
+        final RoleDescriptor roleDescriptor = actual.roleDescriptorsList().iterator().next().iterator().next();
+        assertNull(NativeRealmValidationUtil.validateRoleName(roleDescriptor.getName(), false));
+        assertThat(roleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getClusterPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getApplicationPrivileges(), emptyArray());
+        assertThat(roleDescriptor.getRunAs(), emptyArray());
+        assertThat(roleDescriptor.getMetadata().isEmpty(), is(true));
+
+        assertThat(roleDescriptor.getIndicesPrivileges().length, equalTo(Math.max(numFlsGroups, numQueries)));
+        for (var indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
+            assertThat(indexPrivilege.getQuery(), in(queries));
+            assertThat(
+                new FieldPermissionsDefinition.FieldGrantExcludeGroup(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields()),
+                in(flsGroups)
+            );
+            assertThat(indexPrivilege.getPrivileges(), equalTo(new String[] { "read" }));
+            assertThat(indexPrivilege.getIndices(), equalTo(indexNames));
+            assertThat(indexPrivilege.allowRestrictedIndices(), equalTo(allowRestrictedIndices));
+        }
+        var actualQueries = Arrays.stream(roleDescriptor.getIndicesPrivileges())
+            .map(IndicesPrivileges::getQuery)
+            .collect(Collectors.toUnmodifiableSet());
+        assertThat(actualQueries, equalTo(queries));
+        var actualFlsGroups = Arrays.stream(roleDescriptor.getIndicesPrivileges())
+            .map(it -> new FieldPermissionsDefinition.FieldGrantExcludeGroup(it.getGrantedFields(), it.getDeniedFields()))
+            .collect(Collectors.toUnmodifiableSet());
+        assertThat(actualFlsGroups, equalTo(flsGroups));
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithMultipleGroups() throws ExecutionException, InterruptedException {

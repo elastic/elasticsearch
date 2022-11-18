@@ -718,34 +718,76 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     /**
-     * This may return more than a single index privilege for the indices group because an index privilege can contain at most one query
-     * and FLS group definition, whereas an indices group can contain multiple. We therefore "unfold" the group into multiple privileges,
-     * if necessary.
+     * This method may return more than one index privilege since an indices permission group may contain more than one FLS/DLS definition,
+     * whereas an index privilege can only contain one each.
+     *
+     * This method "unfolds" the FLS/DLS definitions into the equivalent index privileges. In particular, each query and DLS definition is
+     * covered by at least one index privilege:
+     *
+     * If a group has DLS queries [q1, q2] and FLS groups [f1, f2] the method produces two index privileges:
+     *
+     * idx_priv_1 with query q1 and FLS group f1
+     * idx_priv_2 with query q2 and FLS group f2
+     *
+     * For a group with DLS queries [q1, q2, q3] and FLS groups [f1, f2] the method produces three index privileges:
+     *
+     * idx_priv_1 with query q1 and FLS group f1
+     * idx_priv_2 with query q2 and FLS group f2
+     * idx_priv_3 with query q3 and FLS group f2
+     *
      */
     private static List<RoleDescriptor.IndicesPrivileges> toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery() == null ? Collections.emptySet() : indicesGroup.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
-
-        // We need to force at least one iteration even if there is no FLS/DLS, so we use Collections.singleton(null) in the loops below
-        // if either FLS or DLS is not specified
-        final Set<BytesReference> queriesOrNullSingleton = queries.isEmpty() ? Collections.singleton(null) : queries;
-        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroupsOrNullSingleton = fieldGrantExcludeGroups
-            .isEmpty() ? Collections.singleton(null) : fieldGrantExcludeGroups;
-        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
-        for (BytesReference query : queriesOrNullSingleton) {
-            for (FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup : fieldGrantExcludeGroupsOrNullSingleton) {
-                final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+        // No queries and no FLS groups means nothing to unfold
+        if (queries.isEmpty() && fieldGrantExcludeGroups.isEmpty()) {
+            return List.of(
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices(indicesGroup.indices())
                     .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
                     .privileges(indicesGroup.privilege().name())
-                    .query(query);
-                if (fieldGrantExcludeGroup != null) {
-                    builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields())
-                        .deniedFields(fieldGrantExcludeGroup.getExcludedFields());
-                }
-                indicesPrivileges.add(builder.build());
-            }
+                    .build()
+            );
         }
+
+        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+
+        final Iterator<BytesReference> queriesIterator = queries.iterator();
+        final Iterator<FieldPermissionsDefinition.FieldGrantExcludeGroup> flsGroupIterator = fieldGrantExcludeGroups.iterator();
+        // null indicates that there are no FLS groups
+        FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup = null;
+        while (queriesIterator.hasNext()) {
+            final BytesReference query = queriesIterator.next();
+            // Advance if possible but don't set to null since we need to pair a query with an FLS group, if FLS groups are provided in the
+            // indices permissions group
+            if (flsGroupIterator.hasNext()) {
+                fieldGrantExcludeGroup = flsGroupIterator.next();
+            }
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .indices(indicesGroup.indices())
+                .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
+                .privileges(indicesGroup.privilege().name())
+                .query(query);
+            if (fieldGrantExcludeGroup != null) {
+                builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields()).deniedFields(fieldGrantExcludeGroup.getExcludedFields());
+            }
+            indicesPrivileges.add(builder.build());
+        }
+
+        final BytesReference query = queries.isEmpty() ? null : queries.iterator().next();
+        // If there are FLS groups still, pair each of them with a query (any query will do) or with null, if there are no queries in
+        // the permissions group
+        while (flsGroupIterator.hasNext()) {
+            fieldGrantExcludeGroup = flsGroupIterator.next();
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .indices(indicesGroup.indices())
+                .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
+                .privileges(indicesGroup.privilege().name())
+                .query(query);
+            builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields()).deniedFields(fieldGrantExcludeGroup.getExcludedFields());
+            indicesPrivileges.add(builder.build());
+        }
+
         return indicesPrivileges;
     }
 

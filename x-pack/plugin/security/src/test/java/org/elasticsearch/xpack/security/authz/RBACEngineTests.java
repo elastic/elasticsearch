@@ -1638,7 +1638,7 @@ public class RBACEngineTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final int numQueries = randomIntBetween(0, 3);
-        final int numFlsGroups = randomIntBetween(0, 3);
+        final int numFlsGroups = numQueries > 1 ? randomIntBetween(0, 1) : randomIntBetween(0, 3);
 
         final String[] indexNames = generateRandomStringArray(3, 10, false, false);
         final boolean allowRestrictedIndices = randomBoolean();
@@ -1669,7 +1669,7 @@ public class RBACEngineTests extends ESTestCase {
                     .deniedFields(group.getExcludedFields());
                 expectedIndicesPrivileges.add(builder.build());
             }
-        } else if (numQueries > 0 && numFlsGroups == 0) {
+        } else {
             // Without FLS groups, we get one index privilege per query
             queries = new HashSet<>();
             flsGroups = Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null));
@@ -1682,28 +1682,6 @@ public class RBACEngineTests extends ESTestCase {
                     .allowRestrictedIndices(allowRestrictedIndices)
                     .query(query);
                 expectedIndicesPrivileges.add(builder.build());
-            }
-        } else {
-            // We have both queries AND FLS groups, so we get numQueries * numFlsGroups index privileges
-            queries = new HashSet<>();
-            flsGroups = new HashSet<>();
-            for (int i = 0; i < numQueries; i++) {
-                queries.add(randomDlsQuery());
-            }
-            for (int j = 0; j < numFlsGroups; j++) {
-                flsGroups.add(randomFieldGrantExcludeGroup());
-            }
-            for (BytesReference query : queries) {
-                for (FieldPermissionsDefinition.FieldGrantExcludeGroup group : flsGroups) {
-                    final IndicesPrivileges.Builder builder = IndicesPrivileges.builder()
-                        .indices(indexNames)
-                        .privileges("read")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .query(query)
-                        .grantedFields(group.getGrantedFields())
-                        .deniedFields(group.getExcludedFields());
-                    expectedIndicesPrivileges.add(builder.build());
-                }
             }
         }
 

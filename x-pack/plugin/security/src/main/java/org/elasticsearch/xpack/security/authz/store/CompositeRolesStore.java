@@ -435,9 +435,8 @@ public class CompositeRolesStore {
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
 
-        // Outer map keyed by remote cluster alias expressions, inner map by index name expressions
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap = new HashMap<>();
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> restrictedRemoteIndicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, Set<IndicesPrivileges>> remoteIndicesPrivilegesByCluster = new HashMap<>();
+        final Map<Set<String>, Set<IndicesPrivileges>> restrictedRemoteIndicesPrivilegesByCluster = new HashMap<>();
 
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
@@ -460,12 +459,8 @@ public class CompositeRolesStore {
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
                 final RemoteIndicesPrivileges[] remoteIndicesPrivileges = descriptor.getRemoteIndicesPrivileges();
-                MergeableIndicesPrivilege.collatePrivilegesByRemoteIndices(
-                    remoteIndicesPrivileges,
-                    true,
-                    restrictedRemoteIndicesPrivilegesMap
-                );
-                MergeableIndicesPrivilege.collatePrivilegesByRemoteIndices(remoteIndicesPrivileges, false, remoteIndicesPrivilegesMap);
+                groupPrivilegesByCluster(remoteIndicesPrivileges, true, restrictedRemoteIndicesPrivilegesByCluster);
+                groupPrivilegesByCluster(remoteIndicesPrivileges, false, remoteIndicesPrivilegesByCluster);
             }
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -504,27 +499,31 @@ public class CompositeRolesStore {
             )
         );
 
-        remoteIndicesPrivilegesMap.forEach((clusterAliasKey, remoteIndicesPrivilegesMapForCluster) -> {
-            remoteIndicesPrivilegesMapForCluster.forEach(
-                (key, privilege) -> builder.addRemoteGroup(
+        remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
+            remoteIndicesPrivilegesForCluster.forEach(
+                (privilege) -> builder.addRemoteGroup(
                     clusterAliasKey,
-                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                    privilege.query,
-                    IndexPrivilege.get(privilege.privileges),
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                    ),
+                    newHashSet(privilege.getQuery()),
+                    IndexPrivilege.get(newHashSet(privilege.getPrivileges())),
                     false,
-                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                    newHashSet(privilege.getIndices()).toArray(new String[0])
                 )
             );
         });
-        restrictedRemoteIndicesPrivilegesMap.forEach((clusterAliasKey, remoteIndicesPrivilegesMapForCluster) -> {
-            remoteIndicesPrivilegesMapForCluster.forEach(
-                (key, privilege) -> builder.addRemoteGroup(
+        restrictedRemoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
+            remoteIndicesPrivilegesForCluster.forEach(
+                (privilege) -> builder.addRemoteGroup(
                     clusterAliasKey,
-                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                    privilege.query,
-                    IndexPrivilege.get(privilege.privileges),
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                    ),
+                    newHashSet(privilege.getQuery()),
+                    IndexPrivilege.get(newHashSet(privilege.getPrivileges())),
                     true,
-                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                    newHashSet(privilege.getIndices()).toArray(new String[0])
                 )
             );
         });
@@ -591,6 +590,29 @@ public class CompositeRolesStore {
         return negativeLookupCache.get(key) != null;
     }
 
+    private static void groupPrivilegesByCluster(
+        final RemoteIndicesPrivileges[] remoteIndicesPrivileges,
+        final boolean allowsRestrictedIndices,
+        final Map<Set<String>, Set<IndicesPrivileges>> remoteIndexPrivilegesByCluster
+    ) {
+        assert remoteIndicesPrivileges != null;
+        // if a remote index privilege is an explicit denial, then we treat it as non-existent to stay consistent with local index
+        // privileges
+        final boolean isExplicitDenial = remoteIndicesPrivileges.length == 1
+            && "none".equalsIgnoreCase(remoteIndicesPrivileges[0].indicesPrivileges().getPrivileges()[0]);
+        if (isExplicitDenial) {
+            return;
+        }
+        for (final RemoteIndicesPrivileges remoteIndicesPrivilege : remoteIndicesPrivileges) {
+            final IndicesPrivileges indicesPrivilege = remoteIndicesPrivilege.indicesPrivileges();
+            if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
+                continue;
+            }
+            final Set<String> clusterAliasKey = newHashSet(remoteIndicesPrivilege.remoteClusters());
+            remoteIndexPrivilegesByCluster.computeIfAbsent(clusterAliasKey, k -> new HashSet<>()).add(indicesPrivilege);
+        }
+    }
+
     /**
      * A mutable class that can be used to represent the combination of one or more {@link IndicesPrivileges}
      */
@@ -627,29 +649,6 @@ public class CompositeRolesStore {
                 this.query = null;
             } else {
                 this.query.addAll(other.query);
-            }
-        }
-
-        private static void collatePrivilegesByRemoteIndices(
-            final RemoteIndicesPrivileges[] remoteIndicesPrivileges,
-            final boolean allowsRestrictedIndices,
-            final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
-        ) {
-            assert remoteIndicesPrivileges != null;
-            // if a remote index privilege is an explicit denial, then we treat it as non-existent to stay consistent with local index
-            // privileges
-            final boolean isExplicitDenial = remoteIndicesPrivileges.length == 1
-                && "none".equalsIgnoreCase(remoteIndicesPrivileges[0].indicesPrivileges().getPrivileges()[0]);
-            if (isExplicitDenial) {
-                return;
-            }
-            for (final RemoteIndicesPrivileges remoteIndicesPrivilege : remoteIndicesPrivileges) {
-                final Set<String> clusterAlias = newHashSet(remoteIndicesPrivilege.remoteClusters());
-                collatePrivilegesByIndices(
-                    remoteIndicesPrivilege.indicesPrivileges(),
-                    allowsRestrictedIndices,
-                    remoteIndicesPrivilegesMap.computeIfAbsent(clusterAlias, k -> new HashMap<>())
-                );
             }
         }
 

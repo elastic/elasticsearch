@@ -1246,7 +1246,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasIndexGroupsForClusters(
             role.remoteIndices(),
             Set.of("remote-1"),
-            indexGroup(IndexPrivilege.get(Set.of("read", "none")), false, "index-1")
+            indexGroup(IndexPrivilege.get(Set.of("read")), false, "index-1"),
+            indexGroup(IndexPrivilege.get(Set.of("none")), false, "index-1")
         );
     }
 

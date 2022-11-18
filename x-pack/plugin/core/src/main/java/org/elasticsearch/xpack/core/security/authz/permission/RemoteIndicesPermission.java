@@ -51,6 +51,9 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
             final boolean allowRestrictedIndices,
             final String... indices
         ) {
+            assert query == null || query.size() <= 1 : "remote indices groups only support up to one query";
+            assert fieldPermissions.getFieldPermissionsDefinitions().stream().anyMatch(it -> it.getFieldGrantExcludeGroups().size() > 1)
+                : "remote indices groups only support up to one FLS group";
             remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
                 .add(
                     new IndicesPermission.Group(

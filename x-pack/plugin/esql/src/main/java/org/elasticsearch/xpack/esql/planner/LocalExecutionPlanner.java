@@ -259,10 +259,7 @@ public class LocalExecutionPlanner {
                 );
             }
             return new PhysicalOperation(
-                new OutputOperatorFactory(
-                    outputExec.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-                    outputExec.getPageConsumer()
-                ),
+                new OutputOperatorFactory(Expressions.names(outputExec.output()), outputExec.getPageConsumer()),
                 source.layout,
                 source
             );
@@ -338,18 +335,25 @@ public class LocalExecutionPlanner {
             }
             return new PhysicalOperation(new RowOperatorFactory(obj), layout);
         } else if (node instanceof ProjectExec project) {
+            var source = plan(project.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
             var output = project.output();
-            for (int i = 0; i < output.size(); i++) {
-                layout.put(output.get(i).id(), i);
-            }
+
             var outputSet = project.outputSet();
             var input = project.child().output();
             var mask = new BitSet(input.size());
+            int layoutPos = 0;
             for (int i = 0; i < input.size(); i++) {
-                mask.set(i, outputSet.contains(input.get(i)));
+                var element = input.get(i);
+                var id = element.id();
+                var maskPosition = source.layout.get(id);
+                var keepColumn = outputSet.contains(element);
+                mask.set(maskPosition, keepColumn);
+                if (keepColumn) {
+                    layout.put(id, layoutPos++);
+                }
             }
-            return new PhysicalOperation(new ProjectOperatorFactory(mask), layout);
+            return new PhysicalOperation(new ProjectOperatorFactory(mask), layout, source);
         } else if (node instanceof FilterExec filter) {
             PhysicalOperation source = plan(filter.child(), context);
             return new PhysicalOperation(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout, source);
@@ -382,7 +386,7 @@ public class LocalExecutionPlanner {
         Map<Object, Integer> layout = new HashMap<>();
         layout.putAll(source.layout);
 
-        var souceAttributes = fieldExtractExec.sourceAttributes().toArray(new Attribute[3]);
+        var sourceAttrs = fieldExtractExec.sourceAttributes();
 
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
@@ -412,9 +416,9 @@ public class LocalExecutionPlanner {
                     valuesSources.stream().map(Tuple::v1).collect(Collectors.toList()),
                     valuesSources.stream().map(Tuple::v2).collect(Collectors.toList()),
                     indexReaders,
-                    previousLayout.get(souceAttributes[0].id()),
-                    previousLayout.get(souceAttributes[1].id()),
-                    previousLayout.get(souceAttributes[2].id()),
+                    previousLayout.get(sourceAttrs.get(0).id()),
+                    previousLayout.get(sourceAttrs.get(1).id()),
+                    previousLayout.get(sourceAttrs.get(2).id()),
                     attr.name()
                 ),
                 layout,

@@ -30,10 +30,10 @@ public class EsQueryExec extends LeafExec {
     static final EsField DOC_ID_FIELD = new EsField("_doc_id", DataTypes.INTEGER, Map.of(), false);
     static final EsField SEGMENT_ID_FIELD = new EsField("_segment_id", DataTypes.INTEGER, Map.of(), false);
     static final EsField SHARD_ID_FIELD = new EsField("_shard_id", DataTypes.INTEGER, Map.of(), false);
-    private static final Set<String> SOURCE_ATTR_NAMES = Set.of("_doc_id", "_segment_id", "_shard_id");
+    public static final Set<String> NAMES_SET = Set.of("_doc_id", "_segment_id", "_shard_id");
 
     public static boolean isSourceAttribute(Attribute attr) {
-        return SOURCE_ATTR_NAMES.contains(attr.name());
+        return NAMES_SET.contains(attr.name());
     }
 
     private final EsIndex index;

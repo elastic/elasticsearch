@@ -327,12 +327,12 @@ public class IndexNameExpressionResolver {
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
 
-        final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
+        final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         for (String expression : expressions) {
             if (context.getOptions().ignoreUnavailable() == false) {
                 ensureAliasOrIndexExists(context, expression);
             }
-            IndexAbstraction indexAbstraction = context.state.metadata().getIndicesLookup().get(expression);
+            final IndexAbstraction indexAbstraction = context.state.metadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
                 continue;
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
@@ -353,12 +353,12 @@ public class IndexNameExpressionResolver {
                     );
                 }
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else {
                 if (indexAbstraction.getIndices().size() > 1 && context.getOptions().allowAliasesToMultipleIndices() == false) {
@@ -379,17 +379,17 @@ public class IndexNameExpressionResolver {
 
                 for (Index index : indexAbstraction.getIndices()) {
                     if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
-                        concreteIndices.add(index);
+                        concreteIndicesResult.add(index);
                     }
                 }
             }
         }
 
-        if (context.getOptions().allowNoIndices() == false && concreteIndices.isEmpty()) {
+        if (context.getOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
             throw notFoundException(indexExpressions);
         }
-        checkSystemIndexAccess(context, concreteIndices);
-        return concreteIndices.toArray(Index.EMPTY_ARRAY);
+        checkSystemIndexAccess(context, concreteIndicesResult);
+        return concreteIndicesResult.toArray(Index.EMPTY_ARRAY);
     }
 
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {

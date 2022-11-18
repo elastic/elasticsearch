@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -377,14 +376,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
     }
 
     private static DiscoveryNode createDiscoveryNode(String nodeId) {
-        var transportAddress = buildNewFakeTransportAddress();
         return new DiscoveryNode(
             nodeId,
             nodeId,
-            UUIDs.randomBase64UUID(random()),
-            transportAddress.address().getHostString(),
-            transportAddress.getAddress(),
-            transportAddress,
+            buildNewFakeTransportAddress(),
             Map.of(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
             Version.CURRENT

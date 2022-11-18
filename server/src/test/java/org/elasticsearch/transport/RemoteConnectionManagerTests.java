@@ -68,6 +68,15 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertEquals(node1, remoteConnectionManager.getConnection(node1).getNode());
         assertEquals(node2, remoteConnectionManager.getConnection(node2).getNode());
 
+        assertEquals(
+            "remote-cluster",
+            RemoteConnectionManager.resolveRemoteClusterAlias(remoteConnectionManager.getConnection(node1)).get()
+        );
+        assertEquals(
+            "remote-cluster",
+            RemoteConnectionManager.resolveRemoteClusterAlias(remoteConnectionManager.getConnection(node2)).get()
+        );
+
         DiscoveryNode node4 = new DiscoveryNode("node-4", address, Version.CURRENT);
         assertThat(remoteConnectionManager.getConnection(node4), instanceOf(RemoteConnectionManager.ProxyConnection.class));
 

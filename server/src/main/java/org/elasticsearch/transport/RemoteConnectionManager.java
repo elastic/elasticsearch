@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -253,16 +254,12 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return wrapRemoteConnectionWithClusterAlias(connection);
-    }
-
-    private Transport.Connection wrapRemoteConnectionWithClusterAlias(Transport.Connection connection) {
-        return new RemoteClusterAliasAwareConnection(clusterAlias, connection);
+        return new RemoteClusterAliasAwareConnection(connection, clusterAlias);
     }
 
     public static Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
         Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
-        if (unwrapped instanceof RemoteConnectionManager.RemoteClusterAliasAwareConnection remoteConnection) {
+        if (unwrapped instanceof RemoteClusterAliasAwareConnection remoteConnection) {
             return Optional.of(remoteConnection.getClusterAlias());
         }
         return Optional.empty();
@@ -271,11 +268,11 @@ public class RemoteConnectionManager implements ConnectionManager {
     private static final class RemoteClusterAliasAwareConnection implements Transport.Connection {
 
         private final String clusterAlias;
-        private final Transport.Connection wrapped;
+        private final Transport.Connection connection;
 
-        RemoteClusterAliasAwareConnection(String clusterAlias, Transport.Connection wrapped) {
-            this.clusterAlias = clusterAlias;
-            this.wrapped = wrapped;
+        RemoteClusterAliasAwareConnection(Transport.Connection connection, String clusterAlias) {
+            this.clusterAlias = Objects.requireNonNull(clusterAlias);
+            this.connection = Objects.requireNonNull(connection);
         }
 
         public String getClusterAlias() {
@@ -284,68 +281,68 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         @Override
         public DiscoveryNode getNode() {
-            return wrapped.getNode();
+            return connection.getNode();
         }
 
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            wrapped.sendRequest(requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options);
         }
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
-            wrapped.addCloseListener(listener);
+            connection.addCloseListener(listener);
         }
 
         @Override
         public boolean isClosed() {
-            return wrapped.isClosed();
+            return connection.isClosed();
         }
 
         @Override
         public Version getVersion() {
-            return wrapped.getVersion();
+            return connection.getVersion();
         }
 
         @Override
         public Object getCacheKey() {
-            return wrapped.getCacheKey();
+            return connection.getCacheKey();
         }
 
         @Override
         public void close() {
-            wrapped.close();
+            connection.close();
         }
 
         @Override
         public void onRemoved() {
-            wrapped.onRemoved();
+            connection.onRemoved();
         }
 
         @Override
         public void addRemovedListener(ActionListener<Void> listener) {
-            wrapped.addRemovedListener(listener);
+            connection.addRemovedListener(listener);
         }
 
         @Override
         public void incRef() {
-            wrapped.incRef();
+            connection.incRef();
         }
 
         @Override
         public boolean tryIncRef() {
-            return wrapped.tryIncRef();
+            return connection.tryIncRef();
         }
 
         @Override
         public boolean decRef() {
-            return wrapped.decRef();
+            return connection.decRef();
         }
 
         @Override
         public boolean hasReferences() {
-            return wrapped.hasReferences();
+            return connection.hasReferences();
         }
     }
 }

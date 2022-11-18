@@ -1164,14 +1164,16 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     private static DiscoveryNodes discoveryNodes(int nodeCount) {
         final var discoveryNodes = DiscoveryNodes.builder();
         for (var i = 0; i < nodeCount; i++) {
-            discoveryNodes.add(new DiscoveryNode(
-                "node-" + i,
-                "node-" + i,
-                buildNewFakeTransportAddress(),
-                Map.of(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-                Version.CURRENT
-            ));
+            discoveryNodes.add(
+                new DiscoveryNode(
+                    "node-" + i,
+                    "node-" + i,
+                    buildNewFakeTransportAddress(),
+                    Map.of(),
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+                    Version.CURRENT
+                )
+            );
         }
         discoveryNodes.masterNodeId("node-0").localNodeId("node-0");
         return discoveryNodes.build();

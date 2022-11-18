@@ -109,7 +109,7 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_6_0;
+        return Version.V_8_7_0;
     }
 
     public Map<String, Object> stats() {

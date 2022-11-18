@@ -1488,10 +1488,10 @@ public class RBACEngineTests extends ESTestCase {
             () -> ignore -> {}
         );
         assertThat(authorizedIndices, instanceOf(AuthorizedIndices.class));
-        assertThat(authorizedIndices.allAuthorizedAndAvailable().getOrCompute(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.allAuthorizedAndAvailable().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.isAuthorized(dataStreamName), is(true));
         assertThat(
-            authorizedIndices.allAuthorizedAndAvailable().getOrCompute(),
+            authorizedIndices.allAuthorizedAndAvailable().get(),
             hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY))
         );
         for (String index : backingIndices.stream().map(im -> im.getIndex().getName()).toList()) {
@@ -1533,7 +1533,7 @@ public class RBACEngineTests extends ESTestCase {
             () -> ignore -> {}
         );
         assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndices.class));
-        assertThat(authorizedIndices.allAuthorizedAndAvailable().getOrCompute().isEmpty(), is(true));
+        assertThat(authorizedIndices.allAuthorizedAndAvailable().get().isEmpty(), is(true));
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {

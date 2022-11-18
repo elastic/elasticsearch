@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -33,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -259,7 +259,7 @@ public interface AuthorizationEngine {
     }
 
     interface AuthorizedIndices {
-        LazyInitializable<Set<String>, RuntimeException> allAuthorizedAndAvailable();
+        Supplier<Set<String>> allAuthorizedAndAvailable();
 
         boolean isAuthorized(String name);
     }

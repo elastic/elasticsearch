@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
@@ -20,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class IndexAbstractionResolver {
 
@@ -49,7 +49,7 @@ public class IndexAbstractionResolver {
             indices,
             indicesOptions,
             metadata,
-            new LazyInitializable<>(() -> availableIndexAbstractions),
+            () -> availableIndexAbstractions,
             availableIndexAbstractions::contains,
             includeDataStreams
         );
@@ -59,7 +59,7 @@ public class IndexAbstractionResolver {
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        LazyInitializable<Set<String>, RuntimeException> allAuthorizedAndAvailable,
+        Supplier<Set<String>> allAuthorizedAndAvailable,
         Predicate<String> isAuthorized,
         boolean includeDataStreams
     ) {
@@ -81,7 +81,7 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : allAuthorizedAndAvailable.getOrCompute()) {
+                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,

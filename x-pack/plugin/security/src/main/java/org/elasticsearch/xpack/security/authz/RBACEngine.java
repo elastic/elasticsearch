@@ -34,7 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -929,18 +929,16 @@ public class RBACEngine implements AuthorizationEngine {
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        private final LazyInitializable<Set<String>, RuntimeException> allAuthorizedAndAvailableSupplier;
+        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableSupplier;
         private final Predicate<String> isAuthorizedPredicate;
 
         AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
-            this.allAuthorizedAndAvailableSupplier = new LazyInitializable<>(
-                () -> Objects.requireNonNull(allAuthorizedAndAvailableSupplier).get()
-            );
+            this.allAuthorizedAndAvailableSupplier = new CachedSupplier<>(allAuthorizedAndAvailableSupplier);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
-        public LazyInitializable<Set<String>, RuntimeException> allAuthorizedAndAvailable() {
+        public Supplier<Set<String>> allAuthorizedAndAvailable() {
             return allAuthorizedAndAvailableSupplier;
         }
 

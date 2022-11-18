@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -219,7 +218,7 @@ public class ResolveIndexTests extends ESTestCase {
             List.of(requestedIndex),
             IndicesOptions.LENIENT_EXPAND_OPEN,
             metadata,
-            new LazyInitializable<>(() -> authorizedIndices),
+            () -> authorizedIndices,
             authorizedIndices::contains,
             randomBoolean()
         );

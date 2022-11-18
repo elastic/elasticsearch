@@ -301,12 +301,14 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
 
 
 tasks.named("thirdPartyAudit").configure {
-  enabled = false //<-- don't commit this!
     ignoreMissingClasses()
     ignoreViolations(
             // internal java api: sun.misc.Unsafe
+            'com.google.protobuf.MessageSchema',
             'com.google.protobuf.UnsafeUtil',
             'com.google.protobuf.UnsafeUtil$1',
+            'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper',

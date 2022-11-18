@@ -70,7 +70,8 @@ class Retry2 {
         ActionListener<BulkResponse> listener
     ) {
         if (isClosing) {
-            throw new EsRejectedExecutionException("The bulk processor is closing");
+            listener.onFailure(new EsRejectedExecutionException("The bulk processor is closing"));
+            return;
         }
         List<BulkItemResponse> responsesAccumulator = new ArrayList<>();
         logger.trace("Sending a bulk request with {} bytes in {} items", bulkRequest.estimatedSizeInBytes(), bulkRequest.requests.size());
@@ -81,19 +82,21 @@ class Retry2 {
          */
         long bytesInFlight = totalBytesInFlight.get();
         if (bytesInFlight + bulkRequest.estimatedSizeInBytes() > maxBytesInFlight) {
-            throw new EsRejectedExecutionException(
-                "Cannot index request of size "
-                    + bulkRequest.estimatedSizeInBytes()
-                    + " because "
-                    + totalBytesInFlight.get()
-                    + " bytes are already in flight and the max is "
-                    + maxBytesInFlight
+            listener.onFailure(
+                new EsRejectedExecutionException(
+                    "Cannot index request of size "
+                        + bulkRequest.estimatedSizeInBytes()
+                        + " because "
+                        + totalBytesInFlight.get()
+                        + " bytes are already in flight and the max is "
+                        + maxBytesInFlight
+                )
             );
         } else {
             totalBytesInFlight.addAndGet(bulkRequest.estimatedSizeInBytes());
+            phaser.register();
+            consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, maxNumberOfRetries));
         }
-        phaser.register();
-        consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, maxNumberOfRetries));
     }
 
     /**
@@ -112,13 +115,9 @@ class Retry2 {
         int retriesRemaining
     ) {
         if (isClosing) {
-            throw new EsRejectedExecutionException("The bulk processor is closing");
+            listener.onFailure(new EsRejectedExecutionException("The bulk processor is closing"));
+            return;
         }
-        /*
-         * Here we calculate when this request will next be up for retry (in clock time) and put it on retryQueue. We use nanonTime rather
-         * than currentTimeInMillis because nanoTime will not change if the system clock is updated. We do not actually care about
-         * nanosecond-level resolution.
-         */
         if (retriesRemaining > 0) {
             phaser.register();
             consumer.accept(

@@ -82,7 +82,7 @@ public class ILMHistoryStore implements Closeable {
     }
 
     /**
-     *  For unit testing
+     *  For unit testing, allows a more frequent flushInterval
      * @param client
      * @param clusterService
      * @param threadPool

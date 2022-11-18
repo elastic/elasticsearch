@@ -36,9 +36,6 @@ import java.util.function.BiConsumer;
  */
 public class BulkProcessor2 implements Closeable {
 
-    static final String FLUSH_SCHEDULER_NAME_SUFFIX = "-flush-scheduler";
-    static final String RETRY_SCHEDULER_NAME_SUFFIX = "-retry-scheduler";
-
     /**
      * A listener for the execution.
      */

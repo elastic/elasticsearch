@@ -15,15 +15,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.text.ParseException;
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class performs validations of header, claims and signatures against the incoming {@link JwtAuthenticationToken}.
@@ -37,6 +41,7 @@ public class JwtAuthenticator implements Releasable {
     private final List<JwtFieldValidator> jwtFieldValidators;
     private final JwtSignatureValidator jwtSignatureValidator;
     private final JwtRealmSettings.TokenType tokenType;
+    private final Map<String, String> fallbackClaimNames;
 
     public JwtAuthenticator(
         final RealmConfig realmConfig,
@@ -46,9 +51,16 @@ public class JwtAuthenticator implements Releasable {
         this.realmConfig = realmConfig;
         this.tokenType = realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE);
         if (tokenType == JwtRealmSettings.TokenType.ID_TOKEN) {
+            this.fallbackClaimNames = Map.of();
             this.jwtFieldValidators = configureFieldValidatorsForIdToken(realmConfig);
         } else {
-            this.jwtFieldValidators = configureFieldValidatorsForAccessToken(realmConfig);
+            this.fallbackClaimNames = Map.of(
+                "sub",
+                realmConfig.getSetting(JwtRealmSettings.FALLBACK_SUB_CLAIM),
+                "aud",
+                realmConfig.getSetting(JwtRealmSettings.FALLBACK_AUD_CLAIM)
+            );
+            this.jwtFieldValidators = configureFieldValidatorsForAccessToken(realmConfig, fallbackClaimNames);
         }
         this.jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(realmConfig, sslService, reloadNotifier);
     }
@@ -112,6 +124,10 @@ public class JwtAuthenticator implements Releasable {
         return tokenType;
     }
 
+    public Map<String, String> getFallbackClaimNames() {
+        return fallbackClaimNames;
+    }
+
     // Package private for testing
     JwtSignatureValidator.DelegatingJwtSignatureValidator getJwtSignatureValidator() {
         assert jwtSignatureValidator instanceof JwtSignatureValidator.DelegatingJwtSignatureValidator;
@@ -120,12 +136,24 @@ public class JwtAuthenticator implements Releasable {
 
     private static List<JwtFieldValidator> configureFieldValidatorsForIdToken(RealmConfig realmConfig) {
         assert realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE) == JwtRealmSettings.TokenType.ID_TOKEN;
+        ensureNoFallbackClaim(realmConfig, JwtRealmSettings.FALLBACK_SUB_CLAIM);
+        ensureNoFallbackClaim(realmConfig, JwtRealmSettings.FALLBACK_AUD_CLAIM);
+
         final TimeValue allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
         final Clock clock = Clock.systemUTC();
+
+        final JwtStringClaimValidator subjectClaimValidator;
+        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS)) {
+            subjectClaimValidator = new JwtStringClaimValidator("sub", realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS), true);
+        } else {
+            // Allow any value for the sub claim as long as there is a non-null value
+            subjectClaimValidator = JwtStringClaimValidator.ALLOW_ALL_SUBJECTS;
+        }
+
         return List.of(
             JwtTypeValidator.INSTANCE,
-            // TODO: mandate "sub" claim once access token support is in place
             new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
+            subjectClaimValidator,
             new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
             new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
@@ -135,8 +163,36 @@ public class JwtAuthenticator implements Releasable {
         );
     }
 
-    private static List<JwtFieldValidator> configureFieldValidatorsForAccessToken(RealmConfig realmConfig) {
+    private static List<JwtFieldValidator> configureFieldValidatorsForAccessToken(
+        RealmConfig realmConfig,
+        Map<String, String> fallbackClaimLookup
+    ) {
         assert realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE) == JwtRealmSettings.TokenType.ACCESS_TOKEN;
-        throw new UnsupportedOperationException("NYI");
+        final TimeValue allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
+        final Clock clock = Clock.systemUTC();
+
+        return List.of(
+            JwtTypeValidator.INSTANCE,
+            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
+            new JwtStringClaimValidator("sub", fallbackClaimLookup, realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS), true),
+            new JwtStringClaimValidator("aud", fallbackClaimLookup, realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
+            new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
+            new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
+            new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false)
+        );
+
+    }
+
+    private static void ensureNoFallbackClaim(RealmConfig realmConfig, Setting.AffixSetting<String> fallBackClaim) {
+        if (realmConfig.hasSetting(fallBackClaim)) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "fallback claim setting [%s] not allowed when JWT realm [%s] is [%s] type",
+                    RealmSettings.getFullSettingKey(realmConfig, fallBackClaim),
+                    realmConfig.name(),
+                    JwtRealmSettings.TokenType.ID_TOKEN.value()
+                )
+            );
+        }
     }
 }

@@ -155,6 +155,9 @@ public class JwtRealmSettings {
         // JWT End-user settings
         set.addAll(
             List.of(
+                ALLOWED_SUBJECTS,
+                FALLBACK_SUB_CLAIM,
+                FALLBACK_AUD_CLAIM,
                 CLAIMS_PRINCIPAL.getClaim(),
                 CLAIMS_PRINCIPAL.getPattern(),
                 CLAIMS_GROUPS.getClaim(),
@@ -244,6 +247,26 @@ public class JwtRealmSettings {
     );
 
     // JWT end-user settings
+
+    public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECTS = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "allowed_subjects",
+        key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
+    );
+
+    private static final List<String> REGISTERED_CLAIM_NAMES = List.of("iss", "sub", "aud", "exp", "nbf", "iat", "jti");
+
+    public static final Setting.AffixSetting<String> FALLBACK_SUB_CLAIM = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "fallback_claims.sub",
+        key -> new Setting<>(key, "sub", Function.identity(), v -> verifyFallbackClaimName(key, v), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<String> FALLBACK_AUD_CLAIM = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "fallback_claims.aud",
+        key -> new Setting<>(key, "aud", Function.identity(), v -> verifyFallbackClaimName(key, v), Setting.Property.NodeScope)
+    );
 
     // Note: ClaimSetting is a wrapper for two individual settings: getClaim(), getPattern()
     public static final ClaimSetting CLAIMS_PRINCIPAL = new ClaimSetting(TYPE, "principal");
@@ -354,6 +377,24 @@ public class JwtRealmSettings {
         }
         for (final String value : values) {
             verifyNonNullNotEmpty(key, value, allowedValues);
+        }
+    }
+
+    private static void verifyFallbackClaimName(String key, String fallbackClaimName) {
+        final String claimName = key.substring(key.lastIndexOf(".") + 1);
+        verifyNonNullNotEmpty(key, fallbackClaimName, null);
+        if (claimName.equals(fallbackClaimName)) {
+            return;
+        }
+        if (REGISTERED_CLAIM_NAMES.contains(fallbackClaimName)) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Invalid fallback claims setting [%s]. Claim [%s] cannot fallback to a registered claim [%s]",
+                    key,
+                    claimName,
+                    fallbackClaimName
+                )
+            );
         }
     }
 

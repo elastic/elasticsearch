@@ -84,10 +84,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         delegate.openConnection(
             node,
             profile,
-            ActionListener.wrap(
-                connection -> { listener.onResponse(wrapRemoteConnectionWithClusterAlias(connection)); },
-                listener::onFailure
-            )
+            listener.delegateFailure((l, connection) -> l.onResponse(wrapRemoteConnectionWithClusterAlias(connection)))
         );
     }
 
@@ -307,12 +304,12 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         @Override
         public Version getVersion() {
-            return Transport.Connection.super.getVersion();
+            return wrapped.getVersion();
         }
 
         @Override
         public Object getCacheKey() {
-            return Transport.Connection.super.getCacheKey();
+            return wrapped.getCacheKey();
         }
 
         @Override

@@ -419,7 +419,7 @@ public class DesiredBalanceReconciler {
                 continue;
             }
             final var node = routingNodes.node(nodeId);
-            if (node == null) { // node theft the cluster while reconciliation is still in progress
+            if (node == null) { // node left the cluster while reconciliation is still in progress
                 continue;
             }
             final var decision = canAllocateDecider.apply(shardRouting, node);
@@ -433,10 +433,12 @@ public class DesiredBalanceReconciler {
     }
 
     private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {
+        assert target != null : "Target node is not found";
         return allocation.deciders().canAllocate(shardRouting, target, allocation);
     }
 
     private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
+        assert target != null : "Target node is not found";
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
 }

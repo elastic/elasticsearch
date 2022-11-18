@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -64,6 +65,14 @@ public class CountersTests extends ESTestCase {
         counters.inc("foo.baz");
         assertThat(counters.get("foo.bar"), equalTo(1L));
         assertThat(counters.get("foo"), equalTo(1L));
-        expectThrows(IllegalStateException.class, counters::toNestedMap);
+
+        try {
+            counters.toNestedMap();
+            fail("Expected an IllegalStateException but got no exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("Failed to convert counter 'foo"));
+        } catch (Exception e) {
+            fail("Expected an IllegalStateException but got " + e.getClass().getName());
+        }
     }
 }

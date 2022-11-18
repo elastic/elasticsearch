@@ -842,6 +842,6 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testArrayToArrayException() {
-        expectScriptThrows(IllegalArgumentException.class, () -> exec("return new String[] {'a'}.toArray(String[]::new)"));
+        expectScriptThrows(IllegalArgumentException.class, () -> exec("return new String[] {'a'}.method()"));
     }
 }

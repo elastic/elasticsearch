@@ -42,8 +42,12 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
     private Integer sampleSize;
 
     public GetProfilingRequest() {
-        this.sampleSize = null;
-        this.query = null;
+        this(null, null);
+    }
+
+    public GetProfilingRequest(Integer sampleSize, QueryBuilder query) {
+        this.sampleSize = sampleSize;
+        this.query = query;
     }
 
     public GetProfilingRequest(StreamInput in) throws IOException {

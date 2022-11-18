@@ -129,7 +129,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     Set<String> executableIds = new HashSet<>();
                     int totalFrames = 0;
                     for (MultiGetItemResponse trace : multiGetItemResponses) {
-                        // TODO: Clarify why we don't find an item sometimes (the index I tested on was read-only)
                         if (trace.isFailed() == false && trace.getResponse().isExists()) {
                             String id = trace.getId();
                             StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
@@ -160,30 +159,46 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         DetailsHandler handler = new DetailsHandler(responseBuilder, submitListener);
 
-        this.nodeClient.prepareMultiGet().addIds("profiling-stackframes", stackFrameIds).setRealtime(true).execute(new ActionListener<>() {
-            @Override
-            public void onResponse(MultiGetResponse multiGetItemResponses) {
-                handler.onStackFramesResponse(multiGetItemResponses);
-            }
+        if (stackFrameIds.isEmpty()) {
+            handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
+        } else {
 
-            @Override
-            public void onFailure(Exception e) {
-                submitListener.onFailure(e);
-            }
-        });
+            this.nodeClient
+                .prepareMultiGet()
+                .addIds("profiling-stackframes", stackFrameIds)
+                .setRealtime(true)
+                .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(MultiGetResponse multiGetItemResponses) {
+                    handler.onStackFramesResponse(multiGetItemResponses);
+                }
 
+                @Override
+                public void onFailure(Exception e) {
+                    submitListener.onFailure(e);
+                }
+            });
+        }
         // no data dependency - we can do this concurrently
-        this.nodeClient.prepareMultiGet().addIds("profiling-executables", executableIds).setRealtime(true).execute(new ActionListener<>() {
-            @Override
-            public void onResponse(MultiGetResponse multiGetItemResponses) {
-                handler.onExecutableDetailsResponse(multiGetItemResponses);
-            }
+        if (executableIds.isEmpty()) {
+            handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
+        } else {
+            this.nodeClient
+                .prepareMultiGet()
+                .addIds("profiling-executables", executableIds)
+                .setRealtime(true)
+                .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(MultiGetResponse multiGetItemResponses) {
+                    handler.onExecutableDetailsResponse(multiGetItemResponses);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                submitListener.onFailure(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    submitListener.onFailure(e);
+                }
+            });
+        }
     }
 
     private static class Resampler {

@@ -35,13 +35,19 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
     private final Exception error;
 
     public GetProfilingResponse(StreamInput in) throws IOException {
-        // TODO: Map this
-        // this.stackTraces = in.readBoolean() ? in.readMap(StreamInput::readString, );
-        this.stackTraces = null;
-        this.stackFrames = null;
-        this.executables = null;
-        this.stackTraceEvents = null;
-        this.totalFrames = 0;
+        this.stackTraces = in.readBoolean() ? in.readMap(
+            StreamInput::readString,
+            i -> new StackTrace(i.readIntArray(), i.readStringArray(), i.readStringArray(), i.readIntArray())) : null;
+        this.stackFrames = in.readBoolean() ? in.readMap(StreamInput::readString,
+            i -> new StackFrame(
+                i.readOptionalString(),
+                i.readOptionalString(),
+                i.readOptionalInt(),
+                i.readOptionalInt(),
+                i.readOptionalInt())) : null;
+        this.executables = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readString) : null;
+        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readInt) : null;
+        this.totalFrames = in.readInt();
         this.error = in.readBoolean() ? in.readException() : null;
     }
 
@@ -77,13 +83,42 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: Map everything
         if (stackTraces != null) {
             out.writeBoolean(true);
-            // out.writeMap(stackTraces);
+            out.writeMap(stackTraces, StreamOutput::writeString, (o, v) -> {
+                o.writeIntArray(v.addressOrLines);
+                o.writeStringArray(v.fileIds);
+                o.writeStringArray(v.frameIds);
+                o.writeIntArray(v.typeIds);
+            });
         } else {
             out.writeBoolean(false);
         }
+        if (stackFrames != null) {
+            out.writeBoolean(true);
+            out.writeMap(stackFrames, StreamOutput::writeString, (o, v) -> {
+                o.writeOptionalString(v.fileName);
+                o.writeOptionalString(v.functionName);
+                o.writeOptionalInt(v.functionOffset);
+                o.writeOptionalInt(v.lineNumber);
+                o.writeOptionalInt(v.sourceType);
+            });
+        } else {
+            out.writeBoolean(false);
+        }
+        if (executables != null) {
+            out.writeBoolean(true);
+            out.writeMap(executables, StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (stackTraceEvents != null) {
+            out.writeBoolean(true);
+            out.writeMap(stackTraceEvents, StreamOutput::writeString, StreamOutput::writeInt);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeInt(totalFrames);
         if (error != null) {
             out.writeBoolean(true);
             out.writeException(error);
@@ -95,6 +130,30 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
     @Override
     public RestStatus status() {
         return error != null ? ExceptionsHelper.status(ExceptionsHelper.unwrapCause(error)) : OK;
+    }
+
+    public Map<String, StackTrace> getStackTraces() {
+        return stackTraces;
+    }
+
+    public Map<String, StackFrame> getStackFrames() {
+        return stackFrames;
+    }
+
+    public Map<String, String> getExecutables() {
+        return executables;
+    }
+
+    public Map<String, Integer> getStackTraceEvents() {
+        return stackTraceEvents;
+    }
+
+    public int getTotalFrames() {
+        return totalFrames;
+    }
+
+    public Exception getError() {
+        return error;
     }
 
     @Override

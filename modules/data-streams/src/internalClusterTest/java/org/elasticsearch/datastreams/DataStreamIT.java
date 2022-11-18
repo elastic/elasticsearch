@@ -2090,6 +2090,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
         failingIndicesStatsNodeIds.add(currentDataStreamWriteIndexRoutingTable.shard(1).primaryShard().currentNodeId());
         final String shard1ReplicaNodeId = currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0).currentNodeId();
+        final boolean shard1ReplicaIsAllocatedInAReachableNode = failingIndicesStatsNodeIds.contains(shard1ReplicaNodeId) == false;
 
         for (String nodeId : failingIndicesStatsNodeIds) {
             String nodeName = clusterStateBeforeRollover.nodes().resolveNode(nodeId).getName();
@@ -2109,7 +2110,7 @@ public class DataStreamIT extends ESIntegTestCase {
             final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
             // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
-            if (index.equals(dataStream.getWriteIndex()) == false && failingIndicesStatsNodeIds.contains(shard1ReplicaNodeId) == false) {
+            if (index.equals(dataStream.getWriteIndex()) == false && shard1ReplicaIsAllocatedInAReachableNode) {
                 assertThat(metadataStats, is(notNullValue()));
 
                 final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();

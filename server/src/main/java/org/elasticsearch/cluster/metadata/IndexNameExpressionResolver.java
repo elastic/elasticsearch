@@ -338,14 +338,6 @@ public class IndexNameExpressionResolver {
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
 
-        if (expressions.size() == 1 && expressions.iterator().next().equals(Metadata.ALL)) {
-            if (options.allowNoIndices() == false) {
-                throw notFoundException(indexExpressions);
-            } else {
-                return Index.EMPTY_ARRAY;
-            }
-        }
-
         final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
         for (String expression : expressions) {
@@ -1134,7 +1126,11 @@ public class IndexNameExpressionResolver {
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
             if (context.getOptions().expandWildcardExpressions() == false) {
-                return expressions;
+                if (expressions.size() == 1 && expressions.iterator().next().equals(Metadata.ALL)) {
+                    return List.of();
+                } else {
+                    return expressions;
+                }
             } else if (isEmptyOrTrivialWildcard(expressions)) {
                 return innerResolveAll(context);
             } else {

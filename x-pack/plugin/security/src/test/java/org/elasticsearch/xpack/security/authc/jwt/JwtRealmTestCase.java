@@ -60,11 +60,14 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -568,9 +571,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 if (jwtRealm.delegatedAuthorizationSupport.hasDelegation()) {
                     assertThat(user.metadata(), is(equalTo(authenticatedUser.metadata()))); // delegated authz returns user's metadata
                 } else if (JwtRealmInspector.shouldPopulateUserMetadata(jwtRealm)) {
-                    assertThat(authenticatedUser.metadata(), is(not(anEmptyMap()))); // role mapping with flag true returns non-empty
+                    assertThat(authenticatedUser.metadata(), hasEntry("jwt_token_type", "id_token"));
+                    assertThat(authenticatedUser.metadata(), hasKey(startsWith("jwt_claim_")));
                 } else {
-                    assertThat(authenticatedUser.metadata(), is(anEmptyMap())); // role mapping with flag false returns empty
+                    assertThat(authenticatedUser.metadata(), equalTo(Map.of("jwt_token_type", "id_token")));
                 }
             } catch (Throwable t) {
                 realmFailureExceptions.forEach(t::addSuppressed); // all previous realm exceptions

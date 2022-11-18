@@ -27,8 +27,6 @@ versions << [
   'azureCommon': '12.15.1',
   'azureCore': '1.27.0',
   'azureCoreHttpNetty': '1.11.9',
-  'azureJackson': '2.13.2',
-  'azureJacksonDatabind': '2.13.2.2',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
@@ -47,14 +45,14 @@ dependencies {
   api "com.azure:azure-core:${versions.azureCore}"
 
   // jackson
-  api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   // jackson xml
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.azureJackson}"
-  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.azureJackson}"
-  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
   api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
   // The SDK uses javax.xml bindings
   api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"

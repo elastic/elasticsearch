@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -17,7 +18,8 @@ import java.util.Map;
 
 public class GatewayAllocatorObserver implements RoutingChangesObserver {
 
-    private Map<ShardRouting, String> gatewayAllocations = new HashMap<>();
+    @Nullable // if not tracking
+    private Map<ShardRouting, String> gatewayAllocations = null;
 
     @Override
     public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
@@ -28,8 +30,13 @@ public class GatewayAllocatorObserver implements RoutingChangesObserver {
         assert previousNode == null : "double-initializing " + unassignedShard + " to " + previousNode + " and " + initializedShard;
     }
 
-    public Map<ShardRouting, String> getGatewayAllocations() {
-        assert gatewayAllocations != null : "must only call getShardsByNode once";
+    public void startTracking() {
+        assert gatewayAllocations == null;
+        gatewayAllocations = new HashMap<>();
+    }
+
+    public Map<ShardRouting, String> stopTracking() {
+        assert gatewayAllocations != null;
         final var gatewayAllocations = this.gatewayAllocations;
         this.gatewayAllocations = null;
         return Collections.unmodifiableMap(gatewayAllocations);

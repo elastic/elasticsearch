@@ -73,7 +73,6 @@ public class DesiredBalanceComputer {
 
         // repeat any allocations performed by the gateway allocators in the reroute that spawned this computation
         final var localGatewayAllocations = new HashMap<>(desiredBalanceInput.gatewayAllocations());
-        routingAllocation.getGatewayAllocations(); // no need to track gateway allocations here
         for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
             final var shardRouting = iterator.next();
             final var nodeId = localGatewayAllocations.remove(shardRouting);

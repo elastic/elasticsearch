@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -424,8 +425,19 @@ public class RoutingAllocation {
         );
     }
 
+    private Map<ShardRouting, String> gatewayAllocations = null;
+
     public Map<ShardRouting, String> getGatewayAllocations() {
-        return gatewayAllocatorObserver.getGatewayAllocations();
+        return gatewayAllocations;
+    }
+
+    public Releasable trackGatewayAllocations() {
+        assert gatewayAllocations == null : gatewayAllocations;
+        gatewayAllocatorObserver.startTracking();
+        return () -> {
+            assert gatewayAllocations == null : gatewayAllocations;
+            gatewayAllocations = gatewayAllocatorObserver.stopTracking();
+        };
     }
 
     public enum DebugMode {

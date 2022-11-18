@@ -335,6 +335,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var changes = new GatewayAllocatorObserver();
         var routingNodes = clusterState.mutableRoutingNodes();
+        changes.startTracking();
         for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
             var shardRouting = iterator.next();
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
@@ -342,10 +343,11 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 break;
             }
         }
+        final var gatewayAllocations = changes.stopTracking();
 
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
-            new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(), changes.getGatewayAllocations()),
+            new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(), gatewayAllocations),
             queue(),
             input -> true
         );

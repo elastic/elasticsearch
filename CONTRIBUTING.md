@@ -195,8 +195,8 @@ instructions are below in case you need them.
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
    7. Optional: If you like to format code changes on save automatically, open
-      **Preferences > Tools > Actions on Save** and check "Reformat Code" with the additional
-      options of your choise (e.g. select "Changed lines" to only reformat changed code)
+      **Preferences > Tools > Actions on Save** and check "Reformat Code", making sure to
+      configure Java files.
 
 Alternative manual steps for IntelliJ.
 

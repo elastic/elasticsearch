@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -631,7 +632,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             1,
             1,
             1024,
-            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong())
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            randomFrom(Priority.values())
         );
     }
 

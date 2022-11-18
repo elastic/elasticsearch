@@ -189,7 +189,7 @@ public final class H3 {
      */
     public static long geoToH3(double lat, double lng, int res) {
         checkResolution(res);
-        return new LatLng(toRadians(lat), toRadians(lng)).geoToFaceIJK(res).faceIjkToH3(res);
+        return Vec3d.geoToH3(res, toRadians(lat), toRadians(lng));
     }
 
     /**

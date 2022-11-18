@@ -14,12 +14,14 @@ import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public final class ScriptFieldsPhase implements FetchSubPhase {
     @Override
@@ -35,6 +37,15 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
                 leafScripts = createLeafScripts(readerContext, scriptFields);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                // If script fields need source then they will load it via SearchLookup,
+                // which has its own lazy loading config that kicks in if not overridden
+                // by other sub phases that require source. However, if script fields
+                // are present then we enforce metadata loading
+                return new StoredFieldsSpec(false, true, Set.of());
             }
 
             @Override

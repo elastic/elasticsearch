@@ -724,6 +724,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
      * Old leader is initiating an election at the same time, and wins election. It becomes leader again, but as it previously
      * successfully completed state recovery, is never reset to a state where state recovery can be retried.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91449")
     public void testStateRecoveryResetAfterPreviousLeadership() {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
@@ -1905,21 +1906,27 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
-        try (
-            Cluster cluster = new Cluster(
-                1,
-                randomBoolean(),
-                Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build()
-            )
-        ) {
+        // A cluster using single-node discovery should not apply any timeouts to joining or cluster state publication. There are no
+        // other options, so there's no point in failing and retrying from scratch no matter how badly disrupted we are and we may as
+        // well just wait.
 
-            // A cluster using single-node discovery should not apply any timeouts to joining or cluster state publication. There are no
-            // other options, so there's no point in failing and retrying from scratch no matter how badly disrupted we are and we may as
-            // well just wait.
+        // larger variability is are good for checking that we don't time out, but smaller variability also tightens up the time bound
+        // within which we expect to converge, so use a mix of both
+        final long delayVariabilityMillis = randomLongBetween(DEFAULT_DELAY_VARIABILITY, TimeValue.timeValueMinutes(10).millis());
 
-            // larger variability is are good for checking that we don't time out, but smaller variability also tightens up the time bound
-            // within which we expect to converge, so use a mix of both
-            final long delayVariabilityMillis = randomLongBetween(DEFAULT_DELAY_VARIABILITY, TimeValue.timeValueMinutes(10).millis());
+        Settings.Builder settings = Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE);
+
+        // If the delay variability is high, set election duration accordingly, to avoid the possible endless repetition of voting rounds.
+        // Note that elections could take even longer than the delay variability, but this seems to be long enough to avoid bad collisions.
+        if (ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getDefault(Settings.EMPTY).getMillis() < delayVariabilityMillis) {
+            settings = settings.put(
+                ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getKey(),
+                TimeValue.timeValueMillis(delayVariabilityMillis)
+            );
+        }
+
+        try (Cluster cluster = new Cluster(1, randomBoolean(), settings.build())) {
             if (randomBoolean()) {
                 cluster.runRandomly(true, false, delayVariabilityMillis);
             }

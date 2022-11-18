@@ -99,13 +99,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
-        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
-            nativeController,
-            processPipes,
-            task.getParams().getThreadsPerAllocation(),
-            task.getParams().getNumberOfAllocations(),
-            task.getParams().getCacheSizeBytes()
-        );
+        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(nativeController, processPipes, task.getParams());
         try {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {

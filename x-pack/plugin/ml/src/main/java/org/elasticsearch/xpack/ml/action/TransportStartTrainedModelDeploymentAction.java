@@ -212,7 +212,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                         request.getNumberOfAllocations(),
                         request.getThreadsPerAllocation(),
                         request.getQueueCapacity(),
-                        Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelBytes))
+                        Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelBytes)),
+                        request.getPriority()
                     );
                     PersistentTasksCustomMetadata persistentTasks = clusterService.state()
                         .getMetadata()
@@ -289,7 +290,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         Exception exception,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        logger.trace(() -> format("[{}] Deleting failed deployment", modelId), exception);
+        logger.trace(() -> format("[%s] Deleting failed deployment", modelId), exception);
         trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
                 () -> format(

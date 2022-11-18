@@ -281,12 +281,14 @@ public class AutodetectResultProcessor {
                 deleteInterimRequired = false;
             }
 
+            if (bucket.isInterim() == false) {
+                timingStatsReporter.reportBucket(bucket);
+                ++currentRunBucketCount;
+            }
             // persist after deleting interim results in case the new
             // results are also interim
-            timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
             bulkAnnotationsPersister.executeRequest();
-            ++currentRunBucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && records.isEmpty() == false) {
@@ -582,5 +584,11 @@ public class AutodetectResultProcessor {
 
     void setDeleteInterimRequired(boolean deleteInterimRequired) {
         this.deleteInterimRequired = deleteInterimRequired;
+    }
+
+    // For testing only.
+    // Reading currentRunBucketCount is not thread safe
+    long getCurrentRunBucketCount() {
+        return currentRunBucketCount;
     }
 }

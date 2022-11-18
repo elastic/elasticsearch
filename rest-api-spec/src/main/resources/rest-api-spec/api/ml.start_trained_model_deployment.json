@@ -45,6 +45,12 @@
         "required": false,
         "default": 1
       },
+      "priority": {
+        "type": "string",
+        "description": "The deployment priority.",
+        "required": false,
+        "default": "normal"
+      },
       "queue_capacity":{
         "type":"int",
         "description": "Controls how many inference requests are allowed in the queue at a time.",

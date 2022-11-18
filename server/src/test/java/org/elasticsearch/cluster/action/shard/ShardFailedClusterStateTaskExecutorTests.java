@@ -220,7 +220,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         IntStream.rangeClosed(1, numberOfNodes).mapToObj(node -> newNode("node" + node)).forEach(nodes::add);
         ClusterState stateAfterAddingNode = ClusterState.builder(clusterState).nodes(nodes).build();
-        ClusterState stateWithInitializingPrimary = allocationService.reroute(stateAfterAddingNode, reason);
+        ClusterState stateWithInitializingPrimary = allocationService.reroute(stateAfterAddingNode, reason, ActionListener.noop());
         ClusterState stateWithStartedPrimary = startInitializingShardsAndReroute(allocationService, stateWithInitializingPrimary);
         final boolean secondReroute = randomBoolean();
         ClusterState resultingState = secondReroute

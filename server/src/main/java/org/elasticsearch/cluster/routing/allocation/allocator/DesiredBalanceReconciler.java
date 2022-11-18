@@ -415,13 +415,17 @@ public class DesiredBalanceReconciler {
     ) {
         for (final var nodeId : desiredNodeIds) {
             // TODO consider ignored nodes here too?
-            if (nodeId.equals(shardRouting.currentNodeId()) == false) {
-                final var currentNode = routingNodes.node(nodeId);
-                final var decision = canAllocateDecider.apply(shardRouting, currentNode);
-                logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
-                if (decision.type() == Decision.Type.YES) {
-                    return currentNode.node();
-                }
+            if (nodeId.equals(shardRouting.currentNodeId())) {
+                continue;
+            }
+            final var node = routingNodes.node(nodeId);
+            if (node == null) { // node left the cluster while reconciliation is still in progress
+                continue;
+            }
+            final var decision = canAllocateDecider.apply(shardRouting, node);
+            logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
+            if (decision.type() == Decision.Type.YES) {
+                return node.node();
             }
         }
 
@@ -429,10 +433,12 @@ public class DesiredBalanceReconciler {
     }
 
     private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {
+        assert target != null : "Target node is not found";
         return allocation.deciders().canAllocate(shardRouting, target, allocation);
     }
 
     private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
+        assert target != null : "Target node is not found";
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
 }

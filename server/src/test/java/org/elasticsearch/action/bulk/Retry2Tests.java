@@ -13,8 +13,8 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -32,8 +32,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class Retry2Tests extends ESTestCase {
-    // no need to wait for a long time in tests
-    private static final TimeValue DELAY = TimeValue.timeValueMillis(1L);
     private static final int CALLS_TO_FAIL = 5;
 
     private MockBulkClient bulkClient;
@@ -73,8 +71,7 @@ public class Retry2Tests extends ESTestCase {
 
     public void testRetryBacksOff() throws Exception {
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry2 = new Retry2(CALLS_TO_FAIL, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
-        retry2.init();
+        Retry2 retry2 = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
         BulkResponse response = future.actionGet();
@@ -86,8 +83,7 @@ public class Retry2Tests extends ESTestCase {
     public void testRetryFailsAfterBackoff() throws Exception {
         BulkRequest bulkRequest = createBulkRequest();
         try {
-            Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
-            retry2.init();
+            Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1, ByteSizeValue.ofMb(10));
             PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
             retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
             BulkResponse response = future.actionGet();
@@ -109,8 +105,7 @@ public class Retry2Tests extends ESTestCase {
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(CALLS_TO_FAIL, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
-        retry.init();
+        Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
@@ -124,8 +119,7 @@ public class Retry2Tests extends ESTestCase {
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(CALLS_TO_FAIL - 1, bulkClient.threadPool(), 1000, 5, TimeValue.timeValueMillis(5));
-        retry.init();
+        Retry2 retry = new Retry2(CALLS_TO_FAIL - 1, ByteSizeValue.ofMb(10));
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();

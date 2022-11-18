@@ -13,18 +13,17 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
@@ -37,85 +36,24 @@ class Retry2 {
     private final Logger logger;
     private final int maxNumberOfRetries;
     /**
-     * This is the scheduler on which we periodically schedule the task that manages the queues.
-     */
-    private final Scheduler scheduler;
-    /**
-     * This is the queue of BulkRequests (and their related state) that are ready to be loaded as soon as possible.
-     */
-    private final BlockingQueue<RetryQueuePayload> readyToLoadQueue;
-    private final TimeValue queuePollingInterval;
-    /**
-     * This is the maximum number of items that can be placed on the readyToLoadQueue. If we attempt to add a BulkRequest after this number
-     * is reached, the listener is notified with an EsRejectedExecutionException and the BulkRequest is dropped.
-     */
-    private final int queueCapacity;
-    private final int maxNumberOfConcurrentRequests;
-    /**
-     * This semaphore is used to enforce that only a certain number of BulkRequests are in flight to the server at any given time.
-     */
-    private final Semaphore requestsInFlightSemaphore;
-    /**
-     * This is the cancellable for the thread that manages the queues.
-     */
-    private Scheduler.Cancellable flushCancellable;
-    /**
      * Once awaitClose() has been called this is set to true. At that point the flush() method begins making sure that it does not run
      * after closingTime.
      */
     private boolean isClosing = false;
-    /**
-     * This is the time calculated when awaitClose() is called that is the maximum System.nanoTime() when flush() is still allowed to be
-     * running.
-     */
-    private long closingTime = -1;
+
+    private final AtomicLong totalBytesInFlight = new AtomicLong(0);
+    private final long maxBytesInFlight;
+    private final Phaser phaser = new Phaser();
 
     /**
      * Creates a Retry2. The returned object is not ready to be used until init() is called.
      * @param maxNumberOfRetries This is the maximum number of times a BulkRequest will be retried
-     * @param scheduler A recurring task to monitor and manage this object's queues is scheduled on this scheduler
-     * @param queueCapacity The maximum size of the queue of BulkRequests that are ready to load to the server
-     * @param maxNumberOfConcurrentRequests The maximum number of requests that can be in flight to the server from this object at any one
-     *                                      time
      */
-    Retry2(
-        int maxNumberOfRetries,
-        Scheduler scheduler,
-        int queueCapacity,
-        int maxNumberOfConcurrentRequests,
-        TimeValue queuePollingInterval
-    ) {
-        assert queueCapacity > 0;
-        assert maxNumberOfConcurrentRequests > 0;
+    Retry2(int maxNumberOfRetries, ByteSizeValue maxBytesInFlight) {
         this.logger = LogManager.getLogger(getClass());
         this.maxNumberOfRetries = maxNumberOfRetries;
-        this.scheduler = scheduler;
-        this.queueCapacity = queueCapacity;
-        this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
-        this.requestsInFlightSemaphore = new Semaphore(maxNumberOfConcurrentRequests);
-        /*
-         * Note that the capacity for ArrayBlockingQueue is a firm capacity, and attempts to add more than that many things will get
-         * rejected. But the capacity for PriorityBlockingQueue is just an initial capacity. The queue itself is unbounded. So we enforce
-         *  this capacity in the code below.
-         */
-        this.readyToLoadQueue = new ArrayBlockingQueue<>(queueCapacity);
-        this.queuePollingInterval = queuePollingInterval;
+        this.maxBytesInFlight = maxBytesInFlight.getBytes();
     }
-
-    /**
-     * This method starts the regularly-scheduled task that monitors the queues.. It needs to be called before this class can be used.
-     */
-    public void init() {
-        flushCancellable = scheduler.scheduleWithFixedDelay(this::flush, queuePollingInterval, ThreadPool.Names.GENERIC);
-    }
-
-    private record RetryQueuePayload(
-        BulkRequest request,
-        List<BulkItemResponse> responsesAccumulator,
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-        ActionListener<BulkResponse> listener,
-        int retriesRemaining
-    ) {}
 
     /**
      * This method queues up the given BulkRequest. If there is no room on the queue, the listener is immediately notified of failure
@@ -131,36 +69,31 @@ class Retry2 {
         BulkRequest bulkRequest,
         ActionListener<BulkResponse> listener
     ) {
-        List<BulkItemResponse> responsesAccumulator = new ArrayList<>();
-        addToQueue(bulkRequest, responsesAccumulator, consumer, listener, maxNumberOfRetries);
-    }
-
-    /**
-     * Adds the bulkRequest to the queue, or notifies the listener of failure if the queue is full
-     * @param bulkRequest The current BulkRequest (this can be a subset of the original BulkRequest)
-     * @param responsesAccumulator A List of completed responses so far for the original BulkRequest
-     * @param consumer
-     * @param listener
-     * @param retriesRemaining The number of times that the items in bulkRequest can still be tried.
-     */
-    private void addToQueue(
-        BulkRequest bulkRequest,
-        List<BulkItemResponse> responsesAccumulator,
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-        ActionListener<BulkResponse> listener,
-        int retriesRemaining
-    ) {
-        boolean accepted = readyToLoadQueue.offer(
-            new RetryQueuePayload(bulkRequest, responsesAccumulator, consumer, listener, retriesRemaining)
-        );
-        if (accepted) {
-            logger.trace("Added to readyToLoadQueue. Current queue size is {} / {}", readyToLoadQueue.size(), queueCapacity);
-        } else {
-            logger.trace("Rejecting a bulk request because the queue is full. Queue size is {}", readyToLoadQueue.size());
-            listener.onFailure(
-                new EsRejectedExecutionException("Could not load bulk request, bulk request queue at capacity [" + queueCapacity + "]")
-            );
+        if (isClosing) {
+            throw new EsRejectedExecutionException("The bulk processor is closing");
         }
+        List<BulkItemResponse> responsesAccumulator = new ArrayList<>();
+        logger.trace("Sending a bulk request with {} bytes in {} items", bulkRequest.estimatedSizeInBytes(), bulkRequest.requests.size());
+        /*
+         * Here we have a risk that multiple threads will do this check at once, and each will think it has room to run. So we could end
+         * up with slightly more bytes in flight than totalBytesInFlight. But this is acceptable risk, and preferable to using a lock or
+         * a while loop with compareAndSet.
+         */
+        long bytesInFlight = totalBytesInFlight.get();
+        if (bytesInFlight + bulkRequest.estimatedSizeInBytes() > maxBytesInFlight) {
+            throw new EsRejectedExecutionException(
+                "Cannot index request of size "
+                    + bulkRequest.estimatedSizeInBytes()
+                    + " because "
+                    + totalBytesInFlight.get()
+                    + " bytes are already in flight and the max is "
+                    + maxBytesInFlight
+            );
+        } else {
+            totalBytesInFlight.addAndGet(bulkRequest.estimatedSizeInBytes());
+        }
+        phaser.register();
+        consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, maxNumberOfRetries));
     }
 
     /**
@@ -178,66 +111,26 @@ class Retry2 {
         ActionListener<BulkResponse> listener,
         int retriesRemaining
     ) {
+        if (isClosing) {
+            throw new EsRejectedExecutionException("The bulk processor is closing");
+        }
         /*
          * Here we calculate when this request will next be up for retry (in clock time) and put it on retryQueue. We use nanonTime rather
          * than currentTimeInMillis because nanoTime will not change if the system clock is updated. We do not actually care about
          * nanosecond-level resolution.
          */
         if (retriesRemaining > 0) {
-            addToQueue(bulkRequestForRetry, responsesAccumulator, consumer, listener, retriesRemaining - 1);
+            phaser.register();
+            consumer.accept(
+                bulkRequestForRetry,
+                new RetryHandler(bulkRequestForRetry, responsesAccumulator, consumer, listener, retriesRemaining - 1)
+            );
         } else {
+            totalBytesInFlight.addAndGet(-1 * bulkRequestForRetry.estimatedSizeInBytes());
             listener.onFailure(
                 new EsRejectedExecutionException(
                     "Could not queue bulk request for retry because the backoff policy does not allow any more retries"
                 )
-            );
-        }
-    }
-
-    /**
-     * This method servers two purposes: (1) It promotes bulk requests from the retryQueue to the readyToLoadQueue when their time to run
-     * has come and (2) It calls the consumer bulk requests that are on the readyToLoadQueue.
-     */
-    private void flush() {
-        while (isClosing == false || System.nanoTime() < closingTime) {
-            boolean allowedToMakeRequest;
-            long timeRemaining = isClosing ? closingTime - System.nanoTime() : 0;
-            if (isClosing && timeRemaining > 0) {
-                try {
-                    logger.trace(
-                        "Waiting up to {} for a semaphore because the server is closing",
-                        new TimeValue(timeRemaining, TimeUnit.NANOSECONDS)
-                    );
-                    allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire(timeRemaining, TimeUnit.NANOSECONDS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-            } else {
-                allowedToMakeRequest = requestsInFlightSemaphore.tryAcquire();
-            }
-            if (allowedToMakeRequest == false) {
-                logger.trace("Unable to acquire semaphore because {} requests are already in flight", maxNumberOfConcurrentRequests);
-                /*
-                 * Too many requests are already in flight, so don't flush a bulk request to Elasticsearch.
-                 */
-                break;
-            }
-            RetryQueuePayload queueItem = readyToLoadQueue.poll();
-            if (queueItem == null) {
-                requestsInFlightSemaphore.release();
-                break;
-            }
-            BulkRequest bulkRequest = queueItem.request;
-            logger.trace("Sending a bulk request with {} items", bulkRequest.requests.size());
-            List<BulkItemResponse> responsesAccumulator = queueItem.responsesAccumulator;
-            BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;
-            ActionListener<BulkResponse> listener = queueItem.listener;
-            int retriesRemaining = queueItem.retriesRemaining;
-            assert retriesRemaining >= 0;
-            consumer.accept(
-                bulkRequest,
-                new RetryHandler(requestsInFlightSemaphore, bulkRequest, responsesAccumulator, consumer, listener, retriesRemaining)
             );
         }
     }
@@ -248,33 +141,9 @@ class Retry2 {
      * @param timeout
      * @param unit
      */
-    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
         isClosing = true;
-        TimeValue remainingTime = new TimeValue(timeout, unit);
-        logger.trace("Starting awaitClose with timeout of {}", remainingTime);
-        closingTime = System.nanoTime() + remainingTime.getNanos();
-        flushCancellable.cancel();
-        /*
-         * The following flush will run at most until closingTime. After it completes, anything that remains is something that we didn't
-         * have time to get to, or was added later.
-         */
-        flush();
-        // Attempt to wait for all in-flight requests to complete:
-        long timeRemaining = isClosing ? closingTime - System.nanoTime() : 0;
-        requestsInFlightSemaphore.tryAcquire(maxNumberOfConcurrentRequests, timeRemaining, TimeUnit.NANOSECONDS);
-        // If there happens to be anything in the queue after all requests have completed (or we hit the timeout) the reject them:
-        List<RetryQueuePayload> remainingReadyRequests = new ArrayList<>();
-        readyToLoadQueue.drainTo(remainingReadyRequests);
-        int individualRequestsRejected = 0;
-        for (RetryQueuePayload request : remainingReadyRequests) {
-            request.listener.onFailure(new EsRejectedExecutionException("Closing the bulk request handler"));
-            individualRequestsRejected += request.request.requests.size();
-        }
-        logger.trace(
-            "Rejecting {} requests in {} bulk requests from queue because server is closing",
-            individualRequestsRejected,
-            remainingReadyRequests.size()
-        );
+        phaser.awaitAdvanceInterruptibly(0, timeout, unit);
     }
 
     /**
@@ -283,7 +152,6 @@ class Retry2 {
      */
     private final class RetryHandler implements ActionListener<BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
-        private final Semaphore requestsInFlightSemaphore;
         private final BulkRequest bulkRequest;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final ActionListener<BulkResponse> listener;
@@ -293,8 +161,6 @@ class Retry2 {
 
         /**
          * Creates a RetryHandler listener
-         * @param requestsInFlightSemaphore This is the semaphore from which the caller has already acquired a token. The token is
-         *                                  released whenever onResponse or onFailure is called on this listener.
          * @param bulkRequest The BulkRequest to be sent, a subset of the original BulkRequest.
          * @param responsesAccumulator The accumulator of all BulkItemResponses for the original BulkRequest
          * @param consumer
@@ -302,14 +168,12 @@ class Retry2 {
          * @param retriesRemaining The number of retry attempts remaining for the bulkRequestForRetry
          */
         RetryHandler(
-            Semaphore requestsInFlightSemaphore,
             BulkRequest bulkRequest,
             List<BulkItemResponse> responsesAccumulator,
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
             ActionListener<BulkResponse> listener,
             int retriesRemaining
         ) {
-            this.requestsInFlightSemaphore = requestsInFlightSemaphore;
             this.bulkRequest = bulkRequest;
             this.responsesAccumulator = responsesAccumulator;
             this.consumer = consumer;
@@ -320,8 +184,8 @@ class Retry2 {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            requestsInFlightSemaphore.release();
             if (bulkItemResponses.hasFailures() == false) {
+                totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                 logger.trace(
                     "Got a response in {} with {} items, no failures",
                     bulkItemResponses.getTook(),
@@ -340,6 +204,7 @@ class Retry2 {
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses), responsesAccumulator, consumer, listener, retriesRemaining);
                 } else {
+                    totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                     logger.trace(
                         "Got a response in {} with {} items including failures, cannot retry",
                         bulkItemResponses.getTook(),
@@ -349,16 +214,19 @@ class Retry2 {
                     listener.onResponse(getAccumulatedResponse());
                 }
             }
+            phaser.arriveAndDeregister();
         }
 
         @Override
         public void onFailure(Exception e) {
-            requestsInFlightSemaphore.release();
+            totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
             boolean canRetry = ExceptionsHelper.status(e) == RETRY_STATUS && retriesRemaining > 0;
             if (canRetry) {
+                phaser.arriveAndDeregister();
                 retry(bulkRequest, responsesAccumulator, consumer, listener, retriesRemaining);
             } else {
                 listener.onFailure(e);
+                phaser.arriveAndDeregister();
             }
         }
 

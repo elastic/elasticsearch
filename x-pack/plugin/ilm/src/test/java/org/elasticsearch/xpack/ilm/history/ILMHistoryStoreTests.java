@@ -30,6 +30,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -88,7 +89,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 .metadata(Metadata.builder(state.metadata()).indexTemplates(registry.getComposableTemplateConfigs()))
                 .build()
         );
-        historyStore = new ILMHistoryStore(client, clusterService, threadPool);
+        historyStore = new ILMHistoryStore(client, clusterService, threadPool, ActionListener.noop(), TimeValue.timeValueMillis(500));
     }
 
     @After
@@ -116,7 +117,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             return null;
         });
         historyStore.putAsync(record);
-        latch.await(10, TimeUnit.SECONDS);
+        assertFalse(latch.await(2, TimeUnit.SECONDS));
     }
 
     public void testPut() throws Exception {

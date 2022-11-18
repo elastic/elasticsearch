@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.joining;
@@ -51,10 +52,9 @@ import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.IND
 public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
-    public static final Setting<Integer> MAX_BULK_REQUEST_QUEUE_SIZE_SETTING = Setting.intSetting(
-        "es.indices.lifecycle.history.bulk.request.queue.size",
-        100,
-        1,
+    public static final Setting<ByteSizeValue> MAX_BULK_REQUEST_BYTE_IN_FLIGHT_SETTING = Setting.byteSizeSetting(
+        "es.indices.lifecycle.history.bulk.request.bytes.in.flight",
+        ByteSizeValue.ofMb(100),
         Setting.Property.NodeScope
     );
 
@@ -62,14 +62,13 @@ public class ILMHistoryStore implements Closeable {
 
     private static int ILM_HISTORY_BULK_SIZE = StrictMath.toIntExact(
         ByteSizeValue.parseBytesSizeValue(
-            System.getProperty("es.indices.lifecycle.history.bulk.size", "5MB"),
+            System.getProperty("es.indices.lifecycle.history.bulk.size", "50MB"),
             "es.indices.lifecycle.history.bulk.size"
         ).getBytes()
     );
 
     private volatile boolean ilmHistoryEnabled = true;
     private final BulkProcessor2 processor;
-    private final ThreadPool threadPool;
 
     public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
         this(client, clusterService, threadPool, ActionListener.noop());
@@ -79,10 +78,26 @@ public class ILMHistoryStore implements Closeable {
      * This constructor allows passing in a listener that is notified when a batch has succeeded or failed, useful for unit tests
      */
     ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool, ActionListener<BulkResponse> listener) {
+        this(client, clusterService, threadPool, listener, TimeValue.timeValueSeconds(5));
+    }
+
+    /**
+     *  For unit testing
+     * @param client
+     * @param clusterService
+     * @param threadPool
+     * @param listener
+     * @param flushInterval
+     */
+    ILMHistoryStore(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionListener<BulkResponse> listener,
+        TimeValue flushInterval
+    ) {
         this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
-
-        this.threadPool = threadPool;
 
         this.processor = BulkProcessor2.builder(
             new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk,
@@ -150,13 +165,12 @@ public class ILMHistoryStore implements Closeable {
                     listener.onFailure(new RuntimeException(failure));
                 }
             },
-            "ilm-history-store"
+            threadPool
         )
             .setBulkActions(-1)
             .setBulkSize(ByteSizeValue.ofBytes(ILM_HISTORY_BULK_SIZE))
-            .setFlushInterval(TimeValue.timeValueSeconds(5))
-            .setConcurrentRequests(1)
-            .setMaxBulkRequestQueueSize(MAX_BULK_REQUEST_QUEUE_SIZE_SETTING.get(clusterService.getSettings()))
+            .setFlushInterval(flushInterval)
+            .setMaxBytesInFlight(MAX_BULK_REQUEST_BYTE_IN_FLIGHT_SETTING.get(clusterService.getSettings()))
             .setMaxNumberOfRetries(3)
             .build();
     }
@@ -188,6 +202,9 @@ public class ILMHistoryStore implements Closeable {
         try {
             processor.awaitClose(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
+            logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
+            Thread.currentThread().interrupt();
+        } catch (TimeoutException e) {
             logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
         }
     }

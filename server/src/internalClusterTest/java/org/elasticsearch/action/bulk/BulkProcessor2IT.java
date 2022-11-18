@@ -24,6 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -49,9 +50,8 @@ public class BulkProcessor2IT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(10, 100);
         try (
-            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, "BulkProcessor2IT")
+            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
                 // let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setConcurrentRequests(1)
                 .setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24))
                 .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
@@ -86,8 +86,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         MultiGetRequestBuilder multiGetRequestBuilder;
 
         try (
-            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, "BulkProcessor2IT")
-                .setConcurrentRequests(concurrentRequests)
+            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
                 .setBulkActions(bulkActions)
                 // set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24))
@@ -129,9 +128,8 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         BulkProcessor2TestListener listener = new BulkProcessor2TestListener();
 
         int numDocs = randomIntBetween(10, 100);
-        BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, "BulkProcessor2IT")
+        BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
             // let's make sure that the bulk action limit trips, one single execution will index all the documents
-            .setConcurrentRequests(1)
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
             .setBulkSize(new ByteSizeValue(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
@@ -172,8 +170,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         BulkProcessor2TestListener listener = new BulkProcessor2TestListener(latch, closeLatch);
 
         try (
-            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, "BulkProcessor2IT")
-                .setConcurrentRequests(concurrentRequests)
+            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
                 .setBulkActions(bulkActions)
                 // set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24))
@@ -242,7 +239,10 @@ public class BulkProcessor2IT extends ESIntegTestCase {
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs) {
         assertThat(bulkItemResponses.size(), is(numDocs));
         int i = 1;
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
+        List<BulkItemResponse> sortedResponses = bulkItemResponses.stream()
+            .sorted(Comparator.comparing(o -> Integer.valueOf(o.getId())))
+            .toList();
+        for (BulkItemResponse bulkItemResponse : sortedResponses) {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
             assertThat(

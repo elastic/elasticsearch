@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -93,13 +92,10 @@ public class BulkProcessor2Tests extends ESTestCase {
                 consumer,
                 0,
                 emptyListener(),
-                1,
                 bulkSize,
                 new ByteSizeValue(5, ByteSizeUnit.MB),
-                10000,
-                TimeValue.timeValueMillis(5),
+                new ByteSizeValue(50, ByteSizeUnit.MB),
                 flushInterval,
-                threadPool,
                 threadPool,
                 () -> {}
             );
@@ -126,7 +122,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             final int attempt = attemptRef.incrementAndGet();
             assertThat(attempt, lessThanOrEqualTo(maxAttempts));
             if (attempt != 1) {
-                assertThat(Thread.currentThread().getName(), containsString("[BulkProcessor2Tests-retry-scheduler]"));
+                assertThat(Thread.currentThread().getName(), containsString("[BulkProcessor2Tests-flush-scheduler]"));
             }
 
             if (attempt == maxAttempts) {
@@ -156,7 +152,7 @@ public class BulkProcessor2Tests extends ESTestCase {
         };
 
         try (
-            BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, "BulkProcessor2Tests")
+            BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, threadPool)
                 .setMaxNumberOfRetries(maxAttempts)
                 .setFlushInterval(TimeValue.timeValueMillis(1))
                 .build()
@@ -229,18 +225,11 @@ public class BulkProcessor2Tests extends ESTestCase {
                 consumer,
                 0,
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
-                concurrentBulkRequests,
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-                maxDocuments, // We don't want any rejections in this test
-                TimeValue.timeValueMillis(5),
+                new ByteSizeValue(50, ByteSizeUnit.MB),
                 null,
-                (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                    flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-                ),
-                (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                    flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-                ),
+                threadPool,
                 () -> {
                     flushExecutor.shutdown();
                     consumerExecutor.shutdown();
@@ -353,18 +342,11 @@ public class BulkProcessor2Tests extends ESTestCase {
                 consumer,
                 0,
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
-                concurrentBulkRequests,
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-                maxDocuments, // We don't want any rejections in this test
-                TimeValue.timeValueMillis(5),
+                new ByteSizeValue(50, ByteSizeUnit.MB),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
-                (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                    flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-                ),
-                (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                    flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-                ),
+                threadPool,
                 () -> {
                     flushExecutor.shutdown();
                     try {
@@ -456,14 +438,11 @@ public class BulkProcessor2Tests extends ESTestCase {
             consumer,
             0,
             emptyListener(),
-            1,
             10,
             ByteSizeValue.ofBytes(1000),
-            10000,
+            new ByteSizeValue(5000, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(5),
-            null,
-            (command, delay, executor) -> null,
-            (command, delay, executor) -> null,
+            threadPool,
             () -> called.set(true)
         );
 
@@ -472,84 +451,78 @@ public class BulkProcessor2Tests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    public void testRejections() throws Exception {
-        /*
-         * This test loads data into a BulkProcessor2 with a tiny queue, and expects to see an EsERejectedExecutionException.
-         */
-        final int simulateWorkTimeInMillis = 5;
-        int maxBatchSize = randomIntBetween(2, 100);
-        int maxDocuments = randomIntBetween(maxBatchSize, 1_000_000);
-        int concurrentBulkRequests = randomIntBetween(0, 20);
-        BulkResponse bulkResponse = new BulkResponse(
-            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
-            0
-        );
-        ScheduledExecutorService consumerExecutor = Executors.newScheduledThreadPool(2 * concurrentBulkRequests);
-        // All consumers are expected to be async:
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
-            consumerExecutor.schedule(() -> {
-                try {
-                    Thread.sleep(simulateWorkTimeInMillis); // simulate work
-                    listener.onResponse(bulkResponse);
-                } catch (InterruptedException e) {
-                    // should never happen
-                    fail("Test interrupted");
-                }
-            }, 0, TimeUnit.SECONDS);
-        };
-        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(2);
-        CountDownLatch failureLatch = new CountDownLatch(1);
-        try (BulkProcessor2 bulkProcessor = new BulkProcessor2(consumer, 0, new BulkProcessor2.Listener() {
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {}
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                if (failure instanceof EsRejectedExecutionException) {
-                    failureLatch.countDown();
-                }
-            }
-        },
-            concurrentBulkRequests,
-            maxBatchSize,
-            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-            1, // We want rejections
-            TimeValue.timeValueMillis(5),
-            null,
-            (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-            ),
-            (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-            ),
-            () -> {
-                flushExecutor.shutdown();
-                consumerExecutor.shutdown();
-                try {
-                    flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
-                    if (flushExecutor.isTerminated() == false) {
-                        flushExecutor.shutdownNow();
-                    }
-                    consumerExecutor.awaitTermination(10L, TimeUnit.SECONDS);
-                    if (consumerExecutor.isTerminated() == false) {
-                        consumerExecutor.shutdownNow();
-                    }
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
-
-            }
-        )) {
-            IndexRequest indexRequest = new IndexRequest();
-            for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
-                bulkProcessor.add(indexRequest);
-            }
-            assertTrue(failureLatch.await(10, TimeUnit.SECONDS));
-        }
-    }
+    // public void testRejections() throws Exception {
+    // /*
+    // * This test loads data into a BulkProcessor2 with a tiny queue, and expects to see an EsERejectedExecutionException.
+    // */
+    // final int simulateWorkTimeInMillis = 5;
+    // int maxBatchSize = randomIntBetween(2, 100);
+    // int maxDocuments = randomIntBetween(maxBatchSize, 1_000_000);
+    // int concurrentBulkRequests = randomIntBetween(0, 20);
+    // BulkResponse bulkResponse = new BulkResponse(
+    // new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
+    // 0
+    // );
+    // ScheduledExecutorService consumerExecutor = Executors.newScheduledThreadPool(2 * concurrentBulkRequests);
+    // // All consumers are expected to be async:
+    // BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
+    // consumerExecutor.schedule(() -> {
+    // try {
+    // Thread.sleep(simulateWorkTimeInMillis); // simulate work
+    // listener.onResponse(bulkResponse);
+    // } catch (InterruptedException e) {
+    // // should never happen
+    // fail("Test interrupted");
+    // }
+    // }, 0, TimeUnit.SECONDS);
+    // };
+    // ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(2);
+    // CountDownLatch failureLatch = new CountDownLatch(1);
+    // try (BulkProcessor2 bulkProcessor = new BulkProcessor2(consumer, 0, new BulkProcessor2.Listener() {
+    // @Override
+    // public void beforeBulk(long executionId, BulkRequest request) {}
+    //
+    // @Override
+    // public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
+    //
+    // @Override
+    // public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+    // if (failure instanceof EsRejectedExecutionException) {
+    // failureLatch.countDown();
+    // }
+    // }
+    // },
+    // maxBatchSize,
+    // ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+    // null,
+    // (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
+    // flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
+    // ),
+    // () -> {
+    // flushExecutor.shutdown();
+    // consumerExecutor.shutdown();
+    // try {
+    // flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
+    // if (flushExecutor.isTerminated() == false) {
+    // flushExecutor.shutdownNow();
+    // }
+    // consumerExecutor.awaitTermination(10L, TimeUnit.SECONDS);
+    // if (consumerExecutor.isTerminated() == false) {
+    // consumerExecutor.shutdownNow();
+    // }
+    // } catch (InterruptedException ie) {
+    // Thread.currentThread().interrupt();
+    // }
+    //
+    // }
+    // )) {
+    // IndexRequest indexRequest = new IndexRequest();
+    // for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
+    // bulkProcessor.add(indexRequest);
+    // }
+    // assertTrue(failureLatch.await(10, TimeUnit.SECONDS));
+    // }
+    // }
 
     private BulkProcessor2.Listener emptyListener() {
         return new BulkProcessor2.Listener() {

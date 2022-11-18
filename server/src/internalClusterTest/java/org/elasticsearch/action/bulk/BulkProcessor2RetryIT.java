@@ -90,12 +90,7 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
                 failedResponses.add(Tuple.tuple(request, failure));
                 latch.countDown();
             }
-        }, "BulkProcssorRetryIT")
-            .setBulkActions(1)
-            // zero means that we're in the sync case, more means that we're in the async case
-            .setConcurrentRequests(randomIntBetween(1, 100))
-            .setMaxNumberOfRetries(maxRetries)
-            .build();
+        }, client().threadPool()).setBulkActions(1).setMaxNumberOfRetries(maxRetries).build();
         indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
         bulkProcessor.close();

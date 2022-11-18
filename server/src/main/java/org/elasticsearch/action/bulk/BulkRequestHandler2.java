@@ -10,10 +10,10 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 
 /**
@@ -28,19 +28,13 @@ public final class BulkRequestHandler2 {
     BulkRequestHandler2(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         int maxNumberOfRetries,
-        BulkProcessor2.Listener listener,
-        Scheduler scheduler,
-        int concurrentRequests,
-        int maxBulkRequestQueueSize,
-        TimeValue queuePollingInterval
+        ByteSizeValue maxBytesInFlight,
+        BulkProcessor2.Listener listener
     ) {
-        assert concurrentRequests >= 0;
-        assert maxBulkRequestQueueSize >= 0;
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(maxNumberOfRetries, scheduler, maxBulkRequestQueueSize, concurrentRequests, queuePollingInterval);
-        retry.init();
+        this.retry = new Retry2(maxNumberOfRetries, maxBytesInFlight);
     }
 
     /**
@@ -49,7 +43,7 @@ public final class BulkRequestHandler2 {
      * @param bulkRequest
      * @param executionId
      */
-    public void queueRequest(BulkRequest bulkRequest, long executionId) {
+    public void execute(BulkRequest bulkRequest, long executionId) {
         try {
             listener.beforeBulk(executionId, bulkRequest);
             retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {
@@ -69,7 +63,7 @@ public final class BulkRequestHandler2 {
         }
     }
 
-    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
         retry.awaitClose(timeout, unit);
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -23,10 +22,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 
 /**
@@ -72,39 +70,24 @@ public class BulkProcessor2 implements Closeable {
 
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final Listener listener;
-        private final Scheduler flushScheduler;
-        private final Scheduler retryScheduler;
+        private final ThreadPool threadPool;
         private final Runnable onClose;
-        private int concurrentRequests = 1;
         private int maxRequestsInBulk = 1000;
         private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
-        private int maxBulkRequestQueueSize = 1000;
-        private TimeValue queuePollingInterval = TimeValue.timeValueMillis(100);
+        private ByteSizeValue maxBytesInFlight = new ByteSizeValue(50, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         int maxNumberOfRetries = 3;
 
         private Builder(
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
             Listener listener,
-            Scheduler flushScheduler,
-            Scheduler retryScheduler,
-            Runnable onClose
+            Runnable onClose,
+            ThreadPool threadPool
         ) {
             this.consumer = consumer;
             this.listener = listener;
-            this.flushScheduler = flushScheduler;
-            this.retryScheduler = retryScheduler;
+            this.threadPool = threadPool;
             this.onClose = onClose;
-        }
-
-        /**
-         * Sets the number of concurrent requests allowed to be executed. A value of 0 means that only a single
-         * request will be allowed to be executed. A value of 1 means 1 concurrent request is allowed to be executed
-         * while accumulating new bulk requests. Defaults to {@code 1}.
-         */
-        public Builder setConcurrentRequests(int concurrentRequests) {
-            this.concurrentRequests = concurrentRequests;
-            return this;
         }
 
         /**
@@ -122,26 +105,6 @@ public class BulkProcessor2 implements Closeable {
          */
         public Builder setBulkSize(ByteSizeValue maxBulkSizeInBytes) {
             this.maxBulkSizeInBytes = maxBulkSizeInBytes;
-            return this;
-        }
-
-        /**
-         * Sets the maximum size of the queue of BulkRequests kept in memory to be loaded by this processor. Defaults to 1000.
-         * @param maxBulkRequestQueueSize
-         * @return
-         */
-        public Builder setMaxBulkRequestQueueSize(int maxBulkRequestQueueSize) {
-            this.maxBulkRequestQueueSize = maxBulkRequestQueueSize;
-            return this;
-        }
-
-        /**
-         * Sets the interval at which the two queues configured above are to be polled. Defaults to 100ms.
-         * @param queuePollingInterval
-         * @return
-         */
-        public Builder setQueuePollingInterval(TimeValue queuePollingInterval) {
-            this.queuePollingInterval = queuePollingInterval;
             return this;
         }
 
@@ -165,6 +128,11 @@ public class BulkProcessor2 implements Closeable {
             return this;
         }
 
+        public Builder setMaxBytesInFlight(ByteSizeValue maxBytesInFlight) {
+            this.maxBytesInFlight = maxBytesInFlight;
+            return this;
+        }
+
         /**
          * Builds a new bulk processor.
          */
@@ -173,45 +141,37 @@ public class BulkProcessor2 implements Closeable {
                 consumer,
                 maxNumberOfRetries,
                 listener,
-                concurrentRequests,
                 maxRequestsInBulk,
                 maxBulkSizeInBytes,
-                maxBulkRequestQueueSize,
-                queuePollingInterval,
+                maxBytesInFlight,
                 flushInterval,
-                flushScheduler,
-                retryScheduler,
+                threadPool,
                 onClose
             );
         }
-
     }
 
     /**
      * @param consumer The consumer that is called to fulfil bulk operations
      * @param listener The BulkProcessor2 listener that gets called on bulk events
-     * @param name     The name of this processor, e.g. to identify the scheduler threads
+     * @param threadPool The threadpool to use for this bulk processor
      * @return the builder for BulkProcessor2
      */
-    public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, String name) {
+    public static Builder builder(
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+        Listener listener,
+        ThreadPool threadPool
+    ) {
         Objects.requireNonNull(consumer, "consumer");
         Objects.requireNonNull(listener, "listener");
-        final ScheduledThreadPoolExecutor flushScheduler = Scheduler.initScheduler(Settings.EMPTY, name + FLUSH_SCHEDULER_NAME_SUFFIX);
-        final ScheduledThreadPoolExecutor retryScheduler = Scheduler.initScheduler(Settings.EMPTY, name + RETRY_SCHEDULER_NAME_SUFFIX);
-        return new Builder(consumer, listener, buildScheduler(flushScheduler), buildScheduler(retryScheduler), () -> {
-            Scheduler.terminate(flushScheduler, 10, TimeUnit.SECONDS);
-            Scheduler.terminate(retryScheduler, 10, TimeUnit.SECONDS);
-        });
-    }
-
-    private static Scheduler buildScheduler(ScheduledThreadPoolExecutor scheduledThreadPoolExecutor) {
-        return (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-            scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-        );
+        return new Builder(consumer, listener, () -> {
+            // TODO: stop the flush
+        }, threadPool);
     }
 
     private final int bulkActions;
     private final long bulkSize;
+    private final long maxBytesInFlight;
 
     private final Scheduler.Cancellable cancellableFlushTask;
 
@@ -223,40 +183,30 @@ public class BulkProcessor2 implements Closeable {
 
     private volatile boolean closed = false;
     /*
-     * This lock is used to protect two things related to the bulkRequest object: (1) it makes sure that two threads do not add requests
+     * This mutex is used to protect two things related to the bulkRequest object: (1) it makes sure that two threads do not add requests
      * to the BulkRequest at the same time since BulkRequest is not threadsafe and (2) it makes sure that no other thread is writing to
      * the BulkRequest when we swap the bulkRequest variable over to a new BulkRequest object.
      */
-    private final ReentrantLock lock = new ReentrantLock();
+    private final Object mutex = new Object();
 
     BulkProcessor2(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         int maxNumberOfRetries,
         Listener listener,
-        int concurrentRequests,
         int bulkActions,
         ByteSizeValue bulkSize,
-        int maxBulkRequestQueueSize,
-        TimeValue queuePollingInterval,
+        ByteSizeValue maxBytesInFlight,
         @Nullable TimeValue flushInterval,
-        Scheduler flushScheduler,
-        Scheduler retryScheduler,
+        ThreadPool threadPool,
         Runnable onClose
     ) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
+        this.maxBytesInFlight = maxBytesInFlight.getBytes();
         this.bulkRequest = new BulkRequest();
-        this.bulkRequestHandler = new BulkRequestHandler2(
-            consumer,
-            maxNumberOfRetries,
-            listener,
-            retryScheduler,
-            concurrentRequests,
-            maxBulkRequestQueueSize,
-            queuePollingInterval
-        );
+        this.bulkRequestHandler = new BulkRequestHandler2(consumer, maxNumberOfRetries, maxBytesInFlight, listener);
         // Start period flushing task after everything is setup
-        this.cancellableFlushTask = startFlushTask(flushInterval, flushScheduler);
+        this.cancellableFlushTask = startFlushTask(flushInterval, threadPool);
         this.onClose = onClose;
     }
 
@@ -267,8 +217,11 @@ public class BulkProcessor2 implements Closeable {
     public void close() {
         try {
             awaitClose(1, TimeUnit.SECONDS);
-        } catch (InterruptedException exc) {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (TimeoutException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -281,9 +234,8 @@ public class BulkProcessor2 implements Closeable {
      * @param unit    The time unit of the {@code timeout} argument
      * @throws InterruptedException If the current thread is interrupted
      */
-    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-        lock.lock();
-        try {
+    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
+        synchronized (mutex) {
             if (closed) {
                 return;
             }
@@ -299,8 +251,6 @@ public class BulkProcessor2 implements Closeable {
             } finally {
                 onClose.run();
             }
-        } finally {
-            lock.unlock();
         }
     }
 
@@ -334,16 +284,13 @@ public class BulkProcessor2 implements Closeable {
     }
 
     private void internalAdd(DocWriteRequest<?> request) {
-        // bulkRequest and instance swapping is not threadsafe, so execute the mutations under a lock.
+        // bulkRequest and instance swapping is not threadsafe, so execute the mutations under a mutex.
         // once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
-        lock.lock();
-        try {
+        synchronized (mutex) {
             ensureOpen();
             bulkRequest.add(request);
             bulkRequestToExecute = newBulkRequestIfNeeded();
-        } finally {
-            lock.unlock();
         }
         // execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
         if (bulkRequestToExecute != null) {
@@ -351,7 +298,7 @@ public class BulkProcessor2 implements Closeable {
         }
     }
 
-    private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, Scheduler scheduler) {
+    private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, ThreadPool threadPool) {
         if (flushInterval == null) {
             return new Scheduler.Cancellable() {
                 @Override
@@ -365,9 +312,8 @@ public class BulkProcessor2 implements Closeable {
                 }
             };
         }
-        return scheduler.scheduleWithFixedDelay(() -> {
-            lock.lock();
-            try {
+        return threadPool.scheduleWithFixedDelay(() -> {
+            synchronized (mutex) {
                 if (closed) {
                     return;
                 }
@@ -375,8 +321,6 @@ public class BulkProcessor2 implements Closeable {
                     return;
                 }
                 execute();
-            } finally {
-                lock.unlock();
             }
         }, flushInterval, ThreadPool.Names.GENERIC);
     }
@@ -394,7 +338,7 @@ public class BulkProcessor2 implements Closeable {
 
     // may be executed without a lock
     private void execute(BulkRequest bulkRequest, long executionId) {
-        this.bulkRequestHandler.queueRequest(bulkRequest, executionId);
+        this.bulkRequestHandler.execute(bulkRequest, executionId);
     }
 
     // needs to be executed under a lock

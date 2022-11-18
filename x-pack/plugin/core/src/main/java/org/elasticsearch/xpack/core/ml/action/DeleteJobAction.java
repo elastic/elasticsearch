@@ -38,6 +38,11 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
          */
         private boolean shouldStoreResult;
 
+        /**
+         * Should user added annotations be removed when the job is deleted?
+         */
+        private boolean deleteUserAnnotations;
+
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
@@ -74,6 +79,14 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         @Override
         public boolean getShouldStoreResult() {
             return shouldStoreResult;
+        }
+
+        public void setDeleteUserAnnotations(boolean deleteUserAnnotations) {
+            this.deleteUserAnnotations = deleteUserAnnotations;
+        }
+
+        public boolean getDeleteUserAnnotations() {
+            return deleteUserAnnotations;
         }
 
         @Override

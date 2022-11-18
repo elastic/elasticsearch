@@ -51,6 +51,11 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
          */
         private boolean shouldStoreResult;
 
+        /**
+         * Should user added annotations be removed when the job is reset?
+         */
+        private boolean deleteUserAnnotations;
+
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID);
         }
@@ -59,6 +64,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             skipJobStateValidation = in.readBoolean();
+            deleteUserAnnotations = in.readBoolean();
         }
 
         @Override
@@ -86,6 +92,14 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
         @Override
         public boolean getShouldStoreResult() {
             return shouldStoreResult;
+        }
+
+        public void setDeleteUserAnnotations(boolean deleteUserAnnotations) {
+            this.deleteUserAnnotations = deleteUserAnnotations;
+        }
+
+        public boolean getDeleteUserAnnotations() {
+            return deleteUserAnnotations;
         }
 
         @Override

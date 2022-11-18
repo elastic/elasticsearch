@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
@@ -86,10 +87,18 @@ public class JobDataDeleter {
 
     private final Client client;
     private final String jobId;
+    private final boolean deleteUserAnnotations;
 
     public JobDataDeleter(Client client, String jobId) {
         this.client = Objects.requireNonNull(client);
         this.jobId = Objects.requireNonNull(jobId);
+        this.deleteUserAnnotations = false;
+    }
+
+    public JobDataDeleter(Client client, String jobId, boolean deleteUserAnnotations) {
+        this.client = Objects.requireNonNull(client);
+        this.jobId = Objects.requireNonNull(jobId);
+        this.deleteUserAnnotations = deleteUserAnnotations;
     }
 
     /**
@@ -135,8 +144,11 @@ public class JobDataDeleter {
     }
 
     /**
-     * Asynchronously delete all the auto-generated (i.e. created by the _xpack user) annotations
-     *
+     * Asynchronously delete the annotations
+     * If the deleteUserAnnotations field is set to true then all
+     * annotations - both auto-generated and user-added - are removed, else
+     * only the auto-generated ones, (i.e. created by the _xpack user) are
+     * removed.
      * @param listener Response listener
      */
     public void deleteAllAnnotations(ActionListener<Boolean> listener) {
@@ -160,7 +172,13 @@ public class JobDataDeleter {
     ) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-            .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
+            .filter(
+                (deleteUserAnnotations)
+                    ? QueryBuilders.boolQuery()
+                        .should(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME))
+                        .should(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), ElasticUser.NAME))
+                    : QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME)
+            );
         if (fromEpochMs != null || toEpochMs != null) {
             boolQuery.filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).gte(fromEpochMs).lt(toEpochMs));
         }

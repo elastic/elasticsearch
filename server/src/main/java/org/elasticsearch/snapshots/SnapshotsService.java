@@ -2813,7 +2813,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return builder.build();
     }
 
-    public static <T> void failListenersIgnoringException(@Nullable List<ActionListener<T>> listeners, Exception failure) {
+    private static <T> void failListenersIgnoringException(@Nullable List<ActionListener<T>> listeners, Exception failure) {
         if (listeners != null) {
             try {
                 ActionListener.onFailure(listeners, failure);
@@ -2824,7 +2824,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    public static <T> void completeListenersIgnoringException(@Nullable List<ActionListener<T>> listeners, T result) {
+    private static <T> void completeListenersIgnoringException(@Nullable List<ActionListener<T>> listeners, T result) {
         if (listeners != null) {
             try {
                 ActionListener.onResponse(listeners, result);

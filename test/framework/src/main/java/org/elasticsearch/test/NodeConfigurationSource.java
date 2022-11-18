@@ -7,12 +7,16 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
+
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 
 public abstract class NodeConfigurationSource {
 
@@ -50,5 +54,28 @@ public abstract class NodeConfigurationSource {
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();
+    }
+
+    /**
+     * @return the default node settings for nodes that cannot contain data
+     */
+    protected Settings nonDataNodeSettings() {
+        return nonDataNode();
+    }
+
+    /**
+     * @return the default node settings for data nodes
+     */
+    protected Settings dataNodeSettings() {
+        // roles enabled by default minus the master role
+        return NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE));
+    }
+
+    /**
+     * @return the default node settings for master-eligible data nodes
+     */
+    protected Settings dataAndMasterEligibleNodeSettings() {
+        // if we don't have dedicated master nodes, keep things default
+        return Settings.EMPTY;
     }
 }

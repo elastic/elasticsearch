@@ -145,9 +145,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.noRoles;
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1144,17 +1142,15 @@ public final class InternalTestCluster extends TestCluster {
         final List<Settings> settings = new ArrayList<>();
 
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
-            final Settings otherSettings = nonDataNode();
-            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], otherSettings);
-            settings.add(nodeSettings);
+            settings.add(getNodeSettings(i, sharedNodesSeeds[i], nodeConfigurationSource.nonDataNodeSettings()));
         }
         for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
             final Settings otherSettings;
             if (numSharedDedicatedMasterNodes > 0) {
-                otherSettings = removeRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE));
+                otherSettings = nodeConfigurationSource.dataNodeSettings();
             } else {
                 // if we don't have dedicated master nodes, keep things default
-                otherSettings = Settings.EMPTY;
+                otherSettings = nodeConfigurationSource.dataAndMasterEligibleNodeSettings();
             }
             settings.add(getNodeSettings(i, sharedNodesSeeds[i], otherSettings));
         }

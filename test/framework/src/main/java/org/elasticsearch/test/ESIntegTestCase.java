@@ -1878,6 +1878,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
+    @Nullable
+    protected Settings nonDataNodeSettings() {
+        return null;
+    }
+
+    @Nullable
+    protected Settings dataNodeSettings() {
+        return null;
+    }
+
+    @Nullable
+    protected Settings dataAndMasterEligibleNodeSettings() {
+        return null;
+    }
+
     /**
      * This method is used to obtain settings for the {@code N}th node in the cluster.
      * Nodes in this cluster are associated with an ordinal number such that nodes can
@@ -2027,6 +2042,33 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return ESIntegTestCase.this.nodePlugins();
+            }
+
+            @Override
+            protected Settings nonDataNodeSettings() {
+                Settings override = ESIntegTestCase.this.nonDataNodeSettings();
+                if (override != null) {
+                    return override;
+                }
+                return super.nonDataNodeSettings();
+            }
+
+            @Override
+            protected Settings dataNodeSettings() {
+                Settings override = ESIntegTestCase.this.dataNodeSettings();
+                if (override != null) {
+                    return override;
+                }
+                return super.dataNodeSettings();
+            }
+
+            @Override
+            protected Settings dataAndMasterEligibleNodeSettings() {
+                Settings override = ESIntegTestCase.this.dataAndMasterEligibleNodeSettings();
+                if (override != null) {
+                    return override;
+                }
+                return super.dataAndMasterEligibleNodeSettings();
             }
         };
     }

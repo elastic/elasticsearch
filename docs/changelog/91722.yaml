@@ -1,0 +1,5 @@
+pr: 91722
+summary: Consolidate google-oauth-client to latest version
+area: Snapshot/Restore
+type: upgrade
+issues: []

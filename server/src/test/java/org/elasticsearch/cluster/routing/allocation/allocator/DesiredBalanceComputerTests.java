@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.GatewayAllocatorObserver;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -327,6 +328,40 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         );
     }
 
+    public void testRespectsAssignmentByGatewayAllocators() {
+        var desiredBalanceComputer = createDesiredBalanceComputer();
+        var clusterState = createInitialClusterState(3);
+        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+
+        var changes = new GatewayAllocatorObserver();
+        var routingNodes = clusterState.mutableRoutingNodes();
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            var shardRouting = iterator.next();
+            if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
+                routingNodes.startShard(logger, iterator.initialize("node-2", null, 0L, changes), changes, 0L);
+                break;
+            }
+        }
+
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.INITIAL,
+            new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(), changes.getGatewayAllocations()),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            desiredBalance,
+            Map.of(
+                new ShardId(index, 0),
+                new ShardAssignment(Set.of("node-2", "node-1"), 2, 0, 0),
+                new ShardId(index, 1),
+                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
+            )
+        );
+
+    }
+
     public void testSimulatesAchievingDesiredBalanceBeforeDelegating() {
 
         var allocateCalled = new AtomicBoolean();
@@ -597,7 +632,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var input = new DesiredBalanceInput(
             randomInt(),
             routingAllocationWithDecidersOf(clusterState, ClusterInfo.EMPTY, Settings.EMPTY),
-            List.of()
+            List.of(),
+            Map.of()
         );
         var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY)).compute(
             DesiredBalance.INITIAL,
@@ -767,7 +803,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
             initial,
-            new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of()),
+            new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of(), Map.of()),
             queue(),
             input -> true
         );
@@ -905,7 +941,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static DesiredBalanceInput createInput(ClusterState clusterState, ShardRouting... ignored) {
-        return new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(ignored));
+        return new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(ignored), Map.of());
     }
 
     private static RoutingAllocation routingAllocationOf(ClusterState clusterState) {

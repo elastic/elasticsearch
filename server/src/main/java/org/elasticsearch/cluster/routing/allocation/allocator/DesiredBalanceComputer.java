@@ -71,6 +71,18 @@ public class DesiredBalanceComputer {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
         }
 
+        // repeat any allocations performed by the gateway allocators in the reroute that spawned this computation
+        final var localGatewayAllocations = new HashMap<>(desiredBalanceInput.gatewayAllocations());
+        routingAllocation.getGatewayAllocations(); // no need to track gateway allocations here
+        for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            final var shardRouting = iterator.next();
+            final var nodeId = localGatewayAllocations.remove(shardRouting);
+            if (nodeId != null) {
+                iterator.initialize(nodeId, null, 0L, routingAllocation.changes());
+            }
+        }
+        assert localGatewayAllocations.isEmpty() : localGatewayAllocations;
+
         // we assume that all ongoing recoveries will complete
         for (final var routingNode : routingNodes) {
             for (final var shardRouting : routingNode) {

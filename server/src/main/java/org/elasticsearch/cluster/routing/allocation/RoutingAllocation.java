@@ -69,8 +69,10 @@ public class RoutingAllocation {
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
+    private final GatewayAllocatorObserver gatewayAllocatorObserver = new GatewayAllocatorObserver();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
         nodesChangedObserver,
+        gatewayAllocatorObserver,
         indexMetadataUpdater,
         restoreInProgressUpdater,
         resizeSourceIndexUpdater
@@ -420,6 +422,10 @@ public class RoutingAllocation {
             currentNanoTime,
             true
         );
+    }
+
+    public Map<ShardRouting, String> getGatewayAllocations() {
+        return gatewayAllocatorObserver.getGatewayAllocations();
     }
 
     public enum DebugMode {

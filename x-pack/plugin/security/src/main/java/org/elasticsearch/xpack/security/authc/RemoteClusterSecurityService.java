@@ -10,27 +10,38 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.RemoteClusterSecurityClusterCredential;
 import org.elasticsearch.xpack.security.transport.RemoteClusterSecuritySubjectAccess;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_ROLE_DESCRIPTORS_INTERSECTION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_FC_API_KEY_ID_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_FC_ROLE_DESCRIPTORS_SETS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_ROLE_DESCRIPTORS_SETS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_SUBJECT_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_SUBJECT_ACCESS_HEADER_KEY;
 
 public class RemoteClusterSecurityService {
@@ -89,15 +100,8 @@ public class RemoteClusterSecurityService {
                 final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials = remoteClusterSecurityClusterCredential.fcApiKeyCredentials();
                 this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, fcApiKeyCredentials, ActionListener.wrap(fcApiKeyAuthcResult -> {
                     // TODO Success path only, handle auth failure
-                    final User rcsFcUser = Subject.buildRemoteClusterSecurityUser(qcAuthentication, fcApiKeyAuthcResult.getValue());
-
-                    final Map<String, Object> rcsAuthenticationResultMetadata = new HashMap<>(fcApiKeyAuthcResult.getMetadata());
-                    rcsAuthenticationResultMetadata.put(
-                        RCS_ROLE_DESCRIPTORS_INTERSECTION_KEY,
-                        Subject.buildRoleReferencesForRemoteClusterSecurityStatic(rcsFcUser.metadata())
-                    );
-
-                    listener.onResponse(AuthenticationResult.success(rcsFcUser, rcsAuthenticationResultMetadata));
+                    final User rcsFcUser = buildRemoteClusterSecurityUser(qcAuthentication, fcApiKeyAuthcResult.getValue());
+                    listener.onResponse(AuthenticationResult.success(rcsFcUser, Collections.emptyMap()));
                 }, listener::onFailure));
             }
         }
@@ -150,7 +154,61 @@ public class RemoteClusterSecurityService {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
-        // Note: Empty config is OK. No deprecationLogger needed like in ApiKeyService.parseRoleDescriptorsBytes.
+        // Empty config is OK. No deprecationLogger needed like in ApiKeyService.parseRoleDescriptorsBytes.
         return RoleDescriptor.parseRoleDescriptorsBytes(XContentParserConfiguration.EMPTY, bytesReference);
+    }
+
+    public User buildRemoteClusterSecurityUser(final Authentication qcAuthentication, final User fcApiKeyUser) throws IOException {
+        final Map<String, Object> fcApiKeyMetadata = fcApiKeyUser.metadata();
+        final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY);
+        final BytesReference fcRoleDescriptorsIntersectionBytes = getFcRoleDescriptorsIntersectionBytes(fcApiKeyMetadata);
+
+        final User qcUser = qcAuthentication.getEffectiveSubject().getUser();
+        final BytesReference qcRoleDescriptorsSetsBytes = (BytesReference) qcUser.metadata().get(RCS_QC_ROLE_DESCRIPTORS_SETS_KEY);
+        assert qcRoleDescriptorsSetsBytes != null;
+
+        final Map<String, Object> rcsFcMetadata = Map.of(
+            RCS_QC_SUBJECT_AUTHENTICATION_KEY,
+            qcAuthentication,
+            RCS_FC_API_KEY_ID_KEY,
+            fcApiKeyId,
+            RCS_FC_ROLE_DESCRIPTORS_SETS_KEY,
+            fcRoleDescriptorsIntersectionBytes,
+            RCS_QC_ROLE_DESCRIPTORS_SETS_KEY,
+            qcRoleDescriptorsSetsBytes
+        );
+        return new User(qcUser.principal(), Strings.EMPTY_ARRAY, qcUser.email(), qcUser.email(), rcsFcMetadata, true);
+    }
+
+    private BytesReference getFcRoleDescriptorsIntersectionBytes(final Map<String, Object> fcApiKeyMetadata) throws IOException {
+        final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY);
+        assert fcApiKeyId != null;
+        final BytesReference fcSubjectRoleDescriptorsBytes = (BytesReference) fcApiKeyMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
+        assert fcSubjectRoleDescriptorsBytes != null;
+        final BytesReference fcApiKeyRoleDescriptorsBytes = (BytesReference) fcApiKeyMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
+
+        final List<Set<RoleDescriptor>> roleDescriptorsIntersectionList = new ArrayList<>();
+        roleDescriptorsIntersectionList.add(
+            new LinkedHashSet<>(
+                apiKeyService.parseRoleDescriptorsBytes(fcApiKeyId, fcSubjectRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED)
+            )
+        );
+        if (fcApiKeyRoleDescriptorsBytes != null) {
+            roleDescriptorsIntersectionList.add(
+                new LinkedHashSet<>(
+                    apiKeyService.parseRoleDescriptorsBytes(
+                        fcApiKeyId,
+                        fcApiKeyRoleDescriptorsBytes,
+                        RoleReference.ApiKeyRoleType.LIMITED_BY
+                    )
+                )
+            );
+        }
+        final RoleDescriptorsIntersection fcRoleDescriptorsIntersection = new RoleDescriptorsIntersection(roleDescriptorsIntersectionList);
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            fcRoleDescriptorsIntersection.writeTo(output);
+            return output.bytes();
+        }
     }
 }

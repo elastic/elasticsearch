@@ -8,43 +8,69 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
 @Experimental
 public class FieldExtractExec extends UnaryExec {
 
-    private final List<Attribute> attributesToExtract;
-    private final List<Attribute> sourceAttributes;
+    private final Collection<Attribute> attributesToExtract;
+    private final List<Attribute> sourceAttribute;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, List<Attribute> sourceAttr) {
+    public FieldExtractExec(Source source, PhysicalPlan child, Collection<Attribute> attributesToExtract) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
-        this.sourceAttributes = sourceAttr;
+        this.sourceAttribute = extractSourceAttributesFrom(child);
+
+        // TODO: this can be moved into the physical verifier
+        if (sourceAttribute.isEmpty()) {
+            throw new QlIllegalArgumentException(
+                "Need to add field extractor for [{}] but cannot detect source attributes from node [{}]",
+                Expressions.names(attributesToExtract),
+                child
+            );
+        }
+    }
+
+    private static List<Attribute> extractSourceAttributesFrom(PhysicalPlan plan) {
+        var list = new ArrayList<Attribute>(EsQueryExec.NAMES_SET.size());
+        plan.outputSet().forEach(e -> {
+            if (EsQueryExec.isSourceAttribute(e)) {
+                list.add(e);
+            }
+        });
+        // the physical plan expected things sorted out alphabetically
+        Collections.sort(list, Comparator.comparing(Attribute::name));
+        return list;
     }
 
     @Override
     protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, sourceAttributes);
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract, sourceAttributes);
+        return new FieldExtractExec(source(), newChild, attributesToExtract);
     }
 
-    public List<Attribute> attributesToExtract() {
+    public Collection<Attribute> attributesToExtract() {
         return attributesToExtract;
     }
 
     public List<Attribute> sourceAttributes() {
-        return sourceAttributes;
+        return sourceAttribute;
     }
 
     @Override
@@ -56,7 +82,7 @@ public class FieldExtractExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributesToExtract, attributesToExtract, child());
+        return Objects.hash(attributesToExtract, child());
     }
 
     @Override

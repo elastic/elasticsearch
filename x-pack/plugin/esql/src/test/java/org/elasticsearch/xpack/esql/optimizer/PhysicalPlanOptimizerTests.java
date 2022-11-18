@@ -62,7 +62,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         analyzer = new Analyzer(getIndexResult, new EsqlFunctionRegistry(), new Verifier(), TEST_CFG);
     }
 
-    public void testSingleFieldExtractor() throws Exception {
+    public void testSingleFieldExtractor() {
         var plan = physicalPlan("""
             from test
             | where emp_no > 10
@@ -70,7 +70,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = fieldExtractorRule(plan);
         var node = as(optimized, UnaryExec.class);
-        var restExtract = as(node.child(), FieldExtractExec.class);
+        var project = as(node.child(), ProjectExec.class);
+        var restExtract = as(project.child(), FieldExtractExec.class);
         var filter = as(restExtract.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
@@ -81,7 +82,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertEquals(Set.of("emp_no"), Sets.newHashSet(Expressions.names(extract.attributesToExtract())));
     }
 
-    public void testExactlyOneExtractorPerField() throws Exception {
+    public void testExactlyOneExtractorPerFieldWithPruning() {
         var plan = physicalPlan("""
             from test
             | where emp_no > 10
@@ -90,7 +91,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = fieldExtractorRule(plan);
         var exchange = as(optimized, ExchangeExec.class);
-        var restExtract = as(exchange.child(), FieldExtractExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var restExtract = as(project.child(), FieldExtractExec.class);
         var eval = as(restExtract.child(), EvalExec.class);
         var filter = as(eval.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
@@ -104,8 +106,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = as(extract.child(), EsQueryExec.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/352")
-    public void testDoubleExtractorPerFieldEvenWithAlias() throws Exception {
+    public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
         var plan = physicalPlan("""
             from test
             | limit 10
@@ -120,10 +121,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         aggregate = as(exchange.child(), AggregateExec.class);
         var eval = as(aggregate.child(), EvalExec.class);
 
-        var project = as(eval.child(), ProjectExec.class);
-        assertThat(Expressions.names(project.projections()), contains("emp_no", "first_name"));
-
-        var extract = as(project.child(), FieldExtractExec.class);
+        var extract = as(eval.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
 
         var limit = as(extract.child(), LimitExec.class);
@@ -135,7 +133,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = as(extract.child(), EsQueryExec.class);
     }
 
-    public void testTripleExtractorPerField() throws Exception {
+    public void testTripleExtractorPerField() {
         var plan = physicalPlan("""
             from test
             | limit 10
@@ -166,7 +164,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = as(extract.child(), EsQueryExec.class);
     }
 
-    public void testExtractorForField() throws Exception {
+    public void testExtractorForField() {
         var plan = physicalPlan("""
             from test
             | sort languages
@@ -201,7 +199,69 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
     }
 
-    public void testQueryWithAggregation() throws Exception {
+    public void testExtractorMultiEvalWithDifferentNames() {
+        var plan = physicalPlan("""
+            from test
+            | eval e = emp_no + 1
+            | eval emp_no = emp_no + 1
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            Expressions.names(extract.attributesToExtract()),
+            contains("first_name", "gender", "languages", "last_name", "salary", "_meta_field")
+        );
+
+        var eval = as(extract.child(), EvalExec.class);
+        eval = as(eval.child(), EvalExec.class);
+
+        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/403")
+    public void testExtractorMultiEvalWithSameName() {
+        var plan = physicalPlan("""
+            from test
+            | eval emp_no = emp_no + 1
+            | eval emp_no = emp_no + 1
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(
+            Expressions.names(extract.attributesToExtract()),
+            contains("first_name", "gender", "languages", "last_name", "salary", "_meta_field")
+        );
+
+        var eval = as(extract.child(), EvalExec.class);
+        eval = as(eval.child(), EvalExec.class);
+
+        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+    }
+
+    public void testExtractorsOverridingFields() {
+        var plan = physicalPlan("""
+            from test
+            | stats emp_no = avg(emp_no)
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var node = as(optimized, AggregateExec.class);
+        var exchange = as(node.child(), ExchangeExec.class);
+        var aggregate = as(exchange.child(), AggregateExec.class);
+
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+    }
+
+    public void testQueryWithAggregation() {
         var plan = physicalPlan("""
             from test
             | stats avg(emp_no)

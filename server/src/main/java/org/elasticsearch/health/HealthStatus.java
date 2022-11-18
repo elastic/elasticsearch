@@ -31,7 +31,14 @@ public enum HealthStatus implements Writeable {
     }
 
     public static HealthStatus read(StreamInput in) throws IOException {
-        return in.readEnum(HealthStatus.class);
+        byte value = in.readByte();
+        return switch (value) {
+            case 0 -> GREEN;
+            case 1 -> UNKNOWN;
+            case 2 -> YELLOW;
+            case 3 -> RED;
+            default -> throw new IllegalArgumentException("unknown value for health status [" + value + "]");
+        };
     }
 
     @Override

@@ -273,7 +273,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         private final String clusterAlias;
         private final Transport.Connection wrapped;
 
-        public RemoteClusterAliasAwareConnection(String clusterAlias, Transport.Connection wrapped) {
+        RemoteClusterAliasAwareConnection(String clusterAlias, Transport.Connection wrapped) {
             this.clusterAlias = clusterAlias;
             this.wrapped = wrapped;
         }

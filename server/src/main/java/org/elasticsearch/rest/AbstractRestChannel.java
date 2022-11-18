@@ -186,11 +186,8 @@ public abstract class AbstractRestChannel implements RestChannel {
         return bytesOut;
     }
 
-    /**
-     * Releases the current output buffer for this channel. Must be called after the buffer derived from {@link #bytesOutput} is no longer
-     * needed.
-     */
-    protected final void releaseOutputBuffer() {
+    @Override
+    public final void releaseOutputBuffer() {
         if (bytesOut != null) {
             try {
                 bytesOut.close();

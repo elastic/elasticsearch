@@ -10,7 +10,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.UnsupportedAggregationOnRollupIndex;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -26,7 +26,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
 
         @Override
         public RuntimeException getUnregisteredException(String message) {
-            return new UnsupportedAggregationOnRollupIndex(message);
+            return new UnsupportedAggregationOnDownsampledIndex(message);
         }
 
         @Override
@@ -40,7 +40,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
             if ((indexFieldData instanceof IndexAggregateDoubleMetricFieldData) == false) {

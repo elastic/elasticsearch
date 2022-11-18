@@ -206,6 +206,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         });
     }
 
+    @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
     }

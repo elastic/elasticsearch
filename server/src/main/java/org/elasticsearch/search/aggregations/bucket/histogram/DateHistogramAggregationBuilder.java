@@ -419,7 +419,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     ) throws IOException {
         final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
 
-        if (context.getIndexSettings().getIndexMetadata().isRollupIndex()
+        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex()
             && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
             throw new IllegalArgumentException(
                 config.getDescription()
@@ -432,7 +432,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
 
         final ZoneId tz = timeZone();
-        if (context.getIndexSettings().getIndexMetadata().isRollupIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
+        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
             throw new IllegalArgumentException(
                 config.getDescription() + " is not supported for aggregation [" + getName() + "] with timezone [" + tz + "]"
             );

@@ -209,7 +209,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
     }
 
     private void putTrainedModelIngestPipeline(String pipelineId, String modelId) throws Exception {
-        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray("""
+        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray(formatted("""
             {
                 "processors": [
                   {
@@ -220,7 +220,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
                     }
                   }
                 ]
-              }""".formatted(modelId)), XContentType.JSON)).actionGet();
+              }""", modelId)), XContentType.JSON)).actionGet();
     }
 
 }

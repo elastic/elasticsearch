@@ -1,0 +1,5 @@
+pr: 90902
+summary: Index expression exclusions never trigger "not found"
+area: Infra/Core
+type: bug
+issues: []

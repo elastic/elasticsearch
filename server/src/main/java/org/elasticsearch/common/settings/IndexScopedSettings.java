@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -37,7 +38,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,7 +47,7 @@ import java.util.Set;
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
-    private static final Set<Setting<?>> ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS = Set.of(
+    public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Set.of(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
@@ -71,9 +71,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_DATA_PATH_SETTING,
         IndexMetadata.INDEX_HIDDEN_SETTING,
         IndexMetadata.INDEX_FORMAT_SETTING,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
-        IndexMetadata.INDEX_ROLLUP_STATUS,
+        IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME,
+        IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID,
+        IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -175,22 +175,23 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 }
             }
         }, Property.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", Property.IndexScope)
-    ); // this allows analysis settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
 
-    public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = builtInIndexSettings();
+        // TSDB index settings
+        IndexSettings.MODE,
+        IndexMetadata.INDEX_ROUTING_PATH,
+        IndexSettings.TIME_SERIES_START_TIME,
+        IndexSettings.TIME_SERIES_END_TIME,
 
-    private static Set<Setting<?>> builtInIndexSettings() {
-        if (false == IndexSettings.isTimeSeriesModeEnabled()) {
-            return ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS;
-        }
-        Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
-        result.add(IndexSettings.MODE);
-        result.add(IndexMetadata.INDEX_ROUTING_PATH);
-        result.add(IndexSettings.TIME_SERIES_START_TIME);
-        result.add(IndexSettings.TIME_SERIES_END_TIME);
-        return Set.copyOf(result);
-    }
+        // Legacy index settings we must keep around for BWC from 7.x
+        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
+        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
+        Store.FORCE_RAM_TERM_DICT
+    );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
@@ -232,6 +233,18 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 return true;
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
+        }
+    }
+
+    @Override
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
+        Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        // At various stages in settings verification we will perform validation without having the
+        // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
+        // error out on those validations, we will check with the creation version present at index
+        // creation time, as well as on index update settings.
+        if (indexVersion.equals(Version.V_EMPTY) == false && indexVersion.major != Version.V_7_0_0.major) {
+            throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }
 }

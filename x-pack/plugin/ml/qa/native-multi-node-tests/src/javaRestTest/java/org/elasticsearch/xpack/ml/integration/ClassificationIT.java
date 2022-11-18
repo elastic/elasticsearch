@@ -1101,45 +1101,46 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void createIndex(String index, boolean isDatastream) {
-        String mapping = """
-            {
-              "properties": {
-                "@timestamp": {
-                  "type": "date"
-                },
-                "%s": {
-                  "type": "boolean"
-                },
-                "%s": {
-                  "type": "double"
-                },
-                "%s": {
-                  "type": "integer"
-                },
-                "%s": {
-                  "type": "text",
-                  "fields": {
-                    "keyword": {
+        String mapping = formatted(
+            """
+                {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "%s": {
+                      "type": "boolean"
+                    },
+                    "%s": {
+                      "type": "double"
+                    },
+                    "%s": {
+                      "type": "integer"
+                    },
+                    "%s": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "%s": {
                       "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
                     }
                   }
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                }
-              }
-            }""".formatted(
+                }""",
             BOOLEAN_FIELD,
             NUMERICAL_FIELD,
             DISCRETE_NUMERICAL_FIELD,

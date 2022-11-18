@@ -9,11 +9,13 @@
 package org.elasticsearch.plugin.analysis.api;
 
 import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.plugin.api.Extensible;
 import org.elasticsearch.plugin.api.Nameable;
 
 /**
  * An analysis component used to create tokenizers.
  */
+@Extensible
 public interface TokenizerFactory extends Nameable {
 
     /**

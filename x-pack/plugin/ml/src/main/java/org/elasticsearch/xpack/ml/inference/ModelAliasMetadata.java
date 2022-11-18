@@ -80,7 +80,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     public ModelAliasMetadata(StreamInput in) throws IOException {
-        this.modelAliases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, ModelAliasEntry::new));
+        this.modelAliases = in.readImmutableMap(StreamInput::readString, ModelAliasEntry::new);
     }
 
     public Map<String, ModelAliasEntry> modelAliases() {
@@ -226,6 +226,11 @@ public class ModelAliasMetadata implements Metadata.Custom {
         @Override
         public int hashCode() {
             return Objects.hash(modelId);
+        }
+
+        @Override
+        public String toString() {
+            return "ModelAliasEntry{modelId='" + modelId + "'}";
         }
     }
 }

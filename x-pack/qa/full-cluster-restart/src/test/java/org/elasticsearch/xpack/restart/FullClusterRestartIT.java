@@ -467,7 +467,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 intervalType = "interval";
             }
 
-            createRollupJobRequest.setJsonEntity("""
+            createRollupJobRequest.setJsonEntity(formatted("""
                 {
                   "index_pattern": "rollup-*",
                   "rollup_index": "results-rollup",
@@ -485,7 +485,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                       "metrics": [ "min", "max", "sum" ]
                     }
                   ]
-                }""".formatted(intervalType));
+                }""", intervalType));
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -812,14 +812,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void createUser(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
         Request request = new Request("PUT", "/_security/user/" + id);
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
                "password" : "l0ng-r4nd0m-p@ssw0rd",
                "roles" : [ "admin", "other_role1" ],
                "full_name" : "%s",
                "email" : "%s@example.com",
                "enabled": true
-            }""".formatted(randomAlphaOfLength(5), id));
+            }""", randomAlphaOfLength(5), id));
         client().performRequest(request);
     }
 
@@ -987,7 +987,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
-        StringEntity templateJSON = new StringEntity(String.format(Locale.ROOT, """
+        StringEntity templateJSON = new StringEntity(formatted("""
             {
               "index_patterns": "%s",
               "data_stream": {}

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -21,6 +23,8 @@ import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
+import static org.elasticsearch.xpack.core.common.notifications.Level.WARNING;
 
 /**
  * Handles all failures a transform can run into when searching, indexing as well as internal
@@ -62,6 +66,9 @@ class TransformFailureHandler {
             handleScriptException(scriptException, unattended);
         } else if (unwrappedException instanceof BulkIndexingException bulkIndexingException) {
             handleBulkIndexingException(bulkIndexingException, unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof ClusterBlockException clusterBlockException) {
+            // gh#89802 always retry for a cluster block exception, because a cluster block should be temporary.
+            retry(clusterBlockException, clusterBlockException.getDetailedMessage(), unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
             handleElasticsearchException(elasticsearchException, unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof IllegalArgumentException illegalArgumentException) {
@@ -87,7 +94,7 @@ class TransformFailureHandler {
         // counter for search/index gets reset after a successful bulk index request
         int numFailureRetries = getNumFailureRetries(settingsConfig);
 
-        final int failureCount = context.incrementAndGetStatePersistenceFailureCount();
+        final int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
 
         if (numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail(
@@ -219,9 +226,11 @@ class TransformFailureHandler {
      */
     private void retry(Throwable unwrappedException, String message, boolean unattended, int numFailureRetries) {
         // group failures to decide whether to report it below
-        final String thisFailureClass = unwrappedException.getClass().toString();
-        final String lastFailureClass = context.getLastFailure();
-        final int failureCount = context.incrementAndGetFailureCount(thisFailureClass);
+        final boolean repeatedFailure = context.getLastFailure() == null
+            ? false
+            : unwrappedException.getClass().equals(context.getLastFailure().getClass());
+
+        final int failureCount = context.incrementAndGetFailureCount(unwrappedException);
 
         if (unattended == false && numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail("task encountered more than " + numFailureRetries + " failures; latest failure: " + message);
@@ -231,17 +240,16 @@ class TransformFailureHandler {
         // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
         // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
         // and if the number of retries is about to exceed
-        if (thisFailureClass.equals(lastFailureClass) == false
-            || failureCount % LOG_FAILURE_EVERY == 0
-            || failureCount == numFailureRetries) {
+        if (repeatedFailure == false || failureCount % LOG_FAILURE_EVERY == 0 || failureCount == numFailureRetries) {
             String retryMessage = format(
                 "Transform encountered an exception: [%s]; Will automatically retry [%d/%d]",
                 message,
                 failureCount,
                 numFailureRetries
             );
-            logger.warn(() -> "[" + transformId + "] " + retryMessage);
-            auditor.warning(transformId, retryMessage);
+
+            logger.log(unattended ? Level.INFO : Level.WARN, () -> "[" + transformId + "] " + retryMessage);
+            auditor.audit(unattended ? INFO : WARNING, transformId, retryMessage);
         }
     }
 

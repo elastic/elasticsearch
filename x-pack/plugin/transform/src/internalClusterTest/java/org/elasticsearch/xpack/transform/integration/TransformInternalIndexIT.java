@@ -65,7 +65,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
         String transformIndex = "transform-index-deletes-old";
         createSourceIndex(transformIndex);
         String transformId = "transform-update-deletes-old-transform-config";
-        String config = """
+        String config = formatted("""
             {
               "dest": {
                 "index": "bar"
@@ -95,7 +95,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
                 }
               },
               "frequency": "1s"
-            }""".formatted(transformIndex, transformId);
+            }""", transformIndex, transformId);
         IndexRequest indexRequest = new IndexRequest(OLD_INDEX).id(TransformConfig.documentId(transformId))
             .source(config, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

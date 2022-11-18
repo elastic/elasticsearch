@@ -58,7 +58,7 @@ public class AssignmentPlanner {
         return computePlan(true);
     }
 
-    private AssignmentPlan computePlan(boolean tryAssigningPreviouslyAssignedModels) {
+    public AssignmentPlan computePlan(boolean tryAssigningPreviouslyAssignedModels) {
         logger.debug(() -> format("Computing plan for nodes = %s; models = %s", nodes, models));
 
         AssignmentPlan bestPlan;
@@ -107,7 +107,7 @@ public class AssignmentPlanner {
     }
 
     private AssignmentPlan solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated() {
-        logger.debug(() -> "Attempting to solve assigning at least one allocations to previously assigned models");
+        logger.debug(() -> "Attempting to solve assigning at least one allocation to previously assigned models");
         List<Model> previouslyAssignedModelsOnly = models.stream()
             .filter(m -> m.hasEverBeenAllocated())
             .map(

@@ -132,6 +132,7 @@ public final class Messages {
     public static final String INFERENCE_DEPLOYMENT_STARTED = "Started deployment";
     public static final String INFERENCE_DEPLOYMENT_STOPPED = "Stopped deployment";
     public static final String INFERENCE_DEPLOYMENT_REBALANCED = "Rebalanced trained model allocations because [{0}]";
+    public static final String INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS = "Updated number_of_allocations to [{0}]";
 
     public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), "
         + "hyphens or underscores; must start with alphanumeric and cannot end with numbers";

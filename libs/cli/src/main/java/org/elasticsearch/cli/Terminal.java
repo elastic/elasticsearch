@@ -243,7 +243,7 @@ public abstract class Terminal {
                 return null;
             }
 
-            if (len > 0 && len < buf.length && buf[len - 1] == '\r') {
+            if (len > 0 && len <= buf.length && buf[len - 1] == '\r') {
                 len--;
             }
 

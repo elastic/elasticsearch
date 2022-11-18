@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.utils.MlProcessors;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.time.Duration;
@@ -185,8 +186,6 @@ class MlMemoryAutoscalingDecider {
 
         final List<String> partiallyAllocatedModels = mlContext.findPartiallyAllocatedModels();
 
-        // TODO for autoscaling by memory, we only care about if the model is allocated to at least one node (see above)
-        // We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
         if (mlContext.waitingAnalyticsJobs.isEmpty() == false
             || mlContext.waitingSnapshotUpgrades.isEmpty() == false
             || mlContext.waitingAnomalyJobs.isEmpty() == false
@@ -213,8 +212,9 @@ class MlMemoryAutoscalingDecider {
 
         long maxTaskMemoryBytes = maxMemoryBytes(mlContext);
 
-        // This state is invalid, but may occur due to complex bugs that have slipped through testing.
-        // We could have tasks where the required job memory is 0, which should be impossible.
+        // This should rarely happen, it could imply a bug. However, it is possible to happen
+        // if there are persistent tasks that do not have matching configs stored.
+        // Also, it could be that we have tasks where the required job memory is 0, which should be impossible.
         // This can also happen if a job that is awaiting assignment ceases to have the AWAITING_LAZY_ASSIGNMENT
         // assignment explanation, for example because some other explanation overrides it. (This second situation
         // arises because, for example, anomalyDetectionTasks contains a task that is waiting but waitingAnomalyJobs
@@ -257,7 +257,8 @@ class MlMemoryAutoscalingDecider {
                 if (capacity == null) {
                     return null;
                 }
-                // TODO we should remove this when we can auto-scale (down and up) via a new CPU auto-scaling decider
+                // We should keep this check here as well as in the processor decider while cloud is not
+                // reacting to processor autoscaling.
                 if (modelAssignmentsRequireMoreThanHalfCpu(mlContext.modelAssignments.values(), mlContext.mlNodes)) {
                     logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;
@@ -346,8 +347,11 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
+                    if (mem == null) {
+                        logger.warn("unexpected null for anomaly detection memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L),
@@ -356,8 +360,11 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
+                    if (mem == null) {
+                        logger.warn("unexpected null for snapshot upgrade memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L)
@@ -369,8 +376,11 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = this.getAnalyticsMemoryRequirement(t);
+                    if (mem == null) {
+                        logger.warn("unexpected null for analytics memory requirement for [{}]", MlTasks.dataFrameAnalyticsId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L)
@@ -819,19 +829,7 @@ class MlMemoryAutoscalingDecider {
         int totalRequiredProcessors = assignments.stream()
             .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
             .sum();
-        int totalMlProcessors = mlNodes.stream().mapToInt(node -> {
-            String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
-            try {
-                return Integer.parseInt(allocatedProcessorsString);
-            } catch (NumberFormatException e) {
-                assert e == null
-                    : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
-                        + " should parse because we set it internally: invalid value was ["
-                        + allocatedProcessorsString
-                        + "]";
-                return 0;
-            }
-        }).sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node).roundUp()).sum();
         return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 

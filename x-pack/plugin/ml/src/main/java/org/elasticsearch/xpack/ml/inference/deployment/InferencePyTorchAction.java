@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -36,7 +35,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     private static final Logger logger = LogManager.getLogger(InferencePyTorchAction.class);
 
     private final InferenceConfig config;
-    private final Map<String, Object> doc;
+    private final NlpInferenceInput input;
     private final Task parentActionTask;
 
     InferencePyTorchAction(
@@ -45,14 +44,14 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         TimeValue timeout,
         DeploymentManager.ProcessContext processContext,
         InferenceConfig config,
-        Map<String, Object> doc,
+        NlpInferenceInput input,
         ThreadPool threadPool,
         @Nullable Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         super(modelId, requestId, timeout, processContext, threadPool, listener);
         this.config = config;
-        this.doc = doc;
+        this.input = input;
         this.parentActionTask = parentActionTask;
     }
 
@@ -84,7 +83,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         try {
             // The request builder expect a list of inputs which are then batched.
             // TODO batching was implemented for expected use-cases such as zero-shot classification but is not used here.
-            List<String> text = Collections.singletonList(NlpTask.extractInput(getProcessContext().getModelInput().get(), doc));
+            List<String> text = Collections.singletonList(input.extractInput(getProcessContext().getModelInput().get()));
             NlpTask.Processor processor = getProcessContext().getNlpTaskProcessor().get();
             processor.validateInputs(text);
             assert config instanceof NlpConfig;

@@ -23,6 +23,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
+import java.util.Locale;
 
 import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.hamcrest.Matchers.containsString;
@@ -92,9 +93,9 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         // create a test user
         final Request createUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
         createUserRequest.addParameter("refresh", "wait_for");
-        createUserRequest.setJsonEntity("""
+        createUserRequest.setJsonEntity(String.format(Locale.ROOT, """
             {  "password": "%s",  "roles": [ "%s" ]}
-            """.formatted(LOCAL_TEST_USER_PASSWORD, roleName));
+            """, LOCAL_TEST_USER_PASSWORD, roleName));
         performSuperuserRequest(createUserRequest);
 
         // test user posts a document

@@ -1238,3 +1238,31 @@ setup:
                 field: text
 
   - match: {hits.total: 3}
+
+---
+"Test exists query on text field with empty values":
+  - skip:
+      version: '8.4.0 - 8.5.0'
+      reason:  Regression introduced in 8.4.0, fixed in 8.5.1
+
+  - do:
+      index:
+          index:  "empty_text"
+          id:     "999"
+          body:
+            text: ""
+
+  - do:
+      indices.refresh:
+          index: [empty_text]
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: empty_text
+          body:
+            query:
+              exists:
+                field: text
+
+  - match: {hits.total: 1}

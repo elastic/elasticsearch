@@ -18,11 +18,10 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, Writeable {
+public final class ClusterStateHealth implements Writeable {
 
     private final int numberOfNodes;
     private final int numberOfDataNodes;
@@ -182,11 +181,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
 
     public double getActiveShardsPercent() {
         return activeShardsPercent;
-    }
-
-    @Override
-    public Iterator<ClusterIndexHealth> iterator() {
-        return indices.values().iterator();
     }
 
     @Override

@@ -1,0 +1,74 @@
+setup:
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.xpack.transform.action": "DEBUG"
+            }
+          }
+
+
+---
+teardown:
+  - do:
+      transform.stop_transform:
+        wait_for_checkpoint: false
+        transform_id: "transform-unattended"
+        timeout: "10m"
+        wait_for_completion: true
+  - do:
+      transform.delete_transform:
+        transform_id: "transform-unattended"
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.xpack.transform.action": "INFO"
+            }
+          }
+
+---
+"Test unattended put and start":
+  - do:
+      transform.put_transform:
+        transform_id: "transform-unattended"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "dest-airline-data-by-airline-start-stop" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "unattended": true
+            }
+          }
+  - do:
+      transform.start_transform:
+        transform_id: "transform-unattended"
+
+
+---
+"Test unattended put and start wildcard":
+  - do:
+      transform.put_transform:
+        transform_id: "transform-unattended"
+        body: >
+          {
+            "source": { "index": "airline-data*" },
+            "dest": { "index": "dest-airline-data-by-airline-start-stop" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "unattended": true
+            }
+          }
+  - do:
+      transform.start_transform:
+        transform_id: "transform-unattended"

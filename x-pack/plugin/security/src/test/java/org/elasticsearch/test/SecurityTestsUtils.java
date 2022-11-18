@@ -14,6 +14,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matcher;
 
+import java.util.Locale;
+
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.elasticsearch.xpack.core.security.test.SecurityAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -81,7 +83,11 @@ public class SecurityTestsUtils {
                     + "] is unauthorized for user ["
                     + authenticatingUser.principal()
                     + "]"
-                    + " with effective roles [%s]".formatted(Strings.arrayToCommaDelimitedString(authenticatingUser.roles()))
+                    + String.format(
+                        Locale.ROOT,
+                        " with effective roles [%s]",
+                        Strings.arrayToCommaDelimitedString(authenticatingUser.roles())
+                    )
                     + ", because user ["
                     + authenticatingUser.principal()
                     + "] is unauthorized to run as ["

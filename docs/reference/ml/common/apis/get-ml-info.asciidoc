@@ -97,6 +97,10 @@ This is a possible response:
               "GMT",
               "UTC"
             ]
+          },
+          {
+            "type": "limit",
+            "max_token_count": "100"
           }
         ]
       },

@@ -134,6 +134,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -176,6 +177,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -207,6 +209,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -238,6 +241,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -299,6 +303,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 );

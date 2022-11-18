@@ -41,9 +41,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
+        IndicesOptions indicesOptions = randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen());
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
             state,
-            IndicesOptions.lenientExpandOpen(),
+            indicesOptions,
             SystemIndexAccessLevel.NONE
         );
         assertThat(
@@ -79,9 +80,26 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
         );
         assertThat(
-            newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))),
-            equalTo(newHashSet("testXXX", "-testXXX"))
+            newHashSet(
+                IndexNameExpressionResolver.WildcardExpressionResolver.resolve(
+                    context,
+                    Arrays.asList("testX*", "-doe", "-testXXX", "-testYYY")
+                )
+            ),
+            equalTo(newHashSet("testXYY"))
         );
+        if (indicesOptions == IndicesOptions.lenientExpandOpen()) {
+            assertThat(
+                newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))),
+                equalTo(newHashSet("testXXX", "-testXXX"))
+            );
+        } else if (indicesOptions == IndicesOptions.strictExpandOpen()) {
+            IndexNotFoundException infe = expectThrows(
+                IndexNotFoundException.class,
+                () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))
+            );
+            assertEquals("-testXXX", infe.getIndex().getName());
+        }
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Arrays.asList("testXXX", "-testX*"))),
             equalTo(newHashSet("testXXX"))

@@ -126,12 +126,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "username": "%s" } }
             ] }
-            """.formatted(principal);
+            """, principal);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
@@ -142,12 +142,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String name = randomName();
         final String mail = randomMail();
 
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "dn": "%s" } }
             ] }
-            """.formatted(dn);
+            """, dn);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
@@ -160,12 +160,12 @@ public class JwtRestIT extends ESRestTestCase {
         final List<String> groups = randomList(1, 12, () -> randomAlphaOfLengthBetween(4, 12));
         final String mappedGroup = randomFrom(groups);
 
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "groups": "%s" } }
             ] }
-            """.formatted(mappedGroup);
+            """, mappedGroup);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, groups, rules);
     }
@@ -175,12 +175,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "metadata.jwt_claim_sub": "%s" } }
             ] }
-            """.formatted(principal);
+            """, principal);
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
 
@@ -209,6 +209,7 @@ public class JwtRestIT extends ESRestTestCase {
                 hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
             );
             assertThat(description, assertList(response, User.Fields.ROLES), Matchers.containsInAnyOrder(roles.toArray(String[]::new)));
+            assertThat(description, assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
 
             // The user has no real role (we never define them) so everything they try to do will be FORBIDDEN
             final ResponseException exception = expectThrows(
@@ -392,6 +393,7 @@ public class JwtRestIT extends ESRestTestCase {
         assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_sub", principal));
         assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_aud", List.of("jwt3-audience")));
         assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_iss", "jwt3-issuer"));
+        assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
     }
 
     public void testAuthenticateToOtherRealmsInChain() throws IOException, URISyntaxException {

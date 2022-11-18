@@ -64,12 +64,12 @@ fetch the _tsid:
           sort:   [ _tsid ]
 
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
   - match: {hits.hits.0.fields.metricset: [aa]}
-  - match: {hits.hits.0.fields.ul: [9223372036854775808]}
-  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.0.fields.ul: [9223372036854775807]}
+  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
   - match: {hits.hits.1.fields.metricset: [aa]}
-  - match: {hits.hits.1.fields.ul: [9223372036854775807]}
+  - match: {hits.hits.1.fields.ul: [9223372036854775808]}
 
 ---
 # Sort order is of unsigned_long fields is not the one we would expect.
@@ -93,14 +93,15 @@ aggregate the _tsid:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {metricset: aa, ul: 9223372036854775808}}
+  - match: {aggregations.tsids.buckets.0.key: {metricset: aa, ul: 9223372036854775807}}
   - match: {aggregations.tsids.buckets.0.doc_count: 3}
-  - match: {aggregations.tsids.buckets.1.key: {metricset: aa, ul: 18446744073709551614}}
-  - match: {aggregations.tsids.buckets.1.doc_count: 1}
-  - match: {aggregations.tsids.buckets.2.key: {metricset: aa, ul: 18446744073709551615}}
-  - match: {aggregations.tsids.buckets.2.doc_count: 1 }
-  - match: {aggregations.tsids.buckets.3.key: {metricset: aa, ul: 9223372036854775807}}
-  - match: {aggregations.tsids.buckets.3.doc_count: 3}
+  - match: {aggregations.tsids.buckets.1.key: {metricset: aa, ul: 9223372036854775808}}
+  - match: {aggregations.tsids.buckets.1.doc_count: 3}
+  - match: {aggregations.tsids.buckets.2.key: {metricset: aa, ul: 18446744073709551614}}
+  - match: {aggregations.tsids.buckets.2.doc_count: 1}
+  - match: {aggregations.tsids.buckets.3.key: {metricset: aa, ul: 18446744073709551615}}
+  - match: {aggregations.tsids.buckets.3.doc_count: 1 }
+
 
 ---
 # Sort order is of unsigned_long fields is not the one we would expect.
@@ -119,14 +120,15 @@ sort by tsid:
           sort:   [ _tsid ]
 
   - match: {hits.total.value: 8 }
-  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
-  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
-  - match: {hits.hits.2.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
-  - match: {hits.hits.3.fields._tsid: [{metricset: aa, ul: 18446744073709551614}]}
-  - match: {hits.hits.4.fields._tsid: [{metricset: aa, ul: 18446744073709551615}]}
-  - match: {hits.hits.5.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
-  - match: {hits.hits.6.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
-  - match: {hits.hits.7.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+
+  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.2.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.3.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.4.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.5.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.6.fields._tsid: [{metricset: aa, ul: 18446744073709551614}]}
+  - match: {hits.hits.7.fields._tsid: [{metricset: aa, ul: 18446744073709551615}]}
 
 ---
 composite aggregation on tsid:
@@ -152,17 +154,18 @@ composite aggregation on tsid:
 
   - match:  { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 4 }
-  - match:  { aggregations.tsids.buckets.0.key.tsid.ul: 9223372036854775808 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.ul: 9223372036854775807 }
   - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "aa" }
   - match:  { aggregations.tsids.buckets.0.doc_count: 3 }
-  - match:  { aggregations.tsids.buckets.1.key.tsid.ul: 18446744073709551614 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.ul: 9223372036854775808 }
   - match:  { aggregations.tsids.buckets.1.key.tsid.metricset: "aa" }
-  - match:  { aggregations.tsids.buckets.1.doc_count: 1 }
-  - match:  { aggregations.tsids.buckets.2.key.tsid.ul: 18446744073709551615 }
+  - match:  { aggregations.tsids.buckets.1.doc_count: 3 }
+  - match:  { aggregations.tsids.buckets.2.key.tsid.ul: 18446744073709551614 }
   - match:  { aggregations.tsids.buckets.2.key.tsid.metricset: "aa" }
   - match:  { aggregations.tsids.buckets.2.doc_count: 1 }
-  - match:  { aggregations.tsids.buckets.3.key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid.ul: 18446744073709551615 }
   - match:  { aggregations.tsids.buckets.3.key.tsid.metricset: "aa" }
-  - match:  { aggregations.tsids.buckets.3.doc_count: 3 }
-  - match:  { aggregations.tsids.after_key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.buckets.3.doc_count: 1 }
+
+  - match:  { aggregations.tsids.after_key.tsid.ul: 18446744073709551615 }
   - match:  { aggregations.tsids.after_key.tsid.metricset: "aa" }

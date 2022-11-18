@@ -104,11 +104,11 @@ RPM and Debian::
 Another possible reason why `mlockall` can fail is that
 <<executable-jna-tmpdir,the JNA temporary directory (usually a sub-directory of
 `/tmp`) is mounted with the `noexec` option>>. This can be solved by specifying
-a new temporary directory for JNA using the `CLI_JAVA_OPTS` environment variable:
+a new temporary directory for JNA using the `ES_JAVA_OPTS` environment variable:
 
 [source,sh]
 --------------
-export CLI_JAVA_OPTS="$CLI_JAVA_OPTS -Djna.tmpdir=<path>"
+export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djna.tmpdir=<path>"
 ./bin/elasticsearch
 --------------
 

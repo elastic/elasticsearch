@@ -65,6 +65,7 @@ public class ElasticsearchMappings {
     public static final String WHITESPACE = "whitespace";
     public static final String NESTED = "nested";
     public static final String COPY_TO = "copy_to";
+    public static final String PATH = "path";
     public static final String PROPERTIES = "properties";
     public static final String TYPE = "type";
     public static final String DYNAMIC = "dynamic";

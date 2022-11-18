@@ -210,8 +210,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
         AtomicInteger clientCalledCount = new AtomicInteger();
         doAnswer(invocation -> {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(null);
             clientCalledCount.incrementAndGet();
+            listener.onResponse(null);
             return null;
         }).when(client).execute(any(), any(), any());
         simulateHealthDiskSpace();

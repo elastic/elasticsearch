@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -137,17 +138,25 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
         if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(request.getJobId())) {
             List<MlDataRemover> dataRemovers = createDataRemovers(client, taskId, anomalyDetectionAuditor);
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                .execute(() -> deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier));
+                .execute(ActionRunnable.wrap(listener, l -> deleteExpiredData(request, dataRemovers, l, isTimedOutSupplier)));
         } else {
-            jobConfigProvider.expandJobs(request.getJobId(), false, true, null, ActionListener.wrap(jobBuilders -> {
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                    List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
-                    String[] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);
-                    request.setExpandedJobIds(jobIds);
-                    List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, anomalyDetectionAuditor);
-                    deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier);
-                });
-            }, listener::onFailure));
+            jobConfigProvider.expandJobs(
+                request.getJobId(),
+                false,
+                true,
+                null,
+                ActionListener.wrap(
+                    jobBuilders -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(ActionRunnable.wrap(listener, l -> {
+                            List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
+                            String[] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);
+                            request.setExpandedJobIds(jobIds);
+                            List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, anomalyDetectionAuditor);
+                            deleteExpiredData(request, dataRemovers, l, isTimedOutSupplier);
+                        })),
+                    listener::onFailure
+                )
+            );
         }
     }
 

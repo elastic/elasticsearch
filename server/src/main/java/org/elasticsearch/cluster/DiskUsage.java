@@ -22,39 +22,19 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Encapsulation class used to represent the amount of disk used on a node.
  */
-public class DiskUsage implements ToXContentFragment, Writeable {
+public record DiskUsage(String nodeId, String nodeName, String path, long totalBytes, long freeBytes)
+    implements
+        ToXContentFragment,
+        Writeable {
 
     private static final Logger logger = LogManager.getLogger(DiskUsage.class);
 
-    final String nodeId;
-    final String nodeName;
-    final String path;
-    final long totalBytes;
-    final long freeBytes;
-
-    /**
-     * Create a new DiskUsage, if {@code totalBytes} is 0, {@link #getFreeDiskAsPercentage()}
-     * will always return 100.0% free
-     */
-    public DiskUsage(String nodeId, String nodeName, String path, long totalBytes, long freeBytes) {
-        this.nodeId = nodeId;
-        this.nodeName = nodeName;
-        this.freeBytes = freeBytes;
-        this.totalBytes = totalBytes;
-        this.path = path;
-    }
-
     public DiskUsage(StreamInput in) throws IOException {
-        this.nodeId = in.readString();
-        this.nodeName = in.readString();
-        this.path = in.readString();
-        this.totalBytes = in.readVLong();
-        this.freeBytes = in.readVLong();
+        this(in.readString(), in.readString(), in.readString(), in.readVLong(), in.readVLong());
     }
 
     @Override
@@ -72,9 +52,9 @@ public class DiskUsage implements ToXContentFragment, Writeable {
 
     XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("path", this.path);
-        builder.humanReadableField("total_bytes", "total", new ByteSizeValue(this.totalBytes));
-        builder.humanReadableField("used_bytes", "used", new ByteSizeValue(this.getUsedBytes()));
-        builder.humanReadableField("free_bytes", "free", new ByteSizeValue(this.freeBytes));
+        builder.humanReadableField("total_bytes", "total", ByteSizeValue.ofBytes(this.totalBytes));
+        builder.humanReadableField("used_bytes", "used", ByteSizeValue.ofBytes(this.getUsedBytes()));
+        builder.humanReadableField("free_bytes", "free", ByteSizeValue.ofBytes(this.freeBytes));
         builder.field("free_disk_percent", truncatePercent(this.getFreeDiskAsPercentage()));
         builder.field("used_disk_percent", truncatePercent(this.getUsedDiskAsPercentage()));
         return builder;
@@ -125,24 +105,6 @@ public class DiskUsage implements ToXContentFragment, Writeable {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        DiskUsage other = (DiskUsage) o;
-        return Objects.equals(nodeId, other.nodeId)
-            && Objects.equals(nodeName, other.nodeName)
-            && Objects.equals(totalBytes, other.totalBytes)
-            && Objects.equals(freeBytes, other.freeBytes);
-
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(nodeId, nodeName, path, totalBytes, freeBytes);
-    }
-
-    @Override
     public String toString() {
         return "["
             + nodeId
@@ -151,10 +113,14 @@ public class DiskUsage implements ToXContentFragment, Writeable {
             + "]["
             + path
             + "] free: "
-            + new ByteSizeValue(getFreeBytes())
+            + ByteSizeValue.ofBytes(getFreeBytes())
             + "["
             + Strings.format1Decimals(getFreeDiskAsPercentage(), "%")
             + "]";
+    }
+
+    public DiskUsage copyWithFreeBytes(long freeBytes) {
+        return new DiskUsage(nodeId, nodeName, path, totalBytes, freeBytes);
     }
 
     /**

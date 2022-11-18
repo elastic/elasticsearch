@@ -37,6 +37,7 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
     private final IndexShardSnapshotStatus snapshotStatus;
     private final Version repositoryMetaVersion;
     private final Map<String, Object> userMetadata;
+    private final long snapshotStartTime;
 
     /**
      * @param store                 store to be snapshotted
@@ -51,6 +52,8 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param userMetadata          user metadata of the snapshot found in
      *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#userMetadata()}
+     * @param snapshotStartTime     start time of the snapshot found in
+     *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#startTime()}
      * @param listener              listener invoked on completion
      */
     public SnapshotShardContext(
@@ -63,6 +66,7 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
+        final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
         super(ActionListener.runBefore(listener, commitRef::close));
@@ -75,6 +79,7 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         this.snapshotStatus = snapshotStatus;
         this.repositoryMetaVersion = repositoryMetaVersion;
         this.userMetadata = userMetadata;
+        this.snapshotStartTime = snapshotStartTime;
     }
 
     public Store store() {
@@ -112,6 +117,10 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
 
     public Map<String, Object> userMetadata() {
         return userMetadata;
+    }
+
+    public long snapshotStartTime() {
+        return snapshotStartTime;
     }
 
     @Override

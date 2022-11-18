@@ -39,5 +39,5 @@ configure(subprojects - project('elasticsearch-log4j')) {
 }
 
 boolean isPluginApi(Project project, Project depProject) {
-  return project.path.matches(".*elasticsearch-plugin-.*-api") &&  depProject.path.equals(':libs:elasticsearch-plugin-api')
+  return project.path.matches(".*elasticsearch-plugin-.*api")
 }

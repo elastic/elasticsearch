@@ -12,12 +12,14 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
@@ -43,8 +45,12 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String NAME = "repository_integrity";
 
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
+
+    public static final String REPOSITORY_CORRUPTED_IMPACT_ID = "repository_corruption";
+
     public static final Diagnosis.Definition CORRUPTED_REPOSITORY = new Diagnosis.Definition(
-        "corrupt-repo-integrity",
+        NAME,
+        "corrupt_repo_integrity",
         "Multiple clusters are writing to the same repository.",
         "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository"
             + " to this cluster.",
@@ -66,7 +72,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
@@ -92,13 +98,15 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             return createIndicator(
                 GREEN,
                 "No corrupted snapshot repositories.",
-                explain ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
+                verbose ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         }
         List<HealthIndicatorImpact> impacts = Collections.singletonList(
             new HealthIndicatorImpact(
+                NAME,
+                REPOSITORY_CORRUPTED_IMPACT_ID,
                 1,
                 String.format(
                     Locale.ROOT,
@@ -112,7 +120,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         return createIndicator(
             RED,
             createCorruptedRepositorySummary(corrupted),
-            explain
+            verbose
                 ? new SimpleHealthIndicatorDetails(
                     Map.of(
                         "total_repositories",
@@ -125,7 +133,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            List.of(new Diagnosis(CORRUPTED_REPOSITORY, corrupted))
+            List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corrupted))))
         );
     }
 

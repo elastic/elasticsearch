@@ -1,0 +1,5 @@
+pr: 90200
+summary: Add profiling information for knn vector queries
+area: Vector Search
+type: enhancement
+issues: []

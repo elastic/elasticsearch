@@ -632,6 +632,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                             snapshotStatus,
                             Version.CURRENT,
                             emptyMap(),
+                            randomMillisUpToYear9999(),
                             future
                         )
                     );
@@ -734,7 +735,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     new BlobStoreIndexShardSnapshot.FileInfo(
                         blobName,
                         new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion.toString()),
-                        new ByteSizeValue(input.length)
+                        ByteSizeValue.ofBytes(input.length)
                     )
                 );
             }

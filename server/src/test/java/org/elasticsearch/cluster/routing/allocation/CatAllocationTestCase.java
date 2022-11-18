@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -145,7 +146,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
 
     private ClusterState rebalance(ClusterState clusterState) {
         AllocationService strategy = createAllocationService(Settings.builder().build());
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         int numRelocations = 0;
         while (true) {
             List<ShardRouting> initializing = shardsWithState(clusterState.getRoutingNodes(), INITIALIZING);

@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -724,7 +723,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 "1",
                 true,
                 ShardRoutingState.INITIALIZING
-            ).moveToStarted();
+            ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get(indexName).getIndex())
                 .addShard(shardRouting)
                 .build();
@@ -733,7 +732,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         imdBuilder.put(IndexMetadata.builder("logs-0").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         ShardRouting shardRouting = TestShardRouting.newShardRouting("logs-0", 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+            .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get("logs-0").getIndex()).addShard(shardRouting).build();
         routingTableBuilder.add(indexRoutingTable);
 
@@ -743,7 +742,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
-        result.sort(Comparator.comparing(Index::getName));
+        result.sort(Index.COMPARE_BY_NAME);
         assertThat(result.size(), equalTo(5));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
         assertThat(result.get(1).getName(), equalTo("metrics-1"));
@@ -753,7 +752,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         final List<String> followedIndexUUIDs = Collections.singletonList(remoteState.metadata().index("metrics-2").getIndexUUID());
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, followedIndexUUIDs);
-        result.sort(Comparator.comparing(Index::getName));
+        result.sort(Index.COMPARE_BY_NAME);
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
         assertThat(result.get(1).getName(), equalTo("metrics-1"));
@@ -805,7 +804,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(0).getName(), equalTo("index1"));
 
         // Start second shard:
-        shardRouting = shardRouting.moveToStarted();
+        shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().indices().get("index2").getIndex())
             .addShard(shardRouting)
             .build();
@@ -816,7 +815,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
         assertThat(result.size(), equalTo(2));
-        result.sort(Comparator.comparing(Index::getName));
+        result.sort(Index.COMPARE_BY_NAME);
         assertThat(result.get(0).getName(), equalTo("index1"));
         assertThat(result.get(1).getName(), equalTo("index2"));
     }
@@ -2527,7 +2526,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             "1",
             true,
             ShardRoutingState.INITIALIZING
-        ).moveToStarted();
+        ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
@@ -2558,7 +2557,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             "1",
                             true,
                             ShardRoutingState.INITIALIZING
-                        ).moveToStarted()
+                        ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
                     )
                     .build()
             );
@@ -2633,7 +2632,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             "1",
             true,
             ShardRoutingState.INITIALIZING
-        ).moveToStarted();
+        ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }

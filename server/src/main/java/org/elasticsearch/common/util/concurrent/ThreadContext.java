@@ -593,6 +593,31 @@ public final class ThreadContext implements Writeable {
         return threadLocal.get().isSystemContext;
     }
 
+    /**
+     * Remove unwanted and unneeded headers from the thread context. Does not store prior context.
+     */
+    public void sanitizeHeaders() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+
+        newRequestHeaders.entrySet()
+            .removeIf(
+                entry -> entry.getKey().equalsIgnoreCase("authorization")
+                    || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
+                    || entry.getKey().equalsIgnoreCase("ES-Client-Authentication")
+            );
+
+        final ThreadContextStruct newContext = new ThreadContextStruct(
+            newRequestHeaders,
+            originalContext.responseHeaders,
+            originalContext.transientHeaders,
+            originalContext.isSystemContext,
+            originalContext.warningHeadersSize
+        );
+        threadLocal.set(newContext);
+        // intentionally not storing prior context to avoid restoring unwanted headers
+    }
+
     @FunctionalInterface
     public interface StoredContext extends AutoCloseable, Releasable {
         default void restore() {

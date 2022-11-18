@@ -26,7 +26,9 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
 
         ByteSizeValue storage = randomNullableByteSizeValue();
         ByteSizeValue memory = randomNullableByteSizeValue();
-        Processors processors = (memory != null || storage != null) && randomBoolean() ? null : Processors.of((double) randomInt(64));
+        Processors processors = (memory != null || storage != null) && randomBoolean()
+            ? null
+            : Processors.of((double) randomIntBetween(1, 64));
         if (storage != null) {
             configurationBuilder.put(FixedAutoscalingDeciderService.STORAGE.getKey(), storage);
         }
@@ -59,7 +61,7 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ByteSizeValue multiply(ByteSizeValue bytes, int nodes) {
-        return bytes == null ? null : new ByteSizeValue(bytes.getBytes() * nodes);
+        return bytes == null ? null : ByteSizeValue.ofBytes(bytes.getBytes() * nodes);
     }
 
     private Processors multiply(Processors processors, int nodes) {

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -36,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -963,16 +963,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         boolean hasDiscoveredQuorum
     ) {
         Map<String, DiscoveryNode> masterEligibleNodesMap = Map.of("node1", node1, "node2", node2, "node3", node3);
-        List<String> initialMasterNodesSetting = Arrays.stream(generateRandomStringArray(7, 30, false, false)).toList();
+        List<String> initialMasterNodesSetting = Arrays.asList(generateRandomStringArray(7, 30, false, false));
         DiscoveryNode localNode = masterEligibleNodesMap.values().stream().findAny().get();
-        ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
-        masterEligibleNodesMap.forEach(masterEligibleNodesBuilder::put);
-        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes = masterEligibleNodesBuilder.build();
         List<DiscoveryNode> allMasterEligibleNodes = List.of(node1, node2, node3);
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
             localNode,
-            masterEligibleNodes,
+            Map.copyOf(masterEligibleNodesMap),
             randomLong(),
             randomLong(),
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
@@ -1153,6 +1150,37 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             IllegalArgumentException.class,
             () -> new CoordinationDiagnosticsService.RemoteMasterHealthResult(mock(DiscoveryNode.class), null, null)
         );
+    }
+
+    public void testRandomMasterEligibleNode() throws Exception {
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.state()).thenReturn(nullMasterClusterState);
+        when(clusterService.localNode()).thenReturn(node3);
+        Coordinator coordinator = mock(Coordinator.class);
+        Set<DiscoveryNode> allMasterEligibleNodes = Set.of(node1, node2, node3);
+        when(coordinator.getFoundPeers()).thenReturn(allMasterEligibleNodes);
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+            clusterService,
+            transportService,
+            coordinator,
+            masterHistoryService
+        );
+
+        /*
+         * Here we're just checking that with a large number of runs (1000) relative to the number of master eligible nodes (3) we always
+         * get all 3 master eligible nodes back. This is just so that we know we're not always getting back the same node.
+         */
+        Set<DiscoveryNode> seenMasterEligibleNodes = new HashSet<>();
+        for (int i = 0; i < 1000; i++) {
+            seenMasterEligibleNodes.add(coordinationDiagnosticsService.getRandomMasterEligibleNode());
+        }
+        assertThat(seenMasterEligibleNodes, equalTo(allMasterEligibleNodes));
     }
 
     public void testResultSerialization() {

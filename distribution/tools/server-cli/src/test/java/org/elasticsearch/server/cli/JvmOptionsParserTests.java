@@ -306,8 +306,8 @@ public class JvmOptionsParserTests extends ESTestCase {
         );
         try (StringReader sr = new StringReader(numberFormatExceptionsLine); BufferedReader br = new BufferedReader(sr)) {
             final Map<Integer, String> invalidLines = new HashMap<>(2);
-            invalidLines.put(1, String.format(Locale.ROOT, "%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
-            invalidLines.put(2, String.format(Locale.ROOT, "8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
+            invalidLines.put(1, formatted("%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
+            invalidLines.put(2, formatted("8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
             assertInvalidLines(br, invalidLines);
         }
 

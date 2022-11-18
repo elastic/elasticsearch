@@ -247,6 +247,11 @@ public class TransformIndexerStateTests extends ESTestCase {
             persistedState = state;
             listener.onResponse(null);
         }
+
+        @Override
+        void validate(ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
     }
 
     @Before

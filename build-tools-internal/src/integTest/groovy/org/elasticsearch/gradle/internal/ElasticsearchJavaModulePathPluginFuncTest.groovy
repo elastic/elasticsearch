@@ -172,7 +172,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     def "included build with non module dependencies"() {
         given:
         file(rootBuild.root, 'settings.gradle') << """
-        includeBuild '$projectDir'
+        includeBuild '${projectDir.path.replace('\\', '\\\\')}'
         """
 
         file(rootBuild.root, 'build.gradle') << """
@@ -204,7 +204,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     def "included build with module dependencies"() {
         given:
         file(rootBuild.root, 'settings.gradle') << """
-        includeBuild '$projectDir'
+        includeBuild '${projectDir.path.replace('\\', '\\\\')}'
         """
 
         file(rootBuild.root, 'build.gradle') << """

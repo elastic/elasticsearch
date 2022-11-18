@@ -115,7 +115,7 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86834")
     public void testParsingAndToQueryGeoJSON() throws IOException {
         // TODO: GeoJSON support missing for geo_distance query, although all other point formats work
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12mi",
@@ -125,24 +125,24 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQueryWKT() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12mi",
                     "%s":"POINT(-70 40)"
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12mi",
@@ -152,49 +152,49 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12mi",
                     "%s":[-70, 40]
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12mi",
                     "%s":"40, -70"
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12mi",
                     "%s":"drn5x1g8cu2y"
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         GeoPoint geoPoint = GeoPoint.fromGeohash("drn5x1g8cu2y");
         assertGeoDistanceRangeQuery(query, geoPoint.getLat(), geoPoint.getLon(), 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":12,
@@ -205,12 +205,12 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery6() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12",
@@ -221,12 +221,12 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery7() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
               "geo_distance":{
                   "distance":"19.312128",
@@ -236,12 +236,12 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                   }
               }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.DEFAULT);
     }
 
     public void testParsingAndToQuery8() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":19.312128,
@@ -251,12 +251,12 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.DEFAULT);
     }
 
     public void testParsingAndToQuery9() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"19.312128",
@@ -267,12 +267,12 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery10() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":19.312128,
@@ -283,12 +283,12 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery11() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"19.312128km",
@@ -298,12 +298,12 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery12() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_distance":{
                     "distance":"12mi",
@@ -314,7 +314,7 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 

@@ -597,7 +597,7 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextInt(10) == 0) {
             builder.put(
                 PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
-                new ByteSizeValue(
+                ByteSizeValue.ofBytes(
                     RandomNumbers.randomIntBetween(random, rarely(random) ? 10 : 100, randomFrom(random, 1000, 10000, 100000, 1000000))
                 )
             );

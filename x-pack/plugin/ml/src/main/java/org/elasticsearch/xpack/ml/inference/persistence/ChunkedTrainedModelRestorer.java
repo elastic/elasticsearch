@@ -155,6 +155,7 @@ public class ChunkedTrainedModelRestorer {
             // this many docs so far.
             int lastNum = numDocsWritten - 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
+                logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", modelId, hit.getId()));
                 try {
                     TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
                         hit.getSourceRef(),

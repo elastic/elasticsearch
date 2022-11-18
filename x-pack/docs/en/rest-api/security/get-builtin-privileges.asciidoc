@@ -19,8 +19,8 @@ available in this version of {es}.
 [[security-api-get-builtin-privileges-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have - the `manage_security` cluster privilege
-(or a greater privilege such as `all`).
+* To use this API, you must have the `read_security` cluster privilege
+(or a greater privilege such as `manage_security` or `all`).
 
 [[security-api-get-builtin-privileges-desc]]
 ==== {api-description-title}
@@ -102,6 +102,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "read_ccr",
     "read_ilm",
     "read_pipeline",
+    "read_security",
     "read_slm",
     "transport_client"
   ],

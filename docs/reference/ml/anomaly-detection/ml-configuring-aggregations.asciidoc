@@ -39,6 +39,10 @@ such as `terms`.
 the name of the field that contains the count of raw data points that have been 
 aggregated. It applies to all detectors in the job.
 
+* The influencers or the partition fields must be included in the aggregation of 
+your {dfeed}, otherwise they are not included in the job analysis. For more 
+information on influencers, refer to <<ml-ad-influencers>>.
+
 
 [discrete]
 [[aggs-interval]]
@@ -83,11 +87,8 @@ type of analysis.
 <<ml-rare-functions,rare>> functions, set the interval to the same value as the 
 bucket span.
 
-* By default, {es} limits the maximum number of terms returned to 10000. For 
-high cardinality fields, the query might not run. It might return errors related 
-to circuit breaking exceptions that indicate that the data is too large. When 
-you use a terms aggregation and the cardinality of a term is high but still 
-significantly less than your total number of documents, use
+* If you have multiple influencers or partition fields or if your field 
+cardinality is more than 1000, use 
 {ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
 +
 --
@@ -108,12 +109,6 @@ GET .../_search
 --------------------------------------------------
 // NOTCONSOLE
 --
-
-* When you use a `term` aggregation to gather influencer or partition field 
-information, consider using a `composite` aggregation. It performs better than a 
-`date_histogram` with a nested `term` aggregation and also includes all the 
-values of the field instead of the top values per bucket. For more information 
-on influencers, refer to <<ml-ad-influencers>>.
 
 
 [discrete]

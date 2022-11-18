@@ -84,7 +84,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough
-            newState = becomeMasterAndTrimConflictingNodes(initialState, joinTaskContexts, term);
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                // suppress deprecation warnings e.g. from reroute()
+                newState = becomeMasterAndTrimConflictingNodes(initialState, joinTaskContexts, term);
+            }
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster()) {
             assert initialState.term() == term : "term should be stable for the same master";

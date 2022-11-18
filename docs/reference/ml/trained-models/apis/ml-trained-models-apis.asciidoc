@@ -4,6 +4,7 @@
 
 You can use the following APIs to perform model management operations:
 
+* <<clear-trained-model-deployment-cache>>
 * <<put-trained-models>>
 * <<put-trained-model-definition-part>>
 * <<put-trained-model-vocabulary>>
@@ -15,6 +16,7 @@ You can use the following APIs to perform model management operations:
 * <<infer-trained-model>>
 * <<start-trained-model-deployment>>
 * <<stop-trained-model-deployment>>
+* <<update-trained-model-deployment>>
 
 You can deploy a trained model to make predictions in an ingest pipeline or in
 an aggregation. Refer to the following documentation to learn more:

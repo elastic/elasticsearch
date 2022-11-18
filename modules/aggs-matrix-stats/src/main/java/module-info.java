@@ -10,7 +10,6 @@ module org.elasticsearch.aggs.matrix {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
-    requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.search.aggregations.matrix;

@@ -319,10 +319,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         for (final var indexRoutingTable : stateWithInitializingPrimaries.routingTable()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 final var indexShardRoutingTable = indexRoutingTable.shard(i);
-            }
-
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                final var indexShardRoutingTable = indexRoutingTable.shard(i);
                 assertTrue(indexShardRoutingTable.primaryShard().initializing());
                 assertThat(indexShardRoutingTable.replicaShards().stream().filter(ShardRouting::unassigned).count(), equalTo(3L));
             }
@@ -1168,19 +1164,14 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     private static DiscoveryNodes discoveryNodes(int nodeCount) {
         final var discoveryNodes = DiscoveryNodes.builder();
         for (var i = 0; i < nodeCount; i++) {
-            final var transportAddress = buildNewFakeTransportAddress();
-            final var discoveryNode = new DiscoveryNode(
+            discoveryNodes.add(new DiscoveryNode(
                 "node-" + i,
                 "node-" + i,
-                UUIDs.randomBase64UUID(random()),
-                transportAddress.address().getHostString(),
-                transportAddress.getAddress(),
-                transportAddress,
+                buildNewFakeTransportAddress(),
                 Map.of(),
                 Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
                 Version.CURRENT
-            );
-            discoveryNodes.add(discoveryNode);
+            ));
         }
         discoveryNodes.masterNodeId("node-0").localNodeId("node-0");
         return discoveryNodes.build();

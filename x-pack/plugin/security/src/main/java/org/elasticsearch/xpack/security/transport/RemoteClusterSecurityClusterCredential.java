@@ -7,33 +7,116 @@
 
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.ApiKeyUtil;
 
-public record RemoteClusterSecurityClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
+import java.nio.CharBuffer;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-    public static RemoteClusterSecurityClusterCredential readFromThreadContextHeader(final ThreadContext ctx) {
-        final String fcApiKeyBase64 = ctx.getHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY);
-        return (Strings.isEmpty(fcApiKeyBase64)) ? null : new RemoteClusterSecurityClusterCredential(decode(fcApiKeyBase64));
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_SCHEME;
+
+// TODO plural
+public record RemoteClusterSecurityClusterCredential(String scheme, SecureString value) {
+
+    private static final Logger LOGGER = LogManager.getLogger(SecurityServerTransportInterceptor.class);
+
+    public static final Set<String> SUPPORTED_PREFIXES = Set.of(API_KEY_SCHEME);
+    private static final Set<CharSequence> SUPPORTED_PREFIXES_CHAR_SEQUENCES = SUPPORTED_PREFIXES.stream()
+        .map(p -> CharBuffer.wrap(p).subSequence(0, p.length()))
+        .collect(Collectors.toSet());
+
+    public RemoteClusterSecurityClusterCredential {
+        if (Strings.isEmpty(scheme)) {
+            throw new RuntimeException("Missing scheme");
+        } else if (SUPPORTED_PREFIXES.contains(scheme) == false) {
+            throw new RuntimeException(String.format("Unsupported scheme [%s], supported schemes are %s", scheme, SUPPORTED_PREFIXES));
+        } else if (Strings.isEmpty(value)) {
+            throw new RuntimeException("Missing value");
+        }
     }
 
-    public static void writeToContext(final ThreadContext threadContext, ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
-        threadContext.putHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY, encode(fcApiKeyCredentials));
+    public static RemoteClusterSecurityClusterCredential readFromContextHeader(final ThreadContext ctx) {
+        return decode(ctx.getHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY));
     }
 
-    private static ApiKeyService.ApiKeyCredentials decode(final String fcApiKey) {
-        return decode(new SecureString(fcApiKey.toCharArray()));
+    public static void writeToContextHeader(
+        final ThreadContext threadContext,
+        final RemoteClusterSecurityClusterCredential schemeAndCredentials
+    ) {
+        try (SecureString encoded = encode(schemeAndCredentials)) {
+            threadContext.putHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY, encoded.toString());
+        }
     }
 
-    private static ApiKeyService.ApiKeyCredentials decode(final SecureString fcApiKeySecureString) {
-        return ApiKeyUtil.toApiKeyCredentials(fcApiKeySecureString);
+    public static void writeToContextHeader(final ThreadContext threadContext, final SecureString schemeAndCredentials) {
+        RemoteClusterSecurityClusterCredential schemeAndCredentialsIfValid = decode(schemeAndCredentials);
+        if (schemeAndCredentialsIfValid != null) {
+            threadContext.putHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY, schemeAndCredentials.toString());
+        }
     }
 
-    private static String encode(final ApiKeyService.ApiKeyCredentials fcApiKey) {
-        return fcApiKey.toString();
+    // encoded = scheme + " " + value
+    public static SecureString encode(final RemoteClusterSecurityClusterCredential schemeAndCredentials) {
+        if (schemeAndCredentials != null) {
+            final String scheme = schemeAndCredentials.scheme();
+            final SecureString value = schemeAndCredentials.value();
+            final char[] schemeAndCredentialsChars = new char[scheme.length() + 1 + value.length()];
+            int i = 0;
+            for (int s = 0; s < scheme.length(); s++) {
+                schemeAndCredentialsChars[i++] = scheme.charAt(s);
+            }
+            schemeAndCredentialsChars[i++] = ' ';
+            for (int c = 0; c < value.length(); c++) {
+                schemeAndCredentialsChars[i++] = value.charAt(c);
+            }
+            return new SecureString(schemeAndCredentialsChars);
+        }
+        return null;
+    }
+
+    public static RemoteClusterSecurityClusterCredential decode(final CharSequence schemeAndValue) {
+        if (Strings.isEmpty(schemeAndValue)) {
+            LOGGER.warn("No scheme and value found");
+            return null;
+        }
+        for (final CharSequence supportedPrefixChars : SUPPORTED_PREFIXES_CHAR_SEQUENCES) {
+            if (startsWith(schemeAndValue, supportedPrefixChars)) {
+                // found a value scheme
+                if (schemeAndValue.length() <= supportedPrefixChars.length() + 1) {
+                    // Example: "ApiKey" and "ApiKey " lack a value after the prefix, so reject them
+                    LOGGER.warn("Empty value not allowed after scheme [{}]", supportedPrefixChars);
+                    return null;
+                } else if (schemeAndValue.charAt(schemeAndValue.length()) != ' ') {
+                    // Example: "ApiKey-value" does not have the expected space between scheme and value
+                    LOGGER.warn("Missing space after scheme [{}]", supportedPrefixChars);
+                    return null;
+                }
+                final char[] valueChars = new char[schemeAndValue.length() - supportedPrefixChars.length() - 1];
+                int i = 0;
+                for (int c = supportedPrefixChars.length() + 1; c < schemeAndValue.length(); c++) {
+                    valueChars[i++] = schemeAndValue.charAt(c);
+                }
+                return new RemoteClusterSecurityClusterCredential(supportedPrefixChars.toString(), new SecureString(valueChars));
+            }
+        }
+        LOGGER.warn("No supported scheme found, supports schemes are {}", SUPPORTED_PREFIXES);
+        return null;
+    }
+
+    public static boolean startsWith(final CharSequence value, final CharSequence prefix) {
+        if ((value == null) || (prefix == null) || (value.length() < prefix.length())) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) != prefix.charAt(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

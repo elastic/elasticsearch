@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -33,9 +35,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class RoleDescriptorsIntersectionTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        final RoleDescriptorsIntersection roleDescriptorsIntersection = new RoleDescriptorsIntersection(
-            randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3)))
-        );
+        final Collection<Set<RoleDescriptor>> originalSets = randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3)));
+        final RoleDescriptorsIntersection originalIntersection = new RoleDescriptorsIntersection(originalSets);
 
         final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             List.of(
@@ -52,25 +53,29 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
             )
         );
 
+        final BytesReference serializedIntersection;
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            roleDescriptorsIntersection.writeTo(output);
-            try (StreamInput input = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                RoleDescriptorsIntersection deserialized = new RoleDescriptorsIntersection(input);
-                assertThat(deserialized.roleDescriptorsSets(), equalTo(roleDescriptorsIntersection.roleDescriptorsSets()));
-            }
+            originalIntersection.writeTo(output);
+            serializedIntersection = output.bytes();
         }
+        final RoleDescriptorsIntersection deserializedIntersection;
+        try (StreamInput input = new NamedWriteableAwareStreamInput(serializedIntersection.streamInput(), namedWriteableRegistry)) {
+            deserializedIntersection = new RoleDescriptorsIntersection(input);
+        }
+        final Collection<Set<RoleDescriptor>> deserializedSets = deserializedIntersection.roleDescriptorsSets();
+        assertThat(deserializedSets, equalTo(originalSets));
+        assertThat(deserializedIntersection, equalTo(originalIntersection));
     }
 
     public void testXContent() throws IOException {
-        final RoleDescriptorsIntersection roleDescriptorsIntersection = new RoleDescriptorsIntersection(
-            List.of(
-                Set.of(new RoleDescriptor("role_0", new String[] { "monitor" }, null, null)),
-                Set.of(new RoleDescriptor("role_1", new String[] { "all" }, null, null))
-            )
+        final List<Set<RoleDescriptor>> originalSets = List.of(
+            Set.of(new RoleDescriptor("role_0", new String[] { "monitor" }, null, null)),
+            Set.of(new RoleDescriptor("role_1", new String[] { "all" }, null, null))
         );
+        final RoleDescriptorsIntersection originalIntersection = new RoleDescriptorsIntersection(originalSets);
 
         final XContentBuilder builder = XContentFactory.jsonBuilder();
-        roleDescriptorsIntersection.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        originalIntersection.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String jsonString = Strings.toString(builder);
 
         assertThat(jsonString, equalTo(XContentHelper.stripWhitespace("""
@@ -97,8 +102,12 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
               }
             ]""")));
 
+        final RoleDescriptorsIntersection decodedIntersection;
         try (XContentParser p = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonString)) {
-            assertThat(RoleDescriptorsIntersection.fromXContent(p), equalTo(roleDescriptorsIntersection));
+            decodedIntersection = RoleDescriptorsIntersection.fromXContent(p);
         }
+        final Collection<Set<RoleDescriptor>> decodedSets = decodedIntersection.roleDescriptorsSets();
+        assertThat(decodedSets, equalTo(originalSets));
+        assertThat(decodedIntersection, equalTo(originalIntersection));
     }
 }

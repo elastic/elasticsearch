@@ -50,9 +50,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCrossClusterRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newRemoteClusterSecurityRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
@@ -785,7 +785,7 @@ public final class Authentication implements ToXContentObject {
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
 
-        static RealmRef newCrossClusterRealmRef(String nodeName) {
+        static RealmRef newRemoteClusterSecurityRealmRef(String nodeName) {
             // no domain for Cross Cluster
             return new RealmRef(RCS_REALM_NAME, RCS_REALM_TYPE, nodeName, null);
         }
@@ -879,11 +879,11 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public static Authentication newCrossClusterAuthentication(AuthenticationResult<User> authResult, String nodeName) {
-        assert authResult.isAuthenticated() : "Cross Cluster authn result must be successful";
+    public static Authentication newRemoteClusterSecurityAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        assert authResult.isAuthenticated() : "Remote Cluster Security authentication instance must be authenticated";
         final User user = authResult.getValue();
-        assert user.roles().length == 0 : "The user associated to a Cross Cluster authentication must have no roles";
-        final Authentication.RealmRef authenticatedBy = newCrossClusterRealmRef(nodeName);
+        assert user.roles().length == 0 : "The user associated to a Remote Cluster Security authentication must have no roles";
+        final Authentication.RealmRef authenticatedBy = newRemoteClusterSecurityRealmRef(nodeName);
         Authentication authentication = new Authentication(
             new Subject(user, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
             AuthenticationType.REMOTE_CLUSTER_SECURITY

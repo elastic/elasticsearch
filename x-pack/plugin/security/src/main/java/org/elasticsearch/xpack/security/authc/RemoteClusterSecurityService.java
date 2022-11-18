@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -53,15 +54,32 @@ public class RemoteClusterSecurityService {
         this.apiKeyService = apiKeyService;
     }
 
-    RemoteAccessAuthenticationToken getRemoteAccessAuthenticationTokenFromThreadContextHeader(final ThreadContext threadContext) {
-        // Header contains FC API Key to be authenticated and authorized
-        final RemoteClusterSecurityClusterCredential fc = RemoteClusterSecurityClusterCredential.readFromThreadContextHeader(threadContext);
+    // public record RemoteClusterSecurityClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
+    //
+    // private static ApiKeyService.ApiKeyCredentials decode(final String fcApiKey) {
+    // return decode(new SecureString(fcApiKey.toCharArray()));
+    // }
+    //
+    // private static ApiKeyService.ApiKeyCredentials decode(final SecureString fcApiKeySecureString) {
+    // return ApiKeyUtil.toApiKeyCredentials(fcApiKeySecureString);
+    // }
+    //
+    // private static String encode(final ApiKeyService.ApiKeyCredentials fcApiKey) {
+    // return fcApiKey.toString();
+    // }
+    // final ApiKeyService.ApiKeyCredentials apiKeyCredentials = ApiKeyUtil.toApiKeyCredentials(fcClusterCredentials);
+
+    RemoteClusterSecurityAuthenticationToken getRemoteClusterSecurityAuthenticationTokenFromThreadContextHeader(
+        final ThreadContext threadContext
+    ) {
+        // Header contains an FC API Key from the QC, to be validated by the FC for cluster-level authentication and authorization
+        final RemoteClusterSecurityClusterCredential fc = RemoteClusterSecurityClusterCredential.readFromContextHeader(threadContext);
         if (fc == null) {
             logger.debug("Header [{}] is absent", RCS_CLUSTER_CREDENTIAL_HEADER_KEY);
             return null;
         }
-        logger.trace("Header [{}] is present, FC API Key ID: [{}]", RCS_CLUSTER_CREDENTIAL_HEADER_KEY, fc.fcApiKeyCredentials().getId());
-        // Header contains QC user access (i.e. Authentication and Authorization)
+        logger.trace("Header [{}] is present", RCS_CLUSTER_CREDENTIAL_HEADER_KEY);
+        // Header contains QC user access computed by the QC (i.e. Authentication and Authorization), only trusted if FC API Key is valid
         final RemoteClusterSecuritySubjectAccess qc;
         try {
             qc = RemoteClusterSecuritySubjectAccess.readFromThreadContextHeader(threadContext);
@@ -78,40 +96,67 @@ public class RemoteClusterSecurityService {
             RCS_SUBJECT_ACCESS_HEADER_KEY,
             qc.authentication().getEffectiveSubject().toString()
         );
-        return new RemoteAccessAuthenticationToken(qc, fc);
+        return new RemoteClusterSecurityAuthenticationToken(qc, fc);
     }
 
     void tryAuthenticate(
         ThreadContext ctx,
-        RemoteAccessAuthenticationToken remoteAccessAuthenticationToken,
+        RemoteClusterSecurityAuthenticationToken remoteClusterSecurityAuthenticationToken,
         ActionListener<AuthenticationResult<User>> listener
     ) {
-        final RemoteClusterSecuritySubjectAccess remoteClusterSecuritySubjectAccess = remoteAccessAuthenticationToken
+        // QC Authentication and Authorization
+        final RemoteClusterSecuritySubjectAccess remoteClusterSecuritySubjectAccess = remoteClusterSecurityAuthenticationToken
             .getRemoteClusterSecuritySubjectAccess();
         if (remoteClusterSecuritySubjectAccess == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("Missing QC RemoteClusterSecuritySubjectAccess", null));
-        } else {
-            final Authentication qcAuthentication = remoteClusterSecuritySubjectAccess.authentication();
-            if (remoteClusterSecuritySubjectAccess.authentication() == null) {
-                listener.onResponse(AuthenticationResult.unsuccessful("Missing QC Authentication", null));
-            } else {
-                final RemoteClusterSecurityClusterCredential remoteClusterSecurityClusterCredential = remoteAccessAuthenticationToken
-                    .getRemoteClusterSecurityClusterCredential();
-                final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials = remoteClusterSecurityClusterCredential.fcApiKeyCredentials();
-                this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, fcApiKeyCredentials, ActionListener.wrap(fcApiKeyAuthcResult -> {
-                    // TODO Success path only, handle auth failure
-                    final User rcsFcUser = buildRemoteClusterSecurityUser(qcAuthentication, fcApiKeyAuthcResult.getValue());
-                    listener.onResponse(AuthenticationResult.success(rcsFcUser, Collections.emptyMap()));
-                }, listener::onFailure));
-            }
+            return;
         }
+        final Authentication qcAuthentication = remoteClusterSecuritySubjectAccess.authentication();
+        if (qcAuthentication == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing QC Authentication", null));
+            return;
+        }
+        final RoleDescriptorsIntersection qcAuthorization = remoteClusterSecuritySubjectAccess.authorization();
+        if (qcAuthorization == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing QC Authentication", null));
+            return;
+        }
+        // FC credential Scheme (i.e. APIKey) and Value (i.e. Base64(id:secret))
+        final RemoteClusterSecurityClusterCredential remoteClusterSecurityClusterCredential = remoteClusterSecurityAuthenticationToken
+            .getRemoteClusterSecurityClusterCredential();
+        if (remoteClusterSecurityClusterCredential == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC RemoteClusterSecurityClusterCredential", null));
+            return;
+        }
+        final String scheme = remoteClusterSecurityClusterCredential.scheme();
+        final SecureString value = remoteClusterSecurityClusterCredential.value();
+        if (Strings.isEmpty(value)) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC cluster credentials value", null));
+            return;
+        }
+        if (Strings.isEmpty(scheme)) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC cluster credentials scheme", null));
+            return;
+        }
+        assert ApiKeyService.API_KEY_SCHEME.equals(scheme) : "Only ApiKey scheme is supported";
+        final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials = ApiKeyUtil.toApiKeyCredentials(value);
+        if (fcApiKeyCredentials == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC ApiKeyService.ApiKeyCredentials", null));
+            return;
+        }
+        // Try to authenticate FC API Key. If successful, use it to construct an FC user
+        this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, fcApiKeyCredentials, ActionListener.wrap(fcApiKeyAuthcResult -> {
+            // TODO Success path only, handle auth failure
+            final User rcsFcUser = buildRemoteClusterSecurityUser(qcAuthentication, qcAuthorization, fcApiKeyAuthcResult.getValue());
+            listener.onResponse(AuthenticationResult.success(rcsFcUser, Collections.emptyMap()));
+        }, listener::onFailure));
     }
 
-    public static final class RemoteAccessAuthenticationToken implements AuthenticationToken, Closeable {
+    public static final class RemoteClusterSecurityAuthenticationToken implements AuthenticationToken, Closeable {
         private final RemoteClusterSecuritySubjectAccess qcRemoteClusterSecuritySubjectAccess;
         private final RemoteClusterSecurityClusterCredential fcRemoteClusterSecurityClusterCredential;
 
-        public RemoteAccessAuthenticationToken(
+        public RemoteClusterSecurityAuthenticationToken(
             RemoteClusterSecuritySubjectAccess qcRemoteClusterSecuritySubjectAccess,
             RemoteClusterSecurityClusterCredential fcRemoteClusterSecurityClusterCredential
         ) {
@@ -134,19 +179,20 @@ public class RemoteClusterSecurityService {
 
         @Override
         public void close() {
-            this.fcRemoteClusterSecurityClusterCredential.fcApiKeyCredentials().close();
+            this.fcRemoteClusterSecurityClusterCredential.value();
         }
 
         @Override
         public String principal() {
+            // TODO API Key ID????
             return this.qcRemoteClusterSecuritySubjectAccess.authentication().getEffectiveSubject().getUser().principal()
                 + "/"
-                + this.fcRemoteClusterSecurityClusterCredential.fcApiKeyCredentials().getId();
+                + this.fcRemoteClusterSecurityClusterCredential.scheme();
         }
 
         @Override
         public Object credentials() {
-            return this.fcRemoteClusterSecurityClusterCredential.fcApiKeyCredentials();
+            return this.fcRemoteClusterSecurityClusterCredential.value();
         }
     }
 
@@ -158,7 +204,11 @@ public class RemoteClusterSecurityService {
         return RoleDescriptor.parseRoleDescriptorsBytes(XContentParserConfiguration.EMPTY, bytesReference);
     }
 
-    public User buildRemoteClusterSecurityUser(final Authentication qcAuthentication, final User fcApiKeyUser) throws IOException {
+    public User buildRemoteClusterSecurityUser(
+        final Authentication qcAuthentication,
+        final RoleDescriptorsIntersection qcAuthorization,
+        final User fcApiKeyUser
+    ) throws IOException {
         final Map<String, Object> fcApiKeyMetadata = fcApiKeyUser.metadata();
         final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY);
         final BytesReference fcRoleDescriptorsIntersectionBytes = getFcRoleDescriptorsIntersectionBytes(fcApiKeyMetadata);

@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDescriptorsSets) implements ToXContentObject, Writeable {
@@ -35,14 +36,12 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray();
-        {
-            for (Set<RoleDescriptor> roleDescriptors : roleDescriptorsSets) {
-                builder.startObject();
-                for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                    builder.field(roleDescriptor.getName(), roleDescriptor);
-                }
-                builder.endObject();
+        for (final Set<RoleDescriptor> roleDescriptorsSet : roleDescriptorsSets) {
+            builder.startObject();
+            for (final RoleDescriptor roleDescriptor : roleDescriptorsSet) {
+                builder.field(roleDescriptor.getName(), roleDescriptor);
             }
+            builder.endObject();
         }
         builder.endArray();
         return builder;
@@ -52,10 +51,10 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
         if (xContentParser.currentToken() == null) {
             xContentParser.nextToken();
         }
-        final Collection<Set<RoleDescriptor>> roleDescriptorsList = XContentParserUtils.parseList(xContentParser, p -> {
+        final List<Set<RoleDescriptor>> roleDescriptorsSets = XContentParserUtils.parseList(xContentParser, p -> {
             XContentParser.Token token = p.currentToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, p);
-            final Collection<RoleDescriptor> roleDescriptors = new ArrayList<>();
+            final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
             while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, p);
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
@@ -63,6 +62,6 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
             }
             return Set.copyOf(roleDescriptors);
         });
-        return new RoleDescriptorsIntersection(Set.copyOf(roleDescriptorsList));
+        return new RoleDescriptorsIntersection(List.copyOf(roleDescriptorsSets));
     }
 }

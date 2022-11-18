@@ -245,7 +245,7 @@ public class Subject {
         return buildRoleReferencesForRemoteClusterSecurityStatic(metadata);
     }
 
-    public static RoleReferenceIntersection buildRoleReferencesForRemoteClusterSecurityStatic(Map<String, Object> metadata) {
+    public static RoleReferenceIntersection buildRoleReferencesForRemoteClusterSecurityStatic(final Map<String, Object> metadata) {
         final String fcApiKeyId = (String) metadata.get(RCS_FC_API_KEY_ID_KEY);
         assert fcApiKeyId != null;
         final BytesReference fcRoleDescriptorsSetsBytes = (BytesReference) metadata.get(RCS_FC_ROLE_DESCRIPTORS_SETS_KEY);

@@ -144,7 +144,7 @@ import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_P
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
-
+    public static final String API_KEY_SCHEME = "ApiKey";
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
 
@@ -956,7 +956,7 @@ public class ApiKeyService {
         if (false == isEnabled()) {
             return null;
         }
-        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, API_KEY_SCHEME);
         return ApiKeyUtil.toApiKeyCredentials(apiKeyString);
     }
 

@@ -36,21 +36,21 @@ class RemoteClusterSecurityAuthenticator implements Authenticator {
 
     @Override
     public AuthenticationToken extractCredentials(Context context) {
-        return remoteClusterSecurityService.getRemoteAccessAuthenticationTokenFromThreadContextHeader(context.getThreadContext());
+        return remoteClusterSecurityService.getRemoteClusterSecurityAuthenticationTokenFromThreadContextHeader(context.getThreadContext());
     }
 
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
-        if (false == authenticationToken instanceof RemoteClusterSecurityService.RemoteAccessAuthenticationToken) {
+        if (false == authenticationToken instanceof RemoteClusterSecurityService.RemoteClusterSecurityAuthenticationToken) {
             listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
-        RemoteClusterSecurityService.RemoteAccessAuthenticationToken apiKeyCredentials =
-            (RemoteClusterSecurityService.RemoteAccessAuthenticationToken) authenticationToken;
-        remoteClusterSecurityService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
+        RemoteClusterSecurityService.RemoteClusterSecurityAuthenticationToken rcsAuthenticationToken =
+            (RemoteClusterSecurityService.RemoteClusterSecurityAuthenticationToken) authenticationToken;
+        remoteClusterSecurityService.tryAuthenticate(context.getThreadContext(), rcsAuthenticationToken, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
-                final Authentication authentication = Authentication.newCrossClusterAuthentication(authResult, nodeName);
+                final Authentication authentication = Authentication.newRemoteClusterSecurityAuthentication(authResult, nodeName);
                 listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)

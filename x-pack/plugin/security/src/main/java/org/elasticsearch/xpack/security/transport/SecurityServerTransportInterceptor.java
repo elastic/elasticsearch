@@ -40,8 +40,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.ApiKeyUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
@@ -243,12 +241,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 logger.info("Got role descriptors intersection [{}] for cluster [{}]", roleDescriptorsIntersection, remoteClusterAlias);
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
-                final ApiKeyService.ApiKeyCredentials fcApiKey = ApiKeyUtil.toApiKeyCredentials(
-                    new SecureString(remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias).toCharArray())
+                final SecureString fcApiKey = new SecureString(
+                    remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias).toCharArray()
                 );
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RemoteClusterSecuritySubjectAccess.writeToContext(threadContext, authentication, roleDescriptorsIntersection);
-                    RemoteClusterSecurityClusterCredential.writeToContext(threadContext, fcApiKey);
+                    RemoteClusterSecurityClusterCredential.writeToContextHeader(threadContext, fcApiKey);
+                    RemoteClusterSecuritySubjectAccess.writeToThreadContextHeader(
+                        threadContext,
+                        authentication,
+                        roleDescriptorsIntersection
+                    );
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))

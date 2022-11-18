@@ -369,6 +369,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_SCHEME;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 
 public class Security extends Plugin
@@ -980,10 +981,9 @@ public class Security extends Plugin
                     }
                 }
                 if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
-                    final String apiKeyScheme = "ApiKey";
                     if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                        .contains(apiKeyScheme) == false) {
-                        defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
+                        .contains(API_KEY_SCHEME) == false) {
+                        defaultFailureResponseHeaders.get("WWW-Authenticate").add(API_KEY_SCHEME);
                     }
                 }
                 return defaultFailureResponseHeaders;

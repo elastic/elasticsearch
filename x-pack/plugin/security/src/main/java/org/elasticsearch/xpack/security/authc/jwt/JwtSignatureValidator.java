@@ -161,8 +161,10 @@ public interface JwtSignatureValidator extends Releasable {
         }
 
         private void logWarnIfAuthenticationWillAlwaysFail() {
-            final boolean hasUsableJwksAndAlgorithms = (hmacJwtSignatureValidator != null && hmacJwtSignatureValidator.jwksAlgs.isEmpty())
-                || (pkcJwtSignatureValidator != null && pkcJwtSignatureValidator.jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().isEmpty());
+            final boolean hasUsableJwksAndAlgorithms = (hmacJwtSignatureValidator != null
+                && false == hmacJwtSignatureValidator.jwksAlgs.isEmpty())
+                || (pkcJwtSignatureValidator != null
+                    && false == pkcJwtSignatureValidator.jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().isEmpty());
             if (false == hasUsableJwksAndAlgorithms) {
                 logger.warn(
                     "No available JWK and algorithm for HMAC or PKC. JWT realm authentication expected to fail until this is fixed."

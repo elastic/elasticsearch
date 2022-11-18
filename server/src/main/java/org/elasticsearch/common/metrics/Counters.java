@@ -20,12 +20,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Simple usage stat counters based on longs. Internally this is a map mapping from String to a CounterMetric. This class also
- * provides a helper method that converts the counters to a nested map, using the "." as a splitter. This allows the stats producer to not
- * worry about how the map is actually nested.
+ * Simple usage stat counters based on longs. Internally this is a map mapping from String which is the counter's label to a CounterMetric
+ * which is the value. This class also provides a helper method that converts the counters to a nested map, using the "." in the label as a
+ * splitter. This allows the stats producer to not worry about how the map is actually nested.
 
- * IMPORTANT: if the consumer of the metrics will make use of the nested map, it is the responsibility of the producer to provide counters
- * that will not have conflicts, which means that there will be no counter which is a substring of another counter.
+ * IMPORTANT: if the consumer of the metrics will make use of the nested map, it is the responsibility of the producer to provide labels
+ * that will not have conflicts, which means that there no counter will have a label which is a substring of the label of another counter.
+ * For example, the counters `foo: 1` and `foo.bar: 3` cannot co-exist in a nested map.
  */
 public class Counters implements Writeable {
 

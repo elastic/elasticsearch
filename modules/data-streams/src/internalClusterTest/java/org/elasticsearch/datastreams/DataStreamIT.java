@@ -100,6 +100,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -2061,12 +2062,14 @@ public class DataStreamIT extends ESIntegTestCase {
         // - We want to simulate two possible cases here:
         // - All the assigned nodes for shard 0 will fail to respond to the IndicesStatsRequest
         // - Only the shard 1 replica will respond successfully to the IndicesStatsRequest ensuring that we fall back in that case
+        // (only if it's not co-located with some other shard copies)
 
         final List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(4);
         final String dataStreamName = "logs-es";
 
+        final var numberOfShards = 2;
         final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
             .build();
@@ -2081,11 +2084,12 @@ public class DataStreamIT extends ESIntegTestCase {
         final IndexRoutingTable currentDataStreamWriteIndexRoutingTable = clusterStateBeforeRollover.routingTable()
             .index(dataStreamBeforeRollover.getWriteIndex());
 
-        final List<String> failingIndicesStatsNodeIds = new ArrayList<>();
+        final Set<String> failingIndicesStatsNodeIds = new HashSet<>();
         for (ShardRouting shardRouting : currentDataStreamWriteIndexRoutingTable.shard(0).assignedShards()) {
             failingIndicesStatsNodeIds.add(shardRouting.currentNodeId());
         }
         failingIndicesStatsNodeIds.add(currentDataStreamWriteIndexRoutingTable.shard(1).primaryShard().currentNodeId());
+        final String shard1ReplicaNodeId = currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0).currentNodeId();
 
         for (String nodeId : failingIndicesStatsNodeIds) {
             String nodeName = clusterStateBeforeRollover.nodes().resolveNode(nodeId).getName();
@@ -2095,7 +2099,6 @@ public class DataStreamIT extends ESIntegTestCase {
                 (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
             );
         }
-        assertThat(failingIndicesStatsNodeIds.size(), is(equalTo(3)));
 
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
@@ -2105,7 +2108,8 @@ public class DataStreamIT extends ESIntegTestCase {
             final IndexMetadata indexMetadata = clusterState.metadata().index(index);
             final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
-            if (index.equals(dataStream.getWriteIndex()) == false) {
+            // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
+            if (index.equals(dataStream.getWriteIndex()) == false && failingIndicesStatsNodeIds.contains(shard1ReplicaNodeId) == false) {
                 assertThat(metadataStats, is(notNullValue()));
 
                 final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();

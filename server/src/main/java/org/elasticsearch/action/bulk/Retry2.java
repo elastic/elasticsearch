@@ -36,18 +36,28 @@ class Retry2 {
     private final Logger logger;
     private final int maxNumberOfRetries;
     /**
-     * Once awaitClose() has been called this is set to true. At that point the flush() method begins making sure that it does not run
-     * after closingTime.
+     * Once awaitClose() has been called this is set to true. Any new requests that come in (whether via withBackoff() or a retry) will
+     * be rejected by sending EsRejectedExecutionExceptions to their listeners.
      */
     private boolean isClosing = false;
 
+    /*
+     * This is an approximation of the total number of bytes in the bulk requests that are with consumers.
+     */
     private final AtomicLong totalBytesInFlight = new AtomicLong(0);
+    /*
+     * This is the approximate maximum number of bytes that this object will allow to be in flight to consumers.
+     */
     private final long maxBytesInFlight;
-    private final Phaser phaser = new Phaser();
+    /*
+     * We register in-flight calls with this Phaser so that we know whether there are any still in flight when we call awaitClose().
+     */
+    private final Phaser inFlightRequestsPhaser = new Phaser(1);
 
     /**
-     * Creates a Retry2. The returned object is not ready to be used until init() is called.
+     * Creates a Retry2.
      * @param maxNumberOfRetries This is the maximum number of times a BulkRequest will be retried
+     * @param maxBytesInFlight This is the maximum number of bytes that we want this object to keep in flight to the consumers
      */
     Retry2(int maxNumberOfRetries, ByteSizeValue maxBytesInFlight) {
         this.logger = LogManager.getLogger(getClass());
@@ -94,7 +104,7 @@ class Retry2 {
             );
         } else {
             totalBytesInFlight.addAndGet(bulkRequest.estimatedSizeInBytes());
-            phaser.register();
+            inFlightRequestsPhaser.register();
             consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, maxNumberOfRetries));
         }
     }
@@ -119,7 +129,7 @@ class Retry2 {
             return;
         }
         if (retriesRemaining > 0) {
-            phaser.register();
+            inFlightRequestsPhaser.register();
             consumer.accept(
                 bulkRequestForRetry,
                 new RetryHandler(bulkRequestForRetry, responsesAccumulator, consumer, listener, retriesRemaining - 1)
@@ -135,14 +145,15 @@ class Retry2 {
     }
 
     /**
-     * This method makes an attempt to run anything that is currently in either queue within the timeout given. It does not wait for
-     * additional items to be put on the queues, or wait for any outstanding requests to complete.
+     * This method makes an attempt to wait for any outstanding requests to complete. Any new requests that come in after this method has
+     * been called (whether via withBackoff() or a retry) will be rejected by sending EsRejectedExecutionExceptions to their listeners.
      * @param timeout
      * @param unit
      */
     void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
         isClosing = true;
-        phaser.awaitAdvanceInterruptibly(0, timeout, unit);
+        inFlightRequestsPhaser.arriveAndDeregister();
+        inFlightRequestsPhaser.awaitAdvanceInterruptibly(0, timeout, unit);
     }
 
     /**
@@ -213,7 +224,7 @@ class Retry2 {
                     listener.onResponse(getAccumulatedResponse());
                 }
             }
-            phaser.arriveAndDeregister();
+            inFlightRequestsPhaser.arriveAndDeregister();
         }
 
         @Override
@@ -221,11 +232,11 @@ class Retry2 {
             totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
             boolean canRetry = ExceptionsHelper.status(e) == RETRY_STATUS && retriesRemaining > 0;
             if (canRetry) {
-                phaser.arriveAndDeregister();
+                inFlightRequestsPhaser.arriveAndDeregister();
                 retry(bulkRequest, responsesAccumulator, consumer, listener, retriesRemaining);
             } else {
                 listener.onFailure(e);
-                phaser.arriveAndDeregister();
+                inFlightRequestsPhaser.arriveAndDeregister();
             }
         }
 

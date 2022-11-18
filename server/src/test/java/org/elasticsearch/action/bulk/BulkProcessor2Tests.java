@@ -77,6 +77,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             ThreadContext threadContext = threadPool.getThreadContext();
             assertEquals(headerValue, threadContext.getHeader(headerKey));
             assertSame(transientValue, threadContext.getTransient(transientKey));
+            listener.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
             latch.countDown();
         };
 
@@ -122,7 +123,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             final int attempt = attemptRef.incrementAndGet();
             assertThat(attempt, lessThanOrEqualTo(maxAttempts));
             if (attempt != 1) {
-                assertThat(Thread.currentThread().getName(), containsString("[BulkProcessor2Tests-flush-scheduler]"));
+                assertThat(Thread.currentThread().getName(), containsString("[BulkProcessor2Tests][generic]"));
             }
 
             if (attempt == maxAttempts) {

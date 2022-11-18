@@ -39,7 +39,7 @@ import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-@TestLogging(value = "org.elasticsearch.tasks.TaskManager:TRACE,org.elasticsearch.test.TaskAssertions:TRACE", reason = "debugging")
+@TestLogging(value = "org.elasticsearch.tasks:TRACE,org.elasticsearch.test.TaskAssertions:TRACE", reason = "debugging")
 public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
 
     public void testGetMappingsCancellation() throws Exception {

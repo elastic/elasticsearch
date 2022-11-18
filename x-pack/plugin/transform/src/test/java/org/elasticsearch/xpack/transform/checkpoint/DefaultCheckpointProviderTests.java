@@ -68,7 +68,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
-    private Client remoteClient;
+    private Client remoteClient1;
+    private Client remoteClient2;
+    private Client remoteClient3;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -79,9 +81,15 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        remoteClient = mock(Client.class);
-        when(remoteClient.threadPool()).thenReturn(threadPool);
-        when(client.getRemoteClusterClient(any())).thenReturn(remoteClient);
+        remoteClient1 = mock(Client.class);
+        when(remoteClient1.threadPool()).thenReturn(threadPool);
+        remoteClient2 = mock(Client.class);
+        when(remoteClient2.threadPool()).thenReturn(threadPool);
+        remoteClient3 = mock(Client.class);
+        when(remoteClient3.threadPool()).thenReturn(threadPool);
+        when(client.getRemoteClusterClient("remote-1")).thenReturn(remoteClient1);
+        when(client.getRemoteClusterClient("remote-2")).thenReturn(remoteClient2);
+        when(client.getRemoteClusterClient("remote-3")).thenReturn(remoteClient3);
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -277,7 +285,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
     }
 
-    // regression test for gh#91550
+    // regression test for gh#91550, testing a local and a remote the same index name
     public void testCreateNextCheckpointWithRemoteClient() throws InterruptedException {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
@@ -288,13 +296,13 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         GetCheckpointAction.Response remoteCheckpointResponse = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient1).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
         // local and remote share the same index name
         when(remoteClusterResolver.resolve(any())).thenReturn(
-            new RemoteClusterResolver.ResolvedIndices(Map.of("remote", List.of("index-1")), List.of("index-1"))
+            new RemoteClusterResolver.ResolvedIndices(Map.of("remote-1", List.of("index-1")), List.of("index-1"))
         );
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
@@ -317,7 +325,61 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertNotNull(checkpointHolder.get());
         assertThat(checkpointHolder.get().getCheckpoint(), is(equalTo(8L)));
-        assertThat(checkpointHolder.get().getIndicesCheckpoints().keySet(), containsInAnyOrder("index-1", "remote:index-1"));
+        assertThat(checkpointHolder.get().getIndicesCheckpoints().keySet(), containsInAnyOrder("index-1", "remote-1:index-1"));
+    }
+
+    // regression test for gh#91550, testing 3 remotes with same index name
+    public void testCreateNextCheckpointWithRemoteClients() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response remoteCheckpointResponse1 = new GetCheckpointAction.Response(
+            Map.of("index-1", new long[] { 1L, 2L, 3L })
+        );
+        doAnswer(withResponse(remoteCheckpointResponse1)).when(remoteClient1).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        GetCheckpointAction.Response remoteCheckpointResponse2 = new GetCheckpointAction.Response(
+            Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
+        );
+        doAnswer(withResponse(remoteCheckpointResponse2)).when(remoteClient2).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        GetCheckpointAction.Response remoteCheckpointResponse3 = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 9L }));
+        doAnswer(withResponse(remoteCheckpointResponse3)).when(remoteClient3).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+
+        // local and remote share the same index name
+        when(remoteClusterResolver.resolve(any())).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(
+                Map.of("remote-1", List.of("index-1"), "remote-2", List.of("index-1"), "remote-3", List.of("index-1")),
+                Collections.emptyList()
+            )
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            client,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            new TransformCheckpoint(transformId, 100000000L, 7, emptyMap(), 120000000L),
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertNotNull(checkpointHolder.get());
+        assertThat(checkpointHolder.get().getCheckpoint(), is(equalTo(8L)));
+        assertThat(
+            checkpointHolder.get().getIndicesCheckpoints().keySet(),
+            containsInAnyOrder("remote-1:index-1", "remote-2:index-1", "remote-3:index-1")
+        );
     }
 
     private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {

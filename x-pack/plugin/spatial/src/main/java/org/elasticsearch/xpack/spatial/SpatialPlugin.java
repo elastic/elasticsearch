@@ -91,6 +91,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
         "geo-centroid-agg",
         License.OperationMode.GOLD
     );
+    private final LicensedFeature.Momentary CARTESIAN_CENTROID_AGG_FEATURE = LicensedFeature.momentary(
+        "spatial",
+        "cartesian-centroid-agg",
+        License.OperationMode.GOLD
+    );
     private final LicensedFeature.Momentary GEO_GRID_AGG_FEATURE = LicensedFeature.momentary(
         "spatial",
         "geo-grid-agg",
@@ -172,10 +177,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
             new AggregationSpec(
                 CartesianCentroidAggregationBuilder.NAME,
                 CartesianCentroidAggregationBuilder::new,
-                usage.track(
-                    SpatialStatsAction.Item.CARTESIANCENTROID,
-                    checkLicense(CartesianCentroidAggregationBuilder.PARSER, GEO_CENTROID_AGG_FEATURE)
-                )
+                usage.track(SpatialStatsAction.Item.CARTESIANCENTROID, CartesianCentroidAggregationBuilder.PARSER)
             ).addResultReader(InternalCartesianCentroid::new).setAggregatorRegistrar(this::registerCartesianCentroidAggregator),
             new AggregationSpec(
                 CartesianBoundsAggregationBuilder.NAME,
@@ -229,26 +231,23 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     }
 
     private void registerCartesianCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+        // Only aggregations over the shape type are licensed at Gold/Platinum level
         builder.register(
             CartesianCentroidAggregationBuilder.REGISTRY_KEY,
             CartesianShapeValuesSourceType.instance(),
             (name, valuesSourceConfig, context, parent, metadata) -> {
-                if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
+                if (CARTESIAN_CENTROID_AGG_FEATURE.check(getLicenseState())) {
                     return new CartesianShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException(CartesianCentroidAggregationBuilder.NAME + " aggregation on shape fields");
             },
             true
         );
+        // Points are licensed at the default level (Basic)
         builder.register(
             CartesianCentroidAggregationBuilder.REGISTRY_KEY,
             CartesianPointValuesSourceType.instance(),
-            (name, valuesSourceConfig, context, parent, metadata) -> {
-                if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
-                    return new CartesianCentroidAggregator(name, valuesSourceConfig, context, parent, metadata);
-                }
-                throw LicenseUtils.newComplianceException(CartesianCentroidAggregationBuilder.NAME + " aggregation on point fields");
-            },
+            CartesianCentroidAggregator::new,
             true
         );
     }

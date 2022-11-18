@@ -21,9 +21,13 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -137,6 +141,69 @@ public class Retry2Tests extends ESTestCase {
              */
             assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
             assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
+        }
+    }
+
+    public void testAwaitClose() throws Exception {
+        /*
+         * awaitClose() is called immediately, and we make sure that subsequent requests are rejected.
+         */
+        {
+            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+            retry.awaitClose(200, TimeUnit.MILLISECONDS);
+            AssertingListener listener = new AssertingListener();
+            BulkRequest bulkRequest = createBulkRequest();
+            retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
+            listener.awaitCallbacksCalled();
+            assertNotNull(listener.lastFailure);
+            assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
+        }
+        /*
+         * awaitClose() returns without exception if all requests complete quickly, whether they were successes or failures
+         */
+        {
+            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+            List<AssertingListener> listeners = new ArrayList<>();
+            BulkRequest bulkRequest = createBulkRequest();
+            for (int i = 0; i < randomIntBetween(1, 100); i++) {
+                AssertingListener listener = new AssertingListener();
+                listeners.add(listener);
+                retry.withBackoff((bulkRequest1, listener1) -> {
+                    if (randomBoolean()) {
+                        listener1.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
+                    } else {
+                        listener1.onFailure(new RuntimeException("Some failure"));
+                    }
+                }, bulkRequest, listener);
+            }
+            retry.awaitClose(1, TimeUnit.SECONDS);
+        }
+        /*
+         * Most requests are complete but one request is hung so awaitClose ought to throw a TimeoutException
+         */
+        {
+            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+            List<AssertingListener> listeners = new ArrayList<>();
+            BulkRequest bulkRequest = createBulkRequest();
+            for (int i = 0; i < randomIntBetween(0, 100); i++) {
+                AssertingListener listener = new AssertingListener();
+                listeners.add(listener);
+                retry.withBackoff((bulkRequest1, listener1) -> {
+                    if (randomBoolean()) {
+                        listener1.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
+                    } else {
+                        listener1.onFailure(new RuntimeException("Some failure"));
+                    }
+                }, bulkRequest, listener);
+            }
+            for (AssertingListener listener : listeners) {
+                listener.awaitCallbacksCalled();
+            }
+            AssertingListener listener = new AssertingListener();
+            retry.withBackoff((bulkRequest1, listener1) -> {
+                // never calls onResponse or onFailure
+            }, bulkRequest, listener);
+            expectThrows(TimeoutException.class, () -> retry.awaitClose(200, TimeUnit.MILLISECONDS));
         }
     }
 

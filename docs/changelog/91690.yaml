@@ -1,7 +1,0 @@
-pr: 91690
-summary: Respect gateway allocations in DB computer
-area: Allocation
-type: bug
-issues:
- - 91451
- - 91613

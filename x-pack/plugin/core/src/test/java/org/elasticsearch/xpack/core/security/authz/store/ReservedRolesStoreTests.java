@@ -731,10 +731,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         // read-only indices for Fleet telemetry
-        Arrays.asList(
-            "logs-elastic_agent-default",
-            "logs-elastic_agent.fleet_server-default"
-        ).forEach((index) -> {
+        Arrays.asList("logs-elastic_agent-default", "logs-elastic_agent.fleet_server-default").forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));

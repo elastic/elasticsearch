@@ -9,7 +9,7 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:security')
 }
 
-boolean literalUsername = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+boolean literalUsername = BuildParams.random.nextBoolean()
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'

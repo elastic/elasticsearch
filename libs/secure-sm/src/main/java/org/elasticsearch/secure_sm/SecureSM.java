@@ -163,7 +163,10 @@ public class SecureSM extends SecurityManager {
         Objects.requireNonNull(t);
 
         // first, check if we can modify threads at all.
-        checkPermission(MODIFY_THREAD_PERMISSION);
+        boolean isInnocuousThread = isInnocuousThread(t);
+        if(isInnocuousThread == false){
+            checkPermission(MODIFY_THREAD_PERMISSION);
+        }
 
         // check the threadgroup, if its our thread group or an ancestor, its fine.
         final ThreadGroup source = Thread.currentThread().getThreadGroup();
@@ -171,7 +174,7 @@ public class SecureSM extends SecurityManager {
 
         if (target == null) {
             return;    // its a dead thread, do nothing.
-        } else if (source.parentOf(target) == false && isInnocuousThread(t) == false) {
+        } else if (source.parentOf(target) == false && isInnocuousThread == false) {
             checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
         }
     }

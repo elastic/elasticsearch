@@ -894,8 +894,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         long startTimeInNanos = System.nanoTime();
-        // the pipeline specific stat holder may not exist and that is fine:
-        // (e.g. the pipeline may have been removed while we're ingesting a document
         totalMetrics.preIngest();
         String index = indexRequest.index();
         String id = indexRequest.id();

@@ -370,10 +370,9 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
     }
     if (useFixture) {
       setting 'azure.client.integration_test.endpoint_suffix', azureAddress
-      String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
 
       def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
-      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
+      setting 'thread_pool.repository_azure.max', (Math.abs(BuildParams.random.nextLong() % 10) + 1).toString(), ignoreTestSeed
     }
 }
 

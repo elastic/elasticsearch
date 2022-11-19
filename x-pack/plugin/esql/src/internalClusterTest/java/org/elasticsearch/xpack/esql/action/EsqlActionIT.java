@@ -288,7 +288,8 @@ public class EsqlActionIT extends ESIntegTestCase {
         logger.info(results);
         Assert.assertEquals(1, results.values().size());
         // trying to get the count
-        assertEquals(40, (long) results.values().get(0).get(0));
+        var position = results.columns().indexOf(new ColumnInfo("count", "long"));
+        assertEquals(40, (long) results.values().get(0).get(position));
     }
 
     public void testFromEvalSortLimit() {
@@ -303,8 +304,9 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(1, values.size());
         var row = values.get(0);
         logger.info(row);
-        // get value of x --> should be column 5 but the last layout doesn't seem to be considered
-        assertEquals(47, (long) row.get(1));
+        // x is the last one
+        var position = results.columns().size() - 1;
+        assertEquals(47, (long) row.get(position));
     }
 
     public void testFromStatsEval() {
@@ -343,8 +345,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test | where count > 40");
         logger.info(results);
         Assert.assertEquals(30, results.values().size());
-        // int countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
-        var countIndex = 0;
+        var countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
         for (List<Object> values : results.values()) {
             assertThat((Long) values.get(countIndex), greaterThan(40L));
         }
@@ -493,8 +494,8 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.columns().get(0).name(), equalTo("tag"));
         for (int i = 0; i < results.values().size(); i++) {
             List<Object> values = results.values().get(i);
-            assertThat(values.get(0), equalTo(docs.get(i).val));
-            assertThat(values.get(1), equalTo(docs.get(i).tag));
+            assertThat(values.get(1), equalTo(docs.get(i).val));
+            assertThat(values.get(0), equalTo(docs.get(i).tag));
         }
     }
 

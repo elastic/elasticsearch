@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.joining;
 
@@ -25,11 +26,15 @@ public class OutputOperator implements Operator {
 
     private final List<String> columns;
     private final BiConsumer<List<String>, Page> pageConsumer;
+    private final Function<Page, Page> mapper;
 
-    public record OutputOperatorFactory(List<String> columns, BiConsumer<List<String>, Page> pageConsumer) implements OperatorFactory {
+    public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, BiConsumer<List<String>, Page> pageConsumer)
+        implements
+            OperatorFactory {
+
         @Override
         public Operator get() {
-            return new OutputOperator(columns, pageConsumer);
+            return new OutputOperator(columns, mapper, pageConsumer);
         }
 
         @Override
@@ -38,8 +43,9 @@ public class OutputOperator implements Operator {
         }
     }
 
-    public OutputOperator(List<String> columns, BiConsumer<List<String>, Page> pageConsumer) {
+    public OutputOperator(List<String> columns, Function<Page, Page> mapper, BiConsumer<List<String>, Page> pageConsumer) {
         this.columns = columns;
+        this.mapper = mapper;
         this.pageConsumer = pageConsumer;
     }
 
@@ -67,7 +73,7 @@ public class OutputOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        pageConsumer.accept(columns, page);
+        pageConsumer.accept(columns, mapper.apply(page));
     }
 
     @Override

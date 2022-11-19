@@ -23,6 +23,8 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.GroupingAggregatorFunctionFactory;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -85,6 +87,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -248,18 +251,39 @@ public class LocalExecutionPlanner {
             return planFieldExtractNode(context, fieldExtractExec);
         } else if (node instanceof OutputExec outputExec) {
             PhysicalOperation source = plan(outputExec.child(), context);
-            if (outputExec.output().size() != source.layout.size()) {
+            var output = outputExec.output();
+            if (output.size() != source.layout.size()) {
                 throw new IllegalStateException(
                     "expected layout:"
-                        + outputExec.output()
+                        + output
                         + ": "
-                        + outputExec.output().stream().map(NamedExpression::id).collect(Collectors.toList())
+                        + output.stream().map(NamedExpression::id).collect(Collectors.toList())
                         + ", source.layout:"
                         + source.layout
                 );
             }
+            // align the page layout with the operator output
+            // extraction order - the list ordinal is the same as the column one
+            // while the value represents the position in the original page
+            final int[] mappedPosition = new int[output.size()];
+            int index = -1;
+            boolean transformRequired = false;
+            for (var attribute : output) {
+                mappedPosition[++index] = source.layout.get(attribute.id());
+                if (transformRequired == false) {
+                    transformRequired = mappedPosition[index] != index;
+                }
+            }
+            Function<Page, Page> mapper = transformRequired ? p -> {
+                var blocks = new Block[p.getBlockCount()];
+                for (int i = 0; i < blocks.length; i++) {
+                    blocks[i] = p.getBlock(mappedPosition[i]);
+                }
+                return new Page(blocks);
+            } : Function.identity();
+
             return new PhysicalOperation(
-                new OutputOperatorFactory(Expressions.names(outputExec.output()), outputExec.getPageConsumer()),
+                new OutputOperatorFactory(Expressions.names(outputExec.output()), mapper, outputExec.getPageConsumer()),
                 source.layout,
                 source
             );
@@ -337,14 +361,12 @@ public class LocalExecutionPlanner {
         } else if (node instanceof ProjectExec project) {
             var source = plan(project.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
-            var output = project.output();
 
             var outputSet = project.outputSet();
             var input = project.child().output();
             var mask = new BitSet(input.size());
             int layoutPos = 0;
-            for (int i = 0; i < input.size(); i++) {
-                var element = input.get(i);
+            for (Attribute element : input) {
                 var id = element.id();
                 var maskPosition = source.layout.get(id);
                 var keepColumn = outputSet.contains(element);

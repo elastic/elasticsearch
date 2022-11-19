@@ -96,7 +96,13 @@ public class DatafeedRunner {
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
             String jobId = datafeedJob.getJobId();
-            Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob, new ProblemTracker(auditor, jobId), finishHandler);
+            Holder holder = new Holder(
+                task,
+                task.getDatafeedId(),
+                datafeedJob,
+                new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours()),
+                finishHandler
+            );
             StoppedOrIsolated stoppedOrIsolated = task.executeIfNotStoppedOrIsolated(
                 () -> runningDatafeedsOnThisNode.put(task.getAllocationId(), holder)
             );

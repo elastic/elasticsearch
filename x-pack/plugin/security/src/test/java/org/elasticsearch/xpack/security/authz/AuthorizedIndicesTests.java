@@ -376,10 +376,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertThat(
-            list.all().get(),
-            containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex)
-        );
+        assertThat(list.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
         assertThat(list.all().get(), not(contains("bbbbb")));
         assertThat(list.check("bbbbb"), is(false));
         assertThat(list.all().get(), not(contains("ba")));

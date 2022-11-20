@@ -1712,11 +1712,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         User user = new User("alias-writer", "alias_read_write");
         AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, PutMappingAction.NAME);
 
-        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(
-            request,
-            authorizedIndices::check,
-            metadata
-        );
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
         assertEquals("barbaz", putMappingIndexOrAlias);
 
         // multiple indices map to an alias so we can only return the concrete index

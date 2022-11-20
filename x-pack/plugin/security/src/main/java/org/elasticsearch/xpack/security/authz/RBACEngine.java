@@ -721,9 +721,11 @@ public class RBACEngine implements AuthorizationEngine {
         final Set<BytesReference> queries = indicesGroup.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
         assert queries == null || queries.size() <= 1
-            : "translation from an indices group to indices privileges supports up to one DLS query but multiple queries found";
+            : "translation from an indices permission group to indices privileges supports up to one DLS query but multiple queries found";
         assert fieldGrantExcludeGroups.size() <= 1
-            : "translation from an indices group to indices privileges supports up to one FLS definition group but multiple groups found";
+            : "translation from an indices permission group to indices privileges supports up to one FLS definition group"
+                + " but multiple groups found";
+
         final BytesReference query = queries == null ? null : queries.iterator().next();
         final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
             .indices(indicesGroup.indices())
@@ -734,6 +736,7 @@ public class RBACEngine implements AuthorizationEngine {
             final FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup = fieldGrantExcludeGroups.iterator().next();
             builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields()).deniedFields(fieldGrantExcludeGroup.getExcludedFields());
         }
+
         return builder.build();
     }
 

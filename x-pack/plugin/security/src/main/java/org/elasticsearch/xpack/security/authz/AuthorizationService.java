@@ -230,13 +230,15 @@ public class AuthorizationService {
                 : "authorization info must be available in thread context for all users other than internal users";
             authorizationEngine.resolveAuthorizationInfo(
                 subject,
-                ActionListener.wrap(
-                    resolvedAuthzInfo -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
-                        remoteClusterAlias,
-                        resolvedAuthzInfo,
-                        wrapPreservingContext(listener, threadContext)
+                wrapPreservingContext(
+                    listener.delegateFailure(
+                        (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                            remoteClusterAlias,
+                            resolvedAuthzInfo,
+                            wrapPreservingContext(delegatedLister, threadContext)
+                        )
                     ),
-                    listener::onFailure
+                    threadContext
                 )
             );
         }

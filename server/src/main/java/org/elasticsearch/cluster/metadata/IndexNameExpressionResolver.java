@@ -438,7 +438,7 @@ public class IndexNameExpressionResolver {
             List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
             if (crossClusterIndices.size() > 0) {
                 throw new IllegalArgumentException(
-                        "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
                 );
             }
         }

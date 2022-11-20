@@ -723,7 +723,7 @@ public class RBACEngine implements AuthorizationEngine {
         assert queries == null || queries.size() <= 1
             : "translation from an indices permission group to indices privileges supports up to one DLS query but multiple queries found";
         assert fieldGrantExcludeGroups.size() <= 1
-            : "translation from an indices permission group to indices privileges supports up to one FLS definition group"
+            : "translation from an indices permission group to indices privileges supports up to one FLS field-grant-exclude group"
                 + " but multiple groups found";
 
         final BytesReference query = queries == null ? null : queries.iterator().next();

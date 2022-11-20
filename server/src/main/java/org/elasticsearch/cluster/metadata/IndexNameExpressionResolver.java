@@ -321,8 +321,8 @@ public class IndexNameExpressionResolver {
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
         ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[] { Metadata.ALL };
+        if (indexExpressions == null ) {
+            indexExpressions = new String[0];
         }
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
@@ -450,14 +450,15 @@ public class IndexNameExpressionResolver {
     }
 
     private static IndexNotFoundException notFoundException(String... indexExpressions) {
-        IndexNotFoundException infe;
-        if (indexExpressions != null && indexExpressions.length == 1) {
-            if (Metadata.ALL.equals(indexExpressions[0])) {
-                infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
+        final IndexNotFoundException infe;
+        if (indexExpressions == null || indexExpressions.length <= 1) {
+            if (indexExpressions == null || indexExpressions.length == 0 || Metadata.ALL.equals(indexExpressions[0])) {
+                infe = new IndexNotFoundException("no indices exist", Metadata.ALL);
+                infe.setResources("index_or_alias", Metadata.ALL);
             } else {
                 infe = new IndexNotFoundException(indexExpressions[0]);
+                infe.setResources("index_or_alias", indexExpressions[0]);
             }
-            infe.setResources("index_or_alias", indexExpressions[0]);
         } else {
             infe = new IndexNotFoundException((String) null);
             infe.setResources("index_expression", indexExpressions);

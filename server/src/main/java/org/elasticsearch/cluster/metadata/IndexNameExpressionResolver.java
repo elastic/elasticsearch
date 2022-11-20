@@ -185,8 +185,8 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[] { "*" };
+        if (indexExpressions == null) {
+            indexExpressions = new String[0];
         }
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);

@@ -259,9 +259,9 @@ public interface AuthorizationEngine {
     }
 
     interface AuthorizedIndices {
-        Supplier<Set<String>> allAuthorizedAndAvailable();
+        Supplier<Set<String>> all();
 
-        boolean isAuthorized(String name);
+        boolean check(String name);
     }
 
     /**

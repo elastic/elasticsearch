@@ -202,7 +202,7 @@ class IndicesAndAliasesResolver {
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(
-                getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::isAuthorized, metadata)
+                getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, metadata)
             );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
@@ -210,7 +210,7 @@ class IndicesAndAliasesResolver {
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.allAuthorizedAndAvailable().get()) {
+                    for (String authorizedIndex : authorizedIndices.all().get()) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
                             authorizedIndex,
@@ -236,8 +236,8 @@ class IndicesAndAliasesResolver {
                     split.getLocal(),
                     indicesOptions,
                     metadata,
-                    authorizedIndices.allAuthorizedAndAvailable(),
-                    authorizedIndices::isAuthorized,
+                    authorizedIndices.all(),
+                    authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );
                 resolvedIndicesBuilder.addLocal(replaced);
@@ -273,7 +273,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices.allAuthorizedAndAvailable(), metadata)
+                    loadAuthorizedAliases(authorizedIndices.all(), metadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }

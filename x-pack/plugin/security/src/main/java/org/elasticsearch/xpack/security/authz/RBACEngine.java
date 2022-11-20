@@ -938,12 +938,12 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         @Override
-        public Supplier<Set<String>> allAuthorizedAndAvailable() {
+        public Supplier<Set<String>> all() {
             return allAuthorizedAndAvailableSupplier;
         }
 
         @Override
-        public boolean isAuthorized(String name) {
+        public boolean check(String name) {
             return this.isAuthorizedPredicate.test(name);
         }
     }

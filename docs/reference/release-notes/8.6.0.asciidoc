@@ -103,7 +103,7 @@ EQL::
 * Remove version limitations for CCS {es-pull}91409[#91409]
 
 Geo::
-* Centroid aggregation for cartesian points and shapes {es-pull}89216[#89216]
+* Centroid aggregation for cartesian points and shapes {es-pull}89216[#89216] (issue: {es-issue}90156[#90156])
 * Improve H3#hexRing logic and add H3#areNeighborCells method {es-pull}91140[#91140]
 * Move SpatialUtils to geo library {es-pull}88088[#88088] (issue: {es-issue}86607[#86607])
 * Reduce number of object allocations in H3#geoToH3 and speed up computations {es-pull}91492[#91492]

@@ -2,4 +2,10 @@ pr: 89216
 summary: Centroid aggregation for cartesian points and shapes
 area: Geo
 type: enhancement
-issues: []
+issues:
+ - 90156
+highlight:
+  title: Support cartesian_centroid aggregation over points and shapes
+  body: |-
+    Similar to the existing `geo_centroid` aggregation, this new metric aggregation, `cartesian_centroid`,
+    calculates the centroid over cartesian point and shape fields.

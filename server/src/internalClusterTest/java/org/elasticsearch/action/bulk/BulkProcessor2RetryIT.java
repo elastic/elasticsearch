@@ -86,7 +86,7 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 failedResponses.add(Tuple.tuple(request, failure));
                 latch.countDown();
             }

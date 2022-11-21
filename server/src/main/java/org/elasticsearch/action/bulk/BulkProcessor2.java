@@ -159,8 +159,8 @@ public class BulkProcessor2 implements Closeable {
         return new Builder(consumer, listener, threadPool);
     }
 
-    private final int bulkActions;
-    private final long bulkSize;
+    private final int maxActionsPerBulkRequest;
+    private final long maxBulkSizeBytes;
 
     private final Scheduler.Cancellable cancellableFlushTask;
 
@@ -187,15 +187,15 @@ public class BulkProcessor2 implements Closeable {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         int maxNumberOfRetries,
         Listener listener,
-        int bulkActions,
-        ByteSizeValue bulkSize,
+        int maxActionsPerBulkRequest,
+        ByteSizeValue maxBulkSize,
         ByteSizeValue maxBytesInFlight,
         @Nullable TimeValue flushInterval,
         ThreadPool threadPool
     ) {
         this.logger = LogManager.getLogger(getClass());
-        this.bulkActions = bulkActions;
-        this.bulkSize = bulkSize.getBytes();
+        this.maxActionsPerBulkRequest = maxActionsPerBulkRequest;
+        this.maxBulkSizeBytes = maxBulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
         this.consumer = consumer;
         this.listener = listener;
@@ -363,9 +363,9 @@ public class BulkProcessor2 implements Closeable {
 
     private boolean isOverTheLimit() {
         assert Thread.holdsLock(mutex);
-        if (bulkActions != -1 && bulkRequest.numberOfActions() >= bulkActions) {
+        if (maxActionsPerBulkRequest != -1 && bulkRequest.numberOfActions() >= maxActionsPerBulkRequest) {
             return true;
         }
-        return bulkSize != -1 && bulkRequest.estimatedSizeInBytes() >= bulkSize;
+        return maxBulkSizeBytes != -1 && bulkRequest.estimatedSizeInBytes() >= maxBulkSizeBytes;
     }
 }

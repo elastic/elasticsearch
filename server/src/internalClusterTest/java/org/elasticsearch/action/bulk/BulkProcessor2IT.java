@@ -289,7 +289,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         }
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+        public void afterBulk(long executionId, BulkRequest request, Exception failure) {
             bulkFailures.add(failure);
             afterCounts.incrementAndGet();
             for (CountDownLatch latch : latches) {

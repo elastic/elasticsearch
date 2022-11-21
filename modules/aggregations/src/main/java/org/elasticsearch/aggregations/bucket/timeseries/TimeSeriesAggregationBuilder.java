@@ -80,7 +80,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        boolean expectTsidBucketInOrder = parent instanceof DateHistogramAggregatorFactory;
+        boolean expectTsidBucketInOrder = parent == null || parent instanceof DateHistogramAggregatorFactory;
         return new TimeSeriesAggregationFactory(name, keyed, context, parent, subFactoriesBuilder, metadata, expectTsidBucketInOrder);
     }
 

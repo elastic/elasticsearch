@@ -112,6 +112,11 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         System.arraycopy(fieldTypes, 0, newFieldTypes, 2, fieldTypes.length);
 
         testCase(buildIndex, verify, new AggTestConfig(builder, newFieldTypes).withQuery(query));
+        // TODO: ensure implementation class differently
+        debugTestCase(builder, query, buildIndex, (internalAggregation, aClass, stringMapMap) -> {
+            assertThat(aClass, equalTo(TimeSeriesInOrderAggregator.class));
+            verify.accept((InternalTimeSeries) internalAggregation);
+        }, fieldTypes);
     }
 
 }

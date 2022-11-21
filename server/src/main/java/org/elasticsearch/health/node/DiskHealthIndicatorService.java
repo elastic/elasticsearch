@@ -68,7 +68,6 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
     private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
-    private static final String IMPACT_DATA_NODE_WITHOUT_DISK_SPACE = "data_node_without_disk_space";
 
     private final ClusterService clusterService;
 

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 
 /**
- * This action provides the health api stats of the cluster.
+ * This action provides telemetry of the cluster's health api usage.
  */
 public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final Client client;

@@ -150,7 +150,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(1));
-        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
+        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT));
     }
 
     @SuppressWarnings("unchecked")

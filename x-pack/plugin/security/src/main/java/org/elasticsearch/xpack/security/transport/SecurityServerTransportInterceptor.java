@@ -214,7 +214,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
         // TODO we might also need to exclude users with reserved roles for now; if a user has a reserved role, fall back on legacy
 
-        return remoteClusterAuthorizationResolver.resolveApiKeyAuthorization(remoteClusterAlias) != null;
+        return remoteClusterAuthorizationResolver.resolveApiKeyCredentials(remoteClusterAlias) != null;
     }
 
     private <T extends TransportResponse> void sendWithRcsHeaders(
@@ -240,7 +240,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 logger.info("Got role descriptors intersection [{}] for cluster [{}]", roleDescriptorsIntersection, remoteClusterAlias);
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
-                final RcsClusterCredential rcsClusterCredential = remoteClusterAuthorizationResolver.resolveApiKeyAuthorization(
+                final RcsClusterCredential rcsClusterCredential = remoteClusterAuthorizationResolver.resolveApiKeyCredentials(
                     remoteClusterAlias
                 );
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

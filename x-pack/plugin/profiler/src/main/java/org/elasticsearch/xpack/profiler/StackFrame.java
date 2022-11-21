@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 final class StackFrame implements ToXContent {
     String fileName;
@@ -40,24 +41,6 @@ final class StackFrame implements ToXContent {
     }
 
     @Override
-    public String toString() {
-        return "StackFrame{"
-            + "fileName='"
-            + fileName
-            + '\''
-            + ", functionName='"
-            + functionName
-            + '\''
-            + ", functionOffset="
-            + functionOffset
-            + ", lineNumber="
-            + lineNumber
-            + ", sourceType="
-            + sourceType
-            + '}';
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("file_name", this.fileName);
@@ -67,5 +50,26 @@ final class StackFrame implements ToXContent {
         builder.field("source_type", this.sourceType);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        StackFrame that = (StackFrame) o;
+        return Objects.equals(fileName, that.fileName)
+            && Objects.equals(functionName, that.functionName)
+            && Objects.equals(functionOffset, that.functionOffset)
+            && Objects.equals(lineNumber, that.lineNumber)
+            && Objects.equals(sourceType, that.sourceType);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fileName, functionName, functionOffset, lineNumber, sourceType);
     }
 }

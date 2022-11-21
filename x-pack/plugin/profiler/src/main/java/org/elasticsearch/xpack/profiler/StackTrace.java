@@ -45,9 +45,7 @@ final class StackTrace implements ToXContent {
     /**
      *
      * runLengthDecodeBase64Url decodes a run-length encoding for the base64-encoded input string.
-     *
      * E.g. the string 'BQADAg' is converted into an int array like [0, 0, 0, 0, 0, 2, 2, 2].
-     *
      * The motivating intent for this method is to unpack a base64-encoded run-length encoding
      * without using intermediate storage.
      *
@@ -205,5 +203,29 @@ final class StackTrace implements ToXContent {
         builder.array("type_ids", this.typeIds);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        StackTrace that = (StackTrace) o;
+        return Arrays.equals(addressOrLines, that.addressOrLines)
+            && Arrays.equals(fileIds, that.fileIds)
+            && Arrays.equals(frameIds, that.frameIds)
+            && Arrays.equals(typeIds, that.typeIds);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Arrays.hashCode(addressOrLines);
+        result = 31 * result + Arrays.hashCode(fileIds);
+        result = 31 * result + Arrays.hashCode(frameIds);
+        result = 31 * result + Arrays.hashCode(typeIds);
+        return result;
     }
 }

@@ -380,9 +380,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 for (ShardRouting shardRouting : routingNode) {
                     shards += 1;
                     totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                    totalWriteLoad += SIMULATION_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(
-                        clusterState.metadata().index(shardRouting.index())
-                    ).orElseThrow(() -> new AssertionError("missing write load"));
+                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
+                        .orElseThrow(() -> new AssertionError("missing write load"));
                 }
 
                 results.startObject();
@@ -476,7 +475,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                SIMULATION_WRITE_LOAD_FORECASTER
+                TEST_WRITE_LOAD_FORECASTER
             ),
             threadPool,
             clusterService,

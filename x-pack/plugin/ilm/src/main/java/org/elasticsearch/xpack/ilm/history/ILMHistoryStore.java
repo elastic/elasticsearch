@@ -159,10 +159,10 @@ public class ILMHistoryStore implements Closeable {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                     long items = request.numberOfActions();
                     logger.error(() -> "failed to index " + items + " items into ILM history index", failure);
-                    listener.onFailure(new RuntimeException(failure));
+                    listener.onFailure(failure);
                 }
             },
             threadPool

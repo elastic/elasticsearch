@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -57,7 +59,7 @@ public class BulkProcessor2 implements Closeable {
          * Note that in case an instance of <code>InterruptedException</code> is passed, which means that request processing has been
          * cancelled externally, the thread's interruption status has been restored prior to calling this method.
          */
-        void afterBulk(long executionId, BulkRequest request, Throwable failure);
+        void afterBulk(long executionId, BulkRequest request, Exception failure);
     }
 
     /**
@@ -164,8 +166,14 @@ public class BulkProcessor2 implements Closeable {
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
+    private final Logger logger;
+
+    private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
+    private final Listener listener;
+
+    private final Retry2 retry;
+
     private BulkRequest bulkRequest;
-    private final BulkRequestHandler2 bulkRequestHandler;
 
     private volatile boolean closed = false;
     /*
@@ -185,10 +193,13 @@ public class BulkProcessor2 implements Closeable {
         @Nullable TimeValue flushInterval,
         ThreadPool threadPool
     ) {
+        this.logger = LogManager.getLogger(getClass());
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
-        this.bulkRequestHandler = new BulkRequestHandler2(consumer, maxNumberOfRetries, maxBytesInFlight, listener);
+        this.consumer = consumer;
+        this.listener = listener;
+        this.retry = new Retry2(maxNumberOfRetries, maxBytesInFlight);
         // Start period flushing task after everything is setup
         this.cancellableFlushTask = startFlushTask(flushInterval, threadPool);
     }
@@ -229,7 +240,7 @@ public class BulkProcessor2 implements Closeable {
             if (bulkRequest.numberOfActions() > 0) {
                 execute();
             }
-            this.bulkRequestHandler.awaitClose(timeout, unit);
+            this.retry.awaitClose(timeout, unit);
         }
     }
 
@@ -315,8 +326,30 @@ public class BulkProcessor2 implements Closeable {
         return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
     }
 
+    /**
+     * This method sends the bulkRequest to the consumer up to maxNumberOfRetries times. The executionId is used to notify the listener
+     * both before and after the request.
+     * @param bulkRequest
+     * @param executionId
+     */
     private void execute(BulkRequest bulkRequest, long executionId) {
-        this.bulkRequestHandler.execute(bulkRequest, executionId);
+        try {
+            listener.beforeBulk(executionId, bulkRequest);
+            retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse response) {
+                    listener.afterBulk(executionId, bulkRequest, response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.afterBulk(executionId, bulkRequest, e);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
+            listener.afterBulk(executionId, bulkRequest, e);
+        }
     }
 
     private void execute() {

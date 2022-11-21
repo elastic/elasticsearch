@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -153,6 +155,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+// NOCOMMIT - don't forget to remove the seed before merging
+@Seed("DFD753B506109938")
 public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;
@@ -944,6 +948,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     long docCountError = result.getDocCountError();
                     for (int i = 0; i < size; i++) {
                         Terms.Bucket actual = result.getBuckets().get(i);
+                        long bucketDocCountError = actual.getDocCountError();
+                        assertThat(
+                            "Bucket doc count error is greater than the maximum doc count",
+                            bucketDocCountError,
+                            lessThanOrEqualTo(docCountError)
+                        );
                         long expectedCount = expectedCounts.getOrDefault(actual.getKey(), 0L);
                         if (aggTestConfig.splitLeavesIntoSeparateAggregators() == false || indexReader.leaves().size() == 1) {
                             // When there is only a single sub-aggregation, counts should be exact
@@ -951,7 +961,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         } else if (order == false) {
                             // If there are sub-aggregations, the maximum error should be less than docCountError, but only for descending
                             long diff = Math.abs(expectedCount - actual.getDocCount());
-                            assertThat("Count error too large for " + actual.getKey(), diff, lessThanOrEqualTo(docCountError));
+                            assertThat(
+                                "Count error too large for bucket [" + i + "] with key: [" + actual.getKey() + "] " +
+                                "expected: [" + expectedCount + "] but was [" + actual.getDocCount() +"]",
+                                diff,
+                                lessThanOrEqualTo(bucketDocCountError)
+                            );
                         } else {
                             // If there are sub-aggregations, and we have ascending order, the maximum error is unbounded
                             fail("This test does not yet cover the case of multiple-shards/aggregators and ascending counts");

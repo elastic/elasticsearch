@@ -130,6 +130,8 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     private long getDocCountError(A terms) {
         int size = terms.getBuckets().size();
         if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.getOrder())) {
+            // If we didn't have any matches on this shard, or if we returned all the matches, or if we're in key ordering mode
+            // then there is no error from this shard.
             return 0;
         } else if (InternalOrder.isCountDesc(terms.getOrder())) {
             if (terms.getDocCountError() != null) {
@@ -280,6 +282,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             final long thisAggDocCountError = getDocCountError(terms);
             if (sumDocCountError != -1) {
                 if (thisAggDocCountError == -1) {
+                    // -1 indicates unbounded error
                     sumDocCountError = -1;
                 } else {
                     sumDocCountError += thisAggDocCountError;

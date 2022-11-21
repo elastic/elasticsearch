@@ -662,7 +662,24 @@ public class RoleDescriptorTests extends ESTestCase {
         @SuppressWarnings({ "EqualsWithItself" })
         final int actual = indexPrivilege.compareTo(indexPrivilege);
         assertThat(actual, equalTo(0));
-        assertThat(indexPrivilege.compareTo(copy(indexPrivilege)), equalTo(0));
+        assertThat(
+            indexPrivilege.compareTo(
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(indexPrivilege.getIndices().clone())
+                    .privileges(indexPrivilege.getPrivileges().clone())
+                    // test for both cases when the query is the same instance or a copy
+                    .query(
+                        (indexPrivilege.getQuery() == null || randomBoolean())
+                            ? indexPrivilege.getQuery()
+                            : new BytesArray(indexPrivilege.getQuery().toBytesRef())
+                    )
+                    .grantedFields(indexPrivilege.getGrantedFields() == null ? null : indexPrivilege.getGrantedFields().clone())
+                    .deniedFields(indexPrivilege.getDeniedFields() == null ? null : indexPrivilege.getDeniedFields().clone())
+                    .allowRestrictedIndices(indexPrivilege.allowRestrictedIndices())
+                    .build()
+            ),
+            equalTo(0)
+        );
 
         RoleDescriptor.IndicesPrivileges first = randomIndicesPrivilegesBuilder().allowRestrictedIndices(false).build();
         RoleDescriptor.IndicesPrivileges second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(true).build();
@@ -979,21 +996,5 @@ public class RoleDescriptorTests extends ESTestCase {
             }
         }
         return builder;
-    }
-
-    private RoleDescriptor.IndicesPrivileges copy(RoleDescriptor.IndicesPrivileges indexPrivilege) {
-        return RoleDescriptor.IndicesPrivileges.builder()
-            .indices(indexPrivilege.getIndices().clone())
-            .privileges(indexPrivilege.getPrivileges().clone())
-            // test for both cases when the query is the same instance or a copy
-            .query(
-                (indexPrivilege.getQuery() == null || randomBoolean())
-                    ? indexPrivilege.getQuery()
-                    : new BytesArray(indexPrivilege.getQuery().toBytesRef())
-            )
-            .grantedFields(indexPrivilege.getGrantedFields() == null ? null : indexPrivilege.getGrantedFields().clone())
-            .deniedFields(indexPrivilege.getDeniedFields() == null ? null : indexPrivilege.getDeniedFields().clone())
-            .allowRestrictedIndices(indexPrivilege.allowRestrictedIndices())
-            .build();
     }
 }

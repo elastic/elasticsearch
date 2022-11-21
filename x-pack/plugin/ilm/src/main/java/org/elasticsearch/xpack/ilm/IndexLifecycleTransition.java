@@ -94,7 +94,7 @@ public final class IndexLifecycleTransition {
         if (isNewStepCached == false
             && (stepRegistry.stepExists(policyName, newStepKey) == false
                 && newStepKey.equals(TerminalPolicyStep.KEY) == false
-                && newStepKey.equals(new Step.StepKey(lifecycleState.phase(), PhaseCompleteStep.NAME, PhaseCompleteStep.NAME)) == false)) {
+                && newStepKey.equals(PhaseCompleteStep.stepKey(lifecycleState.phase())) == false)) {
             throw new IllegalArgumentException(
                 "step [" + newStepKey + "] for index [" + indexName + "] with policy [" + policyName + "] does not exist"
             );

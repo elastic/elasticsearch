@@ -29,7 +29,8 @@ public class TimeSeriesAggregationFactory extends AggregatorFactory {
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
-        boolean expectTsidBucketInOrder) throws IOException {
+        boolean expectTsidBucketInOrder
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.keyed = keyed;
         this.expectTsidBucketInOrder = expectTsidBucketInOrder;

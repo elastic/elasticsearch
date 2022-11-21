@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -41,6 +43,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_FC_API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_FC_ROLE_DESCRIPTORS_SETS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_ROLE_DESCRIPTORS_SETS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_SUBJECT_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_SUBJECT_ACCESS_HEADER_KEY;
@@ -53,21 +56,6 @@ public class RcsService {
     public RcsService(final ApiKeyService apiKeyService) {
         this.apiKeyService = apiKeyService;
     }
-
-    // public record RcsClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
-    //
-    // private static ApiKeyService.ApiKeyCredentials decode(final String fcApiKey) {
-    // return decode(new SecureString(fcApiKey.toCharArray()));
-    // }
-    //
-    // private static ApiKeyService.ApiKeyCredentials decode(final SecureString fcApiKeySecureString) {
-    // return ApiKeyUtil.toApiKeyCredentials(fcApiKeySecureString);
-    // }
-    //
-    // private static String encode(final ApiKeyService.ApiKeyCredentials fcApiKey) {
-    // return fcApiKey.toString();
-    // }
-    // final ApiKeyService.ApiKeyCredentials apiKeyCredentials = ApiKeyUtil.toApiKeyCredentials(fcClusterCredentials);
 
     RcsAuthenticationToken getRcsAuthenticationTokenFromThreadContextHeader(final ThreadContext threadContext) {
         // Header contains an FC API Key from the QC, to be validated by the FC for cluster-level authentication and authorization
@@ -125,22 +113,24 @@ public class RcsService {
             return;
         }
         final String scheme = rcsClusterCredential.scheme();
-        final SecureString value = rcsClusterCredential.value();
-        if (Strings.isEmpty(value)) {
-            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC cluster credentials value", null));
-            return;
-        }
         if (Strings.isEmpty(scheme)) {
             listener.onResponse(AuthenticationResult.unsuccessful("Missing FC cluster credentials scheme", null));
             return;
         }
         assert ApiKeyService.API_KEY_SCHEME.equals(scheme) : "Only ApiKey scheme is supported";
+        // Only the Api Key scheme is supported, so only use ApiKeyService to verify the Api Key value
+        final SecureString value = rcsClusterCredential.value();
+        if (Strings.isEmpty(value)) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC cluster credentials value", null));
+            return;
+        }
+        // Decode Base64, and split into ID and Secret values
         final ApiKeyService.ApiKeyCredentials fcApiKeyCredentials = ApiKeyUtil.toApiKeyCredentials(value);
         if (fcApiKeyCredentials == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("Missing FC ApiKeyService.ApiKeyCredentials", null));
             return;
         }
-        // Try to authenticate FC API Key. If successful, use it to construct an FC user
+        // Try to authenticate FC API Key ID and Secret. If successful, use it to construct an FC user
         this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, fcApiKeyCredentials, ActionListener.wrap(fcApiKeyAuthcResult -> {
             // TODO Success path only, handle auth failure
             final User rcsFcUser = buildRcsUser(qcAuthentication, qcAuthorization, fcApiKeyAuthcResult.getValue());
@@ -202,28 +192,42 @@ public class RcsService {
         final RoleDescriptorsIntersection qcAuthorization,
         final User fcApiKeyUser
     ) throws IOException {
-        final Map<String, Object> fcApiKeyMetadata = fcApiKeyUser.metadata();
-        final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY);
-        final BytesReference fcRoleDescriptorsIntersectionBytes = getFcRoleDescriptorsIntersectionBytes(fcApiKeyMetadata);
+        final Subject qcEffectiveSubject = qcAuthentication.getEffectiveSubject();
+        final User qcUser = qcEffectiveSubject.getUser();
+        final String qcPrincipal = qcUser.principal();
+        final String qcFullName = qcUser.fullName();
+        final String qcEmail = qcUser.email();
 
-        final User qcUser = qcAuthentication.getEffectiveSubject().getUser();
-        final BytesReference qcRoleDescriptorsSetsBytes = (BytesReference) qcUser.metadata().get(RCS_QC_ROLE_DESCRIPTORS_SETS_KEY);
-        assert qcRoleDescriptorsSetsBytes != null;
+        final String qcApiKeyId = (String) qcUser.metadata().get(API_KEY_ID_KEY); // optional, any QC authc supported
+        final Version version = qcEffectiveSubject.getVersion();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
+        Version.writeVersion(version, out);
+        qcAuthorization.writeTo(out);
+        final BytesReference qcRoleDescriptorsIntersectionBytes = out.bytes();
+
+        final Map<String, Object> fcApiKeyMetadata = fcApiKeyUser.metadata();
+        final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY); // required, only FC API Key authc supported
+        final BytesReference fcRoleDescriptorsIntersectionBytes = getFcRoleDescriptorsIntersectionBytes(fcApiKeyMetadata);
 
         final Map<String, Object> rcsFcMetadata = Map.of(
             RCS_QC_SUBJECT_AUTHENTICATION_KEY,
             qcAuthentication,
-            RCS_FC_API_KEY_ID_KEY,
-            fcApiKeyId,
+            RCS_QC_ROLE_DESCRIPTORS_SETS_KEY,
+            qcRoleDescriptorsIntersectionBytes,
             RCS_FC_ROLE_DESCRIPTORS_SETS_KEY,
             fcRoleDescriptorsIntersectionBytes,
-            RCS_QC_ROLE_DESCRIPTORS_SETS_KEY,
-            qcRoleDescriptorsSetsBytes
+            RCS_QC_API_KEY_ID_KEY,
+            qcApiKeyId,
+            RCS_FC_API_KEY_ID_KEY,
+            fcApiKeyId
         );
-        return new User(qcUser.principal(), Strings.EMPTY_ARRAY, qcUser.email(), qcUser.email(), rcsFcMetadata, true);
+        final String fcEffectivePrincipal = qcPrincipal + "," + fcApiKeyId;
+        return new User(fcEffectivePrincipal, Strings.EMPTY_ARRAY, qcFullName, qcEmail, rcsFcMetadata, true);
     }
 
     private BytesReference getFcRoleDescriptorsIntersectionBytes(final Map<String, Object> fcApiKeyMetadata) throws IOException {
+        // TODO Handle empty Set<RoleDescriptor> for FC API Key by excluding it from the intersection before serialization to bytes
         final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY);
         assert fcApiKeyId != null;
         final BytesReference fcSubjectRoleDescriptorsBytes = (BytesReference) fcApiKeyMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);

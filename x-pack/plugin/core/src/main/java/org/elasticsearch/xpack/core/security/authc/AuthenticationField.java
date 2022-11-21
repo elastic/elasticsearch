@@ -43,6 +43,7 @@ public final class AuthenticationField {
     public static final String RCS_REALM_NAME = "_es_remote_cluster_security";
     public static final String RCS_REALM_TYPE = RCS_REALM_NAME;
     public static final String RCS_QC_SUBJECT_AUTHENTICATION_KEY = "_remote_cluster_security_qc_subject_authentication";
+    public static final String RCS_QC_API_KEY_ID_KEY = "_remote_cluster_security_qc_api_key_id";
     public static final String RCS_FC_API_KEY_ID_KEY = "_remote_cluster_security_fc_api_key_id";
     public static final String RCS_QC_ROLE_DESCRIPTORS_SETS_KEY = "_remote_cluster_security_qc_role_descriptors_sets";
     public static final String RCS_FC_ROLE_DESCRIPTORS_SETS_KEY = "_remote_cluster_security_fc_role_descriptors_sets";

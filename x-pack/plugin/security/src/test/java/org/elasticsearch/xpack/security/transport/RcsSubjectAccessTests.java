@@ -21,7 +21,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteClusterSecuritySubjectAccessTests extends ESTestCase {
+public class RcsSubjectAccessTests extends ESTestCase {
 
     public void testEncodeDecodeRoundTrip() throws IOException {
         final Set<RoleDescriptor> expectedRoleDescriptorsSet = Set.of(
@@ -33,9 +33,7 @@ public class RemoteClusterSecuritySubjectAccessTests extends ESTestCase {
         final RoleDescriptorsIntersection roleDescriptorsSets = new RoleDescriptorsIntersection(expectedRoleDescriptors);
 
         final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
-        final RemoteClusterSecuritySubjectAccess decoded = RemoteClusterSecuritySubjectAccess.decode(
-            RemoteClusterSecuritySubjectAccess.encode(expectedAuthentication, roleDescriptorsSets)
-        );
+        final RcsSubjectAccess decoded = RcsSubjectAccess.decode(RcsSubjectAccess.encode(expectedAuthentication, roleDescriptorsSets));
 
         final Authentication decodedAuthentication = decoded.authentication();
         final Set<RoleDescriptor> decodedRoleDescriptorsSet = decoded.authorization().roleDescriptorsSets().iterator().next();

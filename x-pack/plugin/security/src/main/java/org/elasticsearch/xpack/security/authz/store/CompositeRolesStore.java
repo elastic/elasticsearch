@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.RemoteClusterSecurityService;
+import org.elasticsearch.xpack.security.authc.RcsService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -119,7 +119,7 @@ public class CompositeRolesStore {
         XPackLicenseState licenseState,
         FieldPermissionsCache fieldPermissionsCache,
         ApiKeyService apiKeyService,
-        RemoteClusterSecurityService remoteClusterSecurityService,
+        RcsService rcsService,
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
@@ -180,7 +180,7 @@ public class CompositeRolesStore {
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,
             apiKeyService,
-            remoteClusterSecurityService,
+            rcsService,
             serviceAccountService,
             negativeLookupCache,
             licenseState,

@@ -25,10 +25,10 @@ import java.util.Base64;
  * @param authentication QC Subject's authentication instance
  * @param authorization QC Subject's authorization instance
  */
-// public record RemoteClusterSecuritySubjectAccess(Authentication authentication, Collection<BytesReference> authorization) {
-public record RemoteClusterSecuritySubjectAccess(Authentication authentication, RoleDescriptorsIntersection authorization) {
+// public record RcsSubjectAccess(Authentication authentication, Collection<BytesReference> authorization) {
+public record RcsSubjectAccess(Authentication authentication, RoleDescriptorsIntersection authorization) {
 
-    public static RemoteClusterSecuritySubjectAccess readFromThreadContextHeader(final ThreadContext ctx) throws IOException {
+    public static RcsSubjectAccess readFromThreadContextHeader(final ThreadContext ctx) throws IOException {
         final String headerValue = ctx.getHeader(AuthenticationField.RCS_SUBJECT_ACCESS_HEADER_KEY);
         return Strings.isEmpty(headerValue) ? null : decode(headerValue);
     }
@@ -51,7 +51,7 @@ public record RemoteClusterSecuritySubjectAccess(Authentication authentication, 
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    static RemoteClusterSecuritySubjectAccess decode(final String headerValue) throws IOException {
+    static RcsSubjectAccess decode(final String headerValue) throws IOException {
         final byte[] bytes = Base64.getDecoder().decode(headerValue);
         final StreamInput in = StreamInput.wrap(bytes);
         final Version version = Version.readVersion(in);
@@ -63,7 +63,7 @@ public record RemoteClusterSecuritySubjectAccess(Authentication authentication, 
         // for (int i = 0; i < outerCount; i++) {
         // roleDescriptorsBytesIntersection.add(in.readBytesReference());
         // }
-        return new RemoteClusterSecuritySubjectAccess(authentication, roleDescriptorsIntersection);
+        return new RcsSubjectAccess(authentication, roleDescriptorsIntersection);
     }
 
     // static Set<RoleDescriptor> parseRoleDescriptorBytes(final BytesReference roleDescriptorBytes) {

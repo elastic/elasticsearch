@@ -180,9 +180,7 @@ public interface RoleReference {
         }
     }
 
-    record RemoteClusterSecurityRoleReference(Set<RoleDescriptor> roleDescriptors, RemoteClusterSecurityRoleType type)
-        implements
-            RoleReference {
+    record RcsRoleReference(Set<RoleDescriptor> roleDescriptors, RcsRoleType type) implements RoleReference {
         @Override
         public RoleKey id() {
             BytesReference roleDescriptorsSetBytesReference = null; // TODO
@@ -194,7 +192,7 @@ public interface RoleReference {
 
         @Override
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-            resolver.resolveRemoteClusterSecurityRoleReference(this, listener);
+            resolver.resolveRcsRoleReference(this, listener);
         }
     }
 
@@ -215,7 +213,7 @@ public interface RoleReference {
     /**
      * The type of one set of Remote Cluster Security roles.
      */
-    enum RemoteClusterSecurityRoleType {
+    enum RcsRoleType {
         /**
          * Encoded RoleDescriptorsIntersection sent by a Querying Cluster to a Fulfilling Cluster.
          */

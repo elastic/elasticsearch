@@ -46,7 +46,7 @@ class AuthenticatorChain {
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
-    private final RemoteClusterSecurityAuthenticator remoteClusterSecurityAuthenticator;
+    private final RcsAuthenticator rcsAuthenticator;
     private final List<Authenticator> allAuthenticators;
 
     AuthenticatorChain(
@@ -58,7 +58,7 @@ class AuthenticatorChain {
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
         RealmsAuthenticator realmsAuthenticator,
-        RemoteClusterSecurityAuthenticator remoteClusterSecurityAuthenticator
+        RcsAuthenticator rcsAuthenticator
     ) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.runAsEnabled = AuthenticationServiceField.RUN_AS_ENABLED.get(settings);
@@ -67,13 +67,13 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.remoteClusterSecurityAuthenticator = remoteClusterSecurityAuthenticator;
+        this.rcsAuthenticator = rcsAuthenticator;
         this.allAuthenticators = List.of(
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
             realmsAuthenticator,
-            remoteClusterSecurityAuthenticator
+            rcsAuthenticator
         );
     }
 

@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.transport.RemoteClusterSecurityClusterCredential;
-import org.elasticsearch.xpack.security.transport.RemoteClusterSecuritySubjectAccess;
+import org.elasticsearch.xpack.security.transport.RcsClusterCredential;
+import org.elasticsearch.xpack.security.transport.RcsSubjectAccess;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -45,16 +45,16 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RC
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_QC_SUBJECT_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.RCS_SUBJECT_ACCESS_HEADER_KEY;
 
-public class RemoteClusterSecurityService {
-    private static final Logger logger = LogManager.getLogger(RemoteClusterSecurityService.class);
+public class RcsService {
+    private static final Logger logger = LogManager.getLogger(RcsService.class);
 
     private final ApiKeyService apiKeyService;
 
-    public RemoteClusterSecurityService(final ApiKeyService apiKeyService) {
+    public RcsService(final ApiKeyService apiKeyService) {
         this.apiKeyService = apiKeyService;
     }
 
-    // public record RemoteClusterSecurityClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
+    // public record RcsClusterCredential(ApiKeyService.ApiKeyCredentials fcApiKeyCredentials) {
     //
     // private static ApiKeyService.ApiKeyCredentials decode(final String fcApiKey) {
     // return decode(new SecureString(fcApiKey.toCharArray()));
@@ -69,20 +69,18 @@ public class RemoteClusterSecurityService {
     // }
     // final ApiKeyService.ApiKeyCredentials apiKeyCredentials = ApiKeyUtil.toApiKeyCredentials(fcClusterCredentials);
 
-    RemoteClusterSecurityAuthenticationToken getRemoteClusterSecurityAuthenticationTokenFromThreadContextHeader(
-        final ThreadContext threadContext
-    ) {
+    RcsAuthenticationToken getRcsAuthenticationTokenFromThreadContextHeader(final ThreadContext threadContext) {
         // Header contains an FC API Key from the QC, to be validated by the FC for cluster-level authentication and authorization
-        final RemoteClusterSecurityClusterCredential fc = RemoteClusterSecurityClusterCredential.readFromContextHeader(threadContext);
+        final RcsClusterCredential fc = RcsClusterCredential.readFromContextHeader(threadContext);
         if (fc == null) {
             logger.debug("Header [{}] is absent", RCS_CLUSTER_CREDENTIAL_HEADER_KEY);
             return null;
         }
         logger.trace("Header [{}] is present", RCS_CLUSTER_CREDENTIAL_HEADER_KEY);
         // Header contains QC user access computed by the QC (i.e. Authentication and Authorization), only trusted if FC API Key is valid
-        final RemoteClusterSecuritySubjectAccess qc;
+        final RcsSubjectAccess qc;
         try {
-            qc = RemoteClusterSecuritySubjectAccess.readFromThreadContextHeader(threadContext);
+            qc = RcsSubjectAccess.readFromThreadContextHeader(threadContext);
             if (qc == null) {
                 logger.debug("Header [{}] is absent", RCS_SUBJECT_ACCESS_HEADER_KEY);
                 return null;
@@ -96,40 +94,38 @@ public class RemoteClusterSecurityService {
             RCS_SUBJECT_ACCESS_HEADER_KEY,
             qc.authentication().getEffectiveSubject().toString()
         );
-        return new RemoteClusterSecurityAuthenticationToken(qc, fc);
+        return new RcsAuthenticationToken(qc, fc);
     }
 
     void tryAuthenticate(
         ThreadContext ctx,
-        RemoteClusterSecurityAuthenticationToken remoteClusterSecurityAuthenticationToken,
+        RcsAuthenticationToken rcsAuthenticationToken,
         ActionListener<AuthenticationResult<User>> listener
     ) {
         // QC Authentication and Authorization
-        final RemoteClusterSecuritySubjectAccess remoteClusterSecuritySubjectAccess = remoteClusterSecurityAuthenticationToken
-            .getRemoteClusterSecuritySubjectAccess();
-        if (remoteClusterSecuritySubjectAccess == null) {
-            listener.onResponse(AuthenticationResult.unsuccessful("Missing QC RemoteClusterSecuritySubjectAccess", null));
+        final RcsSubjectAccess rcsSubjectAccess = rcsAuthenticationToken.getRcsSubjectAccess();
+        if (rcsSubjectAccess == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing QC RcsSubjectAccess", null));
             return;
         }
-        final Authentication qcAuthentication = remoteClusterSecuritySubjectAccess.authentication();
+        final Authentication qcAuthentication = rcsSubjectAccess.authentication();
         if (qcAuthentication == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("Missing QC Authentication", null));
             return;
         }
-        final RoleDescriptorsIntersection qcAuthorization = remoteClusterSecuritySubjectAccess.authorization();
+        final RoleDescriptorsIntersection qcAuthorization = rcsSubjectAccess.authorization();
         if (qcAuthorization == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("Missing QC Authentication", null));
             return;
         }
         // FC credential Scheme (i.e. APIKey) and Value (i.e. Base64(id:secret))
-        final RemoteClusterSecurityClusterCredential remoteClusterSecurityClusterCredential = remoteClusterSecurityAuthenticationToken
-            .getRemoteClusterSecurityClusterCredential();
-        if (remoteClusterSecurityClusterCredential == null) {
-            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC RemoteClusterSecurityClusterCredential", null));
+        final RcsClusterCredential rcsClusterCredential = rcsAuthenticationToken.getRcsClusterCredential();
+        if (rcsClusterCredential == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("Missing FC RcsClusterCredential", null));
             return;
         }
-        final String scheme = remoteClusterSecurityClusterCredential.scheme();
-        final SecureString value = remoteClusterSecurityClusterCredential.value();
+        final String scheme = rcsClusterCredential.scheme();
+        final SecureString value = rcsClusterCredential.value();
         if (Strings.isEmpty(value)) {
             listener.onResponse(AuthenticationResult.unsuccessful("Missing FC cluster credentials value", null));
             return;
@@ -147,29 +143,26 @@ public class RemoteClusterSecurityService {
         // Try to authenticate FC API Key. If successful, use it to construct an FC user
         this.apiKeyService.loadApiKeyAndValidateCredentials(ctx, fcApiKeyCredentials, ActionListener.wrap(fcApiKeyAuthcResult -> {
             // TODO Success path only, handle auth failure
-            final User rcsFcUser = buildRemoteClusterSecurityUser(qcAuthentication, qcAuthorization, fcApiKeyAuthcResult.getValue());
+            final User rcsFcUser = buildRcsUser(qcAuthentication, qcAuthorization, fcApiKeyAuthcResult.getValue());
             listener.onResponse(AuthenticationResult.success(rcsFcUser, Collections.emptyMap()));
         }, listener::onFailure));
     }
 
-    public static final class RemoteClusterSecurityAuthenticationToken implements AuthenticationToken, Closeable {
-        private final RemoteClusterSecuritySubjectAccess qcRemoteClusterSecuritySubjectAccess;
-        private final RemoteClusterSecurityClusterCredential fcRemoteClusterSecurityClusterCredential;
+    public static final class RcsAuthenticationToken implements AuthenticationToken, Closeable {
+        private final RcsSubjectAccess qcRcsSubjectAccess;
+        private final RcsClusterCredential fcRcsClusterCredential;
 
-        public RemoteClusterSecurityAuthenticationToken(
-            RemoteClusterSecuritySubjectAccess qcRemoteClusterSecuritySubjectAccess,
-            RemoteClusterSecurityClusterCredential fcRemoteClusterSecurityClusterCredential
-        ) {
-            this.qcRemoteClusterSecuritySubjectAccess = qcRemoteClusterSecuritySubjectAccess;
-            this.fcRemoteClusterSecurityClusterCredential = fcRemoteClusterSecurityClusterCredential;
+        public RcsAuthenticationToken(RcsSubjectAccess qcRcsSubjectAccess, RcsClusterCredential fcRcsClusterCredential) {
+            this.qcRcsSubjectAccess = qcRcsSubjectAccess;
+            this.fcRcsClusterCredential = fcRcsClusterCredential;
         }
 
-        RemoteClusterSecuritySubjectAccess getRemoteClusterSecuritySubjectAccess() {
-            return this.qcRemoteClusterSecuritySubjectAccess;
+        RcsSubjectAccess getRcsSubjectAccess() {
+            return this.qcRcsSubjectAccess;
         }
 
-        RemoteClusterSecurityClusterCredential getRemoteClusterSecurityClusterCredential() {
-            return this.fcRemoteClusterSecurityClusterCredential;
+        RcsClusterCredential getRcsClusterCredential() {
+            return this.fcRcsClusterCredential;
         }
 
         @Override
@@ -179,20 +172,20 @@ public class RemoteClusterSecurityService {
 
         @Override
         public void close() {
-            this.fcRemoteClusterSecurityClusterCredential.value();
+            this.fcRcsClusterCredential.value();
         }
 
         @Override
         public String principal() {
             // TODO API Key ID????
-            return this.qcRemoteClusterSecuritySubjectAccess.authentication().getEffectiveSubject().getUser().principal()
+            return this.qcRcsSubjectAccess.authentication().getEffectiveSubject().getUser().principal()
                 + "/"
-                + this.fcRemoteClusterSecurityClusterCredential.scheme();
+                + this.fcRcsClusterCredential.scheme();
         }
 
         @Override
         public Object credentials() {
-            return this.fcRemoteClusterSecurityClusterCredential.value();
+            return this.fcRcsClusterCredential.value();
         }
     }
 
@@ -204,7 +197,7 @@ public class RemoteClusterSecurityService {
         return RoleDescriptor.parseRoleDescriptorsBytes(XContentParserConfiguration.EMPTY, bytesReference);
     }
 
-    public User buildRemoteClusterSecurityUser(
+    public User buildRcsUser(
         final Authentication qcAuthentication,
         final RoleDescriptorsIntersection qcAuthorization,
         final User fcApiKeyUser

@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.RemoteClusterSecurityService;
+import org.elasticsearch.xpack.security.authc.RcsService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 import java.util.Collection;
@@ -53,7 +53,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private final RoleProviders roleProviders;
     private final ApiKeyService apiKeyService;
     private final ServiceAccountService serviceAccountService;
-    private final RemoteClusterSecurityService remoteClusterSecurityService;
+    private final RcsService rcsService;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
@@ -62,7 +62,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     public RoleDescriptorStore(
         RoleProviders roleProviders,
         ApiKeyService apiKeyService,
-        RemoteClusterSecurityService remoteClusterSecurityService,
+        RcsService rcsService,
         ServiceAccountService serviceAccountService,
         Cache<String, Boolean> negativeLookupCache,
         XPackLicenseState licenseState,
@@ -71,7 +71,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         this.roleProviders = roleProviders;
         this.apiKeyService = Objects.requireNonNull(apiKeyService);
-        this.remoteClusterSecurityService = Objects.requireNonNull(remoteClusterSecurityService);
+        this.rcsService = Objects.requireNonNull(rcsService);
         this.serviceAccountService = Objects.requireNonNull(serviceAccountService);
         this.licenseState = Objects.requireNonNull(licenseState);
         this.threadContext = threadContext;
@@ -136,10 +136,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }));
     }
 
-    public void resolveRemoteClusterSecurityRoleReference(
-        RoleReference.RemoteClusterSecurityRoleReference roleReference,
-        ActionListener<RolesRetrievalResult> listener
-    ) {
+    public void resolveRcsRoleReference(RoleReference.RcsRoleReference roleReference, ActionListener<RolesRetrievalResult> listener) {
         final RolesRetrievalResult result = new RolesRetrievalResult();
         if (roleReference.roleDescriptors() != null) {
             result.addDescriptors(Set.copyOf(roleReference.roleDescriptors()));

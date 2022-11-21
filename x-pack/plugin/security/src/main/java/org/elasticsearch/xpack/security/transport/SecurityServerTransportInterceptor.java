@@ -129,7 +129,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                     securityContext.executeAsSystemUser(
                         minVersion,
-                        // TODO use sendWithUserOrRemoteClusterSecurityHeaders here once built-in users support remote privileges
+                        // TODO use sendWithUserOrRcsHeaders here once built-in users support remote privileges
                         original -> sendWithUser(
                             connection,
                             action,
@@ -144,7 +144,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         threadPool.getThreadContext(),
                         securityContext,
                         minVersion,
-                        // TODO use sendWithUserOrRemoteClusterSecurityHeaders here once built-in users support remote privileges
+                        // TODO use sendWithUserOrRcsHeaders here once built-in users support remote privileges
                         (original) -> sendWithUser(
                             connection,
                             action,
@@ -158,7 +158,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(
-                            original -> sendWithUserOrRemoteClusterSecurityHeaders(
+                            original -> sendWithUserOrRcsHeaders(
                                 connection,
                                 action,
                                 request,
@@ -169,13 +169,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             minVersion
                         );
                     } else {
-                        sendWithUserOrRemoteClusterSecurityHeaders(connection, action, request, options, handler, sender);
+                        sendWithUserOrRcsHeaders(connection, action, request, options, handler, sender);
                     }
             }
         };
     }
 
-    private <T extends TransportResponse> void sendWithUserOrRemoteClusterSecurityHeaders(
+    private <T extends TransportResponse> void sendWithUserOrRcsHeaders(
         Transport.Connection connection,
         String action,
         TransportRequest request,
@@ -183,14 +183,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         TransportResponseHandler<T> handler,
         AsyncSender sender
     ) {
-        if (shouldSendWithRemoteClusterSecurityHeaders(connection, action, request)) {
-            sendWithRemoteClusterSecurityHeaders(connection, action, request, options, handler, sender);
+        if (shouldSendWithRcsHeaders(connection, action, request)) {
+            sendWithRcsHeaders(connection, action, request, options, handler, sender);
         } else {
             sendWithUser(connection, action, request, options, handler, sender);
         }
     }
 
-    private boolean shouldSendWithRemoteClusterSecurityHeaders(Transport.Connection connection, String action, TransportRequest request) {
+    private boolean shouldSendWithRcsHeaders(Transport.Connection connection, String action, TransportRequest request) {
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()
             // TODO more request types here
             || false == (request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest)) {
@@ -218,7 +218,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         return remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias) != null;
     }
 
-    private <T extends TransportResponse> void sendWithRemoteClusterSecurityHeaders(
+    private <T extends TransportResponse> void sendWithRcsHeaders(
         Transport.Connection connection,
         String action,
         TransportRequest request,
@@ -245,12 +245,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias).toCharArray()
                 );
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RemoteClusterSecurityClusterCredential.writeToContextHeader(threadContext, fcApiKey);
-                    RemoteClusterSecuritySubjectAccess.writeToThreadContextHeader(
-                        threadContext,
-                        authentication,
-                        roleDescriptorsIntersection
-                    );
+                    RcsClusterCredential.writeToContextHeader(threadContext, fcApiKey);
+                    RcsSubjectAccess.writeToThreadContextHeader(threadContext, authentication, roleDescriptorsIntersection);
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))

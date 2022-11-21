@@ -54,7 +54,7 @@ public class Subject {
         USER,
         API_KEY,
         SERVICE_ACCOUNT,
-        REMOTE_CLUSTER_SECURITY
+        RCS
     }
 
     private final Version version;
@@ -83,7 +83,7 @@ public class Subject {
             this.type = Type.SERVICE_ACCOUNT;
         } else if (AuthenticationField.RCS_REALM_TYPE.equals(realm.getType())) {
             assert AuthenticationField.RCS_REALM_NAME.equals(realm.getName()) : "cross cluster realm name mismatch";
-            this.type = Type.REMOTE_CLUSTER_SECURITY;
+            this.type = Type.RCS;
         } else {
             this.type = Type.USER;
         }
@@ -118,8 +118,8 @@ public class Subject {
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
-            case REMOTE_CLUSTER_SECURITY:
-                return buildRoleReferencesForRemoteClusterSecurity();
+            case RCS:
+                return buildRoleReferencesForRcs();
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -241,11 +241,11 @@ public class Subject {
         );
     }
 
-    public RoleReferenceIntersection buildRoleReferencesForRemoteClusterSecurity() {
-        return buildRoleReferencesForRemoteClusterSecurityStatic(metadata);
+    public RoleReferenceIntersection buildRoleReferencesForRcs() {
+        return buildRoleReferencesForRcs(metadata);
     }
 
-    public static RoleReferenceIntersection buildRoleReferencesForRemoteClusterSecurityStatic(final Map<String, Object> metadata) {
+    public static RoleReferenceIntersection buildRoleReferencesForRcs(final Map<String, Object> metadata) {
         final String fcApiKeyId = (String) metadata.get(RCS_FC_API_KEY_ID_KEY);
         assert fcApiKeyId != null;
         final BytesReference fcRoleDescriptorsSetsBytes = (BytesReference) metadata.get(RCS_FC_ROLE_DESCRIPTORS_SETS_KEY);
@@ -271,12 +271,12 @@ public class Subject {
         final List<RoleReference> qcRoleReferences = getRoleReferences(
             qcRoleDescriptorsSetsBytes,
             namedWriteableRegistry,
-            RoleReference.RemoteClusterSecurityRoleType.QC
+            RoleReference.RcsRoleType.QC
         );
         final List<RoleReference> fcRoleReferences = getRoleReferences(
             fcRoleDescriptorsSetsBytes,
             namedWriteableRegistry,
-            RoleReference.RemoteClusterSecurityRoleType.FC
+            RoleReference.RcsRoleType.FC
         );
         final List<RoleReference> roleReferences = new ArrayList<>(qcRoleReferences);
         roleReferences.addAll(fcRoleReferences);
@@ -287,13 +287,13 @@ public class Subject {
     private static List<RoleReference> getRoleReferences(
         BytesReference roleDescriptorsSetsBytes,
         NamedWriteableRegistry namedWriteableRegistry,
-        RoleReference.RemoteClusterSecurityRoleType roleType
+        RoleReference.RcsRoleType roleType
     ) {
         final List<RoleReference> roleReferences = new ArrayList<>();
         try (StreamInput input = new NamedWriteableAwareStreamInput(roleDescriptorsSetsBytes.streamInput(), namedWriteableRegistry)) {
             final Collection<Set<RoleDescriptor>> roleDescriptorsSets = new RoleDescriptorsIntersection(input).roleDescriptorsSets();
             for (final Set<RoleDescriptor> roleDescriptorsSet : roleDescriptorsSets) {
-                roleReferences.add(new RoleReference.RemoteClusterSecurityRoleReference(roleDescriptorsSet, roleType));
+                roleReferences.add(new RoleReference.RcsRoleReference(roleDescriptorsSet, roleType));
             }
         } catch (IOException e) {
             throw new RuntimeException(e);

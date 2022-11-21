@@ -17,15 +17,15 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import static org.elasticsearch.core.Strings.format;
 
-class RemoteClusterSecurityAuthenticator implements Authenticator {
+class RcsAuthenticator implements Authenticator {
 
-    private static final Logger logger = LogManager.getLogger(RemoteClusterSecurityAuthenticator.class);
+    private static final Logger logger = LogManager.getLogger(RcsAuthenticator.class);
 
-    private final RemoteClusterSecurityService remoteClusterSecurityService;
+    private final RcsService rcsService;
     private final String nodeName;
 
-    RemoteClusterSecurityAuthenticator(RemoteClusterSecurityService remoteClusterSecurityService, String nodeName) {
-        this.remoteClusterSecurityService = remoteClusterSecurityService;
+    RcsAuthenticator(RcsService rcsService, String nodeName) {
+        this.rcsService = rcsService;
         this.nodeName = nodeName;
     }
 
@@ -36,21 +36,20 @@ class RemoteClusterSecurityAuthenticator implements Authenticator {
 
     @Override
     public AuthenticationToken extractCredentials(Context context) {
-        return remoteClusterSecurityService.getRemoteClusterSecurityAuthenticationTokenFromThreadContextHeader(context.getThreadContext());
+        return rcsService.getRcsAuthenticationTokenFromThreadContextHeader(context.getThreadContext());
     }
 
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
-        if (false == authenticationToken instanceof RemoteClusterSecurityService.RemoteClusterSecurityAuthenticationToken) {
+        if (false == authenticationToken instanceof RcsService.RcsAuthenticationToken) {
             listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
-        RemoteClusterSecurityService.RemoteClusterSecurityAuthenticationToken rcsAuthenticationToken =
-            (RemoteClusterSecurityService.RemoteClusterSecurityAuthenticationToken) authenticationToken;
-        remoteClusterSecurityService.tryAuthenticate(context.getThreadContext(), rcsAuthenticationToken, ActionListener.wrap(authResult -> {
+        RcsService.RcsAuthenticationToken rcsAuthenticationToken = (RcsService.RcsAuthenticationToken) authenticationToken;
+        rcsService.tryAuthenticate(context.getThreadContext(), rcsAuthenticationToken, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
-                final Authentication authentication = Authentication.newRemoteClusterSecurityAuthentication(authResult, nodeName);
+                final Authentication authentication = Authentication.newRcsAuthentication(authResult, nodeName);
                 listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)

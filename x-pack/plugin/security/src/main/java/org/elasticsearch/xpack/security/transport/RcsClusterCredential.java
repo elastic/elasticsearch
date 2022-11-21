@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_SCHEME;
 
 // TODO plural
-public record RemoteClusterSecurityClusterCredential(String scheme, SecureString value) {
+public record RcsClusterCredential(String scheme, SecureString value) {
 
     private static final Logger LOGGER = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
@@ -30,7 +30,7 @@ public record RemoteClusterSecurityClusterCredential(String scheme, SecureString
         .map(p -> CharBuffer.wrap(p).subSequence(0, p.length()))
         .collect(Collectors.toSet());
 
-    public RemoteClusterSecurityClusterCredential {
+    public RcsClusterCredential {
         if (Strings.isEmpty(scheme)) {
             throw new RuntimeException("Missing scheme");
         } else if (SUPPORTED_PREFIXES.contains(scheme) == false) {
@@ -40,28 +40,25 @@ public record RemoteClusterSecurityClusterCredential(String scheme, SecureString
         }
     }
 
-    public static RemoteClusterSecurityClusterCredential readFromContextHeader(final ThreadContext ctx) {
+    public static RcsClusterCredential readFromContextHeader(final ThreadContext ctx) {
         return decode(ctx.getHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY));
     }
 
-    public static void writeToContextHeader(
-        final ThreadContext threadContext,
-        final RemoteClusterSecurityClusterCredential schemeAndCredentials
-    ) {
+    public static void writeToContextHeader(final ThreadContext threadContext, final RcsClusterCredential schemeAndCredentials) {
         try (SecureString encoded = encode(schemeAndCredentials)) {
             threadContext.putHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY, encoded.toString());
         }
     }
 
     public static void writeToContextHeader(final ThreadContext threadContext, final SecureString schemeAndCredentials) {
-        RemoteClusterSecurityClusterCredential schemeAndCredentialsIfValid = decode(schemeAndCredentials);
+        RcsClusterCredential schemeAndCredentialsIfValid = decode(schemeAndCredentials);
         if (schemeAndCredentialsIfValid != null) {
             threadContext.putHeader(AuthenticationField.RCS_CLUSTER_CREDENTIAL_HEADER_KEY, schemeAndCredentials.toString());
         }
     }
 
     // encoded = scheme + " " + value
-    public static SecureString encode(final RemoteClusterSecurityClusterCredential schemeAndCredentials) {
+    public static SecureString encode(final RcsClusterCredential schemeAndCredentials) {
         if (schemeAndCredentials != null) {
             final String scheme = schemeAndCredentials.scheme();
             final SecureString value = schemeAndCredentials.value();
@@ -79,7 +76,7 @@ public record RemoteClusterSecurityClusterCredential(String scheme, SecureString
         return null;
     }
 
-    public static RemoteClusterSecurityClusterCredential decode(final CharSequence schemeAndValue) {
+    public static RcsClusterCredential decode(final CharSequence schemeAndValue) {
         if (Strings.isEmpty(schemeAndValue)) {
             LOGGER.warn("No scheme and value found");
             return null;
@@ -101,7 +98,7 @@ public record RemoteClusterSecurityClusterCredential(String scheme, SecureString
                 for (int c = supportedPrefixChars.length() + 1; c < schemeAndValue.length(); c++) {
                     valueChars[i++] = schemeAndValue.charAt(c);
                 }
-                return new RemoteClusterSecurityClusterCredential(supportedPrefixChars.toString(), new SecureString(valueChars));
+                return new RcsClusterCredential(supportedPrefixChars.toString(), new SecureString(valueChars));
             }
         }
         LOGGER.warn("No supported scheme found, supports schemes are {}", SUPPORTED_PREFIXES);

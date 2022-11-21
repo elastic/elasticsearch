@@ -842,6 +842,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testArrayToArrayException() {
-        expectScriptThrows(IllegalArgumentException.class, () -> exec("return new String[] {'a'}.method()"));
+        IllegalArgumentException iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("return new String[] {'a'}.noMethod()")
+        );
+        assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
     }
 }

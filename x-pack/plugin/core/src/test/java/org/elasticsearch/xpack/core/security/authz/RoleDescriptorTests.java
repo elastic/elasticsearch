@@ -664,7 +664,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(actual, equalTo(0));
         assertThat(
             "indices privileges compared to copy of itself should return 0 [" + indexPrivilege + "]",
-            indexPrivilege.compareTo(copyAsBuilder(indexPrivilege).build()),
+            indexPrivilege.compareTo(copy(indexPrivilege)),
             equalTo(0)
         );
 
@@ -692,8 +692,8 @@ public class RoleDescriptorTests extends ESTestCase {
         second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
         second.indices(first.build().getIndices());
         second.privileges(first.build().getPrivileges());
-        first.query(randomBoolean() ? null : "a");
-        second.query("b");
+        first.query(randomBoolean() ? null : "{\"match\":{\"field-a\":\"a\"}}");
+        second.query("{\"match\":{\"field-b\":\"b\"}}");
         assertThat(first.build().compareTo(second.build()), lessThan(0));
         assertThat(second.build().compareTo(first.build()), greaterThan(0));
 
@@ -987,7 +987,7 @@ public class RoleDescriptorTests extends ESTestCase {
         return builder;
     }
 
-    private RoleDescriptor.IndicesPrivileges.Builder copyAsBuilder(RoleDescriptor.IndicesPrivileges indexPrivilege) {
+    private RoleDescriptor.IndicesPrivileges copy(RoleDescriptor.IndicesPrivileges indexPrivilege) {
         return RoleDescriptor.IndicesPrivileges.builder()
             .indices(indexPrivilege.getIndices().clone())
             .privileges(indexPrivilege.getPrivileges().clone())
@@ -999,6 +999,7 @@ public class RoleDescriptorTests extends ESTestCase {
             )
             .grantedFields(indexPrivilege.getGrantedFields() == null ? null : indexPrivilege.getGrantedFields().clone())
             .deniedFields(indexPrivilege.getDeniedFields() == null ? null : indexPrivilege.getDeniedFields().clone())
-            .allowRestrictedIndices(indexPrivilege.allowRestrictedIndices());
+            .allowRestrictedIndices(indexPrivilege.allowRestrictedIndices())
+            .build();
     }
 }

@@ -658,65 +658,59 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testIndicesPrivilegesCompareTo() {
-        var indexPrivilege = randomIndicesPrivilegesBuilder().build();
+        final RoleDescriptor.IndicesPrivileges indexPrivilege = randomIndicesPrivilegesBuilder().build();
         @SuppressWarnings({ "EqualsWithItself" })
         final int actual = indexPrivilege.compareTo(indexPrivilege);
         assertThat(actual, equalTo(0));
-        assertThat(
-            "indices privileges compared to copy of itself should return 0 [" + indexPrivilege + "]",
-            indexPrivilege.compareTo(copy(indexPrivilege)),
-            equalTo(0)
-        );
+        assertThat(indexPrivilege.compareTo(copy(indexPrivilege)), equalTo(0));
 
-        RoleDescriptor.IndicesPrivileges.Builder first = randomIndicesPrivilegesBuilder().allowRestrictedIndices(false);
-        RoleDescriptor.IndicesPrivileges.Builder second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(true);
-        assertThat(first.build().compareTo(second.build()), lessThan(0));
-        assertThat(second.build().compareTo(first.build()), greaterThan(0));
+        RoleDescriptor.IndicesPrivileges first = randomIndicesPrivilegesBuilder().allowRestrictedIndices(false).build();
+        RoleDescriptor.IndicesPrivileges second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(true).build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
-        first.indices("a", "b");
-        second.indices("b", "a");
-        assertThat(first.build().compareTo(second.build()), lessThan(0));
-        assertThat(second.build().compareTo(first.build()), greaterThan(0));
+        first = randomIndicesPrivilegesBuilder().indices("a", "b").build();
+        second = randomIndicesPrivilegesBuilder().indices("b", "a").allowRestrictedIndices(first.allowRestrictedIndices()).build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
-        second.indices(first.build().getIndices());
-        first.privileges("read", "write");
-        second.privileges("write", "read");
-        assertThat(first.build().compareTo(second.build()), lessThan(0));
-        assertThat(second.build().compareTo(first.build()), greaterThan(0));
+        first = randomIndicesPrivilegesBuilder().privileges("read", "write").build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .privileges("write", "read")
+            .indices(first.getIndices())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
-        second.indices(first.build().getIndices());
-        second.privileges(first.build().getPrivileges());
-        first.query(randomBoolean() ? null : "{\"match\":{\"field-a\":\"a\"}}");
-        second.query("{\"match\":{\"field-b\":\"b\"}}");
-        assertThat(first.build().compareTo(second.build()), lessThan(0));
-        assertThat(second.build().compareTo(first.build()), greaterThan(0));
+        first = randomIndicesPrivilegesBuilder().query(randomBoolean() ? null : "{\"match\":{\"field-a\":\"a\"}}").build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .query("{\"match\":{\"field-b\":\"b\"}}")
+            .indices(first.getIndices())
+            .privileges(first.getPrivileges())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
-        second.indices(first.build().getIndices());
-        second.privileges(first.build().getPrivileges());
-        second.query(first.build().getQuery());
-        first.grantedFields(randomBoolean() ? null : new String[] { "a", "b" });
-        second.grantedFields("b", "a");
-        assertThat(first.build().compareTo(second.build()), lessThan(0));
-        assertThat(second.build().compareTo(first.build()), greaterThan(0));
+        first = randomIndicesPrivilegesBuilder().grantedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .grantedFields("b", "a")
+            .indices(first.getIndices())
+            .privileges(first.getPrivileges())
+            .query(first.getQuery())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
 
-        first = randomIndicesPrivilegesBuilder();
-        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
-        second.indices(first.build().getIndices());
-        second.privileges(first.build().getPrivileges());
-        second.query(first.build().getQuery());
-        second.grantedFields(first.build().getGrantedFields());
-        first.deniedFields(randomBoolean() ? null : new String[] { "a", "b" });
-        second.deniedFields("b", "a");
-        assertThat(first.build().compareTo(second.build()), lessThan(0));
-        assertThat(second.build().compareTo(first.build()), greaterThan(0));
+        first = randomIndicesPrivilegesBuilder().deniedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .deniedFields("b", "a")
+            .indices(first.getIndices())
+            .privileges(first.getPrivileges())
+            .query(first.getQuery())
+            .grantedFields(first.getGrantedFields())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
     }
 
     public void testGlobalPrivilegesOrdering() throws IOException {

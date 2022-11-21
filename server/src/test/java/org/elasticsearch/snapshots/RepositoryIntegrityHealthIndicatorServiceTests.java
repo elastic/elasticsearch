@@ -115,6 +115,16 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in the telemetry index
+    // they need to be declared in the mapping, any changes or additions that we want to track need to be added to the base-xph.json.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(RepositoryIntegrityHealthIndicatorService.NAME, equalTo("repository_integrity"));
+        assertThat(
+            CORRUPTED_REPOSITORY.getUniqueId(),
+            equalTo("elasticsearch:health:repository_integrity:diagnosis:corrupt_repo_integrity")
+        );
+    }
+
     private static ClusterState createClusterStateWith(RepositoriesMetadata metadata) {
         var builder = ClusterState.builder(new ClusterName("test-cluster"));
         if (metadata != null) {

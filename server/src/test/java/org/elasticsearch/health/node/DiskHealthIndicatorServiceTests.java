@@ -882,6 +882,28 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in the telemetry index
+    // they need to be declared in the mapping, any changes or additions that we want to track need to be added to the base-xph.json.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(DiskHealthIndicatorService.NAME, equalTo("disk"));
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createDataNodeDiagnosis(0, List.of()).definition().getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes")
+        );
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createNonDataNodeDiagnosis(HealthStatus.RED, List.of(), true)
+                .definition()
+                .getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity_master_nodes")
+        );
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createNonDataNodeDiagnosis(HealthStatus.RED, List.of(), false)
+                .definition()
+                .getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity")
+        );
+    }
+
     private Set<DiscoveryNode> createNodesWithAllRoles() {
         return createNodes(DiscoveryNodeRole.roles());
     }

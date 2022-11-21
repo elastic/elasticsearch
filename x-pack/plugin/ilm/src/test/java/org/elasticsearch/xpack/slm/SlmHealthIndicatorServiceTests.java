@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.NAME;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.SLM_NOT_RUNNING;
+import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.checkRecentlyFailedSnapshots;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -281,6 +282,21 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(15L, slmPolicyMetadata), is(false));
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(5L, slmPolicyMetadata), is(false));
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
+    }
+
+
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in the telemetry index
+    // they need to be declared in the mapping, any changes or additions that we want to track need to be added to the base-xph.json.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(SlmHealthIndicatorService.NAME, equalTo("slm"));
+        assertThat(
+            checkRecentlyFailedSnapshots("cause", "action").getUniqueId(),
+            equalTo("elasticsearch:health:slm:diagnosis:check_recent_snapshot_failures")
+        );
+        assertThat(
+            SLM_NOT_RUNNING.definition().getUniqueId(),
+            equalTo("elasticsearch:health:slm:diagnosis:slm_disabled")
+        );
     }
 
     private static ClusterState createClusterStateWith(SnapshotLifecycleMetadata metadata) {

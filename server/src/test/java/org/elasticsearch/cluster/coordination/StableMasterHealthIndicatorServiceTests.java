@@ -153,7 +153,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
@@ -180,7 +179,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(diagnosis.size(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetHealthIndicatorResultGreenOrUnknown() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);

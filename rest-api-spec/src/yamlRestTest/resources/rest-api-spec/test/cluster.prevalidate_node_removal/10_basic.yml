@@ -2,8 +2,8 @@
 "Prevalidation basic test":
   - skip:
       features: contains
-      version: "- 8.5.99"
-      reason: "API added in 8.6.0"
+      version: "- 8.6.99"
+      reason: "The reason field was introduced in 8.7.0"
 
   # Fetch a node ID and stash it in node_id
   - do:

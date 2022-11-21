@@ -97,7 +97,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertNotNull(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
-    public void testBalanceByShardLoad() {
+    public void testBalanceByWriteLoad() {
 
         var allocationService = new MockAllocationService(
             yesAllocationDeciders(),
@@ -342,23 +342,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
         for (var index : indices) {
-            var inSyncId = UUIDs.randomBase64UUID(random());
             var build = index.settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
             metadataBuilder.put(build, false);
             routingTableBuilder.addAsNew(build);
-            // IndexRoutingTable.builder(build.getIndex())
-            // .addShard(
-            // TestShardRouting.newShardRouting(
-            // new ShardId(build.getIndex(), 0),
-            // // allocate indices on excluded node so that they are rebalanced according to the weights later on in test
-            // "node-3",
-            // null,
-            // true,
-            // ShardRoutingState.STARTED,
-            // AllocationId.newInitializing(inSyncId)
-            // )
-            // )
-            // );
         }
 
         return ClusterState.builder(ClusterName.DEFAULT)

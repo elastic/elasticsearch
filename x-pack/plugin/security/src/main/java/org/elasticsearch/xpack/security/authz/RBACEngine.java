@@ -728,7 +728,7 @@ public class RBACEngine implements AuthorizationEngine {
             : "translation from an indices permission group to indices privileges supports up to one FLS field-grant-exclude group"
                 + " but multiple groups found";
 
-        final BytesReference query = queries == null ? null : queries.iterator().next();
+        final BytesReference query = (queries == null || false == queries.iterator().hasNext()) ? null : queries.iterator().next();
         final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
             // Sort because these index privileges will be part of role descriptors that may be cached in raw byte form;
             // we need deterministic order to ensure cache hits for equivalent role descriptors

@@ -7,13 +7,24 @@
 
 package org.elasticsearch.xpack.core.security.authz;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,5 +74,44 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
             return Set.copyOf(roleDescriptors);
         });
         return new RoleDescriptorsIntersection(List.copyOf(roleDescriptorsSets));
+    }
+
+    public BytesReference toBytesReference() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            this.writeTo(output);
+            return output.bytes();
+        }
+    }
+
+    public static RoleDescriptorsIntersection fromBytesReference(final BytesReference serialized) throws IOException {
+        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
+                )
+            )
+        );
+        try (StreamInput input = new NamedWriteableAwareStreamInput(serialized.streamInput(), namedWriteableRegistry)) {
+            return new RoleDescriptorsIntersection(input);
+        }
+    }
+
+    public String toJson() throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        this.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return Strings.toString(builder);
+    }
+
+    public static RoleDescriptorsIntersection fromJson(final String jsonString) throws IOException {
+        try (XContentParser p = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonString)) {
+            return RoleDescriptorsIntersection.fromXContent(p);
+        }
     }
 }

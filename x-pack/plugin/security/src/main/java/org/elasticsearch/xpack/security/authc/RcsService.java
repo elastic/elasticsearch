@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -187,29 +186,22 @@ public class RcsService {
         return RoleDescriptor.parseRoleDescriptorsBytes(XContentParserConfiguration.EMPTY, bytesReference);
     }
 
-    public User buildRcsUser(
-        final Authentication qcAuthentication,
-        final RoleDescriptorsIntersection qcAuthorization,
-        final User fcApiKeyUser
-    ) throws IOException {
+    public User buildRcsUser(final Authentication qcAuthentication, final RoleDescriptorsIntersection qcAuthorization, final User fcUser)
+        throws IOException {
         final Subject qcEffectiveSubject = qcAuthentication.getEffectiveSubject();
         final User qcUser = qcEffectiveSubject.getUser();
         final String qcPrincipal = qcUser.principal();
         final String qcFullName = qcUser.fullName();
         final String qcEmail = qcUser.email();
+        final Map<String, Object> qcUserMetadata = qcUser.metadata();
+        final String qcApiKeyId = (String) qcUserMetadata.get(API_KEY_ID_KEY); // optional, any QC authc supported
+        final BytesReference qcRoleDescriptorsIntersectionBytes = qcAuthorization.toBytesReference();
 
-        final String qcApiKeyId = (String) qcUser.metadata().get(API_KEY_ID_KEY); // optional, any QC authc supported
-        final Version version = qcEffectiveSubject.getVersion();
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
-        Version.writeVersion(version, out);
-        qcAuthorization.writeTo(out);
-        final BytesReference qcRoleDescriptorsIntersectionBytes = out.bytes();
+        final Map<String, Object> fcUserMetadata = fcUser.metadata();
+        final String fcApiKeyId = (String) fcUserMetadata.get(API_KEY_ID_KEY); // required, only FC API Key authc supported
+        final BytesReference fcRoleDescriptorsIntersectionBytes = getFcRoleDescriptorsIntersectionBytes(fcUserMetadata);
 
-        final Map<String, Object> fcApiKeyMetadata = fcApiKeyUser.metadata();
-        final String fcApiKeyId = (String) fcApiKeyMetadata.get(API_KEY_ID_KEY); // required, only FC API Key authc supported
-        final BytesReference fcRoleDescriptorsIntersectionBytes = getFcRoleDescriptorsIntersectionBytes(fcApiKeyMetadata);
-
+        final String rcsFcPrincipal = qcPrincipal + "," + fcApiKeyId;
         final Map<String, Object> rcsFcMetadata = Map.of(
             RCS_QC_SUBJECT_AUTHENTICATION_KEY,
             qcAuthentication,
@@ -222,8 +214,7 @@ public class RcsService {
             RCS_FC_API_KEY_ID_KEY,
             fcApiKeyId
         );
-        final String fcEffectivePrincipal = qcPrincipal + "," + fcApiKeyId;
-        return new User(fcEffectivePrincipal, Strings.EMPTY_ARRAY, qcFullName, qcEmail, rcsFcMetadata, true);
+        return new User(rcsFcPrincipal, Strings.EMPTY_ARRAY, qcFullName, qcEmail, rcsFcMetadata, true);
     }
 
     private BytesReference getFcRoleDescriptorsIntersectionBytes(final Map<String, Object> fcApiKeyMetadata) throws IOException {

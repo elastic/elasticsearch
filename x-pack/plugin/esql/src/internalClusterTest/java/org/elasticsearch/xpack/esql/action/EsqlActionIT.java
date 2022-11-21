@@ -351,7 +351,6 @@ public class EsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/396")
     public void testProjectWhere() {
         EsqlQueryResponse results = run("from test | project count | where count > 40");
         logger.info(results);

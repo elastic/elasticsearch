@@ -705,6 +705,7 @@ public class RBACEngine implements AuthorizationEngine {
                         new RoleDescriptor(
                             REMOTE_USER_ROLE_NAME_PLACEHOLDER,
                             null,
+                            // Sort to ensure deterministic cache keys on the fulfilling cluster side
                             indicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
                             null,
                             null,

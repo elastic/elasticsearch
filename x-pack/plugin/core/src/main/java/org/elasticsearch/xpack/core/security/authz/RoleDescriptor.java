@@ -1216,8 +1216,29 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public int compareTo(IndicesPrivileges o) {
-            // TODO
-            return 0;
+            int cmp = Boolean.compare(allowRestrictedIndices, o.allowRestrictedIndices);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(indices, o.indices);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(privileges, o.privileges);
+            if (cmp != 0) {
+                return cmp;
+            }
+            // TODO nullability
+            cmp = Objects.compare(query, o.query, BytesReference::compareTo);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(grantedFields, o.grantedFields);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(deniedFields, o.deniedFields);
+            return cmp;
         }
 
         public static class Builder {

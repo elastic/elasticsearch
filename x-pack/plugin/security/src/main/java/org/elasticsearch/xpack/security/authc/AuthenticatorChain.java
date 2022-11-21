@@ -46,7 +46,6 @@ class AuthenticatorChain {
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
-    private final RcsAuthenticator rcsAuthenticator;
     private final List<Authenticator> allAuthenticators;
 
     AuthenticatorChain(
@@ -67,7 +66,6 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.rcsAuthenticator = rcsAuthenticator;
         this.allAuthenticators = List.of(
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,

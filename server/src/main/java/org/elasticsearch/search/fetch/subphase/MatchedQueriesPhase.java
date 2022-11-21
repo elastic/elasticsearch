@@ -17,6 +17,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,6 +71,11 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                     }
                 }
                 hitContext.hit().matchedQueries(matches.toArray(String[]::new));
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
         };
     }

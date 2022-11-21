@@ -10,6 +10,8 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -20,6 +22,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -31,6 +34,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -42,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.Random;
 import java.util.Set;
 
@@ -160,9 +166,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new AllocationDeciders(deciders);
     }
 
-    protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Collections.unmodifiableSet(
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-    );
+    protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     protected static DiscoveryNode newNode(String nodeId) {
         return newNode(nodeId, Version.CURRENT);
@@ -225,13 +229,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
-        ClusterState lastClusterState;
+        int iterations = 0;
         do {
-            lastClusterState = clusterState;
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
+            iterations += 1;
+            if (iterations % 100 == 0) {
+                logger.info("applyStartedShardsUntilNoChange: iteration [{}]", iterations);
+            }
+            final var previousClusterState = clusterState;
+            logger.debug(() -> Strings.format("ClusterState: %s", previousClusterState.getRoutingNodes()));
             clusterState = startInitializingShardsAndReroute(service, clusterState);
-        } while (lastClusterState.equals(clusterState) == false);
-        return clusterState;
+            if (previousClusterState.equals(clusterState)) {
+                return clusterState;
+            }
+        } while (true);
     }
 
     /**
@@ -387,4 +397,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
         }
     }
+
+    protected static final WriteLoadForecaster SIMULATION_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
+        @Override
+        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+            throw new AssertionError("only called during rollover");
+        }
+
+        @Override
+        @SuppressForbidden(reason = "tests do not need a license to access the write load")
+        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
+            return indexMetadata.getForecastedWriteLoad();
+        }
+    };
+
 }

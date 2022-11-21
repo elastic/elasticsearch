@@ -13,6 +13,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 
@@ -25,7 +26,6 @@ public final class FetchSourcePhase implements FetchSubPhase {
         if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
             return null;
         }
-        String index = fetchContext.getIndexName();
         assert fetchSourceContext.fetchSource();
         SourceFilter sourceFilter = fetchSourceContext.filter();
 
@@ -38,7 +38,13 @@ public final class FetchSourcePhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;
+            }
+
+            @Override
             public void process(HitContext hitContext) {
+                String index = fetchContext.getIndexName();
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
                     if (fetchSourceContext.hasFilter()) {
                         throw new IllegalArgumentException(

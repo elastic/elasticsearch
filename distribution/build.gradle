@@ -11,7 +11,7 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
-import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -25,6 +25,18 @@ plugins {
 
 configurations {
   log4jConfig
+  dependencyInfos {
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
+    }
+  }
+}
+
+def thisProj = project
+rootProject.allprojects { proj ->
+    proj.plugins.withType(DependenciesInfoPlugin) {
+      thisProj.dependencies.add("dependencyInfos", project.dependencies.project(path: proj.path))
+    }
 }
 
 /*****************************************************************************
@@ -33,8 +45,7 @@ configurations {
 
 // Concatenates the dependencies CSV files into a single file
 tasks.register("generateDependenciesReport", ConcatFilesTask) {
-  dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
-  files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
+  files = configurations.dependencyInfos
   headerLine = "name,version,url,license,sourceURL"
   target = new File(providers.systemProperty('csv')
                       .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")

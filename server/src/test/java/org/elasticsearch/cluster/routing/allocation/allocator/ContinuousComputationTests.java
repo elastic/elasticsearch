@@ -46,7 +46,7 @@ public class ContinuousComputationTests extends ESTestCase {
     public void testConcurrency() throws Exception {
 
         final var result = new AtomicReference<Integer>();
-        final var computation = new ContinuousComputation<Integer>(threadPool.generic()) {
+        final var computation = new ContinuousComputation<Integer>(threadPool) {
 
             public final Semaphore executePermit = new Semaphore(1);
 
@@ -104,7 +104,7 @@ public class ContinuousComputationTests extends ESTestCase {
         final var finalInput = new Object();
 
         final var result = new AtomicReference<Object>();
-        final var computation = new ContinuousComputation<Object>(threadPool.generic()) {
+        final var computation = new ContinuousComputation<Object>(threadPool) {
             @Override
             protected void processInput(Object input) {
                 assertNotEquals(input, skippedInput);

@@ -65,9 +65,7 @@ public class Task {
     );
 
     public static Optional<String> extractTraceId(String traceparent) {
-        return traceparent != null && traceparent.length() >= 55
-            ? Optional.of(traceparent.substring(3, 35))
-            : Optional.empty();
+        return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
     }
 
     private final long id;

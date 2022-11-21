@@ -91,12 +91,14 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -1648,7 +1650,7 @@ public class RBACEngineTests extends ESTestCase {
                 : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null);
             final BytesReference query = randomBoolean() ? randomDlsQuery() : null;
             final IndicesPrivileges.Builder builder = IndicesPrivileges.builder()
-                .indices(indexNames)
+                .indices(Arrays.stream(Objects.requireNonNull(indexNames)).sorted().collect(Collectors.toList()))
                 .privileges("read")
                 .allowRestrictedIndices(allowRestrictedIndices)
                 .query(query);

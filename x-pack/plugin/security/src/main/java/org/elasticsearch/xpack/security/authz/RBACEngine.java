@@ -31,7 +31,6 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -121,6 +120,8 @@ public class RBACEngine implements AuthorizationEngine {
     private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
+    // TODO move once we have a dedicated class for RCS 2.0 constants
+    public static final String REMOTE_USER_ROLE_NAME_PLACEHOLDER = "_remote_user";
 
     private final Settings settings;
     private final CompositeRolesStore rolesStore;
@@ -702,9 +703,9 @@ public class RBACEngine implements AuthorizationEngine {
                 List.of(
                     Set.of(
                         new RoleDescriptor(
-                            UUIDs.randomBase64UUID(),
+                            REMOTE_USER_ROLE_NAME_PLACEHOLDER,
                             null,
-                            indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[0]),
+                            indicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
                             null,
                             null,
                             null,

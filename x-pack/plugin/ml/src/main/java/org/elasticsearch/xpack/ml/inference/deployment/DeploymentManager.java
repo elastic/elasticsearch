@@ -401,7 +401,9 @@ public class DeploymentManager {
                 this.numThreadsPerAllocation = threadSettings.numThreadsPerAllocation();
                 this.numAllocations = threadSettings.numAllocations();
             });
-            this.stateStreamer = new PyTorchStateStreamer(client, executorServiceForProcess, xContentRegistry);
+            // We want to use the utility thread pool to load the model and not one of the process
+            // threads that are dedicated to processing done throughout the lifetime of the process.
+            this.stateStreamer = new PyTorchStateStreamer(client, executorServiceForDeployment, xContentRegistry);
             this.priorityProcessWorker = new PriorityProcessWorkerExecutorService(
                 threadPool.getThreadContext(),
                 "inference process",

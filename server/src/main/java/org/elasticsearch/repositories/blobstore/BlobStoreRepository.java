@@ -62,7 +62,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -152,6 +151,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -304,7 +304,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
         "max_snapshot_bytes_per_sec",
-        new ByteSizeValue(40, ByteSizeUnit.MB),
+        (settings) -> {
+            if (RecoverySettings.hasNodeBandwidthRecoverySettings(settings)) {
+                return "0";
+            } else {
+                return "40mb";
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -399,8 +405,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.recoverySettings = recoverySettings;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
-        snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
-        restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
+        snapshotRateLimiter = getSnapshotRateLimiter();
+        restoreRateLimiter = getRestoreRateLimiter();
         readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
@@ -648,8 +654,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         metadata = getRepoMetadata(state);
         final Settings updatedSettings = metadata.settings();
         if (updatedSettings.equals(previousSettings) == false) {
-            snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
-            restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
+            snapshotRateLimiter = getSnapshotRateLimiter();
+            restoreRateLimiter = getRestoreRateLimiter();
         }
 
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
@@ -1639,17 +1645,57 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Configures RateLimiter based on repository and global settings
      *
+     * @param rateLimiter        the existing rate limiter to configure (or null if no throttling was previously needed)
      * @param repositorySettings repository settings
      * @param setting            setting to use to configure rate limiter
-     * @return rate limiter or null of no throttling is needed
+     * @param warnIfOverRecovery log a warning if rate limit setting is over the effective recovery rate limit
+     * @return the newly configured rate limiter or null if no throttling is needed
      */
-    private static RateLimiter getRateLimiter(Settings repositorySettings, Setting<ByteSizeValue> setting) {
-        ByteSizeValue maxSnapshotBytesPerSec = setting.get(repositorySettings);
-        if (maxSnapshotBytesPerSec.getBytes() <= 0) {
+    private RateLimiter getRateLimiter(
+        RateLimiter rateLimiter,
+        Settings repositorySettings,
+        Setting<ByteSizeValue> setting,
+        boolean warnIfOverRecovery
+    ) {
+        ByteSizeValue maxConfiguredBytesPerSec = setting.get(repositorySettings);
+        if (maxConfiguredBytesPerSec.getBytes() <= 0) {
             return null;
         } else {
-            return new RateLimiter.SimpleRateLimiter(maxSnapshotBytesPerSec.getMbFrac());
+            ByteSizeValue effectiveRecoverySpeed = recoverySettings.getMaxBytesPerSec();
+            if (warnIfOverRecovery && effectiveRecoverySpeed.getBytes() > 0) {
+                if (maxConfiguredBytesPerSec.getBytes() > effectiveRecoverySpeed.getBytes()) {
+                    logger.warn(
+                        "repository [{}] has a rate limit [{}={}] per second which is above the effective recovery rate limit "
+                            + "[{}={}] per second, thus the repository rate limit will be superseded by the recovery rate limit",
+                        metadata.name(),
+                        setting.getKey(),
+                        maxConfiguredBytesPerSec,
+                        INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                        effectiveRecoverySpeed
+                    );
+                }
+            }
+
+            if (rateLimiter != null) {
+                rateLimiter.setMBPerSec(maxConfiguredBytesPerSec.getMbFrac());
+                return rateLimiter;
+            } else {
+                return new RateLimiter.SimpleRateLimiter(maxConfiguredBytesPerSec.getMbFrac());
+            }
         }
+    }
+
+    private RateLimiter getSnapshotRateLimiter() {
+        return getRateLimiter(
+            snapshotRateLimiter,
+            metadata.settings(),
+            MAX_SNAPSHOT_BYTES_PER_SEC,
+            recoverySettings.nodeBandwidthSettingsExist()
+        );
+    }
+
+    private RateLimiter getRestoreRateLimiter() {
+        return getRateLimiter(restoreRateLimiter, metadata.settings(), MAX_RESTORE_BYTES_PER_SEC, true);
     }
 
     @Override
@@ -3155,20 +3201,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
-     * throttling is recorded in the value returned by {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     * Wrap the snapshot rate limiter around the given stream. Any throttling is recorded in the value returned by
+     * {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}. Note that speed is throttled by the repository setting
+     * `max_snapshot_bytes_per_sec` and, if recovery node bandwidth settings have been set, additionally by the
+     * `indices.recovery.max_bytes_per_sec` speed.
      */
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
         return maybeRateLimitSnapshots(stream, snapshotRateLimitingTimeInNanos::inc);
     }
 
     /**
-     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
-     * throttling is reported to the given listener and not otherwise recorded in the value returned by {@link
-     * BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     * Wrap the snapshot rate limiter around the given stream. Any throttling is recorded in the value returned by
+     * {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}. Note that speed is throttled by the repository setting
+     * `max_snapshot_bytes_per_sec` and, if recovery node bandwidth settings have been set, additionally by the
+     * `indices.recovery.max_bytes_per_sec` speed.
      */
     public InputStream maybeRateLimitSnapshots(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
-        return maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
+        InputStream rateLimitStream = maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
+        if (recoverySettings.nodeBandwidthSettingsExist()) {
+            rateLimitStream = maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, throttleListener);
+        }
+        return rateLimitStream;
     }
 
     @Override

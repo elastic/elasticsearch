@@ -75,13 +75,35 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 `knn`::
 (Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+
+`k`::
+(Required, integer) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
+
+`num_candidates`::
+(Required, integer) 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+====
 
 `query`::
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
 
 `text_embedding_config`::
-(Object, optional) Override certain setting of the text embedding model's configuration
+(Object, optional) Override certain setting of the text embedding model's 
+configuration.
++
 .Properties of text_embedding inference
 [%collapsible%open]
 =====

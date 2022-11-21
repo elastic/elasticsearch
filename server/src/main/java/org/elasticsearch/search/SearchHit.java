@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -42,6 +44,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1069,6 +1072,51 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
          */
         public NestedIdentity getChild() {
             return child;
+        }
+
+        /**
+         * Extracts the part of the root source that applies to this particular NestedIdentity, while
+         * preserving the enclosing path structure.
+         *
+         * For a root document that looks like this:
+         * { "children" :
+         *    [
+         *      { "grandchildren" : [ { "field" : "value1" }, { "field" : "value2" } ] },
+         *      { "grandchildren" : [ { "field" : "value3" }, { "field" : "value4" } ] }
+         *   ]
+         * }
+         *
+         * Extracting the NestedIdentity of the first child and second grandchild results in a source that looks like this:
+         * { "children" : { "grandchildren" : { "field" : "value2" } } }
+         *
+         * If the relevant child source object does not exist in the root, then we return {@link Source#empty(XContentType)}
+         */
+        @SuppressWarnings("unchecked")
+        public Source extractSource(Source root) {
+            // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
+            // structure with the nested json array object being the actual content. The latter is important, so that
+            // features like source filtering and highlighting work consistent regardless of whether the field points
+            // to a json object array for consistency reasons on how we refer to fields
+            Map<String, Object> rootSourceAsMap = root.source();
+            Map<String, Object> nestedSourceAsMap = new HashMap<>();
+            Map<String, Object> current = nestedSourceAsMap;
+            for (SearchHit.NestedIdentity nested = this; nested != null; nested = nested.getChild()) {
+                String nestedPath = nested.getField().string();
+                current.put(nestedPath, new HashMap<>());
+                List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
+                if (nestedParsedSource == null) {
+                    return Source.empty(root.sourceContentType());
+                }
+                rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
+                if (nested.getChild() == null) {
+                    current.put(nestedPath, rootSourceAsMap);
+                } else {
+                    Map<String, Object> next = new HashMap<>();
+                    current.put(nestedPath, next);
+                    current = next;
+                }
+            }
+            return Source.fromMap(nestedSourceAsMap, root.sourceContentType());
         }
 
         @Override

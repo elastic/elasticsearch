@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -77,6 +79,38 @@ public class JwtRealmSettings {
         }
     }
 
+    public enum TokenType {
+        ID_TOKEN("id_token"),
+        ACCESS_TOKEN("access_token");
+
+        private final String value;
+
+        TokenType(String value) {
+            this.value = value;
+        }
+
+        public String value() {
+            return value;
+        }
+
+        public static TokenType parse(String value, String settingKey) {
+            return EnumSet.allOf(TokenType.class)
+                .stream()
+                .filter(type -> type.value.equalsIgnoreCase(value))
+                .findFirst()
+                .orElseThrow(
+                    () -> new IllegalArgumentException(
+                        Strings.format(
+                            "Invalid value [%s] for [%s], allowed values are [%s]",
+                            value,
+                            settingKey,
+                            Stream.of(values()).map(TokenType::value).collect(Collectors.joining(","))
+                        )
+                    )
+                );
+        }
+    }
+
     // Default values and min/max constraints
 
     private static final TimeValue DEFAULT_ALLOWED_CLOCK_SKEW = TimeValue.timeValueSeconds(60);
@@ -111,9 +145,9 @@ public class JwtRealmSettings {
      * @return All non-secure settings.
      */
     private static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
-        final Set<Setting.AffixSetting<?>> set = new HashSet<>();
         // Standard realm settings: order, enabled
-        set.addAll(RealmSettings.getStandardSettings(TYPE));
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>(RealmSettings.getStandardSettings(TYPE));
+        set.add(TOKEN_TYPE);
         // JWT Issuer settings
         set.addAll(List.of(ALLOWED_ISSUER, ALLOWED_SIGNATURE_ALGORITHMS, ALLOWED_CLOCK_SKEW, PKC_JWKSET_PATH));
         // JWT Audience settings
@@ -162,6 +196,12 @@ public class JwtRealmSettings {
     private static Set<Setting.AffixSetting<SecureString>> getSecureSettings() {
         return new HashSet<>(List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET));
     }
+
+    public static final Setting.AffixSetting<TokenType> TOKEN_TYPE = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "token_type",
+        key -> new Setting<>(key, TokenType.ID_TOKEN.value(), value -> TokenType.parse(value, key), Setting.Property.NodeScope)
+    );
 
     // JWT issuer settings
     public static final Setting.AffixSetting<String> ALLOWED_ISSUER = Setting.affixKeySetting(

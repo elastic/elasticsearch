@@ -132,7 +132,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
         mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
-        mutatedInstance.resultPosition(version.onOrAfter(Version.V_8_0_0) ? instance.resultPosition() : "tail");
+        mutatedInstance.resultPosition(version.onOrAfter(Version.V_7_17_8) ? instance.resultPosition() : "tail");
 
         return mutatedInstance;
     }

@@ -534,7 +534,7 @@ public class ApiKeyService {
 
         final List<RoleDescriptor> keyRoles = request.getRoleDescriptors();
         if (keyRoles != null) {
-            logger.trace(() -> format("Building API key doc with updated role descriptors [{}]", keyRoles));
+            logger.trace(() -> format("Building API key doc with updated role descriptors [%s]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
         } else {
             assert currentApiKeyDoc.roleDescriptorsBytes != null;
@@ -551,7 +551,7 @@ public class ApiKeyService {
             ) == false : "API key doc to be updated contains reserved metadata";
         final Map<String, Object> metadata = request.getMetadata();
         if (metadata != null) {
-            logger.trace(() -> format("Building API key doc with updated metadata [{}]", metadata));
+            logger.trace(() -> format("Building API key doc with updated metadata [%s]", metadata));
             builder.field("metadata_flattened", metadata);
         } else {
             builder.rawField(
@@ -1507,7 +1507,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName()), e);
+                logger.error(() -> format("unable to clear API key cache [%s]", clearApiKeyCacheRequest.cacheName()), e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }
         });

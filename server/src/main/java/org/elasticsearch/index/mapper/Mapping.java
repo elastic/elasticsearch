@@ -124,6 +124,10 @@ public final class Mapping implements ToXContentFragment {
         return sfm != null && sfm.isSynthetic();
     }
 
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
+    }
+
     /**
      * Merges a new mapping into the existing one.
      *

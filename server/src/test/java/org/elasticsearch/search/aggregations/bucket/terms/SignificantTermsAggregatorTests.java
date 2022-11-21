@@ -103,7 +103,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSignificance(SignificanceHeuristic heuristic) throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -211,7 +211,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * @throws IOException on test setup failure
      */
     public void testSamplingConsistency() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -317,7 +317,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * Uses the significant terms aggregation on an index with unmapped field
      */
     public void testUnmapped() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -378,13 +378,13 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher indexSearcher = newIndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> createAggregator(sigAgg, indexSearcher, fieldType));
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(indexSearcher, new AggTestConfig(sigAgg, fieldType)));
             }
         }
     }
 
     public void testFieldAlias() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -440,7 +440,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldBackground() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());

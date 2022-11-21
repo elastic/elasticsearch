@@ -113,7 +113,7 @@ public class SequenceSpecTests extends ESTestCase {
         }
     }
 
-    class TestCriterion extends Criterion<BoxedQueryRequest> {
+    class TestCriterion extends SequenceCriterion {
         private final int ordinal;
         private boolean unused = true;
 
@@ -258,7 +258,7 @@ public class SequenceSpecTests extends ESTestCase {
 
     public void test() throws Exception {
         int stages = events.size();
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
         // pass the items for each query through the Criterion
         for (int i = 0; i < stages; i++) {
             // set the index as size in the search source

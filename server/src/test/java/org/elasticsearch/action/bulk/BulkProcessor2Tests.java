@@ -143,7 +143,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 assertThat(failure, instanceOf(ElasticsearchException.class));
                 assertThat(failure.getMessage(), equalTo("final failure"));
                 countDownLatch.countDown();
@@ -508,7 +508,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 if (failure != null) {
                     failureCount.incrementAndGet();
                     exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), failure));

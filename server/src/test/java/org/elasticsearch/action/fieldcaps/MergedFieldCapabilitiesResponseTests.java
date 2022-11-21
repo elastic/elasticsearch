@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -207,12 +208,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
     public void testExpectedChunkSizes() {
         {
             final FieldCapabilitiesResponse instance = FieldCapabilitiesResponseTests.createResponseWithFailures();
-            final var iterator = instance.toXContentChunked();
-            int chunks = 0;
-            while (iterator.hasNext()) {
-                iterator.next();
-                chunks++;
-            }
+            final int chunks = Iterators.size(instance.toXContentChunked());
             if (instance.getFailures().isEmpty()) {
                 assertEquals(2, chunks);
             } else {
@@ -221,12 +217,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         }
         {
             final FieldCapabilitiesResponse instance = createTestInstance();
-            final var iterator = instance.toXContentChunked();
-            int chunks = 0;
-            while (iterator.hasNext()) {
-                iterator.next();
-                chunks++;
-            }
+            final int chunks = Iterators.size(instance.toXContentChunked());
             assertEquals(2 + instance.get().size(), chunks);
         }
     }

@@ -47,6 +47,15 @@ public class Iterators {
         return new ConcatenatedIterator<T>(iterators);
     }
 
+    public static int size(Iterator<?> iterator) {
+        int count = 0;
+        while (iterator.hasNext()) {
+            iterator.next();
+            count++;
+        }
+        return count;
+    }
+
     static class ConcatenatedIterator<T> implements Iterator<T> {
         private final Iterator<? extends T>[] iterators;
         private int index = 0;

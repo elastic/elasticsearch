@@ -9,6 +9,7 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -199,12 +200,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         // -> each Diagnosis yields 5 chunks => 10 chunks from both diagnosis
         // -> HealthIndicatorResult surrounds the diagnosis list by 2 chunks
         int chunksExpected = 12;
-        var iterator = result.toXContentChunked();
-        int chunksSeen = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunksSeen++;
-        }
+        int chunksSeen = Iterators.size(result.toXContentChunked());
         assertEquals(chunksExpected, chunksSeen);
     }
 }

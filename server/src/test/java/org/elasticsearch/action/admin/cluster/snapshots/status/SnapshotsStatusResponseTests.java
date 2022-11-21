@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -58,12 +59,7 @@ public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTest
             // open and close chunk + one chunk per index
             chunksExpected += 2 + snapshot.getIndices().size();
         }
-        final var iterator = instance.toXContentChunked();
-        int chunksSeen = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunksSeen++;
-        }
+        int chunksSeen = Iterators.size(instance.toXContentChunked());
         assertEquals(chunksExpected, chunksSeen);
     }
 }

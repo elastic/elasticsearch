@@ -153,6 +153,20 @@ public class IteratorsTests extends ESTestCase {
         expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
     }
 
+    public void testSize() {
+        Integer[] a = randomIntegerArray();
+        Integer[] b = randomIntegerArray();
+        Integer[] c = randomIntegerArray();
+        assertEquals(
+            a.length + b.length + c.length,
+            Iterators.size(Iterators.concat(Arrays.asList(a).iterator(), Arrays.asList(b).iterator(), Arrays.asList(c).iterator()))
+        );
+    }
+
+    public void testReturnZeroSizeForEmptyIterator() {
+        assertEquals(0, Iterators.size(Collections.emptyIterator()));
+    }
+
     private static Integer[] randomIntegerArray() {
         return Randomness.get().ints(randomIntBetween(0, 1000)).boxed().toArray(Integer[]::new);
     }

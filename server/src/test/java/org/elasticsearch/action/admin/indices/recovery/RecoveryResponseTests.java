@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
@@ -57,12 +58,7 @@ public class RecoveryResponseTests extends ESTestCase {
                 ),
             List.of()
         );
-        final var iterator = recoveryResponse.toXContentChunked();
-        int chunks = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunks++;
-        }
+        final int chunks = Iterators.size(recoveryResponse.toXContentChunked());
         assertEquals(shards + 2, chunks);
     }
 }

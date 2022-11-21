@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -76,12 +77,7 @@ public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase
 
     public void testOneChunkPerIndex() {
         final var instance = createTestInstance();
-        final var iterator = instance.toXContentChunked();
-        int chunks = 0;
-        while (iterator.hasNext()) {
-            chunks++;
-            iterator.next();
-        }
+        final int chunks = Iterators.size(instance.toXContentChunked());
         assertEquals(2 + instance.getIndexToSettings().size(), chunks);
     }
 

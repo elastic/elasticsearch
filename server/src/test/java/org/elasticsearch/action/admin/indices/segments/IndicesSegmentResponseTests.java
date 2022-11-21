@@ -13,6 +13,7 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -67,12 +68,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             0,
             Collections.emptyList()
         );
-        int chunks = 0;
-        final var iterator = response.toXContentChunked();
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunks++;
-        }
+        final int chunks = Iterators.size(response.toXContentChunked());
         assertEquals(indices + 2, chunks);
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -34,7 +35,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -179,12 +179,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
 
     public void testToChunkedXContent() {
         final GetSnapshotsResponse response = createTestInstance();
-        final Iterator<ToXContent> serialization = response.toXContentChunked();
-        int chunks = 0;
-        while (serialization.hasNext()) {
-            serialization.next();
-            chunks++;
-        }
+        final int chunks = Iterators.size(response.toXContentChunked());
         assertEquals(chunks, response.getSnapshots().size() + 2);
     }
 

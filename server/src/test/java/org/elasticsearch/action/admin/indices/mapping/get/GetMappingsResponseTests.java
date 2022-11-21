@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -73,12 +74,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
                 .mapToObj(i -> "index-" + i)
                 .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> createMappingsForIndex()))
         );
-        final var chunks = response.toXContentChunked();
-        int chunkCount = 0;
-        while (chunks.hasNext()) {
-            chunks.next();
-            chunkCount++;
-        }
+        int chunkCount = Iterators.size(response.toXContentChunked());
         assertEquals(2 + indexCount, chunkCount);
     }
 

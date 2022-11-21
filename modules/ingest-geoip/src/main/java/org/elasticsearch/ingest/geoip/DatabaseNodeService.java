@@ -19,11 +19,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
@@ -113,7 +115,12 @@ public final class DatabaseNodeService implements Closeable {
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
+    public void initialize(
+        String nodeId,
+        ResourceWatcherService resourceWatcher,
+        IngestService ingestServiceArg,
+        ClusterService clusterService
+    ) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
@@ -150,8 +157,8 @@ public final class DatabaseNodeService implements Closeable {
             Files.createDirectories(geoipTmpDirectory);
         }
         LOGGER.debug("initialized database node service, using geoip-databases directory [{}]", geoipTmpDirectory);
-        ingestServiceArg.addIngestClusterStateListener(this::checkDatabases);
         this.ingestService = ingestServiceArg;
+        clusterService.addListener(event -> checkDatabases(event.state()));
     }
 
     public DatabaseReaderLazyLoader getDatabase(String name) {
@@ -184,24 +191,32 @@ public final class DatabaseNodeService implements Closeable {
     }
 
     void checkDatabases(ClusterState state) {
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         DiscoveryNode localNode = state.nodes().getLocalNode();
         if (localNode.isIngestNode() == false) {
+            LOGGER.trace("Not checking databases because local node is not ingest node");
             return;
         }
 
         PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
+            LOGGER.trace("Not checking databases because persistent tasks are null");
             return;
         }
 
         IndexAbstraction databasesAbstraction = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (databasesAbstraction == null) {
+            LOGGER.trace("Not checking databases because geoip databases index does not exist");
             return;
         } else {
             // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
             Index databasesIndex = databasesAbstraction.getWriteIndex();
             IndexRoutingTable databasesIndexRT = state.getRoutingTable().index(databasesIndex);
             if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
+                LOGGER.trace("Not checking databases because geoip databases index does not have all active primary shards");
                 return;
             }
         }
@@ -244,6 +259,7 @@ public final class DatabaseNodeService implements Closeable {
     }
 
     void retrieveAndUpdateDatabase(String databaseName, GeoIpTaskState.Metadata metadata) throws IOException {
+        LOGGER.trace("Retrieving database {}", databaseName);
         final String recordedMd5 = metadata.md5();
 
         // This acts as a lock, if this method for a specific db is executed later and downloaded for this db is still ongoing then

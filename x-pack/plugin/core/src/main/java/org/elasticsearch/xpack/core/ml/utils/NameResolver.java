@@ -13,6 +13,7 @@ import org.elasticsearch.common.regex.Regex;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -34,7 +35,32 @@ public abstract class NameResolver {
     /**
      * Expands an expression into the set of matching names.
      * For example, given a set of names ["foo-1", "foo-2", "bar-1", bar-2"],
-     * expressions resolve follows:
+     * expressions resolve as follows:
+     * <ul>
+     *     <li>"foo-1" : ["foo-1"]</li>
+     *     <li>"bar-1" : ["bar-1"]</li>
+     *     <li>"foo-*" : ["foo-1", "foo-2"]</li>
+     *     <li>"*-1" : ["bar-1", "foo-1"]</li>
+     *     <li>"*" : ["bar-1", "bar-2", "foo-1", "foo-2"]</li>
+     *     <li>"_all" : ["bar-1", "bar-2", "foo-1", "foo-2"]</li>
+     * </ul>
+     *
+     * @param expression the expression to resolve
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
+     *                     This only applies to wild card expressions, if {@code expression} is not a
+     *                     wildcard then setting this true will not suppress the exception
+     * @return the sorted set of matching names
+     */
+    public SortedSet<String> expand(String expression, boolean allowNoMatch) {
+        return expand(expression, allowNoMatch, Optional.empty());
+    }
+
+    /**
+     * Expands an expression into the set of matching names.
+     * If a tokenization delimiter is provided, then the expression is first tokenized
+     * and then each token is expanded.
+     * For example, given a set of names ["foo-1", "foo-2", "bar-1", bar-2"] and comma as the delimiter
+     * expressions resolve as follows:
      * <ul>
      *     <li>"foo-1" : ["foo-1"]</li>
      *     <li>"bar-1" : ["bar-1"]</li>
@@ -49,14 +75,17 @@ public abstract class NameResolver {
      * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
+     * @param tokenizationDelimiter An optional delimiter to tokenize the expression on
      * @return the sorted set of matching names
      */
-    public SortedSet<String> expand(String expression, boolean allowNoMatch) {
+    public SortedSet<String> expand(String expression, boolean allowNoMatch, Optional<String> tokenizationDelimiter) {
         SortedSet<String> result = new TreeSet<>();
         if (Strings.isAllOrWildcard(expression)) {
             result.addAll(nameSet());
         } else {
-            String[] tokens = Strings.tokenizeToStringArray(expression, ",");
+            String[] tokens = tokenizationDelimiter.isPresent()
+                ? Strings.tokenizeToStringArray(expression, tokenizationDelimiter.get())
+                : new String[] { expression };
             for (String token : tokens) {
                 if (Regex.isSimpleMatchPattern(token)) {
                     List<String> expanded = keys().stream()

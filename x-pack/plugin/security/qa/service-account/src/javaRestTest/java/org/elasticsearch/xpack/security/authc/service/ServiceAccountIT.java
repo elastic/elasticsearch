@@ -90,7 +90,6 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "logs-*",
                     "metrics-*",
                     "traces-*",
-                    "synthetics-*",
                     ".logs-endpoint.diagnostic.collection-*",
                     ".logs-endpoint.action.responses-*"
                   ],
@@ -125,6 +124,18 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "maintenance"
                   ],
                   "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    "synthetics-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "create_index",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [        {

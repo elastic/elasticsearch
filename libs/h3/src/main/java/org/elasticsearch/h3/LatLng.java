@@ -55,67 +55,16 @@ public final class LatLng {
     }
 
     /**
-     * Encodes a coordinate on the sphere to the corresponding icosahedral face and
-     * containing 2D hex coordinates relative to that face center.
-     *
-     * @param res The desired H3 resolution for the encoding.
-     */
-    FaceIJK geoToFaceIJK(int res) {
-        Vec3d v3d = new Vec3d(this);
-
-        // determine the icosahedron face
-        int face = 0;
-        double sqd = v3d.pointSquareDist(Vec3d.faceCenterPoint[0]);
-        for (int i = 1; i < Vec3d.faceCenterPoint.length; i++) {
-            double sqdT = v3d.pointSquareDist(Vec3d.faceCenterPoint[i]);
-            if (sqdT < sqd) {
-                face = i;
-                sqd = sqdT;
-            }
-        }
-        // cos(r) = 1 - 2 * sin^2(r/2) = 1 - 2 * (sqd / 4) = 1 - sqd/2
-        double r = Math.acos(1 - sqd / 2);
-
-        if (r < Constants.EPSILON) {
-            return new FaceIJK(face, new Vec2d(0.0, 0.0).hex2dToCoordIJK());
-        }
-
-        // now have face and r, now find CCW theta from CII i-axis
-        double theta = Vec2d.posAngleRads(
-            Vec2d.faceAxesAzRadsCII[face][0] - Vec2d.posAngleRads(Vec2d.faceCenterGeo[face].geoAzimuthRads(this))
-        );
-
-        // adjust theta for Class III (odd resolutions)
-        if (H3Index.isResolutionClassIII(res)) {
-            theta = Vec2d.posAngleRads(theta - Constants.M_AP7_ROT_RADS);
-        }
-
-        // perform gnomonic scaling of r
-        r = Math.tan(r);
-
-        // scale for current resolution length u
-        r /= Constants.RES0_U_GNOMONIC;
-        for (int i = 0; i < res; i++) {
-            r *= Constants.M_SQRT7;
-        }
-
-        // we now have (r, theta) in hex2d with theta ccw from x-axes
-
-        // convert to local x,y
-        Vec2d vec2d = new Vec2d(r * Math.cos(theta), r * Math.sin(theta));
-        return new FaceIJK(face, vec2d.hex2dToCoordIJK());
-    }
-
-    /**
      * Determines the azimuth to the provided LatLng in radians.
      *
-     * @param p The spherical coordinates.
+     * @param lat The latitude in radians.
+     * @param lon The longitude in radians.
      * @return The azimuth in radians.
      */
-    private double geoAzimuthRads(LatLng p) {
+    double geoAzimuthRads(double lat, double lon) {
         return Math.atan2(
-            Math.cos(p.lat) * Math.sin(p.lon - lon),
-            Math.cos(lat) * Math.sin(p.lat) - Math.sin(lat) * Math.cos(p.lat) * Math.cos(p.lon - lon)
+            Math.cos(lat) * Math.sin(lon - this.lon),
+            Math.cos(this.lat) * Math.sin(lat) - Math.sin(this.lat) * Math.cos(lat) * Math.cos(lon - this.lon)
         );
     }
 }

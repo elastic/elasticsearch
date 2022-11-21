@@ -796,7 +796,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertTrue(context.contains("category1"));
 
         document = new LuceneDocument();
-        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType("category");
+        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType("category", randomBoolean());
         document.add(new Field(text.name(), "category1", TextFieldMapper.Defaults.FIELD_TYPE));
         // Ignore stored field
         document.add(new StoredField(text.name(), "category1", TextFieldMapper.Defaults.FIELD_TYPE));

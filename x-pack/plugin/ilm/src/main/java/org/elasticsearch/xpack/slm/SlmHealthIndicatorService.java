@@ -159,7 +159,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
 
                 String unhealthyPolicyActions = unhealthyPolicies.stream()
-                    .map(policy -> "- /_slm/policy/" + policy.getName() + "?human")
+                    .map(policy -> "- /_slm/policy/" + policy.getPolicy().getId() + "?human")
                     .collect(Collectors.joining("\n"));
                 String action = "Check the snapshot lifecycle "
                     + (unhealthyPolicies.size() > 1 ? "policies" : "policy")

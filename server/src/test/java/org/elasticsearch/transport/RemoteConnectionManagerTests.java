@@ -90,16 +90,21 @@ public class RemoteConnectionManagerTests extends ESTestCase {
     }
 
     public void testResolveRemoteClusterAlias() {
-        DiscoveryNode remoteNode = new DiscoveryNode("remote-node", address, Version.CURRENT);
+        DiscoveryNode remoteNode1 = new DiscoveryNode("remote-node-1", address, Version.CURRENT);
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        remoteConnectionManager.connectToRemoteClusterNode(remoteNode, validator, future);
+        remoteConnectionManager.connectToRemoteClusterNode(remoteNode1, validator, future);
         assertTrue(future.isDone());
 
-        Transport.Connection remoteConnection = remoteConnectionManager.getConnection(remoteNode);
+        Transport.Connection remoteConnection = remoteConnectionManager.getConnection(remoteNode1);
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(remoteConnection).get(), equalTo("remote-cluster"));
 
         Transport.Connection localConnection = mock(Transport.Connection.class);
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(localConnection).isPresent(), equalTo(false));
+
+        DiscoveryNode remoteNode2 = new DiscoveryNode("remote-node-2", address, Version.CURRENT);
+        Transport.Connection proxyConnection = remoteConnectionManager.getConnection(remoteNode2);
+        assertThat(proxyConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
+        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(proxyConnection).get(), equalTo("remote-cluster"));
     }
 
     private static class TestRemoteConnection extends CloseableConnection {

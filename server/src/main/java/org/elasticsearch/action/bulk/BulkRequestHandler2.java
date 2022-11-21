@@ -38,8 +38,8 @@ public final class BulkRequestHandler2 {
     }
 
     /**
-     * This method queues the given bulkRequest to be executed. The listener will be notified of the result of the bulkRequest along with
-     * the executionId given.
+     * This calls the consumer with the bulkRequest up to maxNumberofRetries times. The listener will be notified of the result of the
+     * bulkRequest along with the executionId given.
      * @param bulkRequest
      * @param executionId
      */

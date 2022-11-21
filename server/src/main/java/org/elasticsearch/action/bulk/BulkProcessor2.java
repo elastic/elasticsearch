@@ -68,23 +68,16 @@ public class BulkProcessor2 implements Closeable {
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final Listener listener;
         private final ThreadPool threadPool;
-        private final Runnable onClose;
         private int maxRequestsInBulk = 1000;
         private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
         private ByteSizeValue maxBytesInFlight = new ByteSizeValue(50, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         int maxNumberOfRetries = 3;
 
-        private Builder(
-            BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
-            Listener listener,
-            Runnable onClose,
-            ThreadPool threadPool
-        ) {
+        private Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, ThreadPool threadPool) {
             this.consumer = consumer;
             this.listener = listener;
             this.threadPool = threadPool;
-            this.onClose = onClose;
         }
 
         /**
@@ -142,14 +135,14 @@ public class BulkProcessor2 implements Closeable {
                 maxBulkSizeInBytes,
                 maxBytesInFlight,
                 flushInterval,
-                threadPool,
-                onClose
+                threadPool
             );
         }
     }
 
     /**
-     * @param consumer The consumer that is called to fulfil bulk operations
+     * @param consumer The consumer that is called to fulfil bulk operations. This consumer _must_ operate either very fast or
+     *                 asynchronously.
      * @param listener The BulkProcessor2 listener that gets called on bulk events
      * @param threadPool The threadpool to use for this bulk processor
      * @return the builder for BulkProcessor2
@@ -161,14 +154,11 @@ public class BulkProcessor2 implements Closeable {
     ) {
         Objects.requireNonNull(consumer, "consumer");
         Objects.requireNonNull(listener, "listener");
-        return new Builder(consumer, listener, () -> {
-            // TODO: stop the flush
-        }, threadPool);
+        return new Builder(consumer, listener, threadPool);
     }
 
     private final int bulkActions;
     private final long bulkSize;
-    private final long maxBytesInFlight;
 
     private final Scheduler.Cancellable cancellableFlushTask;
 
@@ -176,7 +166,6 @@ public class BulkProcessor2 implements Closeable {
 
     private BulkRequest bulkRequest;
     private final BulkRequestHandler2 bulkRequestHandler;
-    private final Runnable onClose;
 
     private volatile boolean closed = false;
     /*
@@ -194,17 +183,14 @@ public class BulkProcessor2 implements Closeable {
         ByteSizeValue bulkSize,
         ByteSizeValue maxBytesInFlight,
         @Nullable TimeValue flushInterval,
-        ThreadPool threadPool,
-        Runnable onClose
+        ThreadPool threadPool
     ) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
-        this.maxBytesInFlight = maxBytesInFlight.getBytes();
         this.bulkRequest = new BulkRequest();
         this.bulkRequestHandler = new BulkRequestHandler2(consumer, maxNumberOfRetries, maxBytesInFlight, listener);
         // Start period flushing task after everything is setup
         this.cancellableFlushTask = startFlushTask(flushInterval, threadPool);
-        this.onClose = onClose;
     }
 
     /**
@@ -243,11 +229,7 @@ public class BulkProcessor2 implements Closeable {
             if (bulkRequest.numberOfActions() > 0) {
                 execute();
             }
-            try {
-                this.bulkRequestHandler.awaitClose(timeout, unit);
-            } finally {
-                onClose.run();
-            }
+            this.bulkRequestHandler.awaitClose(timeout, unit);
         }
     }
 
@@ -322,8 +304,8 @@ public class BulkProcessor2 implements Closeable {
         }, flushInterval, ThreadPool.Names.GENERIC);
     }
 
-    // needs to be executed under a lock
     private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {
+        assert Thread.holdsLock(mutex);
         ensureOpen();
         if (isOverTheLimit() == false) {
             return null;
@@ -333,13 +315,12 @@ public class BulkProcessor2 implements Closeable {
         return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
     }
 
-    // may be executed without a lock
     private void execute(BulkRequest bulkRequest, long executionId) {
         this.bulkRequestHandler.execute(bulkRequest, executionId);
     }
 
-    // needs to be executed under a lock
     private void execute() {
+        assert Thread.holdsLock(mutex);
         final BulkRequest bulkRequest = this.bulkRequest;
         final long executionId = executionIdGen.incrementAndGet();
 
@@ -347,8 +328,8 @@ public class BulkProcessor2 implements Closeable {
         execute(bulkRequest, executionId);
     }
 
-    // needs to be executed under a lock
     private boolean isOverTheLimit() {
+        assert Thread.holdsLock(mutex);
         if (bulkActions != -1 && bulkRequest.numberOfActions() >= bulkActions) {
             return true;
         }

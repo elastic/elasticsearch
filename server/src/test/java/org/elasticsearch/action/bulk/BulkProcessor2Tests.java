@@ -41,7 +41,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -97,8 +96,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 new ByteSizeValue(5, ByteSizeUnit.MB),
                 new ByteSizeValue(50, ByteSizeUnit.MB),
                 flushInterval,
-                threadPool,
-                () -> {}
+                threadPool
             );
         }
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
@@ -220,7 +218,6 @@ public class BulkProcessor2Tests extends ESTestCase {
                 }
             }, 0, TimeUnit.SECONDS);
         };
-        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(2);
         try (
             BulkProcessor2 bulkProcessor = new BulkProcessor2(
                 consumer,
@@ -230,24 +227,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 new ByteSizeValue(50, ByteSizeUnit.MB),
                 null,
-                threadPool,
-                () -> {
-                    flushExecutor.shutdown();
-                    consumerExecutor.shutdown();
-                    try {
-                        flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
-                        if (flushExecutor.isTerminated() == false) {
-                            flushExecutor.shutdownNow();
-                        }
-                        consumerExecutor.awaitTermination(10L, TimeUnit.SECONDS);
-                        if (consumerExecutor.isTerminated() == false) {
-                            consumerExecutor.shutdownNow();
-                        }
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-
-                }
+                threadPool
             )
         ) {
             IndexRequest indexRequest = new IndexRequest();
@@ -309,6 +289,7 @@ public class BulkProcessor2Tests extends ESTestCase {
         }
         // count total docs after processor is closed since there may have been partial batches that are flushed on close.
         assertEquals(docCount.get(), maxDocuments);
+        consumerExecutor.shutdown();
     }
 
     public void testConcurrentExecutionsWithFlush() throws Exception {
@@ -337,7 +318,6 @@ public class BulkProcessor2Tests extends ESTestCase {
                 exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
             }
         };
-        ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(1);
         try (
             BulkProcessor2 bulkProcessor = new BulkProcessor2(
                 consumer,
@@ -347,18 +327,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 new ByteSizeValue(50, ByteSizeUnit.MB),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
-                threadPool,
-                () -> {
-                    flushExecutor.shutdown();
-                    try {
-                        flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
-                        if (flushExecutor.isTerminated() == false) {
-                            flushExecutor.shutdownNow();
-                        }
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
+                threadPool
             )
         ) {
 
@@ -430,26 +399,6 @@ public class BulkProcessor2Tests extends ESTestCase {
                 )
             );
         }
-    }
-
-    public void testAwaitOnCloseCallsOnClose() throws Exception {
-        final AtomicBoolean called = new AtomicBoolean(false);
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {};
-        BulkProcessor2 bulkProcessor = new BulkProcessor2(
-            consumer,
-            0,
-            emptyListener(),
-            10,
-            ByteSizeValue.ofBytes(1000),
-            new ByteSizeValue(5000, ByteSizeUnit.MB),
-            TimeValue.timeValueMillis(5),
-            threadPool,
-            () -> called.set(true)
-        );
-
-        assertFalse(called.get());
-        bulkProcessor.awaitClose(100, TimeUnit.MILLISECONDS);
-        assertTrue(called.get());
     }
 
     // public void testRejections() throws Exception {

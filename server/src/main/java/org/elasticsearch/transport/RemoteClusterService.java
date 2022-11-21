@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -119,10 +121,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         )
     );
 
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<SecureString> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
         "cluster.remote.",
         "authorization",
-        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
+        key -> SecureSetting.secureString(key, null, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
     );
 
     private final boolean enabled;

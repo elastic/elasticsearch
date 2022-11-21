@@ -11,9 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.util.Map;
 
@@ -23,8 +25,7 @@ public class RemoteClusterAuthorizationResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(RemoteClusterAuthorizationResolver.class);
 
-    // TODO SecureString instead of String
-    private final Map<String, String> apiKeys = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, SecureString> apiKeys = ConcurrentCollections.newConcurrentMap();
 
     /**
      * Initialize load and reload REMOTE_CLUSTER_AUTHORIZATION values.
@@ -33,7 +34,7 @@ public class RemoteClusterAuthorizationResolver {
      */
     public RemoteClusterAuthorizationResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
+            for (final Map.Entry<String, SecureString> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
                 if (Strings.isEmpty(entry.getValue()) == false) {
                     this.updateAuthorization(entry.getKey(), entry.getValue());
                 }
@@ -46,14 +47,14 @@ public class RemoteClusterAuthorizationResolver {
         }
     }
 
-    public String resolveAuthorization(final String clusterAlias) {
+    public RcsClusterCredential resolveApiKeyAuthorization(final String clusterAlias) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            return this.apiKeys.get(clusterAlias);
+            return new RcsClusterCredential(ApiKeyService.API_KEY_SCHEME, this.apiKeys.get(clusterAlias));
         }
         return null;
     }
 
-    private void updateAuthorization(final String clusterAlias, final String authorization) {
+    private void updateAuthorization(final String clusterAlias, final SecureString authorization) {
         if (Strings.isEmpty(authorization)) {
             apiKeys.remove(clusterAlias);
             LOGGER.debug("Authorization value for clusterAlias {} removed", clusterAlias);

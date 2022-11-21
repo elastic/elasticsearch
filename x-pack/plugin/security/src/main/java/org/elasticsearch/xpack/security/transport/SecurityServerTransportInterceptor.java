@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
@@ -216,7 +214,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
         // TODO we might also need to exclude users with reserved roles for now; if a user has a reserved role, fall back on legacy
 
-        return remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias) != null;
+        return remoteClusterAuthorizationResolver.resolveApiKeyAuthorization(remoteClusterAlias) != null;
     }
 
     private <T extends TransportResponse> void sendWithRcsHeaders(
@@ -242,10 +240,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 logger.info("Got role descriptors intersection [{}] for cluster [{}]", roleDescriptorsIntersection, remoteClusterAlias);
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
-                final SecureString fcApiKey = new SecureString(
-                    remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias).toCharArray()
+                final RcsClusterCredential rcsClusterCredential = remoteClusterAuthorizationResolver.resolveApiKeyAuthorization(
+                    remoteClusterAlias
                 );
-                final RcsClusterCredential rcsClusterCredential = new RcsClusterCredential(ApiKeyService.API_KEY_SCHEME, fcApiKey);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     RcsClusterCredential.writeToContextHeader(threadContext, rcsClusterCredential);
                     RcsSubjectAccess.writeToThreadContextHeader(threadContext, authentication, roleDescriptorsIntersection);

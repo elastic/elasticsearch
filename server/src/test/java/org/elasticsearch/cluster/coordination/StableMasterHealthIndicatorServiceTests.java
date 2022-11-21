@@ -262,6 +262,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     }
 
+    // We expose the indicator name and the diagnosis in the x-pack usage API, consequently these end up in the mapping of the telemetry
+    // index, any changes or additions that we want to track need to be added to the mapping.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(StableMasterHealthIndicatorService.NAME, equalTo("master_is_stable"));
+        assertThat(
+            StableMasterHealthIndicatorService.CONTACT_SUPPORT.definition().getUniqueId(),
+            equalTo("elasticsearch:health:master_is_stable:diagnosis:contact_support")
+        );
+    }
+
     private ClusterState createClusterState(DiscoveryNode masterNode) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();

@@ -32,6 +32,14 @@ The `categorize_text` aggregation has been moved from technical preview to gener
 
 
 [discrete]
+[[support_cartesian_centroid_aggregation_over_points_shapes]]
+=== Support cartesian_centroid aggregation over points and shapes
+Similar to the existing `geo_centroid` aggregation, this new metric aggregation, `cartesian_centroid`,
+calculates the centroid over cartesian point and shape fields.
+
+{es-pull}89216[#89216]
+
+[discrete]
 [[stack_monitoring_logstash_load_average_type_fixed_for_metricbeat_collection]]
 === Stack Monitoring: Logstash load average type fixed for metricbeat collection
 Previously, the templates for ingesting logstash load average using metricbeat were set to `long`. This provides only an integer graph.
@@ -45,4 +53,12 @@ POST .monitoring-logstash-8-mb/_rollover
 // TESTRESPONSE[skip:"quick changelog code snippet"]
 
 {es-pull}90494[#90494]
+
+[discrete]
+[[support_cartesian_bounds_aggregation_over_points_shapes]]
+=== Support cartesian_bounds aggregation over points and shapes
+Similar to the existing `geo_bounds` aggregation, this new metric aggregation, `cartesian_bounds`,
+calculates the bounds of cartesian point and shape fields.
+
+{es-pull}91298[#91298]
 

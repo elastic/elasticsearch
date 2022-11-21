@@ -13,6 +13,7 @@ Aggregations::
 * GeoBoundsAggregations reject sub aggregations {es-pull}91073[#91073] (issue: {es-issue}91072[#91072])
 
 Allocation::
+* Avoid NPE when disassociateDeadNodes is executed for a node present in the desired balance {es-pull}91659[#91659]
 * Check `NodesShutdownMetadata` type before assuming restart {es-pull}90807[#90807]
 
 Authorization::
@@ -48,6 +49,7 @@ Ingest Node::
 
 Machine Learning::
 * Copy more settings when creating DF analytics destination index {es-pull}91546[#91546] (issue: {es-issue}89795[#89795])
+* Support fields with commas in data frame analytics `analyzed_fields` {es-pull}91710[#91710] (issue: {es-issue}72541[#72541])
 
 Mapping::
 * Consolidate field name validation when parsing mappings and documents {es-pull}91328[#91328]
@@ -59,6 +61,9 @@ Monitoring::
 
 Search::
 * Allow different decay values depending on the score function {es-pull}91195[#91195] (issue: {es-issue}78887[#78887])
+
+Transform::
+* Fix failure when resolving indices from CCS {es-pull}91622[#91622] (issue: {es-issue}91550[#91550])
 
 Vector Search::
 * Make `knn` search requests fully cancellable {es-pull}90612[#90612]
@@ -98,7 +103,7 @@ EQL::
 * Remove version limitations for CCS {es-pull}91409[#91409]
 
 Geo::
-* Centroid aggregation for cartesian points and shapes {es-pull}89216[#89216]
+* Centroid aggregation for cartesian points and shapes {es-pull}89216[#89216] (issue: {es-issue}90156[#90156])
 * Improve H3#hexRing logic and add H3#areNeighborCells method {es-pull}91140[#91140]
 * Move SpatialUtils to geo library {es-pull}88088[#88088] (issue: {es-issue}86607[#86607])
 * Reduce number of object allocations in H3#geoToH3 and speed up computations {es-pull}91492[#91492]

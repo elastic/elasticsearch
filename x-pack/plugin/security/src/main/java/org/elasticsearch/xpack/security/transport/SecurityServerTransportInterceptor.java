@@ -129,7 +129,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                     securityContext.executeAsSystemUser(
                         minVersion,
-                        // TODO use sendWithUserOrRemoteAccessHeaders here once built-in users support remote privileges
+                        // TODO use sendWithUserOrRemoteClusterSecurityHeaders here once built-in users support remote privileges
                         original -> sendWithUser(
                             connection,
                             action,
@@ -144,7 +144,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         threadPool.getThreadContext(),
                         securityContext,
                         minVersion,
-                        // TODO use sendWithUserOrRemoteAccessHeaders here once built-in users support remote privileges
+                        // TODO use sendWithUserOrRemoteClusterSecurityHeaders here once built-in users support remote privileges
                         (original) -> sendWithUser(
                             connection,
                             action,
@@ -158,7 +158,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(
-                            original -> sendWithUserOrRemoteAccessHeaders(
+                            original -> sendWithUserOrRemoteClusterSecurityHeaders(
                                 connection,
                                 action,
                                 request,
@@ -169,13 +169,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             minVersion
                         );
                     } else {
-                        sendWithUserOrRemoteAccessHeaders(connection, action, request, options, handler, sender);
+                        sendWithUserOrRemoteClusterSecurityHeaders(connection, action, request, options, handler, sender);
                     }
             }
         };
     }
 
-    private <T extends TransportResponse> void sendWithUserOrRemoteAccessHeaders(
+    private <T extends TransportResponse> void sendWithUserOrRemoteClusterSecurityHeaders(
         Transport.Connection connection,
         String action,
         TransportRequest request,
@@ -183,14 +183,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         TransportResponseHandler<T> handler,
         AsyncSender sender
     ) {
-        if (shouldSendWithRemoteAccessHeaders(connection, action, request)) {
-            sendWithRemoteAccessHeaders(connection, action, request, options, handler, sender);
+        if (shouldSendWithRemoteClusterSecurityHeaders(connection, action, request)) {
+            sendWithRemoteClusterSecurityHeaders(connection, action, request, options, handler, sender);
         } else {
             sendWithUser(connection, action, request, options, handler, sender);
         }
     }
 
-    private boolean shouldSendWithRemoteAccessHeaders(Transport.Connection connection, String action, TransportRequest request) {
+    private boolean shouldSendWithRemoteClusterSecurityHeaders(Transport.Connection connection, String action, TransportRequest request) {
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()
             // TODO more request types here
             || false == (request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest)) {
@@ -218,7 +218,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         return remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias) != null;
     }
 
-    private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
+    private <T extends TransportResponse> void sendWithRemoteClusterSecurityHeaders(
         Transport.Connection connection,
         String action,
         TransportRequest request,
@@ -233,7 +233,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
         final String remoteClusterAlias = safeGetRemoteClusterAliasForConnection(connection);
         assert remoteClusterAlias != null;
-        authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+        authzService.retrieveRemoteClusterAccessRoleDescriptorsIntersection(
             remoteClusterAlias,
             authentication.getEffectiveSubject(),
             securityContext.getAuthorizationInfoFromContext(),

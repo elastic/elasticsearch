@@ -51,11 +51,11 @@ public class ParentChildNavigationTests extends ESTestCase {
 
     public void testHexRing() {
         String[] h3Addresses = H3.getStringRes0Cells();
-        String h3Address = RandomPicks.randomFrom(random(), h3Addresses);
         for (int i = 1; i < H3.MAX_H3_RES; i++) {
+            String h3Address = RandomPicks.randomFrom(random(), h3Addresses);
+            assertEquals(i - 1, H3.getResolution(h3Address));
             h3Addresses = H3.h3ToChildren(h3Address);
             assertHexRing(i, h3Address, h3Addresses);
-            h3Address = RandomPicks.randomFrom(random(), h3Addresses);
         }
     }
 
@@ -84,9 +84,9 @@ public class ParentChildNavigationTests extends ESTestCase {
     }
 
     private void assertIntersectingChildren(String h3Address, String[] children) {
-        String[] intersectingChildren = H3.h3ToNoChildrenIntersecting(h3Address);
-        for (String child : intersectingChildren) {
-            GeoPolygon p = getGeoPolygon(child);
+        String[] intersectingNotChildren = H3.h3ToNoChildrenIntersecting(h3Address);
+        for (String noChild : intersectingNotChildren) {
+            GeoPolygon p = getGeoPolygon(noChild);
             int intersections = 0;
             for (String o : children) {
                 if (p.intersects(getGeoPolygon(o))) {

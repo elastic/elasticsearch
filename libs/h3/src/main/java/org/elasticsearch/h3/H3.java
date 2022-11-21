@@ -269,8 +269,8 @@ public final class H3 {
     }
 
     /**
-     * Transforms a list of H3 indexes in long form to a list of H3
-     * indexes in string form.
+     * Returns the h3 addresses on the level below which are not children of the given H3 address but
+     * intersects with it.
      */
     public static String[] h3ToNoChildrenIntersecting(String h3Address) {
         return h3ToStringList(h3ToNoChildrenIntersecting(stringToH3(h3Address)));

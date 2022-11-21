@@ -483,7 +483,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {}
         };
     }
 

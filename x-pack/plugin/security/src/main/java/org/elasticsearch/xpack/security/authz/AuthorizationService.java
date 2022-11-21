@@ -203,7 +203,7 @@ public class AuthorizationService {
         authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
     }
 
-    public void retrieveRemoteClusterAccessRoleDescriptorsIntersection(
+    public void retrieveRcsRoleDescriptorsIntersection(
         String remoteClusterAlias,
         Subject subject,
         AuthorizationInfo authorizationInfo,

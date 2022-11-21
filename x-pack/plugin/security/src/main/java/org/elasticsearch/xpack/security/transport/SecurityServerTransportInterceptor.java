@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
@@ -233,7 +234,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
         final String remoteClusterAlias = safeGetRemoteClusterAliasForConnection(connection);
         assert remoteClusterAlias != null;
-        authzService.retrieveRemoteClusterAccessRoleDescriptorsIntersection(
+        authzService.retrieveRcsRoleDescriptorsIntersection(
             remoteClusterAlias,
             authentication.getEffectiveSubject(),
             securityContext.getAuthorizationInfoFromContext(),
@@ -244,8 +245,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final SecureString fcApiKey = new SecureString(
                     remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias).toCharArray()
                 );
+                final RcsClusterCredential rcsClusterCredential = new RcsClusterCredential(ApiKeyService.API_KEY_SCHEME, fcApiKey);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RcsClusterCredential.writeToContextHeader(threadContext, fcApiKey);
+                    RcsClusterCredential.writeToContextHeader(threadContext, rcsClusterCredential);
                     RcsSubjectAccess.writeToThreadContextHeader(threadContext, authentication, roleDescriptorsIntersection);
                     sender.sendRequest(connection, action, request, options, new ContextRestoreResponseHandler<>(contextSupplier, handler));
                 }

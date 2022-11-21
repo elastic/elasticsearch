@@ -16,7 +16,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,8 +25,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -129,8 +126,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     }
             """);
         var response = client().performRequest(request);
-        var body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
-        logger.info("--> allocation explain {}", body);
+        logger.info("--> allocation explain {}", EntityUtils.toString(response.getEntity()));
     }
 
     private List<String> getUpgradedNodeIds() throws IOException {

@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -25,6 +26,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -102,12 +105,32 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 // Drop replicas
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
-                ensureGreen(indexName);
+                try {
+                    ensureGreen(indexName);
+                } catch (AssertionError e) {
+                    logAllocationExplain();
+                    throw e;
+                }
                 assertMatchAllReturnsAllDocuments(indexName, numDocs);
                 assertMatchQueryReturnsAllDocuments(indexName, numDocs);
             }
             default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
+    }
+
+    private void logAllocationExplain() throws Exception {
+        // Used to debug #91383
+        var request = new Request(HttpGet.METHOD_NAME, "_cluster/allocation/explain?include_disk_info=true&include_yes_decisions=true");
+        request.setJsonEntity("""
+                    {
+                      "index": "snapshot_based_recovery",
+                      "shard": 0,
+                      "primary": false
+                    }
+            """);
+        var response = client().performRequest(request);
+        var body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
+        logger.info("--> allocation explain {}", body);
     }
 
     private List<String> getUpgradedNodeIds() throws IOException {

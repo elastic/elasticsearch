@@ -79,7 +79,9 @@ public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
         assertThat(future.isDone(), equalTo(false));
         awaitTaskWithPrefix(actionName);
 
-        cancellable.cancel();
+        // Call the cancellation in a separate thread which is likely to reduce the rare cases where the cancellation
+        // could finish and clean up the tasks, and result in finding no task for the action at all.
+        new Thread(cancellable::cancel).start();
         assertAllCancellableTasksAreCancelled(actionName);
 
         // Remove the cluster block

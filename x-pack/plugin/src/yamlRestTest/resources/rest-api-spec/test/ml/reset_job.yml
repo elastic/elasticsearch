@@ -24,6 +24,7 @@ setup:
   - do:
       ml.reset_job:
         job_id: reset-job
+        delete_user_annotations: true
   - match: { acknowledged: true }
 
 ---

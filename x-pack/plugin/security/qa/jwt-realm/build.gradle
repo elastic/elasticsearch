@@ -10,7 +10,7 @@ dependencies {
   javaRestTestImplementation project(":client:rest")
 }
 
-boolean explicitIdTokenType = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+boolean explicitIdTokenType = BuildParams.random.nextBoolean()
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'

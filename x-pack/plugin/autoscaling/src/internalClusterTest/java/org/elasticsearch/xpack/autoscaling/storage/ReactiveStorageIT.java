@@ -231,7 +231,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
     }
 
-    @TestLogging(value = "org.elasticsearch.monitor.fs.FsService:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/91083")
     public void testScaleWhileShrinking() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();

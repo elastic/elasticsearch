@@ -9,20 +9,17 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
+
+import java.util.Iterator;
 
 @Experimental
 public class TopNOperator implements Operator {
 
-    // monotonically increasing state
-    private static final int NEEDS_INPUT = 0;
-    private static final int HAS_OUTPUT = 1;
-    private static final int FINISHED = 2;
-
-    private int state = NEEDS_INPUT;
-
-    protected final PriorityQueue<Page> pq;
+    protected final PriorityQueue<Page> inputQueue;
+    private Iterator<Page> output;
 
     public record TopNOperatorFactory(int sortByChannel, boolean asc, int topCount) implements OperatorFactory {
 
@@ -38,7 +35,7 @@ public class TopNOperator implements Operator {
     }
 
     public TopNOperator(int sortByChannel, boolean asc, int topCount) {
-        this.pq = new PriorityQueue<>(topCount) {
+        this.inputQueue = new PriorityQueue<>(topCount) {
             @Override
             protected boolean lessThan(Page a, Page b) {
                 if (asc) {
@@ -52,38 +49,40 @@ public class TopNOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return state == NEEDS_INPUT;
+        return output == null;
     }
 
     @Override
     public void addInput(Page page) {
         for (int i = 0; i < page.getPositionCount(); i++) {
-            pq.insertWithOverflow(page.getRow(i));
+            inputQueue.insertWithOverflow(page.getRow(i));
         }
     }
 
     @Override
     public void finish() {
-        if (state == NEEDS_INPUT) {
-            state = HAS_OUTPUT;
+        if (output == null) {
+            // We need to output elements from the input queue in reverse order because
+            // the `lessThan` relation of the input queue is reversed to retain only N smallest elements.
+            final Page[] pages = new Page[inputQueue.size()];
+            for (int i = pages.length - 1; i >= 0; i--) {
+                pages[i] = inputQueue.pop();
+            }
+            output = Iterators.forArray(pages);
         }
     }
 
     @Override
     public boolean isFinished() {
-        return state == FINISHED;
+        return output != null && output.hasNext() == false;
     }
 
     @Override
     public Page getOutput() {
-        if (state != HAS_OUTPUT) {
-            return null;
+        if (output != null && output.hasNext()) {
+            return output.next();
         }
-        Page page = pq.pop();
-        if (pq.size() == 0) {
-            state = FINISHED;
-        }
-        return page;
+        return null;
     }
 
     @Override

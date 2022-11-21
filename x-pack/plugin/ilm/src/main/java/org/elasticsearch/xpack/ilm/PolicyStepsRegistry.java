@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.PhaseCacheManagement;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
@@ -42,12 +41,14 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
@@ -245,11 +246,31 @@ public class PolicyStepsRegistry {
 
     /*
      * Parses the step keys from the {@code phaseDef} for the given phase.
+     * ILM makes use of some implicit steps that belong to actions that we automatically inject
+     * (eg. unfollow and migrate) or special purpose steps like the phase `complete` step.
+     *
+     * This method returns **all** the steps that are part of the phase definition including the implicit steps.
+     *
      * Returns null if there's a parsing error.
      */
     @Nullable
-    public Set<Step.StepKey> parseStepKeysFromPhase(String phaseDef, String currentPhase) {
-        return PhaseCacheManagement.readStepKeys(xContentRegistry, client, phaseDef, currentPhase, licenseState);
+    public Set<Step.StepKey> parseStepKeysFromPhase(String policy, String currentPhase, String phaseDef) {
+        try {
+            String phaseDefNonNull = Optional.ofNullable(phaseDef).orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
+            return parseStepsFromPhase(policy, currentPhase, phaseDefNonNull).stream().map(Step::getKey).collect(Collectors.toSet());
+        } catch (IOException e) {
+            logger.trace(
+                () -> String.format(
+                    Locale.ROOT,
+                    "unable to parse steps for policy [{}], phase [{}], and phase definition [{}]",
+                    policy,
+                    currentPhase,
+                    phaseDef
+                ),
+                e
+            );
+            return null;
+        }
     }
 
     private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {

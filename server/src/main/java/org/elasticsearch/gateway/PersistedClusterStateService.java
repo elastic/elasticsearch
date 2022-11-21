@@ -539,7 +539,7 @@ public class PersistedClusterStateService {
 
         final SetOnce<Metadata.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, ignored -> GLOBAL_TYPE_NAME, bytes -> {
-            final Metadata metadata = readXContent(bytes, Metadata.Builder::fromXContent);
+            final Metadata metadata = readXContent(bytes, Metadata::fromXContent);
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
             if (builderReference.get() != null) {
                 throw new CorruptStateException("duplicate global metadata found in [" + dataPath + "]");

@@ -1389,16 +1389,273 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser);
+        return fromXContent(parser, null);
     }
 
     public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
-        return Builder.fromXContent(parser, mappingsByHash);
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+            parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+        Builder builder = new Builder(parser.currentName());
+
+        String currentFieldName;
+        XContentParser.Token token = parser.nextToken();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        boolean mappingVersion = false;
+        boolean settingsVersion = false;
+        boolean aliasesVersion = false;
+        while ((currentFieldName = parser.nextFieldName()) != null) {
+            token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                switch (currentFieldName) {
+                    case KEY_SETTINGS:
+                        builder.settings(Settings.fromXContent(parser));
+                        break;
+                    case KEY_MAPPINGS:
+                        while ((currentFieldName = parser.nextFieldName()) != null) {
+                            token = parser.nextToken();
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                            builder.putMapping(new MappingMetadata(currentFieldName, Map.of(currentFieldName, parser.mapOrdered())));
+                        }
+                        break;
+                    case KEY_ALIASES:
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                            builder.putAlias(AliasMetadata.Builder.fromXContent(parser));
+                        }
+                        break;
+                    case KEY_IN_SYNC_ALLOCATIONS:
+                        while ((currentFieldName = parser.nextFieldName()) != null) {
+                            token = parser.nextToken();
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+                            final int shardId = Integer.parseInt(currentFieldName);
+                            Set<String> allocationIds = new HashSet<>();
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                if (token == XContentParser.Token.VALUE_STRING) {
+                                    allocationIds.add(parser.text());
+                                }
+                            }
+                            builder.putInSyncAllocationIds(shardId, allocationIds);
+                        }
+                        break;
+                    case KEY_ROLLOVER_INFOS:
+                        while ((currentFieldName = parser.nextFieldName()) != null) {
+                            token = parser.nextToken();
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                            builder.putRolloverInfo(RolloverInfo.parse(parser, currentFieldName));
+                        }
+                        break;
+                    case "warmers":
+                        // TODO: do this in 6.0:
+                        // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
+                        // ignore: warmers have been removed in 5.0 and are
+                        // simply ignored when upgrading from 2.x
+                        assert Version.CURRENT.major <= 5;
+                        parser.skipChildren();
+                        break;
+                    case KEY_TIMESTAMP_RANGE:
+                        builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
+                        break;
+                    case KEY_STATS:
+                        builder.stats(IndexMetadataStats.fromXContent(parser));
+                        break;
+                    default:
+                        // assume it's custom index metadata
+                        builder.putCustom(currentFieldName, parser.mapStrings());
+                        break;
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                switch (currentFieldName) {
+                    case KEY_MAPPINGS:
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
+                            } else {
+                                Map<String, Object> mapping1 = parser.mapOrdered();
+                                if (mapping1.size() == 1) {
+                                    String mappingType = mapping1.keySet().iterator().next();
+                                    builder.putMapping(new MappingMetadata(mappingType, mapping1));
+                                }
+                            }
+                        }
+                        break;
+                    case KEY_PRIMARY_TERMS:
+                        ArrayList<Long> list = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                            list.add(parser.longValue());
+                        }
+                        builder.primaryTerms(list.stream().mapToLong(i -> i).toArray());
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
+                }
+            } else if (token.isValue()) {
+                switch (currentFieldName) {
+                    case KEY_STATE -> builder.state(State.fromString(parser.text()));
+                    case KEY_VERSION -> builder.version(parser.longValue());
+                    case KEY_MAPPING_VERSION -> {
+                        mappingVersion = true;
+                        builder.mappingVersion(parser.longValue());
+                    }
+                    case KEY_SETTINGS_VERSION -> {
+                        settingsVersion = true;
+                        builder.settingsVersion(parser.longValue());
+                    }
+                    case KEY_ALIASES_VERSION -> {
+                        aliasesVersion = true;
+                        builder.aliasesVersion(parser.longValue());
+                    }
+                    case KEY_ROUTING_NUM_SHARDS -> builder.setRoutingNumShards(parser.intValue());
+                    case KEY_SYSTEM -> builder.system(parser.booleanValue());
+                    case KEY_MAPPINGS_HASH -> {
+                        assert mappingsByHash != null : "no deduplicated mappings given";
+                        if (mappingsByHash.containsKey(parser.text()) == false) {
+                            throw new IllegalArgumentException("mapping with hash [" + parser.text() + "] not found");
+                        }
+                        builder.putMapping(mappingsByHash.get(parser.text()));
+                    }
+                    case KEY_WRITE_LOAD_FORECAST -> builder.indexWriteLoadForecast(parser.doubleValue());
+                    case KEY_SHARD_SIZE_FORECAST -> builder.shardSizeInBytesForecast(parser.longValue());
+                    default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                }
+            } else {
+                throw new IllegalArgumentException("Unexpected token " + token);
+            }
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
+        assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
+        assert indexCreatedVersion(builder.settings).before(Version.V_7_2_0) || aliasesVersion
+            : "aliases version should be present for indices created on or after 7.2.0";
+        return builder.build();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
+        Metadata.XContentContext context = Metadata.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API));
+
+        builder.startObject(getIndex().getName());
+
+        builder.field(KEY_VERSION, getVersion());
+        builder.field(KEY_MAPPING_VERSION, getMappingVersion());
+        builder.field(KEY_SETTINGS_VERSION, getSettingsVersion());
+        builder.field(KEY_ALIASES_VERSION, getAliasesVersion());
+        builder.field(KEY_ROUTING_NUM_SHARDS, getRoutingNumShards());
+
+        builder.field(KEY_STATE, getState().toString().toLowerCase(Locale.ENGLISH));
+
+        boolean binary = params.paramAsBoolean("binary", false);
+
+        builder.startObject(KEY_SETTINGS);
+        if (context != Metadata.XContentContext.API) {
+            getSettings().toXContent(builder, Settings.FLAT_SETTINGS_PARAMS);
+        } else {
+            getSettings().toXContent(builder, params);
+        }
+        builder.endObject();
+
+        if (context == Metadata.XContentContext.GATEWAY && params.paramAsBoolean(DEDUPLICATED_MAPPINGS_PARAM, false)) {
+            MappingMetadata mmd = mapping();
+            if (mmd != null) {
+                builder.field(KEY_MAPPINGS_HASH, mmd.source().getSha256());
+            }
+        } else if (context != Metadata.XContentContext.API) {
+            builder.startArray(KEY_MAPPINGS);
+            MappingMetadata mmd = mapping();
+            if (mmd != null) {
+                if (binary) {
+                    builder.value(mmd.source().compressed());
+                } else {
+                    mmd.source().copyTo(builder);
+                }
+            }
+            builder.endArray();
+        } else {
+            builder.startObject(KEY_MAPPINGS);
+            MappingMetadata mmd = mapping();
+            if (mmd != null) {
+                Map<String, Object> mapping = XContentHelper.convertToMap(mmd.source().uncompressed(), false).v2();
+                if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(mmd.type());
+                }
+                builder.field(mmd.type());
+                builder.map(mapping);
+            }
+            builder.endObject();
+        }
+
+        for (Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
+            builder.stringStringMap(cursor.getKey(), cursor.getValue());
+        }
+
+        if (context != Metadata.XContentContext.API) {
+            builder.startObject(KEY_ALIASES);
+            for (AliasMetadata aliasMetadata : getAliases().values()) {
+                AliasMetadata.Builder.toXContent(aliasMetadata, builder, params);
+            }
+            builder.endObject();
+
+            builder.startArray(KEY_PRIMARY_TERMS);
+            for (int i = 0; i < getNumberOfShards(); i++) {
+                builder.value(primaryTerm(i));
+            }
+            builder.endArray();
+        } else {
+            builder.startArray(KEY_ALIASES);
+            for (Map.Entry<String, AliasMetadata> cursor : getAliases().entrySet()) {
+                builder.value(cursor.getKey());
+            }
+            builder.endArray();
+
+            builder.startObject(IndexMetadata.KEY_PRIMARY_TERMS);
+            for (int shard = 0; shard < getNumberOfShards(); shard++) {
+                builder.field(Integer.toString(shard), primaryTerm(shard));
+            }
+            builder.endObject();
+        }
+
+        builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
+        for (Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
+            builder.startArray(String.valueOf(cursor.getKey()));
+            for (String allocationId : cursor.getValue()) {
+                builder.value(allocationId);
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+
+        builder.startObject(KEY_ROLLOVER_INFOS);
+        for (RolloverInfo rolloverInfo : getRolloverInfos().values()) {
+            rolloverInfo.toXContent(builder, params);
+        }
+        builder.endObject();
+        builder.field(KEY_SYSTEM, isSystem);
+
+        builder.startObject(KEY_TIMESTAMP_RANGE);
+        timestampRange.toXContent(builder, params);
+        builder.endObject();
+
+        if (stats != null) {
+            builder.startObject(KEY_STATS);
+            stats.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (writeLoadForecast != null) {
+            builder.field(KEY_WRITE_LOAD_FORECAST, writeLoadForecast);
+        }
+
+        if (shardSizeInBytesForecast != null) {
+            builder.field(KEY_SHARD_SIZE_FORECAST, shardSizeInBytesForecast);
+        }
+
+        builder.endObject();
         return builder;
     }
 
@@ -2195,282 +2452,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
         }
 
-        @SuppressWarnings("unchecked")
-        public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            Metadata.XContentContext context = Metadata.XContentContext.valueOf(
-                params.param(CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)
-            );
-
-            builder.startObject(indexMetadata.getIndex().getName());
-
-            builder.field(KEY_VERSION, indexMetadata.getVersion());
-            builder.field(KEY_MAPPING_VERSION, indexMetadata.getMappingVersion());
-            builder.field(KEY_SETTINGS_VERSION, indexMetadata.getSettingsVersion());
-            builder.field(KEY_ALIASES_VERSION, indexMetadata.getAliasesVersion());
-            builder.field(KEY_ROUTING_NUM_SHARDS, indexMetadata.getRoutingNumShards());
-
-            builder.field(KEY_STATE, indexMetadata.getState().toString().toLowerCase(Locale.ENGLISH));
-
-            boolean binary = params.paramAsBoolean("binary", false);
-
-            builder.startObject(KEY_SETTINGS);
-            if (context != Metadata.XContentContext.API) {
-                indexMetadata.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-            } else {
-                indexMetadata.getSettings().toXContent(builder, params);
-            }
-            builder.endObject();
-
-            if (context == Metadata.XContentContext.GATEWAY && params.paramAsBoolean(DEDUPLICATED_MAPPINGS_PARAM, false)) {
-                MappingMetadata mmd = indexMetadata.mapping();
-                if (mmd != null) {
-                    builder.field(KEY_MAPPINGS_HASH, mmd.source().getSha256());
-                }
-            } else if (context != Metadata.XContentContext.API) {
-                builder.startArray(KEY_MAPPINGS);
-                MappingMetadata mmd = indexMetadata.mapping();
-                if (mmd != null) {
-                    if (binary) {
-                        builder.value(mmd.source().compressed());
-                    } else {
-                        mmd.source().copyTo(builder);
-                    }
-                }
-                builder.endArray();
-            } else {
-                builder.startObject(KEY_MAPPINGS);
-                MappingMetadata mmd = indexMetadata.mapping();
-                if (mmd != null) {
-                    Map<String, Object> mapping = XContentHelper.convertToMap(mmd.source().uncompressed(), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(mmd.type());
-                    }
-                    builder.field(mmd.type());
-                    builder.map(mapping);
-                }
-                builder.endObject();
-            }
-
-            for (Map.Entry<String, DiffableStringMap> cursor : indexMetadata.customData.entrySet()) {
-                builder.stringStringMap(cursor.getKey(), cursor.getValue());
-            }
-
-            if (context != Metadata.XContentContext.API) {
-                builder.startObject(KEY_ALIASES);
-                for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                    AliasMetadata.Builder.toXContent(aliasMetadata, builder, params);
-                }
-                builder.endObject();
-
-                builder.startArray(KEY_PRIMARY_TERMS);
-                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    builder.value(indexMetadata.primaryTerm(i));
-                }
-                builder.endArray();
-            } else {
-                builder.startArray(KEY_ALIASES);
-                for (Map.Entry<String, AliasMetadata> cursor : indexMetadata.getAliases().entrySet()) {
-                    builder.value(cursor.getKey());
-                }
-                builder.endArray();
-
-                builder.startObject(IndexMetadata.KEY_PRIMARY_TERMS);
-                for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
-                    builder.field(Integer.toString(shard), indexMetadata.primaryTerm(shard));
-                }
-                builder.endObject();
-            }
-
-            builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
-            for (Map.Entry<Integer, Set<String>> cursor : indexMetadata.inSyncAllocationIds.entrySet()) {
-                builder.startArray(String.valueOf(cursor.getKey()));
-                for (String allocationId : cursor.getValue()) {
-                    builder.value(allocationId);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-
-            builder.startObject(KEY_ROLLOVER_INFOS);
-            for (RolloverInfo rolloverInfo : indexMetadata.getRolloverInfos().values()) {
-                rolloverInfo.toXContent(builder, params);
-            }
-            builder.endObject();
-            builder.field(KEY_SYSTEM, indexMetadata.isSystem);
-
-            builder.startObject(KEY_TIMESTAMP_RANGE);
-            indexMetadata.timestampRange.toXContent(builder, params);
-            builder.endObject();
-
-            if (indexMetadata.stats != null) {
-                builder.startObject(KEY_STATS);
-                indexMetadata.stats.toXContent(builder, params);
-                builder.endObject();
-            }
-
-            if (indexMetadata.writeLoadForecast != null) {
-                builder.field(KEY_WRITE_LOAD_FORECAST, indexMetadata.writeLoadForecast);
-            }
-
-            if (indexMetadata.shardSizeInBytesForecast != null) {
-                builder.field(KEY_SHARD_SIZE_FORECAST, indexMetadata.shardSizeInBytesForecast);
-            }
-
-            builder.endObject();
-        }
-
-        public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(parser, null);
-        }
-
-        public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
-            if (parser.currentToken() == null) { // fresh parser? move to the first token
-                parser.nextToken();
-            }
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
-                parser.nextToken();
-            }
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-            Builder builder = new Builder(parser.currentName());
-
-            String currentFieldName;
-            XContentParser.Token token = parser.nextToken();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-            boolean mappingVersion = false;
-            boolean settingsVersion = false;
-            boolean aliasesVersion = false;
-            while ((currentFieldName = parser.nextFieldName()) != null) {
-                token = parser.nextToken();
-                if (token == XContentParser.Token.START_OBJECT) {
-                    switch (currentFieldName) {
-                        case KEY_SETTINGS:
-                            builder.settings(Settings.fromXContent(parser));
-                            break;
-                        case KEY_MAPPINGS:
-                            while ((currentFieldName = parser.nextFieldName()) != null) {
-                                token = parser.nextToken();
-                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                                builder.putMapping(new MappingMetadata(currentFieldName, Map.of(currentFieldName, parser.mapOrdered())));
-                            }
-                            break;
-                        case KEY_ALIASES:
-                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                                builder.putAlias(AliasMetadata.Builder.fromXContent(parser));
-                            }
-                            break;
-                        case KEY_IN_SYNC_ALLOCATIONS:
-                            while ((currentFieldName = parser.nextFieldName()) != null) {
-                                token = parser.nextToken();
-                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-                                final int shardId = Integer.parseInt(currentFieldName);
-                                Set<String> allocationIds = new HashSet<>();
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                    if (token == XContentParser.Token.VALUE_STRING) {
-                                        allocationIds.add(parser.text());
-                                    }
-                                }
-                                builder.putInSyncAllocationIds(shardId, allocationIds);
-                            }
-                            break;
-                        case KEY_ROLLOVER_INFOS:
-                            while ((currentFieldName = parser.nextFieldName()) != null) {
-                                token = parser.nextToken();
-                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                                builder.putRolloverInfo(RolloverInfo.parse(parser, currentFieldName));
-                            }
-                            break;
-                        case "warmers":
-                            // TODO: do this in 6.0:
-                            // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
-                            // ignore: warmers have been removed in 5.0 and are
-                            // simply ignored when upgrading from 2.x
-                            assert Version.CURRENT.major <= 5;
-                            parser.skipChildren();
-                            break;
-                        case KEY_TIMESTAMP_RANGE:
-                            builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
-                            break;
-                        case KEY_STATS:
-                            builder.stats(IndexMetadataStats.fromXContent(parser));
-                            break;
-                        default:
-                            // assume it's custom index metadata
-                            builder.putCustom(currentFieldName, parser.mapStrings());
-                            break;
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    switch (currentFieldName) {
-                        case KEY_MAPPINGS:
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                    builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
-                                } else {
-                                    Map<String, Object> mapping = parser.mapOrdered();
-                                    if (mapping.size() == 1) {
-                                        String mappingType = mapping.keySet().iterator().next();
-                                        builder.putMapping(new MappingMetadata(mappingType, mapping));
-                                    }
-                                }
-                            }
-                            break;
-                        case KEY_PRIMARY_TERMS:
-                            ArrayList<Long> list = new ArrayList<>();
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                                list.add(parser.longValue());
-                            }
-                            builder.primaryTerms(list.stream().mapToLong(i -> i).toArray());
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
-                    }
-                } else if (token.isValue()) {
-                    switch (currentFieldName) {
-                        case KEY_STATE -> builder.state(State.fromString(parser.text()));
-                        case KEY_VERSION -> builder.version(parser.longValue());
-                        case KEY_MAPPING_VERSION -> {
-                            mappingVersion = true;
-                            builder.mappingVersion(parser.longValue());
-                        }
-                        case KEY_SETTINGS_VERSION -> {
-                            settingsVersion = true;
-                            builder.settingsVersion(parser.longValue());
-                        }
-                        case KEY_ALIASES_VERSION -> {
-                            aliasesVersion = true;
-                            builder.aliasesVersion(parser.longValue());
-                        }
-                        case KEY_ROUTING_NUM_SHARDS -> builder.setRoutingNumShards(parser.intValue());
-                        case KEY_SYSTEM -> builder.system(parser.booleanValue());
-                        case KEY_MAPPINGS_HASH -> {
-                            assert mappingsByHash != null : "no deduplicated mappings given";
-                            if (mappingsByHash.containsKey(parser.text()) == false) {
-                                throw new IllegalArgumentException("mapping with hash [" + parser.text() + "] not found");
-                            }
-                            builder.putMapping(mappingsByHash.get(parser.text()));
-                        }
-                        case KEY_WRITE_LOAD_FORECAST -> builder.indexWriteLoadForecast(parser.doubleValue());
-                        case KEY_SHARD_SIZE_FORECAST -> builder.shardSizeInBytesForecast(parser.longValue());
-                        default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unexpected token " + token);
-                }
-            }
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-            assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
-            assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
-            assert indexCreatedVersion(builder.settings).before(Version.V_7_2_0) || aliasesVersion
-                : "aliases version should be present for indices created on or after 7.2.0";
-            return builder.build();
-        }
-
         /**
          * Used to load legacy metadata from ES versions that are no longer index-compatible.
          * Returns information on best-effort basis.
          * Throws an exception if the metadata is index-compatible with the current version (in that case,
-         * {@link #fromXContent} should be used to load the content.
+         * {@link IndexMetadata#fromXContent} should be used to load the content.
          */
         public static IndexMetadata legacyFromXContent(XContentParser parser) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
@@ -2643,12 +2629,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         @Override
         public void toXContent(XContentBuilder builder, IndexMetadata state) throws IOException {
-            Builder.toXContent(state, builder, FORMAT_PARAMS);
+            state.toXContent(builder, FORMAT_PARAMS);
         }
 
         @Override
         public IndexMetadata fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
+            return IndexMetadata.fromXContent(parser);
         }
     };
 

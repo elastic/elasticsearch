@@ -1313,12 +1313,129 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public static Metadata fromXContent(XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser);
+        Builder builder = new Builder();
+
+        // we might get here after the meta-data element, or on a fresh parser
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+        if ("meta-data".equals(currentFieldName) == false) {
+            token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                // move to the field name (meta-data)
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                // move to the next object
+                token = parser.nextToken();
+            }
+            currentFieldName = parser.currentName();
+        }
+
+        if ("meta-data".equals(currentFieldName) == false) {
+            throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("cluster_coordination".equals(currentFieldName)) {
+                    builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
+                } else if ("settings".equals(currentFieldName)) {
+                    builder.persistentSettings(Settings.fromXContent(parser));
+                } else if ("indices".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        builder.put(IndexMetadata.fromXContent(parser), false);
+                    }
+                } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
+                    builder.hashesOfConsistentSettings(parser.mapStrings());
+                } else if ("templates".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                    }
+                } else if ("reserved_state".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        builder.put(ReservedStateMetadata.fromXContent(parser));
+                    }
+                } else {
+                    try {
+                        Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
+                        builder.putCustom(custom.getWriteableName(), custom);
+                    } catch (NamedObjectNotFoundException ex) {
+                        logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                        parser.skipChildren();
+                    }
+                }
+            } else if (token.isValue()) {
+                if ("version".equals(currentFieldName)) {
+                    builder.version = parser.longValue();
+                } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
+                    builder.clusterUUID = parser.text();
+                } else if ("cluster_uuid_committed".equals(currentFieldName)) {
+                    builder.clusterUUIDCommitted = parser.booleanValue();
+                } else {
+                    throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                }
+            } else {
+                throw new IllegalArgumentException("Unexpected token " + token);
+            }
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        return builder.build();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
+        XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+
+        if (context == XContentContext.API) {
+            builder.startObject("metadata");
+        } else {
+            builder.startObject("meta-data");
+            builder.field("version", version());
+        }
+
+        builder.field("cluster_uuid", clusterUUID);
+        builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+
+        builder.startObject("cluster_coordination");
+        coordinationMetadata().toXContent(builder, params);
+        builder.endObject();
+
+        if (context != XContentContext.API && persistentSettings().isEmpty() == false) {
+            builder.startObject("settings");
+            persistentSettings().toXContent(builder, Settings.FLAT_SETTINGS_PARAMS);
+            builder.endObject();
+        }
+
+        builder.startObject("templates");
+        for (IndexTemplateMetadata template : templates().values()) {
+            IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params);
+        }
+        builder.endObject();
+
+        if (context == XContentContext.API) {
+            builder.startObject("indices");
+            for (IndexMetadata indexMetadata : this) {
+                indexMetadata.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
+        for (Map.Entry<String, Custom> cursor : customs().entrySet()) {
+            if (cursor.getValue().context().contains(context)) {
+                builder.startObject(cursor.getKey());
+                cursor.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
+        }
+
+        builder.startObject("reserved_state");
+        for (ReservedStateMetadata ReservedStateMetadata : reservedStateMetadata().values()) {
+            ReservedStateMetadata.toXContent(builder, params);
+        }
+        builder.endObject();
+
+        builder.endObject();
         return builder;
     }
 
@@ -2468,131 +2585,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return true;
         }
 
-        public static void toXContent(Metadata metadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
-
-            if (context == XContentContext.API) {
-                builder.startObject("metadata");
-            } else {
-                builder.startObject("meta-data");
-                builder.field("version", metadata.version());
-            }
-
-            builder.field("cluster_uuid", metadata.clusterUUID);
-            builder.field("cluster_uuid_committed", metadata.clusterUUIDCommitted);
-
-            builder.startObject("cluster_coordination");
-            metadata.coordinationMetadata().toXContent(builder, params);
-            builder.endObject();
-
-            if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
-                builder.startObject("settings");
-                metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-                builder.endObject();
-            }
-
-            builder.startObject("templates");
-            for (IndexTemplateMetadata template : metadata.templates().values()) {
-                IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params);
-            }
-            builder.endObject();
-
-            if (context == XContentContext.API) {
-                builder.startObject("indices");
-                for (IndexMetadata indexMetadata : metadata) {
-                    IndexMetadata.Builder.toXContent(indexMetadata, builder, params);
-                }
-                builder.endObject();
-            }
-
-            for (Map.Entry<String, Custom> cursor : metadata.customs().entrySet()) {
-                if (cursor.getValue().context().contains(context)) {
-                    builder.startObject(cursor.getKey());
-                    cursor.getValue().toXContent(builder, params);
-                    builder.endObject();
-                }
-            }
-
-            builder.startObject("reserved_state");
-            for (ReservedStateMetadata ReservedStateMetadata : metadata.reservedStateMetadata().values()) {
-                ReservedStateMetadata.toXContent(builder, params);
-            }
-            builder.endObject();
-
-            builder.endObject();
-        }
-
-        public static Metadata fromXContent(XContentParser parser) throws IOException {
-            Builder builder = new Builder();
-
-            // we might get here after the meta-data element, or on a fresh parser
-            XContentParser.Token token = parser.currentToken();
-            String currentFieldName = parser.currentName();
-            if ("meta-data".equals(currentFieldName) == false) {
-                token = parser.nextToken();
-                if (token == XContentParser.Token.START_OBJECT) {
-                    // move to the field name (meta-data)
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                    // move to the next object
-                    token = parser.nextToken();
-                }
-                currentFieldName = parser.currentName();
-            }
-
-            if ("meta-data".equals(currentFieldName) == false) {
-                throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
-            }
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("cluster_coordination".equals(currentFieldName)) {
-                        builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
-                    } else if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(Settings.fromXContent(parser));
-                    } else if ("indices".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
-                        }
-                    } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
-                        builder.hashesOfConsistentSettings(parser.mapStrings());
-                    } else if ("templates".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
-                        }
-                    } else if ("reserved_state".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(ReservedStateMetadata.fromXContent(parser));
-                        }
-                    } else {
-                        try {
-                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
-                            builder.putCustom(custom.getWriteableName(), custom);
-                        } catch (NamedObjectNotFoundException ex) {
-                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                            parser.skipChildren();
-                        }
-                    }
-                } else if (token.isValue()) {
-                    if ("version".equals(currentFieldName)) {
-                        builder.version = parser.longValue();
-                    } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
-                        builder.clusterUUID = parser.text();
-                    } else if ("cluster_uuid_committed".equals(currentFieldName)) {
-                        builder.clusterUUIDCommitted = parser.booleanValue();
-                    } else {
-                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unexpected token " + token);
-                }
-            }
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-            return builder.build();
-        }
-
         /**
          * Dedupes {@link MappingMetadata} instance from the provided indexMetadata parameter using the sha256
          * hash from the compressed source of the mapping. If there is a mapping with the same sha256 hash then
@@ -2634,27 +2626,23 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     }
 
-    private static final ToXContent.Params FORMAT_PARAMS;
-    static {
-        Map<String, String> params = Maps.newMapWithExpectedSize(2);
-        params.put("binary", "true");
-        params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
-        FORMAT_PARAMS = new MapParams(params);
-    }
-
     /**
      * State format for {@link Metadata} to write to and load from disk
      */
     public static final MetadataStateFormat<Metadata> FORMAT = new MetadataStateFormat<>(GLOBAL_STATE_FILE_PREFIX) {
 
+        private static final ToXContent.Params FORMAT_PARAMS = new MapParams(
+            Map.of("binary", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
+        );
+
         @Override
         public void toXContent(XContentBuilder builder, Metadata state) throws IOException {
-            Builder.toXContent(state, builder, FORMAT_PARAMS);
+            state.toXContent(builder, FORMAT_PARAMS);
         }
 
         @Override
         public Metadata fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
+            return Metadata.fromXContent(parser);
         }
     };
 }

@@ -67,7 +67,7 @@ public class MetadataStateFormatTests extends ESTestCase {
 
             @Override
             public Metadata fromXContent(XContentParser parser) throws IOException {
-                return Metadata.Builder.fromXContent(parser);
+                return Metadata.fromXContent(parser);
             }
         };
         Path tmp = createTempDir();

@@ -73,8 +73,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNode otherNode = randomNode("other");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
-        ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
-            ClusterState.Builder.toBytes(clusterState),
+        ClusterState clusterStateFromDiffs = ClusterStateUtils.fromBytes(
+            ClusterStateUtils.toBytes(clusterState),
             otherNode,
             namedWriteableRegistry
         );
@@ -103,8 +103,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             if (randomIntBetween(0, 10) < 1) {
                 // Update cluster state via full serialization from time to time
-                clusterStateFromDiffs = ClusterState.Builder.fromBytes(
-                    ClusterState.Builder.toBytes(clusterState),
+                clusterStateFromDiffs = ClusterStateUtils.fromBytes(
+                    ClusterStateUtils.toBytes(clusterState),
                     previousClusterStateFromDiffs.nodes().getLocalNode(),
                     namedWriteableRegistry
                 );
@@ -167,8 +167,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 // Smoke test - we cannot compare bytes to bytes because some elements might get serialized in different order
                 // however, serialized size should remain the same
                 assertThat(
-                    ClusterState.Builder.toBytes(clusterStateFromDiffs).length,
-                    equalTo(ClusterState.Builder.toBytes(clusterState).length)
+                    ClusterStateUtils.toBytes(clusterStateFromDiffs).length,
+                    equalTo(ClusterStateUtils.toBytes(clusterState).length)
                 );
             } catch (AssertionError error) {
                 logger.error(

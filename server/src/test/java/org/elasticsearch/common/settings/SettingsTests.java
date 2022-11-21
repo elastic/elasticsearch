@@ -552,7 +552,7 @@ public class SettingsTests extends ESTestCase {
 
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        test.toXContent(builder, Settings.FLAT_SETTINGS_PARAMS);
         builder.endObject();
         assertEquals("""
             {"foo.bar":["1","2","3"]}""", Strings.toString(builder));

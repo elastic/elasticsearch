@@ -32,16 +32,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");
+
+    private static final Map<String, String> API_CONTEXT_MODE_PARAMS = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
 
     private final SettingsFilter settingsFilter;
 
@@ -89,7 +91,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
 
         if (request.hasParam("metric")) {
-            EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
+            EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"));
             // do not ask for what we do not need.
             clusterStateRequest.nodes(metrics.contains(ClusterState.Metric.NODES) || metrics.contains(ClusterState.Metric.MASTER_NODE));
             /*
@@ -117,10 +119,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             ) {
                 @Override
                 protected ToXContent.Params getParams() {
-                    return new ToXContent.DelegatingMapParams(
-                        singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
-                        request
-                    );
+                    return new ToXContent.DelegatingMapParams(API_CONTEXT_MODE_PARAMS, request);
                 }
             }.map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool::relativeTimeInMillis))
         );

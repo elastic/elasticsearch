@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.cluster.ClusterStateUtils;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NamedDiff;
@@ -76,8 +77,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
             .build();
 
-        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(
-            ClusterState.Builder.toBytes(clusterState),
+        ClusterState serializedClusterState = ClusterStateUtils.fromBytes(
+            ClusterStateUtils.toBytes(clusterState),
             newNode("node1"),
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables())
         );

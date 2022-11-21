@@ -135,7 +135,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
 
-        Metadata parsedMetadata = Metadata.Builder.fromXContent(createParser(builder));
+        Metadata parsedMetadata = Metadata.fromXContent(createParser(builder));
 
         // templates
         assertThat(parsedMetadata.templates().get("foo").name(), is("foo"));

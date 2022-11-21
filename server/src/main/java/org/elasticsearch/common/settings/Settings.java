@@ -78,6 +78,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
 
+    public static final Params FLAT_SETTINGS_PARAMS = new MapParams(Map.of("flat_settings", "true"));
+
     /** The raw settings from the full key to raw string value. */
     private final NavigableMap<String, Object> settings;
 
@@ -1525,7 +1527,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     @Override
     public String toString() {
-        return Strings.toString(this, new MapParams(Collections.singletonMap("flat_settings", "true")));
+        return Strings.toString(this, FLAT_SETTINGS_PARAMS);
     }
 
     private static String toString(Object o) {

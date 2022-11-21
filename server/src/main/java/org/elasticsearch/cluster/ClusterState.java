@@ -33,11 +33,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -491,7 +487,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             this.value = value;
         }
 
-        public static EnumSet<Metric> parseString(String param, boolean ignoreUnknown) {
+        public static EnumSet<Metric> parseString(String param) {
             String[] metrics = Strings.splitStringByCommaToArray(param);
             EnumSet<Metric> result = EnumSet.noneOf(Metric.class);
             for (String metric : metrics) {
@@ -500,11 +496,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                     break;
                 }
                 Metric m = valueToEnum.get(metric);
-                if (m == null) {
-                    if (ignoreUnknown == false) {
-                        throw new IllegalArgumentException("Unknown metric [" + metric + "]");
-                    }
-                } else {
+                if (m != null) {
                     result.add(m);
                 }
             }
@@ -519,7 +511,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
+        EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"));
 
         // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
         builder.field("cluster_uuid", metadata().clusterUUID());
@@ -780,22 +772,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 fromDiff,
                 routingNodes
             );
-        }
-
-        public static byte[] toBytes(ClusterState state) throws IOException {
-            BytesStreamOutput os = new BytesStreamOutput();
-            state.writeTo(os);
-            return BytesReference.toBytes(os.bytes());
-        }
-
-        /**
-         * @param data      input bytes
-         * @param localNode used to set the local node in the cluster state.
-         */
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, NamedWriteableRegistry registry) throws IOException {
-            StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), registry);
-            return readFrom(in, localNode);
-
         }
     }
 

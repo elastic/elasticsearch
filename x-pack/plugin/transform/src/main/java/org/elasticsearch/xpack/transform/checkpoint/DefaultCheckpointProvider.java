@@ -191,14 +191,38 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     ) {
         GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(indices, IndicesOptions.LENIENT_EXPAND_OPEN);
 
+        ActionListener<GetCheckpointAction.Response> checkpointListener;
+        if (RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
+            checkpointListener = ActionListener.wrap(
+                checkpointResponse -> listener.onResponse(checkpointResponse.getCheckpoints()),
+                listener::onFailure
+            );
+        } else {
+            checkpointListener = ActionListener.wrap(
+                checkpointResponse -> listener.onResponse(
+                    checkpointResponse.getCheckpoints()
+                        .entrySet()
+                        .stream()
+                        .collect(
+                            Collectors.toMap(
+                                entry -> cluster + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR + entry.getKey(),
+                                entry -> entry.getValue()
+                            )
+                        )
+                ),
+                listener::onFailure
+            );
+        }
+
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             GetCheckpointAction.INSTANCE,
             getCheckpointRequest,
-            ActionListener.wrap(checkpointResponse -> listener.onResponse(checkpointResponse.getCheckpoints()), listener::onFailure)
+            checkpointListener
         );
+
     }
 
     /**

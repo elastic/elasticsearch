@@ -923,7 +923,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .field("field")
                         .order(bucketOrder);
 
-                    Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+                    Terms result = searchAndReduce(
+                        indexSearcher,
+                        new AggTestConfig(aggregationBuilder, fieldType).withSplitLeavesIntoSeperateAggregators(false)
+                    );
                     assertEquals(size, result.getBuckets().size());
                     for (int i = 0; i < size; i++) {
                         Map.Entry<T, Integer> expected = expectedBuckets.get(i);
@@ -948,7 +951,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         );
                         result = ((Filter) searchAndReduce(
                             indexSearcher,
-                            new AggTestConfig(aggregationBuilder, fieldType, filterFieldType)
+                            new AggTestConfig(aggregationBuilder, fieldType, filterFieldType).withSplitLeavesIntoSeperateAggregators(false)
                         )).getAggregations().get("_name2");
                         int expectedFilteredCounts = 0;
                         for (Integer count : filteredCounts.values()) {

@@ -67,14 +67,17 @@ public class JwtAuthenticatorTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, realmName);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_KEY), randomAlphaOfLength(40));
-        final Settings settings = Settings.builder()
+        final Settings.Builder builder = Settings.builder()
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), allowedAlgorithm)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), allowedIssuer)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomAlphaOfLength(7))
             .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), randomIntBetween(0, 99))
             .put("path.home", randomAlphaOfLength(10))
-            .setSecureSettings(secureSettings)
-            .build();
+            .setSecureSettings(secureSettings);
+        if (randomBoolean()) {
+            builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE), "id_token");
+        }
+        final Settings settings = builder.build();
 
         final RealmConfig realmConfig = new RealmConfig(
             realmIdentifier,

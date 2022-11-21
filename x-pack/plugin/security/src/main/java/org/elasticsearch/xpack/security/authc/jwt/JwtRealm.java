@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -335,15 +337,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
 
         // User metadata: If enabled, extract metadata from JWT claims set. Use it in UserRoleMapper.UserData and User constructors.
-        final Map<String, Object> userMetadata;
-        try {
-            userMetadata = populateUserMetadata ? JwtUtil.toUserMetadata(claimsSet) : Map.of();
-        } catch (Exception e) {
-            final String msg = "Realm [" + name() + "] parse metadata failed for principal=[" + principal + "].";
-            logger.debug(msg, e);
-            listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
-            return;
-        }
+        final Map<String, Object> userMetadata = buildUserMetadata(claimsSet);
 
         // Role resolution: Handle role mapping in JWT Realm.
         final List<String> groups = claimParserGroups.getClaimValues(claimsSet);
@@ -386,6 +380,41 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     private boolean isCacheEnabled() {
         return jwtCache != null && jwtCacheHelper != null;
+    }
+
+    /**
+     * Format and filter JWT contents as user metadata.
+     * @param claimsSet Claims are supported. Claim keys are prefixed by "jwt_claim_".
+     * @return Map of formatted and filtered values to be used as user metadata.
+     */
+    private Map<String, Object> buildUserMetadata(JWTClaimsSet claimsSet) {
+        final HashMap<String, Object> metadata = new HashMap<>();
+        metadata.put("jwt_token_type", jwtAuthenticator.getTokenType().value());
+        if (populateUserMetadata) {
+            claimsSet.getClaims()
+                .entrySet()
+                .stream()
+                .filter(entry -> isAllowedTypeForClaim(entry.getValue()))
+                .forEach(entry -> metadata.put("jwt_claim_" + entry.getKey(), entry.getValue()));
+        }
+        return Map.copyOf(metadata);
+    }
+
+    /**
+     * JWTClaimsSet values are only allowed to be String, Boolean, Number, or Collection.
+     * Collections are only allowed to contain String, Boolean, or Number.
+     * Collections recursion is not allowed.
+     * Maps are not allowed.
+     * Nulls are not allowed.
+     * @param value Claim value object.
+     * @return True if the claim value is allowed, otherwise false.
+     */
+    private static boolean isAllowedTypeForClaim(final Object value) {
+        return (value instanceof String
+            || value instanceof Boolean
+            || value instanceof Number
+            || (value instanceof Collection
+                && ((Collection<?>) value).stream().allMatch(e -> e instanceof String || e instanceof Boolean || e instanceof Number)));
     }
 
     // Cached authenticated users, and adjusted JWT expiration date (=exp+skew) for checking if the JWT expired before the cache entry

@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -75,8 +74,9 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
-        IndexWriteLoad indexWriteLoad = randomBoolean() ? randomWriteLoad(numShard) : null;
+        IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
+        Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
@@ -103,8 +103,9 @@ public class IndexMetadataTests extends ESTestCase {
                     randomNonNegativeLong()
                 )
             )
-            .indexWriteLoad(indexWriteLoad)
+            .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
+            .shardSizeInBytesForecast(shardSizeInBytesForecast)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -133,8 +134,9 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
-        assertEquals(metadata.getWriteLoad(), fromXContentMeta.getWriteLoad());
+        assertEquals(metadata.getStats(), fromXContentMeta.getStats());
         assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
+        assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -155,8 +157,9 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
-            assertEquals(metadata.getWriteLoad(), deserialized.getWriteLoad());
+            assertEquals(metadata.getStats(), deserialized.getStats());
             assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
+            assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
         }
     }
 
@@ -515,12 +518,12 @@ public class IndexMetadataTests extends ESTestCase {
             .build();
     }
 
-    private IndexWriteLoad randomWriteLoad(int numberOfShards) {
+    private IndexMetadataStats randomIndexStats(int numberOfShards) {
         IndexWriteLoad.Builder indexWriteLoadBuilder = IndexWriteLoad.builder(numberOfShards);
         int numberOfPopulatedWriteLoads = randomIntBetween(0, numberOfShards);
         for (int i = 0; i < numberOfPopulatedWriteLoads; i++) {
             indexWriteLoadBuilder.withShardWriteLoad(i, randomDoubleBetween(0.0, 128.0, true), randomNonNegativeLong());
         }
-        return indexWriteLoadBuilder.build();
+        return new IndexMetadataStats(indexWriteLoadBuilder.build(), randomLongBetween(100, 1024), randomIntBetween(1, 2));
     }
 }

@@ -21,10 +21,23 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DocCountFieldMapperTests extends MapperServiceTestCase {
+public class DocCountFieldMapperTests extends MetadataMapperTestCase {
 
     private static final String CONTENT_TYPE = DocCountFieldMapper.CONTENT_TYPE;
     private static final String DOC_COUNT_FIELD = DocCountFieldMapper.NAME;
+
+    @Override
+    protected String fieldName() {
+        return DocCountFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testParseValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
@@ -90,7 +103,7 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
-                    String source = sourceLoaderLeaf.source(storedFieldLoader, docId).utf8ToString();
+                    String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
                     int doc = (int) JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source).map().get("doc");
                     assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
                 }

@@ -57,10 +57,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         return new CompressedXContent(Strings.toString(builder));
     }
 
-    /**
-     * Issue-91259: Checks {@link IndexService#getNodeMappingStats()} can be called on a closed index.
-     */
-    public void testNodeMappingStats() throws Exception {
+    public void testClosedIndexHasNullNodeMappingStats() throws Exception {
         final IndexService indexService = createIndex("test", Settings.EMPTY);
         ensureGreen("test");
 

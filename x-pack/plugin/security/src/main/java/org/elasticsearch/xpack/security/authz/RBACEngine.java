@@ -121,7 +121,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
     // TODO move once we have a dedicated class for RCS 2.0 constants
-    public static final String REMOTE_USER_ROLE_NAME_PLACEHOLDER = "_remote_user";
+    public static final String REMOTE_USER_ROLE_NAME = "_remote_user";
 
     private final Settings settings;
     private final CompositeRolesStore rolesStore;
@@ -703,7 +703,7 @@ public class RBACEngine implements AuthorizationEngine {
                 List.of(
                     Set.of(
                         new RoleDescriptor(
-                            REMOTE_USER_ROLE_NAME_PLACEHOLDER,
+                            REMOTE_USER_ROLE_NAME,
                             null,
                             // Sort to ensure deterministic cache keys on the fulfilling cluster side
                             indicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
@@ -730,9 +730,11 @@ public class RBACEngine implements AuthorizationEngine {
 
         final BytesReference query = queries == null ? null : queries.iterator().next();
         final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-            .indices(indicesGroup.indices())
+            // Sort because these index privileges will be part of role descriptors that may be cached in raw byte form;
+            // we need deterministic order to ensure cache hits for equivalent role descriptors
+            .indices(Arrays.stream(indicesGroup.indices()).sorted().collect(Collectors.toList()))
+            .privileges(indicesGroup.privilege().name().stream().sorted().collect(Collectors.toList()))
             .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
-            .privileges(indicesGroup.privilege().name())
             .query(query);
         if (false == fieldGrantExcludeGroups.isEmpty()) {
             final FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup = fieldGrantExcludeGroups.iterator().next();

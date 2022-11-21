@@ -1697,7 +1697,7 @@ public class RBACEngineTests extends ESTestCase {
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME_PLACEHOLDER,
+                                RBACEngine.REMOTE_USER_ROLE_NAME,
                                 null,
                                 expectedIndicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
                                 null,
@@ -1711,6 +1711,64 @@ public class RBACEngineTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
+        InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final int numGroups = randomIntBetween(2, 5);
+        for (int i = 0; i < numGroups; i++) {
+            remoteIndicesBuilder.addGroup(
+                Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                IndexPrivilege.get(Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))),
+                new FieldPermissions(
+                    new FieldPermissionsDefinition(
+                        Set.of(
+                            randomBoolean()
+                                ? randomFieldGrantExcludeGroup()
+                                : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
+                        )
+                    )
+                ),
+                randomBoolean() ? Set.of(randomDlsQuery()) : null,
+                randomBoolean(),
+                generateRandomStringArray(3, 10, false, false)
+            );
+        }
+        final RemoteIndicesPermission permissions = remoteIndicesBuilder.build();
+        List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = permissions.remoteIndicesGroups();
+        final Role role1 = mockRoleWithRemoteIndices(permissions);
+        final RBACAuthorizationInfo authorizationInfo1 = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo1.getRole()).thenReturn(role1);
+        final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo1, future1);
+        final RoleDescriptorsIntersection actual1 = future1.get();
+
+        // Randomize the order of both remote indices groups and each of the indices permissions groups each group holds
+        final RemoteIndicesPermission shuffledPermissions = new RemoteIndicesPermission(
+            shuffledList(
+                remoteIndicesGroups.stream()
+                    .map(
+                        group -> new RemoteIndicesPermission.RemoteIndicesGroup(
+                            group.remoteClusterAliases(),
+                            shuffledList(group.indicesPermissionGroups())
+                        )
+                    )
+                    .toList()
+            )
+        );
+        final Role role2 = mockRoleWithRemoteIndices(shuffledPermissions);
+        final RBACAuthorizationInfo authorizationInfo2 = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo2.getRole()).thenReturn(role2);
+        final PlainActionFuture<RoleDescriptorsIntersection> future2 = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo2, future2);
+        final RoleDescriptorsIntersection actual2 = future2.get();
+
+        assertThat(actual1, equalTo(actual2));
+        assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutMatchingGroups() throws ExecutionException, InterruptedException {

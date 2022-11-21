@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
@@ -670,12 +671,14 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor.IndicesPrivileges.Builder first = randomIndicesPrivilegesBuilder().allowRestrictedIndices(false);
         RoleDescriptor.IndicesPrivileges.Builder second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(true);
         assertThat(first.build().compareTo(second.build()), lessThan(0));
+        assertThat(second.build().compareTo(first.build()), greaterThan(0));
 
         first = randomIndicesPrivilegesBuilder();
         second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
         first.indices("a", "b");
         second.indices("b", "a");
         assertThat(first.build().compareTo(second.build()), lessThan(0));
+        assertThat(second.build().compareTo(first.build()), greaterThan(0));
 
         first = randomIndicesPrivilegesBuilder();
         second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
@@ -683,6 +686,7 @@ public class RoleDescriptorTests extends ESTestCase {
         first.privileges("read", "write");
         second.privileges("write", "read");
         assertThat(first.build().compareTo(second.build()), lessThan(0));
+        assertThat(second.build().compareTo(first.build()), greaterThan(0));
 
         first = randomIndicesPrivilegesBuilder();
         second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
@@ -691,15 +695,17 @@ public class RoleDescriptorTests extends ESTestCase {
         first.query(randomBoolean() ? null : "a");
         second.query("b");
         assertThat(first.build().compareTo(second.build()), lessThan(0));
+        assertThat(second.build().compareTo(first.build()), greaterThan(0));
 
         first = randomIndicesPrivilegesBuilder();
         second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
         second.indices(first.build().getIndices());
         second.privileges(first.build().getPrivileges());
         second.query(first.build().getQuery());
-        first.grantedFields("a", "b");
+        first.grantedFields(randomBoolean() ? null : new String[] { "a", "b" });
         second.grantedFields("b", "a");
         assertThat(first.build().compareTo(second.build()), lessThan(0));
+        assertThat(second.build().compareTo(first.build()), greaterThan(0));
 
         first = randomIndicesPrivilegesBuilder();
         second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
@@ -707,9 +713,10 @@ public class RoleDescriptorTests extends ESTestCase {
         second.privileges(first.build().getPrivileges());
         second.query(first.build().getQuery());
         second.grantedFields(first.build().getGrantedFields());
-        first.deniedFields("a", "b");
+        first.deniedFields(randomBoolean() ? null : new String[] { "a", "b" });
         second.deniedFields("b", "a");
         assertThat(first.build().compareTo(second.build()), lessThan(0));
+        assertThat(second.build().compareTo(first.build()), greaterThan(0));
     }
 
     public void testGlobalPrivilegesOrdering() throws IOException {

@@ -57,7 +57,10 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 null,
                 new RoleDescriptor.RemoteIndicesPrivileges[] {
                     new RoleDescriptor.RemoteIndicesPrivileges(
-                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read").build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(shuffledList(List.of("index1", "index2")))
+                            .privileges(shuffledList(List.of("read", "write")))
+                            .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
                     ) }
             )
@@ -92,7 +95,10 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                                 generatedRoleName,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read").build() },
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index1", "index2")
+                                        .privileges("read", "write")
+                                        .build() },
                                 null,
                                 null,
                                 null,

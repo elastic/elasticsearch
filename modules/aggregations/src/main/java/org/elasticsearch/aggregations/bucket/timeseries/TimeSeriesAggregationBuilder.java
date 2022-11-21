@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -79,7 +80,8 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        return new TimeSeriesAggregationFactory(name, keyed, context, parent, subFactoriesBuilder, metadata);
+        boolean expectTsidBucketInOrder = parent instanceof DateHistogramAggregatorFactory;
+        return new TimeSeriesAggregationFactory(name, keyed, context, parent, subFactoriesBuilder, metadata, expectTsidBucketInOrder);
     }
 
     @Override

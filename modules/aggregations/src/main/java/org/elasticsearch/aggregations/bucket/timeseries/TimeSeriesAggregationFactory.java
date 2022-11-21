@@ -20,6 +20,7 @@ import java.util.Map;
 public class TimeSeriesAggregationFactory extends AggregatorFactory {
 
     private final boolean keyed;
+    private final boolean expectTsidBucketInOrder;
 
     public TimeSeriesAggregationFactory(
         String name,
@@ -27,15 +28,20 @@ public class TimeSeriesAggregationFactory extends AggregatorFactory {
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata
-    ) throws IOException {
+        Map<String, Object> metadata,
+        boolean expectTsidBucketInOrder) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.keyed = keyed;
+        this.expectTsidBucketInOrder = expectTsidBucketInOrder;
     }
 
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return new TimeSeriesAggregator(name, factories, keyed, context, parent, cardinality, metadata);
+        if (expectTsidBucketInOrder) {
+            return new TimeSeriesInOrderAggregator(name, factories, keyed, context, parent, cardinality, metadata);
+        } else {
+            return new TimeSeriesAggregator(name, factories, keyed, context, parent, cardinality, metadata);
+        }
     }
 }

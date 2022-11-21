@@ -440,8 +440,8 @@ _source filtering:
 ---
 _doc_count:
   - skip:
-      version: " - 8.5.99"
-      reason: introduced in 8.6.0
+      version: " - 8.6.99"
+      reason: bug caused by many not having _doc_count fixed in 8.7.0
 
   - do:
       indices.create:

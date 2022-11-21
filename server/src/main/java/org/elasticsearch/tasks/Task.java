@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -62,6 +63,12 @@ public class Task {
         TRACE_ID,
         X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
     );
+
+    public static Optional<String> extractTraceId(String traceparent) {
+        return traceparent != null && traceparent.length() >= 55
+            ? Optional.of(traceparent.substring(3, 35))
+            : Optional.empty();
+    }
 
     private final long id;
 

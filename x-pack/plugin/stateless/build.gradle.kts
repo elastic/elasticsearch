@@ -21,6 +21,5 @@ dependencies {
 tasks {
     internalClusterTest {
         systemProperty("es.use_stateless", "true")
-        enabled = BuildParams.isSnapshotBuild()
     }
 }

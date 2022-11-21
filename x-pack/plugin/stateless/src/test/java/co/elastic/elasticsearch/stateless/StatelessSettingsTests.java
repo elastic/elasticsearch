@@ -13,34 +13,20 @@ import static org.hamcrest.Matchers.is;
 
 public class StatelessSettingsTests extends ESTestCase {
 
-    public void testEnabled() {
-        assertThat(
-            new Stateless(
-                statelessSettings(List.of(randomFrom(Stateless.STATELESS_ROLES))),
-                new StatelessLicenseChecker(() -> true),
-                true,
-                true
-            ).isEnabled(),
-            is(true)
-        );
-    }
-
     public void testDisabledByDefault() {
-        assertThat(new Stateless(Settings.EMPTY).isEnabled(), is(false));
         assertThat(Stateless.STATELESS_ENABLED.get(Settings.EMPTY), is(false));
     }
 
-    public void testSnapshotsBuildsOnly() {
+    public void testStatelessNotEnabled() {
+        var settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(Stateless.STATELESS_ENABLED.getKey(), false);
+        }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new Stateless(
-                statelessSettings(List.of(randomFrom(Stateless.STATELESS_ROLES))),
-                new StatelessLicenseChecker(() -> true),
-                false, // non-snapshot build
-                true
-            )
+            () -> new Stateless(settings.build(), randomBoolean())
         );
-        assertThat(exception.getMessage(), containsString("stateless cannot be enabled in non-snapshot builds"));
+        assertThat(exception.getMessage(), containsString("stateless is not enabled"));
     }
 
     public void testStatelessNotInUse() {
@@ -48,8 +34,6 @@ public class StatelessSettingsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new Stateless(
                 statelessSettings(List.of(randomFrom(Stateless.STATELESS_ROLES))),
-                new StatelessLicenseChecker(() -> true),
-                true,
                 false // use_stateless is false
             )
         );
@@ -70,8 +54,6 @@ public class StatelessSettingsTests extends ESTestCase {
                         )
                     )
                 ),
-                new StatelessLicenseChecker(() -> true),
-                true,
                 true
             )
         );

@@ -43,6 +43,5 @@ public class StatelessIT extends ESIntegTestCase {
             .flatMap(ps -> ps.filterPlugins(Stateless.class).stream())
             .toList();
         assertThat(plugins.size(), greaterThan(0));
-        assertThat(plugins.stream().allMatch(Stateless::isEnabled), equalTo(true));
     }
 }

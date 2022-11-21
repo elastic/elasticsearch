@@ -141,8 +141,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         ActionListener<RolesRetrievalResult> listener
     ) {
         final RolesRetrievalResult result = new RolesRetrievalResult();
-        if (roleReference.roleDescriptorsBytes() != null) {
-            result.addDescriptors(Set.copyOf(RemoteClusterSecurityService.parseRoleDescriptorsBytes(roleReference.roleDescriptorsBytes())));
+        if (roleReference.roleDescriptors() != null) {
+            result.addDescriptors(Set.copyOf(roleReference.roleDescriptors()));
         }
         listener.onResponse(result);
     }

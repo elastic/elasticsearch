@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.security.authc.RemoteClusterSecurityService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -25,24 +24,23 @@ import static org.hamcrest.Matchers.equalTo;
 public class RemoteClusterSecuritySubjectAccessTests extends ESTestCase {
 
     public void testEncodeDecodeRoundTrip() throws IOException {
-        final Collection<Set<RoleDescriptor>> expectedRoleDescriptors1 = List.of(
-            Set.of(
-                RoleDescriptorTests.randomRoleDescriptor(),
-                RoleDescriptorTests.randomRoleDescriptor(),
-                RoleDescriptorTests.randomRoleDescriptor()
-            )
+        final Set<RoleDescriptor> expectedRoleDescriptorsSet = Set.of(
+            RoleDescriptorTests.randomRoleDescriptor(),
+            RoleDescriptorTests.randomRoleDescriptor(),
+            RoleDescriptorTests.randomRoleDescriptor()
         );
+        final Collection<Set<RoleDescriptor>> expectedRoleDescriptors = List.of(expectedRoleDescriptorsSet);
+        final RoleDescriptorsIntersection roleDescriptorsSets = new RoleDescriptorsIntersection(expectedRoleDescriptors);
 
         final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
         final RemoteClusterSecuritySubjectAccess decoded = RemoteClusterSecuritySubjectAccess.decode(
-            RemoteClusterSecuritySubjectAccess.encode(expectedAuthentication, new RoleDescriptorsIntersection(expectedRoleDescriptors1))
+            RemoteClusterSecuritySubjectAccess.encode(expectedAuthentication, roleDescriptorsSets)
         );
 
-        assertThat(decoded.authentication(), equalTo(expectedAuthentication));
-        assertThat(
-            RemoteClusterSecurityService.parseRoleDescriptorsBytes(decoded.authorization().iterator().next()),
-            equalTo(expectedRoleDescriptors1.iterator().next())
-        );
+        final Authentication decodedAuthentication = decoded.authentication();
+        final Set<RoleDescriptor> decodedRoleDescriptorsSet = decoded.authorization().roleDescriptorsSets().iterator().next();
+        assertThat(decodedAuthentication, equalTo(expectedAuthentication));
+        assertThat(decodedRoleDescriptorsSet, equalTo(expectedRoleDescriptorsSet));
     }
 
 }

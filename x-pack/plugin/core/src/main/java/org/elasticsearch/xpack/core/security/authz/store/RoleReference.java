@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.HashSet;
 import java.util.List;
@@ -179,13 +180,16 @@ public interface RoleReference {
         }
     }
 
-    record RemoteClusterSecurityRoleReference(BytesReference roleDescriptorsBytes) implements RoleReference {
+    record RemoteClusterSecurityRoleReference(Set<RoleDescriptor> roleDescriptors, RemoteClusterSecurityRoleType type)
+        implements
+            RoleReference {
         @Override
         public RoleKey id() {
+            BytesReference roleDescriptorsSetBytesReference = null; // TODO
             final String roleDescriptorsHash = MessageDigests.toHexString(
-                MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
+                MessageDigests.digest(roleDescriptorsSetBytesReference, MessageDigests.sha256())
             );
-            return new RoleKey(Set.of("remote_access:" + roleDescriptorsHash), "remote_access");
+            return new RoleKey(Set.of(type.name() + roleDescriptorsHash), "remote_cluster_security");
         }
 
         @Override
@@ -206,5 +210,19 @@ public interface RoleReference {
          * Roles captured for the owner user as the upper bound of the assigned roles
          */
         LIMITED_BY;
+    }
+
+    /**
+     * The type of one set of Remote Cluster Security roles.
+     */
+    enum RemoteClusterSecurityRoleType {
+        /**
+         * Encoded RoleDescriptorsIntersection sent by a Querying Cluster to a Fulfilling Cluster.
+         */
+        QC,
+        /**
+         * Encoded RoleDescriptorsIntersection computed by a Fulfilling Cluster by verifying an FC API Key sent by the QC.
+         */
+        FC
     }
 }

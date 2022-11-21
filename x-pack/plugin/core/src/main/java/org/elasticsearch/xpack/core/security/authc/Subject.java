@@ -268,20 +268,37 @@ public class Subject {
             )
         );
 
-        // TODO Deserialized FC 1x Collection<Set<RoleDescriptor>> or 2x Set<RoleDescriptor>, add ApiKeyRoleReferences to rcsRoleReferences
+        final List<RoleReference> qcRoleReferences = getRoleReferences(
+            qcRoleDescriptorsSetsBytes,
+            namedWriteableRegistry,
+            RoleReference.RemoteClusterSecurityRoleType.QC
+        );
+        final List<RoleReference> fcRoleReferences = getRoleReferences(
+            fcRoleDescriptorsSetsBytes,
+            namedWriteableRegistry,
+            RoleReference.RemoteClusterSecurityRoleType.FC
+        );
+        final List<RoleReference> roleReferences = new ArrayList<>(qcRoleReferences);
+        roleReferences.addAll(fcRoleReferences);
 
-        final List<RoleReference> rcsRoleReferences = new ArrayList<>();
-        try (StreamInput input = new NamedWriteableAwareStreamInput(qcRoleDescriptorsSetsBytes.streamInput(), namedWriteableRegistry)) {
-            final Collection<Set<RoleDescriptor>> qcRoleDescriptorsSets = new RoleDescriptorsIntersection(input).roleDescriptorsSets();
-            for (final Set<RoleDescriptor> qcRoleDescriptorsSet : qcRoleDescriptorsSets) {
-                // TODO Convert Set<RoleDescriptor> to BytesReference
-                rcsRoleReferences.add(new RoleReference.RemoteClusterSecurityRoleReference(null));
+        return new RoleReferenceIntersection(roleReferences);
+    }
+
+    private static List<RoleReference> getRoleReferences(
+        BytesReference roleDescriptorsSetsBytes,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RoleReference.RemoteClusterSecurityRoleType roleType
+    ) {
+        final List<RoleReference> roleReferences = new ArrayList<>();
+        try (StreamInput input = new NamedWriteableAwareStreamInput(roleDescriptorsSetsBytes.streamInput(), namedWriteableRegistry)) {
+            final Collection<Set<RoleDescriptor>> roleDescriptorsSets = new RoleDescriptorsIntersection(input).roleDescriptorsSets();
+            for (final Set<RoleDescriptor> roleDescriptorsSet : roleDescriptorsSets) {
+                roleReferences.add(new RoleReference.RemoteClusterSecurityRoleReference(roleDescriptorsSet, roleType));
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        return new RoleReferenceIntersection(rcsRoleReferences);
+        return roleReferences;
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

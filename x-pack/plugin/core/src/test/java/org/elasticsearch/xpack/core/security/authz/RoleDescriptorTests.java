@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
@@ -655,6 +656,62 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
+    public void testIndicesPrivilegesCompareTo() {
+        var indexPrivilege = randomIndicesPrivilegesBuilder().build();
+        @SuppressWarnings({ "EqualsWithItself" })
+        final int actual = indexPrivilege.compareTo(indexPrivilege);
+        assertThat(actual, equalTo(0));
+        assertThat(
+            "indices privileges compared to copy of itself should return 0 [" + indexPrivilege + "]",
+            indexPrivilege.compareTo(copyAsBuilder(indexPrivilege).build()),
+            equalTo(0)
+        );
+
+        RoleDescriptor.IndicesPrivileges.Builder first = randomIndicesPrivilegesBuilder().allowRestrictedIndices(false);
+        RoleDescriptor.IndicesPrivileges.Builder second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(true);
+        assertThat(first.build().compareTo(second.build()), lessThan(0));
+
+        first = randomIndicesPrivilegesBuilder();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
+        first.indices("a", "b");
+        second.indices("b", "a");
+        assertThat(first.build().compareTo(second.build()), lessThan(0));
+
+        first = randomIndicesPrivilegesBuilder();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
+        second.indices(first.build().getIndices());
+        first.privileges("read", "write");
+        second.privileges("write", "read");
+        assertThat(first.build().compareTo(second.build()), lessThan(0));
+
+        first = randomIndicesPrivilegesBuilder();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
+        second.indices(first.build().getIndices());
+        second.privileges(first.build().getPrivileges());
+        first.query(randomBoolean() ? null : "a");
+        second.query("b");
+        assertThat(first.build().compareTo(second.build()), lessThan(0));
+
+        first = randomIndicesPrivilegesBuilder();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
+        second.indices(first.build().getIndices());
+        second.privileges(first.build().getPrivileges());
+        second.query(first.build().getQuery());
+        first.grantedFields("a", "b");
+        second.grantedFields("b", "a");
+        assertThat(first.build().compareTo(second.build()), lessThan(0));
+
+        first = randomIndicesPrivilegesBuilder();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.build().allowRestrictedIndices());
+        second.indices(first.build().getIndices());
+        second.privileges(first.build().getPrivileges());
+        second.query(first.build().getQuery());
+        second.grantedFields(first.build().getGrantedFields());
+        first.deniedFields("a", "b");
+        second.deniedFields("b", "a");
+        assertThat(first.build().compareTo(second.build()), lessThan(0));
+    }
+
     public void testGlobalPrivilegesOrdering() throws IOException {
         final String roleName = randomAlphaOfLengthBetween(3, 30);
         final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
@@ -895,27 +952,46 @@ public class RoleDescriptorTests extends ESTestCase {
     private static RoleDescriptor.IndicesPrivileges[] randomIndicesPriveleges() {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
         for (int i = 0; i < indexPrivileges.length; i++) {
-            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-                .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
-                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-                .allowRestrictedIndices(randomBoolean());
-            if (randomBoolean()) {
-                builder.query(
-                    randomBoolean()
-                        ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
-                        : "{ \"match_all\": {} }"
-                );
-            }
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    builder.grantedFields("*");
-                    builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                } else {
-                    builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                }
-            }
-            indexPrivileges[i] = builder.build();
+            indexPrivileges[i] = randomIndicesPrivilegesBuilder().build();
         }
         return indexPrivileges;
+    }
+
+    private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder() {
+        final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+            .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
+            .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+            .allowRestrictedIndices(randomBoolean());
+        if (randomBoolean()) {
+            builder.query(
+                randomBoolean()
+                    ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
+                    : "{ \"match_all\": {} }"
+            );
+        }
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                builder.grantedFields("*");
+                builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+            } else {
+                builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+            }
+        }
+        return builder;
+    }
+
+    private RoleDescriptor.IndicesPrivileges.Builder copyAsBuilder(RoleDescriptor.IndicesPrivileges indexPrivilege) {
+        return RoleDescriptor.IndicesPrivileges.builder()
+            .indices(indexPrivilege.getIndices().clone())
+            .privileges(indexPrivilege.getPrivileges().clone())
+            // test for both cases when the query is the same instance or a copy
+            .query(
+                (indexPrivilege.getQuery() == null || randomBoolean())
+                    ? indexPrivilege.getQuery()
+                    : new BytesArray(indexPrivilege.getQuery().toBytesRef())
+            )
+            .grantedFields(indexPrivilege.getGrantedFields() == null ? null : indexPrivilege.getGrantedFields().clone())
+            .deniedFields(indexPrivilege.getDeniedFields() == null ? null : indexPrivilege.getDeniedFields().clone())
+            .allowRestrictedIndices(indexPrivilege.allowRestrictedIndices());
     }
 }

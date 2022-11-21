@@ -62,6 +62,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -715,8 +716,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
         LeafReader leafReader = getOnlyLeafReader(reader);
         SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
-        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
-        return syntheticSourceBytes.utf8ToString();
+        Source synthetic = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
+        return synthetic.internalSourceRef().utf8ToString();
     }
 
     protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(

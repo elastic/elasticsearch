@@ -14,6 +14,7 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;
@@ -3283,7 +3284,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 method = lookup.lookupPainlessMethod(type, false, methodName, userArgumentsSize);
 
                 if (method == null) {
-                    dynamic = lookup.lookupPainlessClass(type).annotations.containsKey(DynamicTypeAnnotation.class)
+                    PainlessClass pc = lookup.lookupPainlessClass(type);
+                    dynamic = pc != null
+                        && pc.annotations.containsKey(DynamicTypeAnnotation.class)
                         && lookup.lookupPainlessSubClassesMethod(type, methodName, userArgumentsSize) != null;
 
                     if (dynamic == false) {

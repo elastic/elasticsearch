@@ -13,7 +13,6 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.text.ParseException;
 import java.util.List;
@@ -33,13 +32,11 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
     private final List<String> allowedClaimValues;
     // Whether the claim should be a single string
     private final boolean singleValuedClaim;
-    private final StringMatcher claimValueMatcher;
 
     public JwtStringClaimValidator(String claimName, List<String> allowedClaimValues, boolean singleValuedClaim) {
         this.claimName = claimName;
         this.allowedClaimValues = allowedClaimValues;
         this.singleValuedClaim = singleValuedClaim;
-        this.claimValueMatcher = StringMatcher.of(allowedClaimValues);
     }
 
     @Override
@@ -54,7 +51,7 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
             throw new ElasticsearchSecurityException("missing required string claim [" + claimName + "]", RestStatus.BAD_REQUEST);
         }
 
-        if (false == claimValues.stream().anyMatch(claimValueMatcher)) {
+        if (false == claimValues.stream().anyMatch(allowedClaimValues::contains)) {
             throw new ElasticsearchSecurityException(
                 "string claim ["
                     + claimName

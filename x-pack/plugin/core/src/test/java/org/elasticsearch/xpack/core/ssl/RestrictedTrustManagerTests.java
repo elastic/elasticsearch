@@ -94,6 +94,21 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         numberOfNodes = scaledRandomIntBetween(2, 8);
     }
 
+    public void testTrustsExplicitCertificateNameDns() throws Exception {
+        final Path cert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt");
+
+        baseTrustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(cert));
+        X509Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(cert));
+
+        certificates.put("withDns", certs);
+
+        final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(List.of("localhost6.localdomain6"));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions);
+        assertTrusted(trustManager, "withDns");
+
+    }
+
+
     public void testTrustsExplicitCertificateName() throws Exception {
         final int trustedCluster = randomIntBetween(1, numberOfClusters);
         final List<String> trustedNames = new ArrayList<>(numberOfNodes);

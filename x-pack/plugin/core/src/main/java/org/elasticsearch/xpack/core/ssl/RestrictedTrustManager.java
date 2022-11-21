@@ -23,12 +23,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.elasticsearch.core.Strings.format;
 
+//TODO: FIX ALL THE MESSAGES AND METHOD NAMES TO ALLOW FLEXING WITH DNS NAME
 /**
  * An X509 trust manager that only trusts connections from a restricted set of predefined network entities (nodes, clients, etc).
  * The trusted entities are defined as a list of predicates on {@link CertificateTrustRestrictions} that are applied to the
@@ -40,6 +42,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
     private static final Logger logger = LogManager.getLogger(RestrictedTrustManager.class);
     private static final String CN_OID = "2.5.4.3";
     private static final int SAN_CODE_OTHERNAME = 0;
+    private static final int SAN_CODE_DNS = 2;
 
     private final X509ExtendedTrustManager delegate;
     private final CertificateTrustRestrictions trustRestrictions;
@@ -136,12 +139,23 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
     }
 
     private static Set<String> readCommonNames(X509Certificate certificate) throws CertificateParsingException {
-        return getSubjectAlternativeNames(certificate).stream()
+        Collection<List<?>> sans = getSubjectAlternativeNames(certificate);
+        Set<String> dnsNames = sans.stream()
+            .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_DNS)
+            .map(pair -> pair.get(1))
+            .map(Object::toString)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
             .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
             .map(pair -> pair.get(1))
             .map(value -> decodeDerValue((byte[]) value, certificate))
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
+
+        return Stream.concat(dnsNames.stream(), otherNames.stream()).collect(Collectors.toSet());
+       // return  otherNames;
     }
 
     /**

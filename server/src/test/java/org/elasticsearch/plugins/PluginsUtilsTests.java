@@ -368,6 +368,53 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
+    public void testStableEarlierElasticsearchVersion() throws Exception {
+        PluginDescriptor info = new PluginDescriptor(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.fromId(Version.CURRENT.id + 1),
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false,
+            false,
+            false,
+            true
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "was built for Elasticsearch version "
+                    + Version.fromId(Version.CURRENT.id + 1)
+                    + " but earlier version "
+                    + Version.CURRENT
+                    + " is running"
+            )
+        );
+    }
+
+    public void testStableIncompatibleElasticsearchVersion() throws Exception {
+        PluginDescriptor info = new PluginDescriptor(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.fromId(6000099),
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false,
+            false,
+            false,
+            true
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for Elasticsearch major version 6"));
+    }
+
     public void testIncompatibleElasticsearchVersion() throws Exception {
         PluginDescriptor info = new PluginDescriptor(
             "my_plugin",

@@ -925,24 +925,36 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .showTermDocCountError(true)
                         .order(bucketOrder);
 
-                    AggTestConfig aggTestConfig = new AggTestConfig(aggregationBuilder, fieldType);
+                    AggTestConfig aggTestConfig = new AggTestConfig(aggregationBuilder, fieldType).withSplitLeavesIntoSeperateAggregators(
+                        // We cannot make result assertions on ascending order, so force exact counts by using only a single aggregator
+                        order == false
+                    );
                     Terms result = searchAndReduce(indexSearcher, aggTestConfig);
                     assertEquals(size, result.getBuckets().size());
+
+                    // Testing actual results, by first building a map of expected key->count because key order can change
                     HashMap<Object, Long> expectedCounts = new HashMap<>();
                     for (int i = 0; i < size; i++) {
                         Map.Entry<T, Integer> expected = expectedBuckets.get(i);
                         Object key = (valueType == ValueType.IP) ? String.valueOf(expected.getKey()).substring(1) : expected.getKey();
                         expectedCounts.put(key, expected.getValue().longValue());
                     }
+
+                    // Compare actual counts to expected counts, taking into account potential errors due to per-shard doc limits
                     long docCountError = result.getDocCountError();
                     for (int i = 0; i < size; i++) {
                         Terms.Bucket actual = result.getBuckets().get(i);
                         long expectedCount = expectedCounts.getOrDefault(actual.getKey(), 0L);
                         if (aggTestConfig.splitLeavesIntoSeparateAggregators() == false || indexReader.leaves().size() == 1) {
+                            // When there is only a single sub-aggregation, counts should be exact
                             assertThat("Count mismatch for " + actual.getKey(), actual.getDocCount(), equalTo(expectedCount));
                         } else if (order == false) {
+                            // If there are sub-aggregations, the maximum error should be less than docCountError, but only for descending
                             long diff = Math.abs(expectedCount - actual.getDocCount());
                             assertThat("Count error too large for " + actual.getKey(), diff, lessThanOrEqualTo(docCountError));
+                        } else {
+                            // If there are sub-aggregations, and we have ascending order, the maximum error is unbounded
+                            fail("This test does not yet cover the case of multiple-shards/aggregators and ascending counts");
                         }
                     }
 

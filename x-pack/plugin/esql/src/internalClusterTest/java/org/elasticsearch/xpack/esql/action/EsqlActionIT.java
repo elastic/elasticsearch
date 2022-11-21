@@ -473,16 +473,16 @@ public class EsqlActionIT extends ESIntegTestCase {
         record Doc(long val, String tag) {
 
         }
-        List<Doc> docs = new ArrayList<>();
+        List<Doc> allDocs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             Doc d = new Doc(i, "tag-" + randomIntBetween(1, 100));
-            docs.add(d);
+            allDocs.add(d);
             indexRequests.add(
                 client().prepareIndex().setIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag))
             );
         }
         indexRandom(true, randomBoolean(), indexRequests);
-        int limit = randomIntBetween(1, 1); // TODO: increase the limit after resolving the limit issue
+        int limit = randomIntBetween(1, 10);
         String command = "from test_extract_fields | sort val | limit " + limit;
         EsqlQueryResponse results = run(command);
         logger.info(results);
@@ -491,11 +491,12 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), hasSize(Math.min(limit, numDocs)));
         assertThat(results.columns().get(1).name(), equalTo("val"));
         assertThat(results.columns().get(0).name(), equalTo("tag"));
+        List<Doc> actualDocs = new ArrayList<>();
         for (int i = 0; i < results.values().size(); i++) {
             List<Object> values = results.values().get(i);
-            assertThat(values.get(1), equalTo(docs.get(i).val));
-            assertThat(values.get(0), equalTo(docs.get(i).tag));
+            actualDocs.add(new Doc((Long) values.get(1), (String) values.get(0)));
         }
+        assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
     }
 
     private EsqlQueryResponse run(String esqlCommands) {

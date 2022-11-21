@@ -1,5 +1,8 @@
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
+import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
+
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -11,6 +14,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -75,6 +81,20 @@ public class Stateless extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(STATELESS_ENABLED);
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        // set a Lucene directory wrapper for all indices, so that stateless is notified of all operations on Lucene files
+        indexModule.setDirectoryWrapper(StatelessDirectory::new);
+        // register a default listener when the shard is created in order to know the shard id and primary term
+        indexModule.addIndexEventListener(new IndexEventListener() {
+            @Override
+            public void afterIndexShardCreated(IndexShard indexShard) {
+                final StatelessDirectory directory = StatelessDirectory.unwrapDirectory(indexShard.store().directory());
+                directory.addListener(new DefaultDirectoryListener(indexShard.shardId(), indexShard::getOperationPrimaryTerm));
+            }
+        });
     }
 
     /**

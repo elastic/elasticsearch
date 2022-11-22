@@ -11,7 +11,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -60,8 +59,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             DesiredBalanceResponse::from,
             ThreadPool.Names.MANAGEMENT
         );
-        this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator
-            ? (DesiredBalanceShardsAllocator) shardsAllocator
+        this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator
+            ? desiredBalanceShardsAllocator
             : null;
     }
 
@@ -72,13 +71,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ClusterState state,
         ActionListener<DesiredBalanceResponse> listener
     ) throws Exception {
-        String allocatorName = ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.get(state.metadata().settings());
-        if (allocatorName.equals(ClusterModule.DESIRED_BALANCE_ALLOCATOR) == false || desiredBalanceShardsAllocator == null) {
-            listener.onFailure(
-                new ResourceNotFoundException(
-                    "Expected the shard balance allocator to be `desired_balance`, but got `" + allocatorName + "`"
-                )
-            );
+        if (desiredBalanceShardsAllocator == null) {
+            listener.onFailure(new ResourceNotFoundException("Desired balance allocator is not in use, no desired balance found"));
             return;
         }
 

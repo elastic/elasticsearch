@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -137,7 +136,6 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             null,
             IndexShardSnapshotStatus.newInitializing(null),
             Version.CURRENT,
-            Collections.emptyMap(),
             startTime,
             ActionListener.noop()
         );

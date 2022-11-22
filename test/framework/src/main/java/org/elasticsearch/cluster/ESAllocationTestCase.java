@@ -71,6 +71,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
     };
 
+    public static final WriteLoadForecaster TEST_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
+        @Override
+        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+            throw new AssertionError("Not required for testing");
+        }
+
+        @Override
+        @SuppressForbidden(reason = "tests do not need a license to access the write load")
+        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
+            return indexMetadata.getForecastedWriteLoad();
+        }
+    };
+
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.EMPTY);
     }
@@ -397,18 +410,4 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
         }
     }
-
-    protected static final WriteLoadForecaster SIMULATION_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
-        @Override
-        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
-            throw new AssertionError("only called during rollover");
-        }
-
-        @Override
-        @SuppressForbidden(reason = "tests do not need a license to access the write load")
-        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
-            return indexMetadata.getForecastedWriteLoad();
-        }
-    };
-
 }

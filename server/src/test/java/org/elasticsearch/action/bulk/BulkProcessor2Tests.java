@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -63,54 +62,6 @@ public class BulkProcessor2Tests extends ESTestCase {
     @After
     public void stopThreadPool() throws InterruptedException {
         terminate(threadPool);
-    }
-
-    public void testBulkProcessor2FlushPreservesContext() throws InterruptedException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final String headerKey = randomAlphaOfLengthBetween(1, 8);
-        final String transientKey = randomAlphaOfLengthBetween(1, 8);
-        final String headerValue = randomAlphaOfLengthBetween(1, 32);
-        final Object transientValue = new Object();
-
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
-            ThreadContext threadContext = threadPool.getThreadContext();
-            assertEquals(headerValue, threadContext.getHeader(headerKey));
-            assertSame(transientValue, threadContext.getTransient(transientKey));
-            listener.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
-            latch.countDown();
-        };
-
-        final int bulkSize = randomIntBetween(2, 32);
-        final TimeValue flushInterval = TimeValue.timeValueSeconds(1L);
-        final BulkProcessor2 bulkProcessor;
-        assertNull(threadPool.getThreadContext().getHeader(headerKey));
-        assertNull(threadPool.getThreadContext().getTransient(transientKey));
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            threadPool.getThreadContext().putHeader(headerKey, headerValue);
-            threadPool.getThreadContext().putTransient(transientKey, transientValue);
-            bulkProcessor = new BulkProcessor2(
-                consumer,
-                0,
-                emptyListener(),
-                bulkSize,
-                new ByteSizeValue(5, ByteSizeUnit.MB),
-                new ByteSizeValue(50, ByteSizeUnit.MB),
-                flushInterval,
-                threadPool
-            );
-        }
-        assertNull(threadPool.getThreadContext().getHeader(headerKey));
-        assertNull(threadPool.getThreadContext().getTransient(transientKey));
-
-        // add a single item which won't be over the size or number of items
-        bulkProcessor.add(new IndexRequest());
-
-        // wait for flush to execute
-        latch.await();
-
-        assertNull(threadPool.getThreadContext().getHeader(headerKey));
-        assertNull(threadPool.getThreadContext().getTransient(transientKey));
-        bulkProcessor.close();
     }
 
     public void testRetry() throws Exception {

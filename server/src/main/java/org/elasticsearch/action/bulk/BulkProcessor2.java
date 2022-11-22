@@ -162,7 +162,11 @@ public class BulkProcessor2 implements Closeable {
     private final int maxActionsPerBulkRequest;
     private final long maxBulkSizeBytes;
 
-    private final Scheduler.Cancellable cancellableFlushTask;
+    /**
+     * This is a task (which might be null) that is scheduled at some pont in the future to flush the bulk request and start a new bulk
+     * request. This variable is read and written to from multiple threads, and is protected by mutex.
+     */
+    private volatile Scheduler.Cancellable cancellableFlushTask = null;
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
@@ -172,6 +176,10 @@ public class BulkProcessor2 implements Closeable {
     private final Listener listener;
 
     private final Retry2 retry;
+
+    private final TimeValue flushInterval;
+
+    private final ThreadPool threadPool;
 
     private BulkRequest bulkRequest;
 
@@ -200,8 +208,8 @@ public class BulkProcessor2 implements Closeable {
         this.consumer = consumer;
         this.listener = listener;
         this.retry = new Retry2(maxNumberOfRetries, maxBytesInFlight);
-        // Start period flushing task after everything is setup
-        this.cancellableFlushTask = startFlushTask(flushInterval, threadPool);
+        this.flushInterval = flushInterval;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -235,7 +243,9 @@ public class BulkProcessor2 implements Closeable {
             }
             closed = true;
 
-            this.cancellableFlushTask.cancel();
+            if (cancellableFlushTask != null) {
+                cancellableFlushTask.cancel();
+            }
 
             if (bulkRequest.numberOfActions() > 0) {
                 execute();
@@ -286,33 +296,38 @@ public class BulkProcessor2 implements Closeable {
         if (bulkRequestToExecute != null) {
             execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
         }
+        scheduleFlushTask();
     }
 
-    private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, ThreadPool threadPool) {
+    /**
+     * This method schedules a flush task to run flushInterval in the future if flushInterval is not null and if there is not already a
+     * flush task scheduled.
+     */
+    private void scheduleFlushTask() {
         if (flushInterval == null) {
-            return new Scheduler.Cancellable() {
-                @Override
-                public boolean cancel() {
-                    return false;
-                }
-
-                @Override
-                public boolean isCancelled() {
-                    return true;
-                }
-            };
+            return;
         }
-        return threadPool.scheduleWithFixedDelay(() -> {
-            synchronized (mutex) {
-                if (closed) {
-                    return;
-                }
-                if (bulkRequest.numberOfActions() == 0) {
-                    return;
-                }
-                execute();
+        /*
+         * This method is called from multiple threads. We synchronize on mutex here so that we are sure that cancellableFlushTask is not
+         * changed between when we check it and when we set it (whether that is a transition from null -> not null from another thread
+         * in this method or a change from not null -> null from the scheduled task).
+         */
+        synchronized (mutex) {
+            if (cancellableFlushTask == null) {
+                cancellableFlushTask = threadPool.schedule(() -> {
+                    synchronized (mutex) {
+                        if (closed) {
+                            return;
+                        }
+                        if (bulkRequest.numberOfActions() == 0) {
+                            return;
+                        }
+                        execute();
+                        cancellableFlushTask = null;
+                    }
+                }, flushInterval, ThreadPool.Names.GENERIC);
             }
-        }, flushInterval, ThreadPool.Names.GENERIC);
+        }
     }
 
     private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {

@@ -32,10 +32,18 @@ public class TaskAssertions {
     private TaskAssertions() {}
 
     public static void awaitTaskWithPrefix(String actionPrefix) throws Exception {
+        awaitTaskWithPrefix(actionPrefix, internalCluster().getInstances(TransportService.class));
+    }
+
+    public static void awaitTaskWithPrefixOnMaster(String actionPrefix) throws Exception {
+        awaitTaskWithPrefix(actionPrefix, List.of(internalCluster().getCurrentMasterNodeInstance(TransportService.class)));
+    }
+
+    public static void awaitTaskWithPrefix(String actionPrefix, Iterable<TransportService> transportServiceInstances) throws Exception {
         logger.info("--> waiting for task with prefix [{}] to start", actionPrefix);
 
         assertBusy(() -> {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            for (TransportService transportService : transportServiceInstances) {
                 List<Task> matchingTasks = transportService.getTaskManager()
                     .getTasks()
                     .values()

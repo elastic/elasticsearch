@@ -35,7 +35,7 @@ import java.util.function.Function;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
-import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefixOnMaster;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -77,11 +77,9 @@ public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
         final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         assertThat(future.isDone(), equalTo(false));
-        awaitTaskWithPrefix(actionName);
+        awaitTaskWithPrefixOnMaster(actionName);
 
-        // Call the cancellation in a separate thread which is likely to reduce the rare cases where the cancellation
-        // could finish and clean up the tasks, and result in finding no task for the action at all.
-        new Thread(cancellable::cancel).start();
+        cancellable.cancel();
         assertAllCancellableTasksAreCancelled(actionName);
 
         // Remove the cluster block

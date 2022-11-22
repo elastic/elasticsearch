@@ -133,6 +133,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -1642,7 +1643,7 @@ public class RBACEngineTests extends ESTestCase {
         final int numGroups = randomIntBetween(1, 3);
         final List<IndicesPrivileges> expectedIndicesPrivileges = new ArrayList<>();
         for (int i = 0; i < numGroups; i++) {
-            final String[] indexNames = generateRandomStringArray(3, 10, false, false);
+            final String[] indexNames = Objects.requireNonNull(generateRandomStringArray(3, 10, false, false));
             final boolean allowRestrictedIndices = randomBoolean();
             final boolean hasFls = randomBoolean();
             final FieldPermissionsDefinition.FieldGrantExcludeGroup group = hasFls
@@ -1650,7 +1651,7 @@ public class RBACEngineTests extends ESTestCase {
                 : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null);
             final BytesReference query = randomBoolean() ? randomDlsQuery() : null;
             final IndicesPrivileges.Builder builder = IndicesPrivileges.builder()
-                .indices(Arrays.stream(Objects.requireNonNull(indexNames)).sorted().collect(Collectors.toList()))
+                .indices(Arrays.stream(indexNames).sorted().collect(Collectors.toList()))
                 .privileges("read")
                 .allowRestrictedIndices(allowRestrictedIndices)
                 .query(query);
@@ -1713,6 +1714,8 @@ public class RBACEngineTests extends ESTestCase {
                 )
             )
         );
+        verify(role, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role);
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
@@ -1748,6 +1751,8 @@ public class RBACEngineTests extends ESTestCase {
         final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo1, future1);
         final RoleDescriptorsIntersection actual1 = future1.get();
+        verify(role1, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role1);
 
         // Randomize the order of both remote indices groups and each of the indices permissions groups each group holds
         final RemoteIndicesPermission shuffledPermissions = new RemoteIndicesPermission(
@@ -1769,6 +1774,8 @@ public class RBACEngineTests extends ESTestCase {
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo2, future2);
         final RoleDescriptorsIntersection actual2 = future2.get();
 
+        verify(role2, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role2);
         assertThat(actual1, equalTo(actual2));
         assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
     }
@@ -1800,6 +1807,8 @@ public class RBACEngineTests extends ESTestCase {
         );
         final RoleDescriptorsIntersection actual = future.get();
         assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
+        verify(role, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role);
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutRemoteIndicesPermissions() throws ExecutionException,

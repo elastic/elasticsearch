@@ -680,9 +680,12 @@ public class RBACEngine implements AuthorizationEngine {
             remoteIndicesPermission = role.remoteIndices().forCluster(remoteClusterAlias);
         } catch (UnsupportedOperationException e) {
             // TODO we will need to implement this to support API keys with assigned role descriptors
-            final String message = "Cannot retrieve remote access role descriptors for API keys with assigned role descriptors.";
-            assert false : message;
-            listener.onFailure(new IllegalArgumentException(message, e));
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "cannot retrieve remote access role descriptors for API keys with assigned role descriptors.",
+                    e
+                )
+            );
             return;
         }
 
@@ -705,7 +708,7 @@ public class RBACEngine implements AuthorizationEngine {
                         new RoleDescriptor(
                             REMOTE_USER_ROLE_NAME,
                             null,
-                            // the role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
+                            // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
                             // cache key; we therefore need deterministic order when constructing them here, to ensure cache hits for
                             // equivalent role descriptors
                             indicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),

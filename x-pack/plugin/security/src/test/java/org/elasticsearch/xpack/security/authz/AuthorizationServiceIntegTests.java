@@ -17,8 +17,11 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -30,8 +33,10 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
 
@@ -48,11 +53,18 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         getSecurityClient().putRole(
             new RoleDescriptor(
                 roleName,
+                randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+                randomBoolean()
+                    ? null
+                    : new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
+                            .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                            .allowRestrictedIndices(randomBoolean())
+                            .build() },
                 null,
                 null,
-                null,
-                null,
-                null,
+                generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
                 null,
                 null,
                 new RoleDescriptor.RemoteIndicesPrivileges[] {
@@ -126,15 +138,21 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         // For internal users, we support the situation where there is no authorization information populated in thread context
         // We test both scenarios, one where we don't authorize and don't have authorization info in thread context, and one where we do
         if (randomBoolean()) {
+            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
             authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                 concreteClusterAlias,
                 authentication.getEffectiveSubject(),
-                new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(actual::set), latch)
+                new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
+                    assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+                    actual.set(newValue);
+                }), latch)
             );
             latch.await();
             assertThat(actual.get(), equalTo(RoleDescriptorsIntersection.EMPTY));
+            // Validate original authz info is restored to null after call complete
+            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
         } else {
             assertThat(
                 authorizeThenRetrieveRemoteAccessDescriptors(threadContext, authzService, authentication, concreteClusterAlias),
@@ -150,6 +168,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final String concreteClusterAlias
     ) throws InterruptedException {
         try (var ignored = threadContext.stashContext()) {
+            final AuthorizationEngine.AuthorizationInfo originalAuthzInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
             final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
             final CountDownLatch latch = new CountDownLatch(1);
             // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
@@ -166,11 +185,16 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                     authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                         concreteClusterAlias,
                         authentication.getEffectiveSubject(),
-                        new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(actual::set), latch)
+                        new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
+                            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(equalTo(originalAuthzInfo)));
+                            actual.set(newValue);
+                        }), latch)
                     );
                 })
             );
             latch.await();
+            // Validate original authz info is restored after call complete
+            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), equalTo(originalAuthzInfo));
             return actual.get();
         }
     }

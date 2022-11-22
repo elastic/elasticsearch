@@ -38,7 +38,8 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
             throw userFunctionNode.createError(
                 new IllegalStateException(
                     Strings.format(
-                        "invalid function definition: parameter types size [%d] is not equal to parameter names size [%d] for function [%s]",
+                        "invalid function definition: "
+                            + "parameter types size [%d] is not equal to parameter names size [%d] for function [%s]",
                         canonicalTypeNameParameters.size(),
                         parameterNames.size(),
                         functionName

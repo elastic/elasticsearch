@@ -17,7 +17,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 
 public class RemoteAccessAuthenticationTests extends ESTestCase {
 
@@ -59,7 +58,7 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
             ex.getMessage(),
             equalTo(
                 "remote access authentication ["
-                    + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER
+                    + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
                     + "] is already present in the context"
             )
         );

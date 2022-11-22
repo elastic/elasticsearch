@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Set;
 
 public record RemoteAccessAuthentication(Authentication authentication, List<BytesReference> roleDescriptorsBytesIntersection) {
-    public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER = "_remote_access_authentication";
+    public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY = "_remote_access_authentication";
 
     public static void writeToContextAsRemoteAccessAuthentication(
         final ThreadContext ctx,
@@ -37,11 +37,11 @@ public record RemoteAccessAuthentication(Authentication authentication, List<Byt
         final RoleDescriptorsIntersection roleDescriptorsIntersection
     ) throws IOException {
         ensureContextDoesNotContainRemoteAccessAuthentication(ctx);
-        ctx.putHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER, encode(authentication, roleDescriptorsIntersection));
+        ctx.putHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode(authentication, roleDescriptorsIntersection));
     }
 
     public static RemoteAccessAuthentication readFromContext(final ThreadContext ctx) throws IOException {
-        return decode(ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER));
+        return decode(ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY));
     }
 
     public static Set<RoleDescriptor> parseRoleDescriptorBytes(final BytesReference roleDescriptorBytes) {
@@ -90,9 +90,9 @@ public record RemoteAccessAuthentication(Authentication authentication, List<Byt
     }
 
     private static void ensureContextDoesNotContainRemoteAccessAuthentication(final ThreadContext ctx) {
-        if (ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER) != null) {
+        if (ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) != null) {
             throw new IllegalStateException(
-                "remote access authentication [" + REMOTE_ACCESS_AUTHENTICATION_HEADER + "] is already present in the context"
+                "remote access authentication [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is already present in the context"
             );
         }
     }

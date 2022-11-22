@@ -11,20 +11,24 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class DesiredBalanceResponse extends ActionResponse implements ToXContentObject {
+public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContent {
 
     private final DesiredBalanceStats stats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
@@ -56,26 +60,21 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
+    public Iterator<? extends ToXContent> toXContentChunked() {
+        return Iterators.concat(Iterators.single((builder, params) -> {
+            builder.startObject();
             builder.startObject("stats");
             stats.toXContent(builder, params);
             builder.endObject();
-        }
-        {
-            builder.startObject("routing_table");
-            for (Map.Entry<String, Map<Integer, DesiredShards>> indexEntry : routingTable.entrySet()) {
-                builder.startObject(indexEntry.getKey());
-                for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
-                    builder.field(String.valueOf(shardEntry.getKey()));
-                    shardEntry.getValue().toXContent(builder, params);
-                }
-                builder.endObject();
+            return builder.startObject("routing_table");
+        }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {
+            builder.startObject(indexEntry.getKey());
+            for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
+                builder.field(String.valueOf(shardEntry.getKey()));
+                shardEntry.getValue().toXContent(builder, params);
             }
-            builder.endObject();
-        }
-        return builder.endObject();
+            return builder.endObject();
+        }).iterator(), Iterators.single((builder, params) -> builder.endObject().endObject()));
     }
 
     public DesiredBalanceStats getStats() {

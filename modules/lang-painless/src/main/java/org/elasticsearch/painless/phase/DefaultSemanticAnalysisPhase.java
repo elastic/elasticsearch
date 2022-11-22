@@ -1540,7 +1540,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (promote == null) {
                 throw userConditionalNode.createError(
                     new ClassCastException(
-                        "cannot apply the conditional operator [?:] to the types [%s] and [%s]".formatted(
+                        Strings.format(
+                            "cannot apply the conditional operator [?:] to the types [%s] and [%s]",
                             PainlessLookupUtility.typeToCanonicalTypeName(leftValueType),
                             PainlessLookupUtility.typeToCanonicalTypeName(rightValueType)
                         )

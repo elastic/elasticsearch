@@ -162,7 +162,6 @@ public class SecureSM extends SecurityManager {
     protected void checkThreadAccess(Thread t) {
         Objects.requireNonNull(t);
 
-
         boolean targetThreadIsInnocuous = isInnocuousThread(t);
         // we don't need to check if innocuous thread is modifying itself (like changes its name)
         if (Thread.currentThread() != t || targetThreadIsInnocuous == false) {

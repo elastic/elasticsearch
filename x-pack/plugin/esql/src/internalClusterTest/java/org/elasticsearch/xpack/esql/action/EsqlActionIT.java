@@ -515,12 +515,12 @@ public class EsqlActionIT extends ESIntegTestCase {
     public void testEvalWithNull() {
         EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | sort nullsum | limit 1");
         logger.info(results);
-        Assert.assertEquals(9, results.columns().size());
+        Assert.assertEquals(7, results.columns().size());
         Assert.assertEquals(1, results.values().size());
-        assertEquals("nullsum", results.columns().get(3).name());
-        assertEquals("double", results.columns().get(3).type());
-        assertEquals(9, results.values().get(0).size());
-        assertNull(results.values().get(0).get(3));
+        assertEquals("nullsum", results.columns().get(6).name());
+        assertEquals("double", results.columns().get(6).type());
+        assertEquals(7, results.values().get(0).size());
+        assertNull(results.values().get(0).get(6));
     }
 
     public void testEvalWithNullAndAvg() {

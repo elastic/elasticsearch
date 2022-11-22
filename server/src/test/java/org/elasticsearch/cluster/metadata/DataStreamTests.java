@@ -18,7 +18,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
+public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStream> {
 
     @Override
     protected DataStream doParseInstance(XContentParser parser) throws IOException {

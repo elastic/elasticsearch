@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,12 +24,12 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
     private final List<SnapshottableFeature> snapshottableFeatures;
 
     public GetSnapshottableFeaturesResponse(List<SnapshottableFeature> features) {
-        this.snapshottableFeatures = Collections.unmodifiableList(features);
+        this.snapshottableFeatures = List.copyOf(features);
     }
 
     public GetSnapshottableFeaturesResponse(StreamInput in) throws IOException {
         super(in);
-        snapshottableFeatures = in.readList(SnapshottableFeature::new);
+        snapshottableFeatures = in.readImmutableList(SnapshottableFeature::new);
     }
 
     public List<SnapshottableFeature> getSnapshottableFeatures() {

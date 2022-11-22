@@ -45,6 +45,8 @@ resource-heavy {ls} deployment should be on its own host.
 
 include::setup/install.asciidoc[]
 
+include::setup/run-elasticsearch-locally.asciidoc[]
+
 include::setup/configuration.asciidoc[]
 
 include::setup/important-settings.asciidoc[]

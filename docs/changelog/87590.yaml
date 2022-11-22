@@ -1,6 +1,0 @@
-pr: 87590
-summary: Add support for VERSION field type in SQL and EQL
-area: Query Languages
-type: enhancement
-issues:
- - 83375

@@ -19,7 +19,7 @@ setup:
               _id:    "1"
           - event:
               - category: process
-            "@timestamp": 2020-02-03T12:34:56Z
+            "@timestamp": "2020-02-03T12:34:56Z"
             user: SYSTEM
             id: 123
             valid: false
@@ -29,7 +29,7 @@ setup:
               _id:    "2"
           - event:
               - category: process
-            "@timestamp": 2020-02-04T12:34:56Z
+            "@timestamp": "2020-02-04T12:34:56Z"
             user: SYSTEM
             id: 123
             valid: true
@@ -39,7 +39,7 @@ setup:
               _id:    "3"
           - event:
               - category: process
-            "@timestamp": 2020-02-05T12:34:56Z
+            "@timestamp": "2020-02-05T12:34:56Z"
             user: SYSTEM
             id: 123
             valid: true
@@ -49,7 +49,7 @@ setup:
               _id:    "4"
           - event:
               - category: process
-            "@timestamp": 2020-02-05T12:34:57Z
+            "@timestamp": "2020-02-05T12:34:57Z"
             user: SYSTEM
             id: 123
 

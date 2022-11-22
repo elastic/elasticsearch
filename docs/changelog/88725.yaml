@@ -1,6 +1,0 @@
-pr: 88725
-summary: Increase `http.max_header_size` default to 16kb
-area: Network
-type: enhancement
-issues:
- - 88501

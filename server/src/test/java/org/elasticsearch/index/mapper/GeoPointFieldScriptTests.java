@@ -17,6 +17,7 @@ import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -59,7 +60,7 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
                 GeoPointFieldScript script = new GeoPointFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 ) {
                     @Override

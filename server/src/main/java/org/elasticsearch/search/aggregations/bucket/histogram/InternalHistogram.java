@@ -400,7 +400,19 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             reduceContext
         );
         ListIterator<Bucket> iter = list.listIterator();
-        iterateEmptyBuckets(list, iter, key -> iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs)));
+        iterateEmptyBuckets(list, iter, new DoubleConsumer() {
+            private int size;
+
+            @Override
+            public void accept(double key) {
+                size++;
+                if (size >= REPORT_EMPTY_EVERY) {
+                    reduceContext.consumeBucketsAndMaybeBreak(size);
+                    size = 0;
+                }
+                iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
+            }
+        });
     }
 
     private void iterateEmptyBuckets(List<Bucket> list, ListIterator<Bucket> iter, DoubleConsumer onBucket) {

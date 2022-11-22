@@ -90,6 +90,7 @@ actions in the order listed.
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
+  - <<ilm-downsample,Downsample>>  
 * Warm
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
@@ -98,6 +99,7 @@ actions in the order listed.
   - <<ilm-migrate,Migrate>>
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
+  - <<ilm-downsample,Downsample>>  
 * Cold
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
@@ -105,6 +107,7 @@ actions in the order listed.
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-migrate,Migrate>>
+  <<ilm-downsample,Downsample>>
 * Frozen
   - <<ilm-unfollow,Unfollow>>
   - <<ilm-searchable-snapshot, Searchable Snapshot>>

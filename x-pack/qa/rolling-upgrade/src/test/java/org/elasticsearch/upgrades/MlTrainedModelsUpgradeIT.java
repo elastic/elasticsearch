@@ -153,7 +153,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createAndRunRegressionJob() throws Exception {
-        String config = """
+        String config = formatted("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -167,12 +167,12 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 }
               },
               "model_memory_limit": "18mb"
-            }""".formatted(INDEX_NAME, NUMERICAL_FIELD);
+            }""", INDEX_NAME, NUMERICAL_FIELD);
         putAndStartDFAAndWaitForFinish(config, "regression");
     }
 
     void createAndRunClassificationJob() throws Exception {
-        String config = """
+        String config = formatted("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -186,7 +186,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 }
               },
               "model_memory_limit": "18mb"
-            }""".formatted(INDEX_NAME, KEYWORD_FIELD);
+            }""", INDEX_NAME, KEYWORD_FIELD);
         putAndStartDFAAndWaitForFinish(config, "classification");
     }
 
@@ -205,7 +205,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createPipeline(String id, String modelType, String modelId) throws Exception {
-        String body = """
+        String body = formatted("""
             {
               "processors": [
                 {
@@ -218,14 +218,14 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                   }
                 }
               ]
-            }""".formatted(modelId, modelType);
+            }""", modelId, modelType);
         Request putRequest = new Request("PUT", "_ingest/pipeline/" + id);
         putRequest.setJsonEntity(body);
         client().performRequest(putRequest);
     }
 
     void createIndexWithName(String index) throws IOException {
-        String mapping = """
+        String mapping = formatted("""
             "properties": {
                 "%s": {
                   "type": "boolean"
@@ -239,7 +239,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 "%s": {
                   "type": "keyword"
                 }
-            }""".formatted(BOOLEAN_FIELD, NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD, KEYWORD_FIELD);
+            }""", BOOLEAN_FIELD, NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD, KEYWORD_FIELD);
         createIndex(index, Settings.EMPTY, mapping);
     }
 

@@ -305,8 +305,6 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
                 bloomFilters = new HashMap<>(numBloomFilters);
                 for (int i = 0; i < numBloomFilters; i++) {
                     final BloomFilter bloomFilter = BloomFilter.readFrom(metaIn, state.fieldInfos);
-                    assert bloomFilter.bloomFilterSize == bloomFilterSize(state.segmentInfo.maxDoc())
-                        : "bloom_filter=" + bloomFilter + ", max_docs=" + state.segmentInfo.maxDoc();
                     bloomFilters.put(bloomFilter.field, bloomFilter);
                 }
                 CodecUtil.checkFooter(metaIn);
@@ -321,12 +319,21 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
                     state.segmentSuffix
                 );
                 CodecUtil.retrieveChecksum(indexIn);
+                assert assertBloomFilterSizes(state.segmentInfo);
                 success = true;
             } finally {
                 if (success == false) {
                     IOUtils.closeWhileHandlingException(toCloses);
                 }
             }
+        }
+
+        private boolean assertBloomFilterSizes(SegmentInfo segmentInfo) {
+            for (BloomFilter bloomFilter : bloomFilters.values()) {
+                assert bloomFilter.bloomFilterSize == bloomFilterSize(segmentInfo.maxDoc())
+                    : "bloom_filter=" + bloomFilter + ", max_docs=" + segmentInfo.maxDoc();
+            }
+            return true;
         }
 
         @Override

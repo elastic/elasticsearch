@@ -244,7 +244,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         // Can get its own info
         final GetApiKeyResponse getApiKeyResponse = clientKey1.execute(
             GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean())
+            GetApiKeyRequest.builder().apiKeyId(apiKeyId).ownedByAuthenticatedUser(randomBoolean()).build()
         ).actionGet();
         assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
         assertThat(getApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(apiKeyId));
@@ -252,7 +252,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         // Cannot get any other keys
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> clientKey1.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forAllApiKeys()).actionGet()
+            () -> clientKey1.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().build()).actionGet()
         );
         assertThat(e.getMessage(), containsString("unauthorized for API key id [" + apiKeyId + "]"));
     }
@@ -308,7 +308,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             e1.getMessage(),
             containsString(
                 "action [cluster:admin/xpack/security/user/authenticate] is unauthorized "
-                    + "for user [user1] because user [user1] is unauthorized to run as [user3]"
+                    + "for user [user1] with effective roles [user1_role]"
+                    + ", because user [user1] is unauthorized to run as [user3]"
             )
         );
 
@@ -322,7 +323,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             e2.getMessage(),
             containsString(
                 "action [cluster:admin/xpack/security/user/authenticate] is unauthorized "
-                    + "for user [user1] because user [user1] is unauthorized to run as [user4]"
+                    + "for user [user1] with effective roles [user1_role]"
+                    + ", because user [user1] is unauthorized to run as [user4]"
             )
         );
 
@@ -368,7 +370,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             e4.getMessage(),
             containsString(
                 "action [cluster:admin/xpack/security/user/authenticate] is unauthorized "
-                    + "for user [user1] because user [user1] is unauthorized to run as [user4]"
+                    + "for user [user1] with effective roles [user1_role]"
+                    + ", because user [user1] is unauthorized to run as [user4]"
             )
         );
     }

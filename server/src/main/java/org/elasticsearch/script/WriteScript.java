@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.script.field.WriteField;
+
 import java.util.Map;
 
 /**
@@ -29,5 +31,9 @@ public abstract class WriteScript {
     /** Return the metadata for this script */
     public Metadata metadata() {
         return ctxMap.getMetadata();
+    }
+
+    public WriteField field(String path) {
+        return new WriteField(path, ctxMap::getSource);
     }
 }

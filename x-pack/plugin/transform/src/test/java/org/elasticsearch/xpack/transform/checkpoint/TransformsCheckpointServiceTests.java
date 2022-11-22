@@ -210,7 +210,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
                     );
                     shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-                    shardRouting = shardRouting.moveToStarted();
+                    shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
                     CommonStats stats = new CommonStats();
                     stats.fieldData = new FieldDataStats();

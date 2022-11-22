@@ -1,4 +1,3 @@
-ifeval::["{release-state}"=="unreleased"]
 [[tsds-index-settings]]
 === Time series index settings
 
@@ -48,9 +47,6 @@ more information, refer to <<dimension-based-routing>>.
 // tag::dimensions-limit[]
 `index.mapping.dimension_fields.limit`::
 preview:[] (<<dynamic-index-settings,Dynamic>>, integer)
-//Maximum number of <<time-series-dimension,time series dimensions>> for the
-//index. Defaults to `16`.
-Maximum number of time series dimensions for the
+Maximum number of <<time-series-dimension,time series dimensions>> for the
 index. Defaults to `16`.
 // end::dimensions-limit[]
-endif::[]

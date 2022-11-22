@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -18,7 +18,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
 
-public class InferenceStatsTests extends AbstractSerializingTestCase<InferenceStats> {
+public class InferenceStatsTests extends AbstractXContentSerializingTestCase<InferenceStats> {
 
     public static InferenceStats createTestInstance(String modelId, @Nullable String nodeId) {
         return new InferenceStats(

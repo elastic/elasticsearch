@@ -136,6 +136,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
     }
 
+    public Recycler<BytesRef> recycler() {
+        return recycler;
+    }
+
     @Override
     public BoundTransportAddress boundAddress() {
         return this.boundAddress;

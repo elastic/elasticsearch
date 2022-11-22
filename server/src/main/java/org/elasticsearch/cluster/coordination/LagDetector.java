@@ -142,7 +142,7 @@ public class LagDetector {
         }
 
         void increaseAppliedVersion(long appliedVersion) {
-            long maxAppliedVersion = this.appliedVersion.updateAndGet(v -> Math.max(v, appliedVersion));
+            long maxAppliedVersion = this.appliedVersion.accumulateAndGet(appliedVersion, Math::max);
             logger.trace("{} applied version {}, max now {}", this, appliedVersion, maxAppliedVersion);
         }
 

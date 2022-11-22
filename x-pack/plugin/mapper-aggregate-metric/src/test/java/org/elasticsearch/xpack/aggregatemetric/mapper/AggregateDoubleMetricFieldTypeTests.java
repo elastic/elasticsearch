@@ -27,6 +27,7 @@ import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
@@ -82,16 +83,17 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValueWithOneMetric() throws IOException {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.min);
-        final double defaultValue = 45.8;
-        final Map<String, Object> metric = Collections.singletonMap("min", defaultValue);
-        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        final double min = 45.8;
+        final Map<String, Object> metric = Collections.singletonMap("min", min);
+        assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
     public void testFetchSourceValueWithMultipleMetrics() throws IOException {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
-        final double defaultValue = 45.8;
-        final Map<String, Object> metric = Map.of("min", 14.2, "max", defaultValue);
-        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        final double max = 45.8;
+        final double min = 14.2;
+        final Map<String, Object> metric = Map.of("min", min, "max", max);
+        assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
     /** Tests that aggregate_metric_double uses the default_metric subfield's doc-values as values in scripts */
@@ -124,7 +126,8 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
                         new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
-                    ).build(null, null)
+                    ).build(null, null),
+                    new SourceLookup.ReaderSourceProvider()
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);

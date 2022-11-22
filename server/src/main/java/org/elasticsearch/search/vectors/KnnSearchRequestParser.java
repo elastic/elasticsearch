@@ -48,7 +48,7 @@ public class KnnSearchRequestParser {
         PARSER.declareField(KnnSearchRequestParser::knnSearch, KnnSearch::parse, KNN_SECTION_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareFieldArray(
             KnnSearchRequestParser::filter,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );

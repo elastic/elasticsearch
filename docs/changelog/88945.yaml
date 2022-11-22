@@ -1,6 +1,0 @@
-pr: 88945
-summary: Address potential bug where trained models get stuck in starting after being
-  allocated to node
-area: Machine Learning
-type: bug
-issues: []

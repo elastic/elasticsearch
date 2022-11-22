@@ -40,52 +40,52 @@ import java.util.Map;
  */
 public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
-    private long timestamp;
+    private final long timestamp;
 
     @Nullable
     private NodeIndicesStats indices;
 
     @Nullable
-    private OsStats os;
+    private final OsStats os;
 
     @Nullable
-    private ProcessStats process;
+    private final ProcessStats process;
 
     @Nullable
-    private JvmStats jvm;
+    private final JvmStats jvm;
 
     @Nullable
-    private ThreadPoolStats threadPool;
+    private final ThreadPoolStats threadPool;
 
     @Nullable
-    private FsInfo fs;
+    private final FsInfo fs;
 
     @Nullable
-    private TransportStats transport;
+    private final TransportStats transport;
 
     @Nullable
-    private HttpStats http;
+    private final HttpStats http;
 
     @Nullable
-    private AllCircuitBreakerStats breaker;
+    private final AllCircuitBreakerStats breaker;
 
     @Nullable
-    private ScriptStats scriptStats;
+    private final ScriptStats scriptStats;
 
     @Nullable
-    private ScriptCacheStats scriptCacheStats;
+    private final ScriptCacheStats scriptCacheStats;
 
     @Nullable
-    private DiscoveryStats discoveryStats;
+    private final DiscoveryStats discoveryStats;
 
     @Nullable
-    private IngestStats ingestStats;
+    private final IngestStats ingestStats;
 
     @Nullable
-    private AdaptiveSelectionStats adaptiveSelectionStats;
+    private final AdaptiveSelectionStats adaptiveSelectionStats;
 
     @Nullable
-    private IndexingPressureStats indexingPressureStats;
+    private final IndexingPressureStats indexingPressureStats;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);

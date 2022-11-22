@@ -40,6 +40,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -77,7 +78,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService()
         );
-        MapperBuilderContext context = MapperBuilderContext.ROOT;
+        MapperBuilderContext context = MapperBuilderContext.root(false);
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
@@ -135,7 +136,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             searchLookupSetOnce.set(fdc.lookupSupplier());
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
-        SearchLookup searchLookup = new SearchLookup(null, null);
+        SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
         ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
@@ -150,7 +151,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.ROOT;
+        final MapperBuilderContext context = MapperBuilderContext.root(false);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();
@@ -217,7 +218,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.ROOT;
+        final MapperBuilderContext context = MapperBuilderContext.root(false);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();

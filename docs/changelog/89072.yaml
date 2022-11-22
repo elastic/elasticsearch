@@ -1,6 +1,0 @@
-pr: 89072
-summary: Quote paths with whitespace in Windows service CLIs
-area: Infra/CLI
-type: bug
-issues:
- - 89043

@@ -531,4 +531,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
         return reloadedAnalyzers;
     }
+
+    /**
+     * @return Returns all dynamic templates defined in this mapping.
+     */
+    public DynamicTemplate[] getAllDynamicTemplates() {
+        return documentMapper().mapping().getRoot().dynamicTemplates();
+    }
+
 }

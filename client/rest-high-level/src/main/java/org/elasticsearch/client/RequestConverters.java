@@ -1026,7 +1026,7 @@ final class RequestConverters {
                 withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
                 putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
                 String expandWildcards;
-                if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                if (indicesOptions.expandWildcardExpressions() == false) {
                     expandWildcards = "none";
                 } else {
                     StringJoiner joiner = new StringJoiner(",");

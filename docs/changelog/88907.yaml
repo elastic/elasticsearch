@@ -1,6 +1,0 @@
-pr: 88907
-summary: Fix BERT and MPNet tokenization bug when handling unicode accents
-area: Machine Learning
-type: bug
-issues:
- - 88900

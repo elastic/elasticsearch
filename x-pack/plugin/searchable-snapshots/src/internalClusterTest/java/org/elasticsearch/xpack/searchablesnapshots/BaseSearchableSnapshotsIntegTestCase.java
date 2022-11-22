@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -43,6 +42,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin;
 import org.junit.After;
 
 import java.io.IOException;
@@ -50,6 +50,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -66,6 +67,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedByt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
@@ -77,7 +79,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateSearchableSnapshots.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(LocalStateSearchableSnapshots.class);
+        plugins.add(LicensedSnapshotBasedRecoveriesPlugin.class);
+        return Collections.unmodifiableList(plugins);
     }
 
     @Override
@@ -246,18 +251,18 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     translogExists
                 );
                 assertThat(
-                    snapshotDirectory ? "Snapshot directory doesn't exist" : "Snapshot directory shouldn't exist",
-                    snapshotDirectory,
-                    not(indexExists)
+                    snapshotDirectory ? "Index file should not exist" : "Index file should exist",
+                    indexExists,
+                    not(snapshotDirectory)
                 );
-                assertTrue("Translog doesn't exist", translogExists);
+                assertThat("Translog should exist", translogExists, is(true));
                 try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
                     final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                     if (snapshotDirectory) {
-                        assertEquals("There should be 2 translog files for a snapshot directory", 2L, translogFiles);
+                        assertThat("There should be 2 translog files for a snapshot directory", translogFiles, equalTo(2L));
                     } else {
                         assertThat(
-                            "There should be 2+ translog files non a non-snapshot directory",
+                            "There should be 2+ translog files for a non-snapshot directory",
                             translogFiles,
                             greaterThanOrEqualTo(2L)
                         );
@@ -343,5 +348,12 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
             }
         });
+    }
+
+    public static class LicensedSnapshotBasedRecoveriesPlugin extends SnapshotBasedRecoveriesPlugin {
+        @Override
+        public boolean isLicenseEnabled() {
+            return true;
+        }
     }
 }

@@ -49,10 +49,6 @@ public class ExceptionsHelper {
         return new ResourceNotFoundException("No known trained model with model_id [{}]", modelId);
     }
 
-    public static ResourceNotFoundException missingDeployment(String deploymentId) {
-        return new ResourceNotFoundException("No known trained model with deployment with id [{}]", deploymentId);
-    }
-
     public static ResourceNotFoundException missingTrainedModel(String modelId, Exception cause) {
         return new ResourceNotFoundException("No known trained model with model_id [{}]", cause, modelId);
     }

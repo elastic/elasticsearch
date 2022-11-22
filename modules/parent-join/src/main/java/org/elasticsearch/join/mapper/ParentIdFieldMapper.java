@@ -87,7 +87,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Although this is an internal field, we return it in the list of all field types. So we
             // provide an empty value fetcher here instead of throwing an error.
-            return (lookup, ignoredValues) -> List.of();
+            return (lookup, doc, ignoredValues) -> List.of();
         }
 
         @Override

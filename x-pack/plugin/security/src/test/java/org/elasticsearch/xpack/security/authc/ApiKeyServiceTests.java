@@ -17,6 +17,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
@@ -205,6 +206,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
         final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
         doAnswer(inv -> {
@@ -242,7 +244,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         String apiKeyName = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
         String[] apiKeyIds = generateRandomStringArray(4, 4, true, true);
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
-        service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, getApiKeyResponsePlainActionFuture);
+        service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), getApiKeyResponsePlainActionFuture);
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
         if (realmNames != null && realmNames.length > 0) {
             if (realmNames.length == 1) {
@@ -356,6 +358,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
@@ -832,7 +835,14 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> service.getApiKeys(new String[] { randomAlphaOfLength(6) }, randomAlphaOfLength(8), null, null, new PlainActionFuture<>())
+            () -> service.getApiKeys(
+                new String[] { randomAlphaOfLength(6) },
+                randomAlphaOfLength(8),
+                null,
+                null,
+                randomBoolean(),
+                new PlainActionFuture<>()
+            )
         );
 
         assertThat(e, instanceOf(FeatureNotEnabledException.class));

@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -69,9 +68,6 @@ public class GetIndexRequestTests extends ESTestCase {
 
         RestRequest request = RestRequestTests.contentRestRequest("", Map.of("features", String.join(",", invalidFeatures)));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GetIndexRequest.Feature.fromRequest(request));
-        assertThat(
-            e.getMessage(),
-            containsString(String.format(Locale.ROOT, "Invalid features specified [%s]", String.join(",", invalidFeatures)))
-        );
+        assertThat(e.getMessage(), containsString(formatted("Invalid features specified [%s]", String.join(",", invalidFeatures))));
     }
 }

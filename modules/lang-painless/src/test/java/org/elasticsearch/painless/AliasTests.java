@@ -8,8 +8,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;

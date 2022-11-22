@@ -1,5 +1,0 @@
-pr: 89254
-summary: Fix message for stalled shutdown
-area: Infra/Node Lifecycle
-type: bug
-issues: []

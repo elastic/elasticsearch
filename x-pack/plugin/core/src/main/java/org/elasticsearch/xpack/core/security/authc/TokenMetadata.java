@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
@@ -45,7 +44,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     public TokenMetadata(StreamInput input) throws IOException {
         currentKeyHash = input.readByteArray();
-        keys = Collections.unmodifiableList(input.readList(KeyAndTimestamp::new));
+        keys = input.readImmutableList(KeyAndTimestamp::new);
     }
 
     @Override

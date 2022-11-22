@@ -180,7 +180,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
         shardRouting = shardRouting.initialize("node_id", null, 0L);
-        shardRouting = shardRouting.moveToStarted();
+        shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         routingTable.add(IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting)));
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));

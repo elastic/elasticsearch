@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -91,6 +93,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      */
     private final int unacceptableIdentityChanges;
 
+    // ThreadLocal because our unit testing framework does not like sharing Randoms across threads
+    private final ThreadLocal<Random> random = ThreadLocal.withInitial(Randomness::get);
+
     /*
      * This is a Map of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
      * diagnosis. The key is the DisoveryNode for the master eligible node being polled, and the value is a Cancellable.
@@ -109,12 +114,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     /*
      * This is a reference to the task that is periodically reaching out to a master eligible node to get its CoordinationDiagnosticsResult
      * for diagnosis. It is null when no polling is occurring.
-     * The field is accessed (reads/writes) from multiple threads, and is also reassigned on multiple threads.
+     * The field is accessed (reads/writes) from multiple threads. It is only reassigned on the initialization thread and the cluster
+     * change event thread.
      */
     volatile AtomicReference<Scheduler.Cancellable> remoteCoordinationDiagnosisTask = null;
     /*
      * This field holds the result of the task in the remoteCoordinationDiagnosisTask field above. The field is accessed
-     * (reads/writes) from multiple threads, but is only ever reassigned on a single thread (the cluster change event thread).
+     * (reads/writes) from multiple threads, but is only ever reassigned on a the initialization thread and the cluster change event thread.
      */
     volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = null;
 
@@ -181,10 +187,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         /*
          * This is called here to cover an edge case -- when there are master-eligible nodes in the cluster but none of them has been
          * elected master. In the most common case this node will receive a ClusterChangedEvent that results in this polling being
-         * cancelled almost immediately. If that does not happen, then we do in fact need to be polling. Unfortunately there is no way to
-         * tell at this point whether this node is master-eligible or not, so we kick this off regardless. On master-eligible nodes the
-         * results will always be harmlessly ignored. Note that beginPollingRemoteMasterStabilityDiagnostic results in several internal
-         * transport actions being called, so it must run in the system context.
+         * cancelled almost immediately. If that does not happen, then we do in fact need to be polling. Note that
+         * beginPollingRemoteMasterStabilityDiagnostic results in several internal transport actions being called, so it must run in the
+         * system context.
          */
         if (clusterService.localNode().isMasterNode() == false) {
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -198,25 +203,25 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     /**
      * This method calculates the master stability as seen from this node.
-     * @param explain If true, the result will contain a non-empty CoordinationDiagnosticsDetails if the resulting status is non-GREEN
+     * @param verbose If true, the result will contain a non-empty CoordinationDiagnosticsDetails if the resulting status is non-GREEN
      * @return Information about the current stability of the master node, as seen from this node
      */
-    public CoordinationDiagnosticsResult diagnoseMasterStability(boolean explain) {
+    public CoordinationDiagnosticsResult diagnoseMasterStability(boolean verbose) {
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInHasMasterLookupTimeframe()) {
-            return diagnoseOnHaveSeenMasterRecently(localMasterHistory, explain);
+            return diagnoseOnHaveSeenMasterRecently(localMasterHistory, verbose);
         } else {
-            return diagnoseOnHaveNotSeenMasterRecently(localMasterHistory, explain);
+            return diagnoseOnHaveNotSeenMasterRecently(localMasterHistory, verbose);
         }
     }
 
     /**
      * Returns the health result for the case when we have seen a master recently (at some point in the last 30 seconds).
      * @param localMasterHistory The master history as seen from the local machine
-     * @param explain Whether to calculate and include the details and user actions in the result
+     * @param verbose Whether to calculate and include the details and user actions in the result
      * @return The CoordinationDiagnosticsResult for the given localMasterHistory
      */
-    private CoordinationDiagnosticsResult diagnoseOnHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
+    private CoordinationDiagnosticsResult diagnoseOnHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean verbose) {
         int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
         logger.trace(
             "Have seen a master in the last {}): {}",
@@ -225,11 +230,11 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         );
         final CoordinationDiagnosticsResult result;
         if (masterChanges >= unacceptableIdentityChanges) {
-            result = diagnoseOnMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
+            result = diagnoseOnMasterHasChangedIdentity(localMasterHistory, masterChanges, verbose);
         } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(unacceptableNullTransitions)) {
-            result = diagnoseOnMasterHasFlappedNull(localMasterHistory, explain);
+            result = diagnoseOnMasterHasFlappedNull(localMasterHistory, verbose);
         } else {
-            result = getMasterIsStableResult(explain, localMasterHistory);
+            result = getMasterIsStableResult(verbose, localMasterHistory);
         }
         return result;
     }
@@ -239,13 +244,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * times in the last 30 minutes)
      * @param localMasterHistory The master history as seen from the local machine
      * @param masterChanges The number of times that the local machine has seen the master identity change in the last 30 minutes
-     * @param explain Whether to calculate and include the details in the result
+     * @param verbose Whether to calculate and include the details in the result
      * @return The CoordinationDiagnosticsResult for the given localMasterHistory
      */
     private CoordinationDiagnosticsResult diagnoseOnMasterHasChangedIdentity(
         MasterHistory localMasterHistory,
         int masterChanges,
-        boolean explain
+        boolean verbose
     ) {
         logger.trace("Have seen {} master changes in the last {}", masterChanges, localMasterHistory.getMaxHistoryAge());
         CoordinationDiagnosticsStatus coordinationDiagnosticsStatus = CoordinationDiagnosticsStatus.YELLOW;
@@ -255,29 +260,29 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             masterChanges,
             localMasterHistory.getMaxHistoryAge()
         );
-        CoordinationDiagnosticsDetails details = getDetails(explain, localMasterHistory, null, null);
+        CoordinationDiagnosticsDetails details = getDetails(verbose, localMasterHistory, null, null);
         return new CoordinationDiagnosticsResult(coordinationDiagnosticsStatus, summary, details);
     }
 
     /**
-     * This returns CoordinationDiagnosticsDetails.EMPTY if explain is false, otherwise a CoordinationDiagnosticsDetails object
+     * This returns CoordinationDiagnosticsDetails.EMPTY if verbose is false, otherwise a CoordinationDiagnosticsDetails object
      * containing only a "current_master" object and a "recent_masters" array. The "current_master" object will have "node_id" and "name"
      * fields for the master node. Both will be null if the last-seen master was null. The "recent_masters" array will contain
      * "recent_master" objects. Each "recent_master" object will have "node_id" and "name" fields for the master node. These fields will
      * never be null because null masters are not written to this array.
-     * @param explain If true, the CoordinationDiagnosticsDetails will contain "current_master" and "recent_masters". Otherwise it will
+     * @param verbose If true, the CoordinationDiagnosticsDetails will contain "current_master" and "recent_masters". Otherwise it will
      *                be empty.
      * @param localMasterHistory The MasterHistory object to pull current and recent master info from
-     * @return An empty CoordinationDiagnosticsDetails if explain is false, otherwise a CoordinationDiagnosticsDetails containing only
+     * @return An empty CoordinationDiagnosticsDetails if verbose is false, otherwise a CoordinationDiagnosticsDetails containing only
      * "current_master" and "recent_masters"
      */
     private static CoordinationDiagnosticsDetails getDetails(
-        boolean explain,
+        boolean verbose,
         MasterHistory localMasterHistory,
         @Nullable Exception remoteException,
         @Nullable Map<String, String> clusterFormationMessages
     ) {
-        if (explain == false) {
+        if (verbose == false) {
             return CoordinationDiagnosticsDetails.EMPTY;
         }
         DiscoveryNode masterNode = localMasterHistory.getMostRecentMaster();
@@ -293,10 +298,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * and a GREEN status is returned (the problems with this node will be covered in a separate health indicator). If there had been
      * problems fetching the remote master history, the exception seen will be included in the details of the result.
      * @param localMasterHistory The master history as seen from the local machine
-     * @param explain Whether to calculate and include the details in the result
+     * @param verbose Whether to calculate and include the details in the result
      * @return The CoordinationDiagnosticsResult for the given localMasterHistory
      */
-    private CoordinationDiagnosticsResult diagnoseOnMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
+    private CoordinationDiagnosticsResult diagnoseOnMasterHasFlappedNull(MasterHistory localMasterHistory, boolean verbose) {
         DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
         boolean localNodeIsMaster = clusterService.localNode().equals(master);
         List<DiscoveryNode> remoteHistory;
@@ -333,11 +338,11 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 localMasterHistory.getNodes().stream().filter(Objects::nonNull).collect(Collectors.toSet()),
                 localMasterHistory.getMaxHistoryAge()
             );
-            final CoordinationDiagnosticsDetails details = getDetails(explain, localMasterHistory, remoteHistoryException, null);
+            final CoordinationDiagnosticsDetails details = getDetails(verbose, localMasterHistory, remoteHistoryException, null);
             return new CoordinationDiagnosticsResult(CoordinationDiagnosticsStatus.YELLOW, summary, details);
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
-            return getMasterIsStableResult(explain, localMasterHistory);
+            return getMasterIsStableResult(verbose, localMasterHistory);
         }
     }
 
@@ -345,36 +350,37 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * Returns a CoordinationDiagnosticsResult for the case when the master is seen as stable
      * @return A CoordinationDiagnosticsResult for the case when the master is seen as stable (GREEN status, no impacts or details)
      */
-    private CoordinationDiagnosticsResult getMasterIsStableResult(boolean explain, MasterHistory localMasterHistory) {
+    private CoordinationDiagnosticsResult getMasterIsStableResult(boolean verbose, MasterHistory localMasterHistory) {
         String summary = "The cluster has a stable master node";
         logger.trace("The cluster has a stable master node");
-        CoordinationDiagnosticsDetails details = getDetails(explain, localMasterHistory, null, null);
+        CoordinationDiagnosticsDetails details = getDetails(verbose, localMasterHistory, null, null);
         return new CoordinationDiagnosticsResult(CoordinationDiagnosticsStatus.GREEN, summary, details);
     }
 
     /**
      * Returns the health result for the case when we have NOT seen a master recently (at some point in the last 30 seconds).
      * @param localMasterHistory The master history as seen from the local machine
-     * @param explain Whether to calculate and include the details in the result
+     * @param verbose Whether to calculate and include the details in the result
      * @return The CoordinationDiagnosticsResult for the given localMasterHistory
      */
-    private CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
+    private CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean verbose) {
         Collection<DiscoveryNode> masterEligibleNodes = getMasterEligibleNodes();
         final CoordinationDiagnosticsResult result;
         boolean clusterHasLeader = coordinator.getPeerFinder().getLeader().isPresent();
         boolean noLeaderAndNoMasters = clusterHasLeader == false && masterEligibleNodes.isEmpty();
         boolean isLocalNodeMasterEligible = clusterService.localNode().isMasterNode();
         if (noLeaderAndNoMasters) {
-            result = getResultOnNoMasterEligibleNodes(localMasterHistory, explain);
+            result = getResultOnNoMasterEligibleNodes(localMasterHistory, verbose);
         } else if (clusterHasLeader) {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
-            result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
+            result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, verbose);
         } else if (isLocalNodeMasterEligible == false) { // none is elected master and we aren't master eligible
-            // NOTE: The logic in this block will be implemented in a future PR
-            result = new CoordinationDiagnosticsResult(
-                CoordinationDiagnosticsStatus.RED,
-                "No master has been observed recently",
-                CoordinationDiagnosticsDetails.EMPTY
+            result = diagnoseOnHaveNotSeenMasterRecentlyAndWeAreNotMasterEligible(
+                localMasterHistory,
+                coordinator,
+                nodeHasMasterLookupTimeframe,
+                remoteCoordinationDiagnosisResult,
+                verbose
             );
         } else { // none is elected master and we are master eligible
             result = diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
@@ -383,10 +389,95 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 coordinator,
                 clusterFormationResponses,
                 nodeHasMasterLookupTimeframe,
-                explain
+                verbose
             );
         }
         return result;
+    }
+
+    /**
+     * This method handles the case when we have not had an elected master node recently, and we are on a node that is not
+     * master-eligible. In this case we reach out to some master-eligible node in order to see what it knows about master stability.
+     * @param localMasterHistory The master history, as seen from this node
+     * @param coordinator The Coordinator for this node
+     * @param nodeHasMasterLookupTimeframe The value of health.master_history.has_master_lookup_timeframe
+     * @param remoteCoordinationDiagnosisResult A reference to the result of polling a master-eligible node for diagnostic information
+     * @param verbose If true, details are returned
+     * @return A CoordinationDiagnosticsResult that will be determined by the CoordinationDiagnosticsResult returned by the remote
+     * master-eligible node
+     */
+    static CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecentlyAndWeAreNotMasterEligible(
+        MasterHistory localMasterHistory,
+        Coordinator coordinator,
+        TimeValue nodeHasMasterLookupTimeframe,
+        AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult,
+        boolean verbose
+    ) {
+        RemoteMasterHealthResult remoteResultOrException = remoteCoordinationDiagnosisResult == null
+            ? null
+            : remoteCoordinationDiagnosisResult.get();
+        final CoordinationDiagnosticsStatus status;
+        final String summary;
+        final CoordinationDiagnosticsDetails details;
+        if (remoteResultOrException == null) {
+            status = CoordinationDiagnosticsStatus.RED;
+            summary = String.format(
+                Locale.ROOT,
+                "No master node observed in the last %s, and this node is not master eligible. Reaching out to a master-eligible node"
+                    + " for more information",
+                nodeHasMasterLookupTimeframe
+            );
+            if (verbose) {
+                details = getDetails(
+                    true,
+                    localMasterHistory,
+                    null,
+                    Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
+                );
+            } else {
+                details = CoordinationDiagnosticsDetails.EMPTY;
+            }
+        } else {
+            DiscoveryNode remoteNode = remoteResultOrException.node;
+            CoordinationDiagnosticsResult remoteResult = remoteResultOrException.result;
+            Exception exception = remoteResultOrException.remoteException;
+            if (remoteResult != null) {
+                if (remoteResult.status().equals(CoordinationDiagnosticsStatus.GREEN) == false) {
+                    status = remoteResult.status();
+                    summary = remoteResult.summary();
+                } else {
+                    status = CoordinationDiagnosticsStatus.RED;
+                    summary = String.format(
+                        Locale.ROOT,
+                        "No master node observed in the last %s from this node, but %s reports that the status is GREEN. This "
+                            + "indicates that there is a discovery problem on %s",
+                        nodeHasMasterLookupTimeframe,
+                        remoteNode.getName(),
+                        coordinator.getLocalNode().getName()
+                    );
+                }
+                if (verbose) {
+                    details = remoteResult.details();
+                } else {
+                    details = CoordinationDiagnosticsDetails.EMPTY;
+                }
+            } else {
+                status = CoordinationDiagnosticsStatus.RED;
+                summary = String.format(
+                    Locale.ROOT,
+                    "No master node observed in the last %s from this node, and received an exception while reaching out to %s for "
+                        + "diagnosis",
+                    nodeHasMasterLookupTimeframe,
+                    remoteNode.getName()
+                );
+                if (verbose) {
+                    details = getDetails(true, localMasterHistory, exception, null);
+                } else {
+                    details = CoordinationDiagnosticsDetails.EMPTY;
+                }
+            }
+        }
+        return new CoordinationDiagnosticsResult(status, summary, details);
     }
 
     /**
@@ -399,7 +490,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param clusterFormationResponses A map that contains the cluster formation information (or exception encountered while requesting
      *                                  it) from each master eligible node in the cluster
      * @param nodeHasMasterLookupTimeframe The value of health.master_history.has_master_lookup_timeframe
-     * @param explain If true, details are returned
+     * @param verbose If true, details are returned
      * @return A CoordinationDiagnosticsResult with a RED status
      */
     static CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
@@ -408,7 +499,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         Coordinator coordinator,
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses,
         TimeValue nodeHasMasterLookupTimeframe,
-        boolean explain
+        boolean verbose
 
     ) {
         final CoordinationDiagnosticsResult result;
@@ -431,7 +522,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         entry.getKey().getName()
                     ),
                     getDetails(
-                        explain,
+                        verbose,
                         localMasterHistory,
                         remoteException,
                         Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
@@ -462,7 +553,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         + "eligible nodes",
                     nodeHasMasterLookupTimeframe
                 ),
-                getDetails(explain, localMasterHistory, null, nodeIdToClusterFormationDescription)
+                getDetails(verbose, localMasterHistory, null, nodeIdToClusterFormationDescription)
             );
         } else {
             if (anyNodeInClusterReportsQuorumProblems(nodeClusterFormationStateMap)) {
@@ -473,7 +564,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         "No master node observed in the last %s, and the master eligible nodes are unable to form a quorum",
                         nodeHasMasterLookupTimeframe
                     ),
-                    getDetails(explain, localMasterHistory, null, nodeIdToClusterFormationDescription)
+                    getDetails(verbose, localMasterHistory, null, nodeIdToClusterFormationDescription)
                 );
             } else {
                 result = new CoordinationDiagnosticsResult(
@@ -483,7 +574,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         "No master node observed in the last %s, and the cause has not been determined.",
                         nodeHasMasterLookupTimeframe
                     ),
-                    getDetails(explain, localMasterHistory, null, nodeIdToClusterFormationDescription)
+                    getDetails(verbose, localMasterHistory, null, nodeIdToClusterFormationDescription)
                 );
             }
         }
@@ -571,16 +662,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     /**
      * Creates a CoordinationDiagnosticsResult in the case that there has been no master in the last few seconds, there is no elected
-     * master known, and there are no master eligible nodes. The status will be RED, and the details (if explain is true) will contain
+     * master known, and there are no master eligible nodes. The status will be RED, and the details (if verbose is true) will contain
      * the list of any masters seen previously and a description of known problems from this node's Coordinator.
-     * @param localMasterHistory Used to pull recent master nodes for the details if explain is true
-     * @param explain If true, details are returned
+     * @param localMasterHistory Used to pull recent master nodes for the details if verbose is true
+     * @param verbose If true, details are returned
      * @return A CoordinationDiagnosticsResult with a RED status
      */
-    private CoordinationDiagnosticsResult getResultOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean explain) {
+    private CoordinationDiagnosticsResult getResultOnNoMasterEligibleNodes(MasterHistory localMasterHistory, boolean verbose) {
         String summary = "No master eligible nodes found in the cluster";
         CoordinationDiagnosticsDetails details = getDetails(
-            explain,
+            verbose,
             localMasterHistory,
             null,
             Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
@@ -591,17 +682,17 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     /**
      * Creates a CoordinationDiagnosticsResult in the case that there has been no master in the last few seconds in this node's cluster
      * state, but PeerFinder reports that there is an elected master. The assumption is that this node is having a problem joining the
-     * elected master. The status will be RED, and the details (if explain is true) will contain the list of any masters seen previously
+     * elected master. The status will be RED, and the details (if verbose is true) will contain the list of any masters seen previously
      * and a description of known problems from this node's Coordinator.
-     * @param localMasterHistory Used to pull recent master nodes for the details if explain is true
+     * @param localMasterHistory Used to pull recent master nodes for the details if verbose is true
      * @param currentMaster The node that PeerFinder reports as the elected master
-     * @param explain If true, details are returned
+     * @param verbose If true, details are returned
      * @return A CoordinationDiagnosticsResult with a RED status
      */
     private CoordinationDiagnosticsResult getResultOnCannotJoinLeader(
         MasterHistory localMasterHistory,
         DiscoveryNode currentMaster,
-        boolean explain
+        boolean verbose
     ) {
         String summary = String.format(
             Locale.ROOT,
@@ -610,7 +701,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             clusterService.localNode()
         );
         CoordinationDiagnosticsDetails details = getDetails(
-            explain,
+            verbose,
             localMasterHistory,
             null,
             Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
@@ -637,6 +728,20 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     /**
+     * Returns a random master eligible node, or null if this node does not know about any master eligible nodes
+     * @return A random master eligible node or null
+     */
+    // Non-private for unit testing
+    @Nullable
+    DiscoveryNode getRandomMasterEligibleNode() {
+        Collection<DiscoveryNode> masterEligibleNodes = getMasterEligibleNodes();
+        if (masterEligibleNodes.isEmpty()) {
+            return null;
+        }
+        return masterEligibleNodes.toArray(new DiscoveryNode[0])[random.get().nextInt(masterEligibleNodes.size())];
+    }
+
+    /**
      * This returns true if this node has seen a master node within the last few seconds
      * @return true if this node has seen a master node within the last few seconds, false otherwise
      */
@@ -655,8 +760,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-        if (currentMaster == null && previousMaster != null) {
+        if ((currentMaster == null && previousMaster != null) || (currentMaster != null && previousMaster == null)) {
             if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(unacceptableNullTransitions)) {
+                /*
+                 * If the master node has been going to null repeatedly, we want to make a remote request to it to see what it thinks of
+                 * master stability. We want to query the most recent master whether the current master has just transitioned to null or
+                 * just transitioned from null to not null. The reason that we make the latter request is that sometimes when the elected
+                 * master goes to null the most recent master is not responsive for the duration of the request timeout (for example if
+                 * that node is in the middle of a long GC pause which would be both the reason for it not being master and the reason it
+                 * does not respond quickly to transport requests).
+                 */
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
                 /*
                  * If the most recent master was this box, there is no point in making a transport request -- we already know what this
@@ -864,7 +977,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         Consumer<RemoteMasterHealthResult> responseConsumer,
         AtomicReference<Scheduler.Cancellable> cancellableReference
     ) {
-        DiscoveryNode masterEligibleNode = getMasterEligibleNodes().stream().findAny().orElse(null);
+        DiscoveryNode masterEligibleNode = getRandomMasterEligibleNode();
         try {
             cancellableReference.set(
                 fetchCoordinationDiagnostics(
@@ -908,7 +1021,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                  * cancellableReference, so it will not be run again.
                  */
                 try {
-                    DiscoveryNode masterEligibleNode = getMasterEligibleNodes().stream().findAny().orElse(null);
+                    DiscoveryNode masterEligibleNode = getRandomMasterEligibleNode();
                     cancellableReference.set(
                         fetchCoordinationDiagnostics(
                             masterEligibleNode,
@@ -991,23 +1104,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 logger.trace("Opened connection to {}, making transport request", masterEligibleNode);
                 // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
-                try {
-                    transportService.sendRequest(
-                        masterEligibleNode,
-                        transportActionType.name(),
-                        transportActionRequest,
-                        TransportRequestOptions.timeout(transportTimeout),
-                        new ActionListenerResponseHandler<>(
-                            ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
-                            transportActionType.getResponseReader()
-                        )
-                    );
-                } catch (Exception e) {
-                    responseConsumer.accept(responseTransformationFunction.apply(null, e));
-                }
+                transportService.sendRequest(
+                    masterEligibleNode,
+                    transportActionType.name(),
+                    transportActionRequest,
+                    TransportRequestOptions.timeout(transportTimeout),
+                    new ActionListenerResponseHandler<>(
+                        ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
+                        transportActionType.getResponseReader()
+                    )
+                );
             }
         }, e -> {
-            logger.warn("Exception connecting to master masterEligibleNode", e);
+            logger.warn("Exception connecting to master " + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
         });
 
@@ -1214,5 +1323,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     // Non-private for testing:
-    record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {}
+    record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {
+        public RemoteMasterHealthResult {
+            if (node == null) {
+                throw new IllegalArgumentException("Node cannot be null");
+            }
+            if (result == null && remoteException == null) {
+                throw new IllegalArgumentException("Must provide a non-null value for one of result or remoteException");
+            }
+        }
+    }
 }

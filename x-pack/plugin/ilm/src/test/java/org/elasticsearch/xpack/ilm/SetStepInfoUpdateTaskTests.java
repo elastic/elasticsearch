@@ -155,9 +155,9 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
             clusterState.metadata().index(index).getLifecycleExecutionState()
         );
-        lifecycleState.setPhase(stepKey.getPhase());
-        lifecycleState.setAction(stepKey.getAction());
-        lifecycleState.setStep(stepKey.getName());
+        lifecycleState.setPhase(stepKey.phase());
+        lifecycleState.setAction(stepKey.action());
+        lifecycleState.setStep(stepKey.name());
 
         clusterState = ClusterState.builder(clusterState)
             .metadata(

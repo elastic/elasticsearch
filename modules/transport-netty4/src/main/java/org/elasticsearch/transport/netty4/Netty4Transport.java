@@ -107,7 +107,7 @@ public class Netty4Transport extends TcpTransport {
         SharedGroupFactory sharedGroupFactory
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
-        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 

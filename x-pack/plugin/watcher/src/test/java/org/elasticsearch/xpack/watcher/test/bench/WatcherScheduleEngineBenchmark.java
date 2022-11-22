@@ -344,7 +344,7 @@ public class WatcherScheduleEngineBenchmark {
                 Locale.ENGLISH,
                 "%10s | %13s | %12d | %13d \n",
                 name,
-                new ByteSizeValue(avgHeapUsed),
+                ByteSizeValue.ofBytes(avgHeapUsed),
                 watcherThreadPoolStats.getRejected(),
                 watcherThreadPoolStats.getCompleted()
             );

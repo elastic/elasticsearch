@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -158,6 +160,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartActio
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -175,6 +178,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
@@ -257,6 +261,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartA
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportSemanticSearchAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
@@ -274,6 +279,7 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAssignmentStateAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
@@ -408,8 +414,10 @@ import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelVocabularyAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestSemanticSearchAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestUpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -480,9 +488,6 @@ public class MachineLearning extends Plugin
 
     private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
-    // This is for performance testing. It's not exposed to the end user.
-    // Recompile if you want to compare performance with C++ tokenization.
-    public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
     public static final LicensedFeature.Persistent ML_ANOMALY_JOBS_FEATURE = LicensedFeature.persistent(
         MachineLearningField.ML_FEATURE_FAMILY,
@@ -555,7 +560,11 @@ public class MachineLearning extends Plugin
     private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
-    public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
+
+    // TODO Remove if compatibility with 8.x is no longer necessary
+    public static final String PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
+
+    public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors_double";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
         "xpack.ml.node_concurrent_job_allocations",
         2,
@@ -690,6 +699,12 @@ public class MachineLearning extends Plugin
      */
     public static final int MAX_TRAINED_MODEL_DEPLOYMENTS = 100;
 
+    /**
+     * The number of low priority models each node can host.
+     * Effectively, a value of 100 means the limit is purely based on memory.
+     */
+    public static final int MAX_LOW_PRIORITY_MODELS_PER_NODE = 100;
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -751,6 +766,7 @@ public class MachineLearning extends Plugin
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + PRE_V8_MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
+        String deprecatedAllocatedProcessorsAttrName = "node.attr." + PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR;
         String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
 
         if (enabled == false) {
@@ -766,11 +782,22 @@ public class MachineLearning extends Plugin
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
-            addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Integer.toString(getAllocatedProcessors()));
+            addMlNodeAttribute(
+                additionalSettings,
+                deprecatedAllocatedProcessorsAttrName,
+                Integer.toString(EsExecutors.allocatedProcessors(settings))
+            );
+            addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Double.toString(getAllocatedProcessors().count()));
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, allocatedProcessorsAttrName);
+            disallowMlNodeAttributes(
+                maxOpenJobsPerNodeNodeAttrName,
+                machineMemoryAttrName,
+                jvmSizeAttrName,
+                deprecatedAllocatedProcessorsAttrName,
+                allocatedProcessorsAttrName
+            );
         }
         return additionalSettings.build();
     }
@@ -784,8 +811,8 @@ public class MachineLearning extends Plugin
         }
     }
 
-    private int getAllocatedProcessors() {
-        return EsExecutors.allocatedProcessors(settings);
+    private Processors getAllocatedProcessors() {
+        return EsExecutors.nodeProcessors(settings);
     }
 
     private void disallowMlNodeAttributes(String... mlNodeAttributes) {
@@ -825,7 +852,8 @@ public class MachineLearning extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
@@ -1019,7 +1047,9 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
-        this.deploymentManager.set(new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory));
+        this.deploymentManager.set(
+            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+        );
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(
@@ -1119,7 +1149,8 @@ public class MachineLearning extends Plugin
                 clusterService,
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
-                new SystemAuditor(client, clusterService)
+                new SystemAuditor(client, clusterService),
+                nodeAvailabilityZoneMapper
             )
         );
 
@@ -1289,10 +1320,12 @@ public class MachineLearning extends Plugin
             new RestStartTrainedModelDeploymentAction(),
             new RestStopTrainedModelDeploymentAction(),
             new RestInferTrainedModelDeploymentAction(),
+            new RestUpdateTrainedModelDeploymentAction(),
             new RestPutTrainedModelDefinitionPartAction(),
             new RestPutTrainedModelVocabularyAction(),
             new RestInferTrainedModelAction(),
             new RestClearDeploymentCacheAction(),
+            new RestSemanticSearchAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1387,6 +1420,7 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(StartTrainedModelDeploymentAction.INSTANCE, TransportStartTrainedModelDeploymentAction.class),
             new ActionHandler<>(StopTrainedModelDeploymentAction.INSTANCE, TransportStopTrainedModelDeploymentAction.class),
             new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
+            new ActionHandler<>(UpdateTrainedModelDeploymentAction.INSTANCE, TransportUpdateTrainedModelDeploymentAction.class),
             new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class),
             new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
             new ActionHandler<>(CreateTrainedModelAssignmentAction.INSTANCE, TransportCreateTrainedModelAssignmentAction.class),
@@ -1398,6 +1432,7 @@ public class MachineLearning extends Plugin
                 TransportUpdateTrainedModelAssignmentStateAction.class
             ),
             new ActionHandler<>(ClearDeploymentCacheAction.INSTANCE, TransportClearDeploymentCacheAction.class),
+            new ActionHandler<>(SemanticSearchAction.INSTANCE, TransportSemanticSearchAction.class),
             usageAction,
             infoAction
         );
@@ -1438,14 +1473,15 @@ public class MachineLearning extends Plugin
 
         // 3 threads per native inference process: for input, c++ logger output, and result processing.
         // As we cannot assign more models than the number of allocated processors, this thread pool's
-        // size is limited by the number of allocated processors on this node.
+        // size is limited by the number of allocated processors on this node. Additionally, we add
+        // the number of low priority model deployments per node.
         // Only use this thread pool for the main long-running process associated with a native inference model deployment.
         // (Using it for some other purpose could mean that an unrelated pytorch model assignment fails to start
         // or that whatever needed the thread for another purpose has to queue for a very long time.)
         ScalingExecutorBuilder pytorchComms = new ScalingExecutorBuilder(
             NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
             3,
-            getAllocatedProcessors() * 3,
+            getMaxModelDeploymentsPerNode() * 3,
             TimeValue.timeValueMinutes(1),
             false,
             "xpack.ml.native_inference_comms_thread_pool"
@@ -1472,6 +1508,10 @@ public class MachineLearning extends Plugin
         );
 
         return List.of(jobComms, pytorchComms, utility, datafeed);
+    }
+
+    private int getMaxModelDeploymentsPerNode() {
+        return getAllocatedProcessors().roundUp() + MAX_LOW_PRIORITY_MODELS_PER_NODE;
     }
 
     @Override

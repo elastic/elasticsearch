@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -187,7 +189,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static FieldDataContext mockFielddataContext() {
-        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, MappedFieldType.FielddataOperation.SCRIPT);
+        SearchExecutionContext searchExecutionContext = mockContext();
+        return new FieldDataContext(
+            "test",
+            searchExecutionContext::lookup,
+            mockContext()::sourcePath,
+            MappedFieldType.FielddataOperation.SCRIPT
+        );
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
@@ -203,6 +211,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
+        return mockContext(allowExpensiveQueries, mappedFieldType, new SourceLookup.ReaderSourceProvider());
+    }
+
+    protected static SearchExecutionContext mockContext(
+        boolean allowExpensiveQueries,
+        MappedFieldType mappedFieldType,
+        SourceLookup.SourceProvider sourceProvider
+    ) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
             when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
@@ -211,7 +227,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
             (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
-                .build(null, null)
+                .build(null, null),
+            sourceProvider
         );
         when(context.lookup()).thenReturn(lookup);
         when(context.getForField(any(), any())).then(args -> {
@@ -384,5 +401,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             return deterministicSource ? (T) GeoPointFieldScript.PARSE_FROM_SOURCE : (T) GeoPointFieldScriptTests.DUMMY;
         }
         throw new IllegalArgumentException("Unsupported context: " + context);
+    }
+
+    /**
+     * We need to make sure we don't randomize the useThreads parameter for subtests of this abstract test case
+     * because scripted fields use {@link SourceLookup} which isn't thread-safe.
+     * Also Elasticsearch doesn't support concurrent searches so far, so we don't need to test it.
+     */
+    protected IndexSearcher newUnthreadedSearcher(IndexReader reader) {
+        return newSearcher(reader, true, true, false);
     }
 }

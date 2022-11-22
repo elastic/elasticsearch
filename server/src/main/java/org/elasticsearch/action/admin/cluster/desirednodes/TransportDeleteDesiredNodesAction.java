@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
@@ -23,11 +24,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.List;
 
 public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction<DeleteDesiredNodesAction.Request, ActionResponse.Empty> {
 
@@ -81,13 +81,20 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
-    private static class DeleteDesiredNodesExecutor implements ClusterStateTaskExecutor<DeleteDesiredNodesTask> {
+    private static class DeleteDesiredNodesExecutor extends SimpleBatchedExecutor<DeleteDesiredNodesTask, Void> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<DeleteDesiredNodesTask>> taskContexts) throws Exception {
-            for (final var taskContext : taskContexts) {
-                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
-            }
-            return currentState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
+        public Tuple<ClusterState, Void> executeTask(DeleteDesiredNodesTask task, ClusterState clusterState) {
+            return Tuple.tuple(clusterState, null);
+        }
+
+        @Override
+        public void taskSucceeded(DeleteDesiredNodesTask task, Void unused) {
+            task.listener().onResponse(ActionResponse.Empty.INSTANCE);
+        }
+
+        @Override
+        public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
+            return clusterState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
         }
     }
 }

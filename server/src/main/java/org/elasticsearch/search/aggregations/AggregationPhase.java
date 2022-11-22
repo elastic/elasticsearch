@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
+import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;

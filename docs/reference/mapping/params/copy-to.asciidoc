@@ -67,6 +67,13 @@ Some important points:
 * You cannot copy recursively via intermediary fields such as a `copy_to` on 
 `field_1` to `field_2` and `copy_to` on `field_2` to `field_3` expecting 
 indexing into `field_1` will eventuate in `field_3`, instead use copy_to 
-directly to multiple fields from the originating field. 
+directly to multiple fields from the originating field.
+* If the target field does not exist in the index mappings, the usual
+<<dynamic-mapping,dynamic mapping>> behavior applies. By default, with
+<<dynamic,`dynamic`>> set to `true`, a non-existent target field will be
+dynamically added to the index mappings. If `dynamic` is set to `false`, the
+target field will not be added to the index mappings, and the value will not be
+copied. If `dynamic` is set to `strict`, copying to a non-existent field will
+result in an error.
 
-NOTE: `copy-to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`
+NOTE: `copy_to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`

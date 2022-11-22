@@ -20,6 +20,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -193,7 +194,8 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             try (
                 IndexAnalyzers indexAnalyzers = new AnalysisModule(
                     TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin())
+                    Collections.singletonList(new CommonAnalysisPlugin()),
+                    new StablePluginsRegistry()
                 ).getAnalysisRegistry().build(idxSettings)
             ) {
 
@@ -217,7 +219,8 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             try (
                 IndexAnalyzers indexAnalyzers = new AnalysisModule(
                     TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin())
+                    Collections.singletonList(new CommonAnalysisPlugin()),
+                    new StablePluginsRegistry()
                 ).getAnalysisRegistry().build(idxSettings)
             ) {
 

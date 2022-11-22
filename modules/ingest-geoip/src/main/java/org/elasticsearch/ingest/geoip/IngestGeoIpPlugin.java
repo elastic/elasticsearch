@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -114,11 +115,12 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         try {
             String nodeId = nodeEnvironment.nodeId();
-            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get());
+            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get(), clusterService);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

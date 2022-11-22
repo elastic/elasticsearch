@@ -79,7 +79,7 @@ public class MasterHistoryService {
     /**
      * This method returns a static view of the MasterHistory on a remote node. This MasterHistory is static in that it will not be
      * updated even if the ClusterState is updated on this node or the remote node. The history is retrieved asynchronously, and only if
-     * requestRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, the exception returned by the
+     * refreshRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, the exception returned by the
      * remote machine will be thrown here. If the remote history has not been fetched or if something went wrong and there was no exception,
      * the returned value will be null. If the remote history is old enough to be considered stale (that is, older than
      * MAX_USABLE_REMOTE_HISTORY_AGE_SETTING), then the returned value will be null.
@@ -115,7 +115,7 @@ public class MasterHistoryService {
      */
     public void refreshRemoteMasterHistory(DiscoveryNode node) {
         Version minSupportedVersion = Version.V_8_4_0;
-        if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
+        if (node.getVersion().before(minSupportedVersion)) { // This was introduced in 8.3.0 (and the action name changed in 8.4.0)
             logger.trace(
                 "Cannot get master history for {} because it is at version {} and {} is required",
                 node,

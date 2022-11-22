@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -37,6 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -594,6 +596,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     /**
+     * Returns the holder for search usage statistics, to be used to track search usage when parsing
+     * incoming search requests from the relevant REST endpoints. This is exposed for plugins that
+     * expose search functionalities which need to contribute to the search usage statistics.
+     */
+    public SearchUsageHolder getSearchUsageHolder() {
+        return usageService.getSearchUsageHolder();
+    }
+
+    /**
      * Handle requests to a valid REST endpoint using an unsupported HTTP
      * method. A 405 HTTP response code is returned, and the response 'Allow'
      * header includes a list of valid HTTP methods for the endpoint (see
@@ -710,8 +721,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public XContentBuilder newBuilder(
+            XContentType xContentType,
+            XContentType responseContentType,
+            boolean useFiltering,
+            OutputStream out
+        ) throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
+        }
+
+        @Override
         public BytesStream bytesOutput() {
             return delegate.bytesOutput();
+        }
+
+        @Override
+        public void releaseOutputBuffer() {
+            delegate.releaseOutputBuffer();
         }
 
         @Override
@@ -726,8 +752,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            close();
-            delegate.sendResponse(response);
+            boolean success = false;
+            try {
+                close();
+                delegate.sendResponse(response);
+                success = true;
+            } finally {
+                if (success == false) {
+                    releaseOutputBuffer();
+                }
+            }
         }
 
         private void close() {

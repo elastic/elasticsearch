@@ -125,9 +125,9 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             final BasicHttpContext context = new BasicHttpContext();
             // Initiate the authentication process
             HttpPost httpPost = new HttpPost(C2ID_LOGIN_API + "initAuthRequest");
-            String initJson = """
+            String initJson = formatted("""
                 {"qs":"%s"}
-                """.formatted(opAuthUri.getRawQuery());
+                """, opAuthUri.getRawQuery());
             configureJsonRequest(httpPost, initJson);
             JSONObject initResponse = execute(httpClient, httpPost, context, response -> {
                 assertHttpOk(response.getStatusLine());
@@ -136,59 +136,30 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             assertThat(initResponse.getAsString("type"), equalTo("auth"));
             final String sid = initResponse.getAsString("sid");
             // Actually authenticate the user with ldapAuth
-            HttpPost loginHttpPost = new HttpPost(C2ID_LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8));
+            HttpPost loginHttpPost = new HttpPost(
+                C2ID_LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8) + "&authSessionId=" + sid
+            );
             String loginJson = """
                 {"username":"alice","password":"secret"}""";
             configureJsonRequest(loginHttpPost, loginJson);
-            JSONObject loginJsonResponse = execute(httpClient, loginHttpPost, context, response -> {
+            execute(httpClient, loginHttpPost, context, response -> {
                 assertHttpOk(response.getStatusLine());
                 return parseJsonResponse(response);
             });
-            // Get the consent screen
-            HttpPut consentFetchHttpPut = new HttpPut(
+
+            HttpPut consentHttpPut = new HttpPut(
                 C2ID_LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
             );
-            String consentFetchJson = """
-                {
-                  "sub": "%s",
-                  "acr": "http://loa.c2id.com/basic",
-                  "amr": [ "pwd" ],
-                  "data": {
-                    "email": "%s",
-                    "name": "%s"
-                  }
-                }""".formatted(
-                loginJsonResponse.getAsString("id"),
-                loginJsonResponse.getAsString("email"),
-                loginJsonResponse.getAsString("name")
-            );
-            configureJsonRequest(consentFetchHttpPut, consentFetchJson);
-            JSONObject consentFetchResponse = execute(httpClient, consentFetchHttpPut, context, response -> {
+            String consentJson = """
+                {"claims":["name", "email"],"scope":["openid"]}""";
+            configureJsonRequest(consentHttpPut, consentJson);
+            JSONObject jsonConsentResponse = execute(httpClient, consentHttpPut, context, response -> {
                 assertHttpOk(response.getStatusLine());
                 return parseJsonResponse(response);
             });
-            if (consentFetchResponse.getAsString("type").equals("consent")) {
-                // If needed, submit the consent
-                HttpPut consentHttpPut = new HttpPut(
-                    C2ID_LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
-                );
-                String consentJson = """
-                    {"claims":["name", "email"],"scope":["openid"]}""";
-                configureJsonRequest(consentHttpPut, consentJson);
-                JSONObject jsonConsentResponse = execute(httpClient, consentHttpPut, context, response -> {
-                    assertHttpOk(response.getStatusLine());
-                    return parseJsonResponse(response);
-                });
-                assertThat(jsonConsentResponse.getAsString("type"), equalTo("response"));
-                JSONObject parameters = (JSONObject) jsonConsentResponse.get("parameters");
-                return parameters.getAsString("uri");
-            } else if (consentFetchResponse.getAsString("type").equals("response")) {
-                JSONObject parameters = (JSONObject) consentFetchResponse.get("parameters");
-                return parameters.getAsString("uri");
-            } else {
-                fail("Received an invalid response from the OP");
-                return null;
-            }
+            assertThat(jsonConsentResponse.getAsString("type"), equalTo("response"));
+            JSONObject parameters = (JSONObject) jsonConsentResponse.get("parameters");
+            return parameters.getAsString("uri");
         }
     }
 

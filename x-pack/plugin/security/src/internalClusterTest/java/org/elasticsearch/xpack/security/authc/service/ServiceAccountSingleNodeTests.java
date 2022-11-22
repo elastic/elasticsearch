@@ -86,12 +86,10 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testAuthenticateWithServiceFileToken() {
-        final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
         final AuthenticateResponse authenticateResponse = createServiceAccountClient().execute(
             AuthenticateAction.INSTANCE,
-            authenticateRequest
+            AuthenticateRequest.INSTANCE
         ).actionGet();
-        final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
         assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication("token1", "file")));
     }
 
@@ -101,10 +99,9 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         final SecureString secretValue1 = createApiServiceToken("api-token-1");
         assertThat(cache.count(), equalTo(0));
 
-        final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
         final AuthenticateResponse authenticateResponse = createServiceAccountClient(secretValue1.toString()).execute(
             AuthenticateAction.INSTANCE,
-            authenticateRequest
+            AuthenticateRequest.INSTANCE
         ).actionGet();
         assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication("api-token-1", "index")));
         // cache is populated after authenticate
@@ -203,10 +200,9 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     private void authenticateWithApiToken(String tokenName, SecureString secret) {
-        final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
         final AuthenticateResponse authenticateResponse = createServiceAccountClient(secret.toString()).execute(
             AuthenticateAction.INSTANCE,
-            authenticateRequest
+            AuthenticateRequest.INSTANCE
         ).actionGet();
         assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication(tokenName, "index")));
     }

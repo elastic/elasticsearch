@@ -20,8 +20,8 @@ import java.io.IOException;
  */
 public class HealthNodeNotDiscoveredException extends ElasticsearchException {
 
-    public HealthNodeNotDiscoveredException(String message) {
-        super(message);
+    public HealthNodeNotDiscoveredException() {
+        super("No health node was discovered");
     }
 
     public HealthNodeNotDiscoveredException(StreamInput in) throws IOException {

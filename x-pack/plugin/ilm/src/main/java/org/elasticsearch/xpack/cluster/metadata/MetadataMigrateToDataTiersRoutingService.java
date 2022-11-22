@@ -354,9 +354,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
             if (currentExState != null) {
                 Step.StepKey currentStepKey = Step.getCurrentStepKey(currentExState);
-                if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.getPhase())) {
+                if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.phase())) {
                     // the index is in a phase that doesn't contain the allocate action anymore
-                    if (currentStepKey.getAction().equals(AllocateAction.NAME)) {
+                    if (currentStepKey.action().equals(AllocateAction.NAME)) {
                         // this index is in the middle of executing the allocate action - which doesn't exist in the updated policy
                         // anymore so let's try to move the index to the next action
 
@@ -381,7 +381,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                         LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(currentExState);
                         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(
                             newPolicyMetadata.getPolicy().getName(),
-                            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.getPhase()),
+                            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.phase()),
                             newPolicyMetadata.getVersion(),
                             newPolicyMetadata.getModifiedDate()
                         );

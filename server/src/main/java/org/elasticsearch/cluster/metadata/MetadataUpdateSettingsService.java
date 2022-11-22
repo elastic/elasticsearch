@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.regex.Regex;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,27 +65,36 @@ public class MetadataUpdateSettingsService {
         AllocationService allocationService,
         IndexScopedSettings indexScopedSettings,
         IndicesService indicesService,
-        ShardLimitValidator shardLimitValidator
+        ShardLimitValidator shardLimitValidator,
+        ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.executor = (currentState, taskContexts) -> {
-            ClusterState state = currentState;
-            for (final var taskContext : taskContexts) {
+        this.executor = batchExecutionContext -> {
+            var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try {
                     final var task = taskContext.getTask();
-                    state = task.execute(state);
-                    taskContext.success(task.getAckListener());
+                    try (var ignored = taskContext.captureResponseHeaders()) {
+                        state = task.execute(state);
+                    }
+                    taskContext.success(task.getAckListener(listener));
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
+
             }
-            if (state != currentState) {
+            if (state != batchExecutionContext.initialState()) {
                 // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, "settings update", listener.reroute());
+                }
+            } else {
+                listener.noRerouteNeeded();
             }
             return state;
         };
@@ -98,7 +109,7 @@ public class MetadataUpdateSettingsService {
             this.listener = listener;
         }
 
-        private ClusterStateAckListener getAckListener() {
+        private ClusterStateAckListener getAckListener(AllocationActionMultiListener<AcknowledgedResponse> multiListener) {
             return new ClusterStateAckListener() {
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -107,17 +118,17 @@ public class MetadataUpdateSettingsService {
 
                 @Override
                 public void onAllNodesAcked() {
-                    listener.onResponse(AcknowledgedResponse.of(true));
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(true));
                 }
 
                 @Override
                 public void onAckFailure(Exception e) {
-                    listener.onFailure(e);
+                    multiListener.delay(listener).onFailure(e);
                 }
 
                 @Override
                 public void onAckTimeout() {
-                    listener.onResponse(AcknowledgedResponse.of(false));
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(false));
                 }
 
                 @Override
@@ -130,11 +141,6 @@ public class MetadataUpdateSettingsService {
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
 
         ClusterState execute(ClusterState currentState) {
@@ -180,6 +186,7 @@ public class MetadataUpdateSettingsService {
                 Index index = request.indices()[i];
                 actualIndices[i] = index.getName();
                 final IndexMetadata metadata = currentState.metadata().getIndexSafe(index);
+
                 if (metadata.getState() == IndexMetadata.State.OPEN) {
                     openIndices.add(index);
                 } else {
@@ -315,6 +322,8 @@ public class MetadataUpdateSettingsService {
     ) {
         for (Index index : indices) {
             IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
+            // We validate the settings for removed deprecated settings, since we have the indexMetadata now.
+            indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
             Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
             if (settingUpdater.apply(index, indexSettings)) {
                 if (preserveExisting) {

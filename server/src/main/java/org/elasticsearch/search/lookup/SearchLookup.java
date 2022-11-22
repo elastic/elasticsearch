@@ -53,11 +53,12 @@ public class SearchLookup {
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
-        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        SourceLookup.SourceProvider sourceProvider
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
-        this.sourceLookup = new SourceLookup();
+        this.sourceLookup = new SourceLookup(sourceProvider);
         this.fieldDataLookup = fieldDataLookup;
     }
 

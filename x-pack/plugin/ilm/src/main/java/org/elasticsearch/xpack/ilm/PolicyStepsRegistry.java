@@ -149,7 +149,7 @@ public class PolicyStepsRegistry {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
                     final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
                     for (Step step : policyAsSteps) {
-                        assert ErrorStep.NAME.equals(step.getKey().getName()) == false : "unexpected error step in policy";
+                        assert ErrorStep.NAME.equals(step.getKey().name()) == false : "unexpected error step in policy";
                         stepMapForPolicy.put(step.getKey(), step);
                     }
                     logger.trace(
@@ -224,7 +224,7 @@ public class PolicyStepsRegistry {
     public Step.StepKey getFirstStepForPhase(ClusterState state, Index index, String phase) {
         return getAllStepsForIndex(state, index).stream()
             .map(Step::getKey)
-            .filter(stepKey -> phase.equals(stepKey.getPhase()))
+            .filter(stepKey -> phase.equals(stepKey.phase()))
             .findFirst()
             .orElse(null);
     }
@@ -237,8 +237,8 @@ public class PolicyStepsRegistry {
     public Step.StepKey getFirstStepForPhaseAndAction(ClusterState state, Index index, String phase, String action) {
         return getAllStepsForIndex(state, index).stream()
             .map(Step::getKey)
-            .filter(stepKey -> phase.equals(stepKey.getPhase()))
-            .filter(stepKey -> action.equals(stepKey.getAction()))
+            .filter(stepKey -> phase.equals(stepKey.phase()))
+            .filter(stepKey -> action.equals(stepKey.action()))
             .findFirst()
             .orElse(null);
     }
@@ -290,7 +290,7 @@ public class PolicyStepsRegistry {
         if (steps == null) {
             phaseSteps = List.of();
         } else {
-            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).toList();
+            phaseSteps = steps.stream().filter(e -> e.getKey().phase().equals(currentPhase)).toList();
         }
         logger.trace(
             "parsed steps for policy [{}] in phase [{}], definition: [{}], steps: [{}]",
@@ -328,11 +328,11 @@ public class PolicyStepsRegistry {
             return cachedStep;
         }
 
-        if (ErrorStep.NAME.equals(stepKey.getName())) {
-            return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
+        if (ErrorStep.NAME.equals(stepKey.name())) {
+            return new ErrorStep(new Step.StepKey(stepKey.phase(), stepKey.action(), ErrorStep.NAME));
         }
 
-        final String phase = stepKey.getPhase();
+        final String phase = stepKey.phase();
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final Index index = indexMetadata.getIndex();
 
@@ -357,7 +357,7 @@ public class PolicyStepsRegistry {
             );
         }
 
-        assert phaseSteps.stream().allMatch(step -> step.getKey().getPhase().equals(phase))
+        assert phaseSteps.stream().allMatch(step -> step.getKey().phase().equals(phase))
             : "expected phase steps loaded from phase definition for ["
                 + index.getName()
                 + "] to be in phase ["

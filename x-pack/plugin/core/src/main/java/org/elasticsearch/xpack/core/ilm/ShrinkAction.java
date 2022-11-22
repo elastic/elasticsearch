@@ -91,7 +91,7 @@ public class ShrinkAction implements LifecycleAction {
             this.maxPrimaryShardSize = null;
         } else {
             this.numberOfShards = null;
-            this.maxPrimaryShardSize = new ByteSizeValue(in);
+            this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
     }
 

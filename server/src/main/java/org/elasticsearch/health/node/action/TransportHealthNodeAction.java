@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -20,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -34,15 +35,28 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * A base class for operations that need to be performed on the health node.
  */
-public abstract class TransportHealthNodeAction<Request extends ActionRequest, Response extends ActionResponse> extends
+public abstract class TransportHealthNodeAction<Request extends HealthNodeRequest, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportHealthNodeAction.class);
+
+    /**
+     * This is the amount of time given as the timeout for transport requests to the health node. The default is fairly low because these
+     * actions are expected to be lightweight and time-sensitive.
+     */
+    public static final Setting<TimeValue> HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT = Setting.timeSetting(
+        "health_node.transport_action_timeout",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ThreadPool threadPool;
     protected final String executor;
+    private TimeValue healthNodeTransportActionTimeout;
 
     private final Writeable.Reader<Response> responseReader;
 
@@ -62,6 +76,12 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
         this.threadPool = threadPool;
         this.executor = executor;
         this.responseReader = response;
+        this.healthNodeTransportActionTimeout = HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT,
+                newTimeout -> this.healthNodeTransportActionTimeout = newTimeout
+            );
     }
 
     protected abstract void healthOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
@@ -80,7 +100,7 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
             DiscoveryNode healthNode = HealthNode.findHealthNode(clusterState);
             DiscoveryNode localNode = clusterState.nodes().getLocalNode();
             if (healthNode == null) {
-                listener.onFailure(new HealthNodeNotDiscoveredException("Health node was null"));
+                listener.onFailure(new HealthNodeNotDiscoveredException());
             } else if (localNode.getId().equals(healthNode.getId())) {
                 threadPool.executor(executor).execute(() -> {
                     try {
@@ -106,7 +126,14 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
                     }
                 };
                 if (task != null) {
-                    transportService.sendChildRequest(healthNode, actionName, request, task, TransportRequestOptions.EMPTY, handler);
+                    transportService.sendChildRequest(
+                        healthNode,
+                        actionName,
+                        request,
+                        task,
+                        TransportRequestOptions.timeout(healthNodeTransportActionTimeout),
+                        handler
+                    );
                 } else {
                     transportService.sendRequest(healthNode, actionName, request, handler);
                 }

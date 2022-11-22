@@ -1,5 +1,0 @@
-pr: 88344
-summary: Speed up creating new `IndexMetaDataGenerations` without removed snapshots
-area: Snapshot/Restore
-type: enhancement
-issues: []

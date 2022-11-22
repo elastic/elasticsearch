@@ -174,16 +174,11 @@ public abstract class MappedFieldType {
         return null;
     }
 
-    /** Returns true if the field is aggregatable.
-     *
+    /**
+     * Returns true if the field is aggregatable.
      */
     public boolean isAggregatable() {
-        try {
-            fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_check"));
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        return hasDocValues();
     }
 
     /**

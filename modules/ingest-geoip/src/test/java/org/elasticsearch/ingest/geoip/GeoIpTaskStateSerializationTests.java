@@ -9,12 +9,12 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class GeoIpTaskStateSerializationTests extends AbstractSerializingTestCase<GeoIpTaskState> {
+public class GeoIpTaskStateSerializationTests extends AbstractXContentSerializingTestCase<GeoIpTaskState> {
     @Override
     protected GeoIpTaskState doParseInstance(XContentParser parser) throws IOException {
         return GeoIpTaskState.fromXContent(parser);

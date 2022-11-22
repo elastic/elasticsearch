@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
+
     public void testMultiplePoliciesFixedCapacity() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
@@ -83,9 +85,12 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             assertThat(deciderResult.requiredCapacity(), equalTo(requiredCapacity));
             ByteSizeValue storage = configuration.getAsBytesSize(FixedAutoscalingDeciderService.STORAGE.getKey(), null);
             ByteSizeValue memory = configuration.getAsMemory(FixedAutoscalingDeciderService.MEMORY.getKey(), null);
-            Float processors = configuration.getAsFloat(FixedAutoscalingDeciderService.PROCESSORS.getKey(), null);
+            Double processors = configuration.getAsDouble(FixedAutoscalingDeciderService.PROCESSORS.getKey(), null);
             int nodes = FixedAutoscalingDeciderService.NODES.get(configuration);
-            assertThat(deciderResult.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes, processors)));
+            assertThat(
+                deciderResult.reason(),
+                equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes, Processors.of(processors)))
+            );
             assertThat(
                 deciderResult.reason().summary(),
                 equalTo("fixed storage [" + storage + "] memory [" + memory + "] processors [" + processors + "] nodes [" + nodes + "]")
@@ -145,7 +150,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             settings.put(FixedAutoscalingDeciderService.MEMORY.getKey(), randomByteSizeValue());
         }
         if (randomBoolean()) {
-            settings.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), randomInt(64));
+            settings.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), randomIntBetween(1, 64));
         }
         settings.put(FixedAutoscalingDeciderService.NODES.getKey(), randomIntBetween(1, 10));
         return new TreeMap<>(Map.of(FixedAutoscalingDeciderService.NAME, settings.build()));
@@ -154,18 +159,18 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
     private AutoscalingCapacity calculateFixedDeciderCapacity(Settings configuration) {
         ByteSizeValue storage = configuration.getAsBytesSize(FixedAutoscalingDeciderService.STORAGE.getKey(), null);
         ByteSizeValue memory = configuration.getAsBytesSize(FixedAutoscalingDeciderService.MEMORY.getKey(), null);
-        Float processors = configuration.getAsFloat(FixedAutoscalingDeciderService.PROCESSORS.getKey(), null);
+        Double processors = configuration.getAsDouble(FixedAutoscalingDeciderService.PROCESSORS.getKey(), null);
         int nodes = FixedAutoscalingDeciderService.NODES.get(configuration);
-        ByteSizeValue totalStorage = storage != null ? new ByteSizeValue(storage.getBytes() * nodes) : null;
-        ByteSizeValue totalMemory = memory != null ? new ByteSizeValue(memory.getBytes() * nodes) : null;
-        Float totalProcessors = processors != null ? processors * nodes : null;
+        ByteSizeValue totalStorage = storage != null ? ByteSizeValue.ofBytes(storage.getBytes() * nodes) : null;
+        ByteSizeValue totalMemory = memory != null ? ByteSizeValue.ofBytes(memory.getBytes() * nodes) : null;
+        Double totalProcessors = processors != null ? processors * nodes : null;
 
         if (totalStorage == null && totalMemory == null && totalProcessors == null) {
             return null;
         } else {
             return new AutoscalingCapacity(
-                new AutoscalingCapacity.AutoscalingResources(totalStorage, totalMemory, totalProcessors),
-                new AutoscalingCapacity.AutoscalingResources(storage, memory, processors)
+                new AutoscalingCapacity.AutoscalingResources(totalStorage, totalMemory, Processors.of(totalProcessors)),
+                new AutoscalingCapacity.AutoscalingResources(storage, memory, Processors.of(processors))
             );
         }
     }
@@ -174,7 +179,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterInfo info = ClusterInfo.EMPTY;
         SortedSet<String> roleNames = randomRoles();
-        boolean hasDataRole = roleNames.stream().anyMatch(r -> r.equals("data") || r.startsWith("data_"));
+        boolean hasDataRole = roleNames.stream().anyMatch(r -> DiscoveryNodeRole.getRoleFromRoleName(r).canContainData());
 
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(Map.of());
@@ -183,7 +188,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             state,
             info,
             snapshotShardSizeInfo,
-            n -> Optional.of(new AutoscalingNodeInfo(randomNonNegativeLong(), randomInt(64))),
+            n -> Optional.of(new AutoscalingNodeInfo(randomNonNegativeLong(), randomProcessors())),
             () -> {}
         );
 
@@ -208,7 +213,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             state,
             info,
             null,
-            n -> Optional.of(new AutoscalingNodeInfo(memory, randomInt(64))),
+            n -> Optional.of(new AutoscalingNodeInfo(memory, randomProcessors())),
             () -> {}
         );
 
@@ -217,8 +222,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         if (hasDataRole) {
             assertNull(context.currentCapacity());
         } else {
-            assertThat(context.currentCapacity().node().memory(), equalTo(new ByteSizeValue(memory)));
-            assertThat(context.currentCapacity().total().memory(), equalTo(new ByteSizeValue(memory)));
+            assertThat(context.currentCapacity().node().memory(), equalTo(ByteSizeValue.ofBytes(memory)));
+            assertThat(context.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofBytes(memory)));
             assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ZERO));
             assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ZERO));
         }
@@ -266,20 +271,23 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             state,
             info,
             null,
-            n -> Optional.of(new AutoscalingNodeInfo(memory, randomInt(64))),
+            n -> Optional.of(new AutoscalingNodeInfo(memory, randomProcessors())),
             () -> {}
         );
 
         assertThat(context.nodes(), equalTo(expectedNodes));
         if (hasDataRole) {
-            assertThat(context.currentCapacity().node().storage(), equalTo(new ByteSizeValue(maxTotal)));
-            assertThat(context.currentCapacity().total().storage(), equalTo(new ByteSizeValue(sumTotal)));
+            assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ofBytes(maxTotal)));
+            assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ofBytes(sumTotal)));
         } else {
             assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ZERO));
             assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ZERO));
         }
-        assertThat(context.currentCapacity().node().memory(), equalTo(new ByteSizeValue(memory * Integer.signum(expectedNodes.size()))));
-        assertThat(context.currentCapacity().total().memory(), equalTo(new ByteSizeValue(memory * expectedNodes.size())));
+        assertThat(
+            context.currentCapacity().node().memory(),
+            equalTo(ByteSizeValue.ofBytes(memory * Integer.signum(expectedNodes.size())))
+        );
+        assertThat(context.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofBytes(memory * expectedNodes.size())));
 
         if (expectedNodes.isEmpty() == false) {
             context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
@@ -312,15 +320,15 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 state,
                 info,
                 null,
-                n -> Optional.of(new AutoscalingNodeInfo(memory, randomInt(64))),
+                n -> Optional.of(new AutoscalingNodeInfo(memory, randomProcessors())),
                 () -> {}
             );
             assertThat(context.nodes(), equalTo(expectedNodes));
             if (hasDataRole) {
                 assertThat(context.currentCapacity(), is(nullValue()));
             } else {
-                assertThat(context.currentCapacity().node().memory(), equalTo(new ByteSizeValue(memory)));
-                assertThat(context.currentCapacity().total().memory(), equalTo(new ByteSizeValue(memory * expectedNodes.size())));
+                assertThat(context.currentCapacity().node().memory(), equalTo(ByteSizeValue.ofBytes(memory)));
+                assertThat(context.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofBytes(memory * expectedNodes.size())));
                 assertThat(context.currentCapacity().node().storage(), equalTo(ByteSizeValue.ZERO));
                 assertThat(context.currentCapacity().total().storage(), equalTo(ByteSizeValue.ZERO));
             }

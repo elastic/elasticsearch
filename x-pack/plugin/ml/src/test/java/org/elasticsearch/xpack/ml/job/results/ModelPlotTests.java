@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,7 +26,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
+public class ModelPlotTests extends AbstractXContentSerializingTestCase<ModelPlot> {
 
     @Override
     protected ModelPlot createTestInstance() {

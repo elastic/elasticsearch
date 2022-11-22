@@ -23,6 +23,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
@@ -230,6 +231,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
     }
 
+    @TestLogging(value = "org.elasticsearch.monitor.fs.FsService:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/91083")
     public void testScaleWhileShrinking() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
@@ -382,6 +384,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNode1Name, tooLittleSpaceForShrink + 1);
         assertAcked(client().admin().cluster().prepareReroute());
         ensureGreen();
+
+        client().admin().indices().prepareDelete(indexName).get();
+        response = capacity();
+        assertThat(
+            response.results().get(policyName).requiredCapacity().total().storage(),
+            equalTo(response.results().get(policyName).currentCapacity().total().storage())
+        );
     }
 
     public void testScaleDuringSplitOrClone() throws Exception {
@@ -488,6 +497,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNode1Name, requiredSpaceForClone);
         assertAcked(client().admin().cluster().prepareReroute());
         ensureGreen();
+
+        client().admin().indices().prepareDelete(indexName).get();
+        response = capacity();
+        assertThat(
+            response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
+            equalTo(requiredSpaceForClone + enoughSpace)
+        );
     }
 
     /**
@@ -508,6 +524,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .stream()
                     .filter(DiscoveryNodeRole::canContainData)
                     .filter(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+                    .filter(r -> r != DiscoveryNodeRole.SEARCH_ROLE)
+                    .filter(r -> r != DiscoveryNodeRole.INDEX_ROLE)
                     .sorted()
                     .collect(Collectors.toList())
             )

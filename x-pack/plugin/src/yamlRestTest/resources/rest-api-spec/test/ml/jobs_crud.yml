@@ -520,7 +520,7 @@
             }
           }
   - match: { job_id: "jobs-crud-update-job" }
-  - length: { analysis_config.categorization_analyzer.filter: 1 }
+  - length: { analysis_config.categorization_analyzer.filter: 2 }
   - match: { analysis_config.categorization_analyzer.tokenizer: "ml_standard" }
   - length: { analysis_config.categorization_analyzer.char_filter: 3 }
   - match: { analysis_config.categorization_analyzer.char_filter.0: "first_line_with_letters" }

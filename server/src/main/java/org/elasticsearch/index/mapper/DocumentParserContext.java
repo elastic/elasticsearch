@@ -127,7 +127,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
-        this.dimensions = indexSettings.getMode().buildDocumentDimensions();
+        this.dimensions = indexSettings.getMode().buildDocumentDimensions(indexSettings);
     }
 
     public final IndexSettings indexSettings() {
@@ -226,6 +226,10 @@ public abstract class DocumentParserContext {
      * Add a new mapper dynamically created while parsing.
      */
     public final void addDynamicMapper(Mapper mapper) {
+        // eagerly check object depth limit here to avoid stack overflow errors
+        if (mapper instanceof ObjectMapper) {
+            MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.name());
+        }
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
@@ -277,8 +281,14 @@ public abstract class DocumentParserContext {
 
     /**
      * Add a new runtime field dynamically created while parsing.
+     * We use the same set for both new indexed and new runtime fields,
+     * because for dynamic mappings, a new field can be either mapped
+     * as runtime or indexed, but never both.
      */
-    public final void addDynamicRuntimeField(RuntimeField runtimeField) {
+    final void addDynamicRuntimeField(RuntimeField runtimeField) {
+        if (newFieldsSeen.add(runtimeField.name())) {
+            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
+        }
         dynamicRuntimeFields.add(runtimeField);
     }
 
@@ -390,12 +400,15 @@ public abstract class DocumentParserContext {
 
     public abstract ContentPath path();
 
-    public final MapperBuilderContext createMapperBuilderContext() {
+    /**
+     * Creates a context to build dynamic mappers
+     */
+    public final MapperBuilderContext createDynamicMapperBuilderContext() {
         String p = path().pathAsText("");
         if (p.endsWith(".")) {
             p = p.substring(0, p.length() - 1);
         }
-        return new MapperBuilderContext(p);
+        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic());
     }
 
     public abstract XContentParser parser();

@@ -117,7 +117,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89860")
     public void testDoesNotElectNonMasterNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();

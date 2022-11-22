@@ -11,7 +11,9 @@ package org.elasticsearch.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -37,6 +39,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
+import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
@@ -265,6 +269,8 @@ import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.health.stats.HealthApiStatsAction;
+import org.elasticsearch.health.stats.HealthApiStatsTransportAction;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -302,6 +308,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestDeleteDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetDesiredBalanceAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetFeatureUpgradeStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
@@ -317,6 +324,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPostFeatureUpgradeAction;
+import org.elasticsearch.rest.action.admin.cluster.RestPrevalidateNodeRemovalAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -559,10 +567,13 @@ public class ActionModule extends AbstractModule {
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
         actions.register(GetHealthAction.INSTANCE, GetHealthAction.TransportAction.class);
+        actions.register(PrevalidateNodeRemovalAction.INSTANCE, TransportPrevalidateNodeRemovalAction.class);
+        actions.register(HealthApiStatsAction.INSTANCE, HealthApiStatsTransportAction.class);
 
         actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
         actions.register(ClearVotingConfigExclusionsAction.INSTANCE, TransportClearVotingConfigExclusionsAction.class);
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
+        actions.register(GetDesiredBalanceAction.INSTANCE, TransportGetDesiredBalanceAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
@@ -731,6 +742,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesUsageAction());
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
+        registerHandler.accept(new RestGetDesiredBalanceAction());
         registerHandler.accept(new RestClusterStatsAction());
         registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
@@ -772,6 +784,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
         registerHandler.accept(new RestGetHealthAction());
+        registerHandler.accept(new RestPrevalidateNodeRemovalAction());
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
@@ -813,12 +826,12 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestBulkAction(settings));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction());
+        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder()));
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());
-        registerHandler.accept(new RestMultiSearchAction(settings));
+        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder()));
         registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());

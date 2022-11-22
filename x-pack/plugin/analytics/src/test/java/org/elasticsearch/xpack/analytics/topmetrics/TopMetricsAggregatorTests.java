@@ -393,49 +393,52 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-                AggregationContext context = createAggregationContext(
-                    indexSearcher,
-                    createIndexSettings(),
-                    new MatchAllDocsQuery(),
-                    breaker,
-                    builder.bytesToPreallocate(),
-                    MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
-                    false,
-                    doubleFields()
-                );
-                Aggregator aggregator = builder.build(context, null).create(null, CardinalityUpperBound.ONE);
-                aggregator.preCollection();
-                assertThat(indexReader.leaves(), hasSize(1));
-                LeafBucketCollector leaf = aggregator.getLeafCollector(
-                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null, null)
-                );
+                try (
+                    AggregationContext context = createAggregationContext(
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MatchAllDocsQuery(),
+                        breaker,
+                        builder.bytesToPreallocate(),
+                        MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                        false,
+                        doubleFields()
+                    )
+                ) {
+                    Aggregator aggregator = builder.build(context, null).create(null, CardinalityUpperBound.ONE);
+                    aggregator.preCollection();
+                    assertThat(indexReader.leaves(), hasSize(1));
+                    LeafBucketCollector leaf = aggregator.getLeafCollector(
+                        new AggregationExecutionContext(indexReader.leaves().get(0), null, null, null)
+                    );
 
-                /*
-                 * Collect some number of buckets that we *know* fit in the
-                 * breaker. The number of buckets feels fairly arbitrary but
-                 * it comes from:
-                 * budget = 15k = 20k - 5k for the "default weight" of ever agg
-                 * The 646th bucket causes a resize which requests puts the total
-                 * just over 15k. This works out to more like 190 bits per bucket
-                 * when we're fairly sure this should take about 129 bits per
-                 * bucket. The difference is because, for arrays in of this size,
-                 * BigArrays allocates the new array before freeing the old one.
-                 * That causes us to trip when we're about 2/3 of the way to the
-                 * limit. And 2/3 of 190 is 126. Which is pretty much what we
-                 * expect. Sort of.
-                 */
-                int bucketThatBreaks = 646;
-                for (int b = 0; b < bucketThatBreaks; b++) {
-                    try {
-                        leaf.collect(0, b);
-                    } catch (CircuitBreakingException e) {
-                        throw new AssertionError("Unexpected circuit break at [" + b + "]. Expected at [" + bucketThatBreaks + "]", e);
+                    /*
+                     * Collect some number of buckets that we *know* fit in the
+                     * breaker. The number of buckets feels fairly arbitrary but
+                     * it comes from:
+                     * budget = 15k = 20k - 5k for the "default weight" of ever agg
+                     * The 646th bucket causes a resize which requests puts the total
+                     * just over 15k. This works out to more like 190 bits per bucket
+                     * when we're fairly sure this should take about 129 bits per
+                     * bucket. The difference is because, for arrays in of this size,
+                     * BigArrays allocates the new array before freeing the old one.
+                     * That causes us to trip when we're about 2/3 of the way to the
+                     * limit. And 2/3 of 190 is 126. Which is pretty much what we
+                     * expect. Sort of.
+                     */
+                    int bucketThatBreaks = 646;
+                    for (int b = 0; b < bucketThatBreaks; b++) {
+                        try {
+                            leaf.collect(0, b);
+                        } catch (CircuitBreakingException e) {
+                            throw new AssertionError("Unexpected circuit break at [" + b + "]. Expected at [" + bucketThatBreaks + "]", e);
+                        }
                     }
+                    CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> leaf.collect(0, bucketThatBreaks));
+                    assertThat(e.getMessage(), equalTo("test error"));
+                    assertThat(e.getByteLimit(), equalTo(max.getBytes()));
+                    assertThat(e.getBytesWanted(), equalTo(5872L));
                 }
-                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> leaf.collect(0, bucketThatBreaks));
-                assertThat(e.getMessage(), equalTo("test error"));
-                assertThat(e.getByteLimit(), equalTo(max.getBytes()));
-                assertThat(e.getBytesWanted(), equalTo(5872L));
             }
         }
     }

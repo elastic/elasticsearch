@@ -12,7 +12,7 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -71,9 +71,11 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      */
     public abstract T value() throws IOException;
 
+    public abstract GeometryValidator geometryValidator();
+
     public T missing(String missing) {
         try {
-            final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
+            final Geometry geometry = WellKnownText.fromWKT(geometryValidator(), true, missing);
             final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
             field.add(missingShapeIndexer.indexShape(geometry), geometry);
             final T value = supplier.get();

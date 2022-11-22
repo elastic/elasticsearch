@@ -1,0 +1,85 @@
+[[get-desired-balance]]
+=== Get desired balance API
+++++
+<titleabbrev>Get desired balance</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Exposes the desired balance and basic metrics.
+
+[[get-desired-balance-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+GET /_internal/desired_balance
+--------------------------------------------------
+// TEST[skip:Can't reliably test desired balance]
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "stats": {
+    "computation_active": false,
+    "computation_submitted": 5,
+    "computation_executed": 5,
+    "computation_converged": 5,
+    "computation_iterations": 4,
+    "computation_converged_index": 4,
+    "computation_time_in_millis": 0,
+    "reconciliation_time_in_millis": 0
+  },
+  "routing_table": {
+    "test": {
+      "0": {
+        "current": [
+          {
+            "state": "STARTED",
+            "primary": true,
+            "node": "UPYt8VwWTt-IADAEbqpLxA",
+            "node_is_desired": true,
+            "relocating_node": null,
+            "relocating_node_is_desired": false,
+            "shard_id": 0,
+            "index": "test"
+          }
+        ],
+        "desired": {
+          "node_ids": [
+            "UPYt8VwWTt-IADAEbqpLxA"
+          ],
+          "total": 1,
+          "unassigned": 0,
+          "ignored": 0
+        }
+      },
+      "1": {
+        "current": [
+          {
+            "state": "STARTED",
+            "primary": true,
+            "node": "2x1VTuSOQdeguXPdN73yRw",
+            "node_is_desired": true,
+            "relocating_node": null,
+            "relocating_node_is_desired": false,
+            "shard_id": 1,
+            "index": "test"
+          }
+        ],
+        "desired": {
+          "node_ids": [
+            "2x1VTuSOQdeguXPdN73yRw"
+          ],
+          "total": 1,
+          "unassigned": 0,
+          "ignored": 0
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:Can't reliably test desired balance]

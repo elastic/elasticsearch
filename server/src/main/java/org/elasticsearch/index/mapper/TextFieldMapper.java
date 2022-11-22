@@ -336,7 +336,12 @@ public class TextFieldMapper extends FieldMapper {
                 meta };
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context, Version indexCreatedVersion) {
+        private TextFieldType buildFieldType(
+            FieldType fieldType,
+            MultiFields multiFields,
+            MapperBuilderContext context,
+            Version indexCreatedVersion
+        ) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             if (analyzers.positionIncrementGap.isConfigured()) {
@@ -358,6 +363,7 @@ public class TextFieldMapper extends FieldMapper {
                     store.getValue(),
                     tsi,
                     context.isSourceSynthetic(),
+                    syntheticSourceDelegate(fieldType, multiFields),
                     meta.getValue()
                 );
                 ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
@@ -366,6 +372,21 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             return ft;
+        }
+
+        private KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
+            if (fieldType.stored()) {
+                return null;
+            }
+            for (Mapper sub : multiFields) {
+                if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                        return kwd.fieldType();
+                    }
+                }
+            }
+            return null;
         }
 
         private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, FieldType fieldType, TextFieldType tft) {
@@ -449,6 +470,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
@@ -457,10 +479,9 @@ public class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
-            TextFieldType tft = buildFieldType(fieldType, context, indexCreatedVersion);
+            TextFieldType tft = buildFieldType(fieldType, multiFields, context, indexCreatedVersion);
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
@@ -656,6 +677,12 @@ public class TextFieldMapper extends FieldMapper {
         private boolean indexPhrases = false;
         private boolean eagerGlobalOrdinals = false;
         private final boolean isSyntheticSource;
+        /**
+         * In some configurations text fields use a sub-keyword field to provide
+         * their values for synthetic source. This is that field. Or null if we're
+         * not running in synthetic _source or synthetic source doesn't need it.
+         */
+        private final KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate;
 
         public TextFieldType(
             String name,
@@ -663,11 +690,13 @@ public class TextFieldMapper extends FieldMapper {
             boolean stored,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta
         ) {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
             this.isSyntheticSource = isSyntheticSource;
+            this.syntheticSourceDelegate = syntheticSourceDelegate;
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
@@ -681,6 +710,7 @@ public class TextFieldMapper extends FieldMapper {
             );
             fielddata = false;
             isSyntheticSource = false;
+            syntheticSourceDelegate = null;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource) {
@@ -690,6 +720,7 @@ public class TextFieldMapper extends FieldMapper {
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 isSyntheticSource,
+                null,
                 Collections.emptyMap()
             );
         }
@@ -965,10 +996,19 @@ public class TextFieldMapper extends FieldMapper {
                         }
                     };
                 }
+                if (syntheticSourceDelegate != null) {
+                    return syntheticSourceDelegate.fielddataBuilder(fieldDataContext);
+                }
+                /*
+                 * We *shouldn't fall to this exception. The mapping should be
+                 * rejected because we've enabled synthetic source but not configured
+                 * the index properly. But we give it a nice message anyway just in
+                 * case.
+                 */
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is not yet supported because synthetic _source is enabled and the field doesn't create stored fields"
+                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
@@ -987,15 +1027,8 @@ public class TextFieldMapper extends FieldMapper {
 
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
-        public ConstantScoreTextFieldType(
-            String name,
-            boolean indexed,
-            boolean stored,
-            TextSearchInfo tsi,
-            boolean isSyntheticSource,
-            Map<String, String> meta
-        ) {
-            super(name, indexed, stored, tsi, isSyntheticSource, meta);
+        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, indexed, stored, tsi, false, null, meta);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1004,7 +1037,6 @@ public class TextFieldMapper extends FieldMapper {
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                false,
                 Collections.emptyMap()
             );
         }
@@ -1015,7 +1047,6 @@ public class TextFieldMapper extends FieldMapper {
                 indexed,
                 stored,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                false,
                 meta
             );
         }
@@ -1071,7 +1102,7 @@ public class TextFieldMapper extends FieldMapper {
         private final MappedFieldType existQueryFieldType;
 
         LegacyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, meta);
+            super(name, indexed, stored, tsi, meta);
             // norms are not available, neither are doc-values, so fall back to _source to run exists query
             existQueryFieldType = KeywordScriptFieldType.sourceOnly(name()).asMappedFieldTypes().findFirst().get();
         }

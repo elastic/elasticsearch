@@ -85,6 +85,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -3079,34 +3080,44 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
-                    "composite",
-                    List.of(new TermsValuesSourceBuilder("term").field("term-field"))
-                );
-                FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
-                    .subAggregation(compositeBuilder);
-                // should not throw
-                createAggregator(goodParentFilter, indexSearcher, keywordField("term-field"));
+                try (
+                    AggregationContext context = createAggregationContext(
+                        indexSearcher,
+                        new MatchAllDocsQuery(),
+                        keywordField("term-field"),
+                        longField("time")
+                    )
+                ) {
 
-                RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
-                    .subAggregation(compositeBuilder);
+                    CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
+                        "composite",
+                        List.of(new TermsValuesSourceBuilder("term").field("term-field"))
+                    );
 
-                // Should not throw
-                createAggregator(goodParentRandom, indexSearcher, keywordField("term-field"));
+                    FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
+                        .subAggregation(compositeBuilder);
+                    // should not throw
+                    createAggregator(goodParentFilter, context);
 
-                RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
-                    .subAggregation(goodParentFilter);
-                // Should not throw
-                createAggregator(goodParentRandomFilter, indexSearcher, keywordField("term-field"));
+                    RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
+                        .subAggregation(compositeBuilder);
 
-                DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
-                    .field("time")
-                    .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
+                    // Should not throw
+                    createAggregator(goodParentRandom, context);
 
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> createAggregator(badParent, indexSearcher, keywordField("term-field"), longField("time"))
-                );
+                    RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(
+                        0.2
+                    ).subAggregation(goodParentFilter);
+                    // Should not throw
+                    createAggregator(goodParentRandomFilter, context);
+
+                    DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
+                        .field("time")
+                        .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
+
+                    expectThrows(IllegalArgumentException.class, () -> createAggregator(badParent, context));
+
+                }
             }
         }
     }

@@ -35,6 +35,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return true;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("required", b -> b.field("required", true));
     }

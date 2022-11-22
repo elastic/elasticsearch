@@ -47,11 +47,10 @@ public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
         Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+        var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false));
+        var project = as(plan, Project.class);
 
-        assertEquals(
-            new EsRelation(EMPTY, idx, false),
-            analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false))
-        );
+        assertEquals(new EsRelation(EMPTY, idx, false), project.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -69,17 +68,17 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = new EsIndex("cluster:idx", Map.of());
         Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
-        assertEquals(
-            new EsRelation(EMPTY, idx, false),
-            analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "cluster", "idx"), null, false))
-        );
+        var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "cluster", "idx"), null, false));
+        var project = as(plan, Project.class);
+
+        assertEquals(new EsRelation(EMPTY, idx, false), project.child());
     }
 
     public void testAttributeResolution() {
         EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
         Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
-        Eval eval = (Eval) analyzer.analyze(
+        var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
                 new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false),
@@ -87,6 +86,8 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
 
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
         assertEquals(1, eval.fields().size());
         assertEquals(new Alias(EMPTY, "e", new FieldAttribute(EMPTY, "emp_no", idx.mapping().get("emp_no"))), eval.fields().get(0));
 
@@ -102,7 +103,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testAttributeResolutionOfChainedReferences() {
         Analyzer analyzer = newAnalyzer(loadMapping("mapping-one-field.json", "idx"));
 
-        Eval eval = (Eval) analyzer.analyze(
+        var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
                 new Eval(
@@ -113,6 +114,9 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(new Alias(EMPTY, "ee", new UnresolvedAttribute(EMPTY, "e")))
             )
         );
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
 
         assertEquals(1, eval.fields().size());
         Alias eeField = (Alias) eval.fields().get(0);
@@ -135,7 +139,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = new EsIndex("idx", Map.of());
         Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
-        Eval eval = (Eval) analyzer.analyze(
+        var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
                 new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, DataTypes.INTEGER)))),
@@ -143,6 +147,8 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
 
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
         assertEquals(1, eval.fields().size());
         assertEquals(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataTypes.INTEGER)), eval.fields().get(0));
 
@@ -288,6 +294,14 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | project -un*
             """, "Cannot use field [unsupported] with unsupported type");
+    }
+
+    public void testExplicitProject() {
+        var plan = analyze("""
+            from test
+            """);
+        var project = as(plan, Project.class);
+        var relation = as(project.child(), EsRelation.class);
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

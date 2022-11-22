@@ -98,6 +98,8 @@ include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
 
+include::cluster/prevalidate-node-removal.asciidoc[]
+
 include::cluster/nodes-reload-secure-settings.asciidoc[]
 
 include::cluster/nodes-stats.asciidoc[]

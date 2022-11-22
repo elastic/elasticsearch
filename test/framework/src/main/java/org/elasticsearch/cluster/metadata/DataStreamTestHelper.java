@@ -501,7 +501,6 @@ public final class DataStreamTestHelper {
 
     public static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
         Map<String, Object> fieldsMapping = new HashMap<>();
-        fieldsMapping.put("type", DataStreamTimestampFieldMapper.NAME);
         fieldsMapping.put("enabled", true);
         MappingParserContext mockedParserContext = mock(MappingParserContext.class);
         return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();

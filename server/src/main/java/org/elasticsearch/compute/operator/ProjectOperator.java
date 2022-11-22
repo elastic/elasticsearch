@@ -77,11 +77,13 @@ public class ProjectOperator implements Operator {
 
         Arrays.fill(blocks, null);
         int b = 0;
+        int positionCount = lastInput.getPositionCount();
         for (int i = bs.nextSetBit(0); i >= 0 && i < lastInput.getBlockCount(); i = bs.nextSetBit(i + 1)) {
-            blocks[b++] = lastInput.getBlock(i);
+            var block = lastInput.getBlock(i);
+            blocks[b++] = block;
         }
         lastInput = null;
-        return new Page(b, blocks);
+        return new Page(positionCount, blocks);
     }
 
     @Override

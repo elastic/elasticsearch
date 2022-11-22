@@ -11,21 +11,18 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
@@ -35,7 +32,6 @@ import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Stream;
 
 @Experimental
 public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
@@ -61,27 +57,12 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         List<Batch> batches = new ArrayList<>();
         batches.add(new Batch("Create topN", Limiter.ONCE, new CreateTopN()));
+
+        batches.add(new Batch("Lazy field extraction", Limiter.ONCE, new InsertFieldExtraction()));
+
         batches.add(new Batch("Split nodes", Limiter.ONCE, new SplitAggregate(), new SplitTopN()));
         batches.add(new Batch("Add exchange", Limiter.ONCE, new AddExchangeOnSingleNodeSplit()));
 
-        batches.add(
-            new Batch(
-                "Move FieldExtract upwards",
-                new FieldExtractPastEval(),
-                new FieldExtractPastFilter(),
-                new FieldExtractPastLimit(),
-                new FieldExtractPastTopN(),
-                new FieldExtractPastAggregate(),
-                new FieldExtractPastExchange(),
-                new EmptyFieldExtractRemoval()
-            )
-        );
-        // TODO: Needs another project at the end - depends on https://github.com/elastic/elasticsearch-internal/issues/293
-        // Batch fieldExtract = new Batch("Lazy field loading", Limiter.ONCE, new AddFieldExtraction());
-        // batches.add(fieldExtract);
-
-        // TODO: add rule to prune _doc_id, _segment_id, _shard_id at the top
-        // Batch addProject = new Batch("Add project", new AddProjectWhenInternalFieldNoLongerNeeded());
         if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(configuration.pragmas())) {
             batches.add(new Batch("Add task parallelization above query", new AddTaskParallelismAboveQuery()));
         }
@@ -89,167 +70,69 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         return batches;
     }
 
-    private static class FieldExtractPastEval extends OptimizerRule<EvalExec> {
-        @Override
-        protected PhysicalPlan rule(EvalExec eval) {
-            if (eval.child()instanceof FieldExtractExec fieldExtractExec) {
-                // If you have an ExtractFieldNode below an EvalNode,
-                // only extract the things that the eval needs, and extract the rest above eval
-                return possiblySplitExtractFieldNode(eval, eval.fields(), fieldExtractExec, true);
-            }
-            return eval;
-        }
-    }
-
-    private static class FieldExtractPastFilter extends OptimizerRule<FilterExec> {
-        @Override
-        protected PhysicalPlan rule(FilterExec filterExec) {
-            if (filterExec.child()instanceof FieldExtractExec fieldExtractExec) {
-                // If you have an ExtractFieldNode below an FilterNode,
-                // only extract the things that the filter needs, and extract the rest above filter
-                return possiblySplitExtractFieldNode(
-                    filterExec,
-                    List.of(Expressions.wrapAsNamed(filterExec.condition())),
-                    fieldExtractExec,
-                    true
-                );
-            }
-            return filterExec;
-        }
-    }
-
-    private static class FieldExtractPastExchange extends OptimizerRule<ExchangeExec> {
-        protected PhysicalPlan rule(ExchangeExec exchangeExec) {
-            if (exchangeExec.child()instanceof FieldExtractExec fieldExtractExec) {
-                // TODO: Once we go distributed, we can't do this
-                return possiblySplitExtractFieldNode(exchangeExec, List.of(), fieldExtractExec, true);
-            }
-            return exchangeExec;
-        }
-    }
-
-    private static class FieldExtractPastAggregate extends OptimizerRule<AggregateExec> {
-        protected PhysicalPlan rule(AggregateExec aggregateExec) {
-            if (aggregateExec.child()instanceof FieldExtractExec fieldExtractExec) {
-                // If you have an ExtractFieldNode below an Aggregate,
-                // only extract the things that the aggregate needs, and extract the rest above eval
-                List<? extends NamedExpression> namedExpressions = Stream.concat(
-                    aggregateExec.aggregates().stream(),
-                    aggregateExec.groupings().stream().map(Expressions::wrapAsNamed)
-                ).toList();
-                return possiblySplitExtractFieldNode(aggregateExec, namedExpressions, fieldExtractExec, false);
-            }
-            return aggregateExec;
-        }
-    }
-
-    private static class FieldExtractPastLimit extends OptimizerRule<LimitExec> {
-        @Override
-        protected PhysicalPlan rule(LimitExec limitExec) {
-            if (limitExec.child()instanceof FieldExtractExec fieldExtractExec) {
-                return possiblySplitExtractFieldNode(
-                    limitExec,
-                    List.of(Expressions.wrapAsNamed(limitExec.limit())),
-                    fieldExtractExec,
-                    true
-                );
-            }
-            return limitExec;
-        }
-    }
-
-    private static class FieldExtractPastTopN extends OptimizerRule<TopNExec> {
-        @Override
-        protected PhysicalPlan rule(TopNExec topNExec) {
-            if (topNExec.child()instanceof FieldExtractExec fieldExtractExec) {
-                List<? extends NamedExpression> namedExpressions = Stream.concat(
-                    topNExec.order().stream().map(Expressions::wrapAsNamed),
-                    Stream.of(topNExec.getLimit()).map(Expressions::wrapAsNamed)
-                ).toList();
-                return possiblySplitExtractFieldNode(topNExec, namedExpressions, fieldExtractExec, true);
-            }
-            return topNExec;
-        }
-    }
-
-    static class AddFieldExtraction extends OptimizerRule<UnaryExec> {
-
-        // start from the source upwards
-        AddFieldExtraction() {
-            super(OptimizerRules.TransformDirection.UP);
-        }
+    //
+    // Materialize the concrete fields that need to be extracted from the storage until the last possible moment
+    // 0. field extraction is one per EsQueryExec
+    // 1. add the materialization right before usage
+    // 2. prune meta fields once all fields were loaded
+    static class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
 
         @Override
-        protected PhysicalPlan rule(UnaryExec plan) {
-            // Exchange simply breaks down things so ignore it
-            if (plan instanceof ExchangeExec || plan.child() instanceof ExchangeExec) {
-                return plan;
-            }
-
+        public PhysicalPlan apply(PhysicalPlan plan) {
             // 1. add the extractors before each node that requires extra columns
-            var lastNodeWithExtraction = new Holder<PhysicalPlan>();
+            var lastNodeWithExtraction = new Holder<UnaryExec>();
 
-            var missing = new LinkedHashSet<Attribute>();
-            var input = plan.inputSet();
+            // start bottom -> up
 
-            // collect field attributes used inside the expressions
-            plan.forEachExpression(FieldAttribute.class, f -> {
-                if (input.contains(f) == false) {
-                    missing.add(f);
+            // TODO: look into supporting nary nodes
+            plan = plan.transformUp(UnaryExec.class, p -> {
+                var missing = new LinkedHashSet<Attribute>();
+                var input = p.inputSet();
+
+                // collect field attributes used inside expressions
+                p.forEachExpression(FieldAttribute.class, f -> {
+                    if (input.contains(f) == false) {
+                        missing.add(f);
+                    }
+                });
+
+                // add extractor
+                if (missing.isEmpty() == false) {
+                    // collect source attributes
+                    var extractor = new FieldExtractExec(p.source(), p.child(), missing);
+                    p = p.replaceChild(extractor);
+                    lastNodeWithExtraction.set(p);
                 }
+
+                // any existing agg / projection projects away the source attributes
+                if (p instanceof AggregateExec || p instanceof ProjectExec) {
+                    lastNodeWithExtraction.set(null);
+                }
+                return p;
             });
 
-            // ignore exchanges
-            if (missing.isEmpty() == false) {
-                // plan = plan.replaceChild(new FieldExtractExec(plan.source(), plan.child(), missing));
+            // 2. check the last field extractor that was introduced and project the source attributes away
+            var pruneNode = lastNodeWithExtraction.get();
+
+            if (pruneNode != null) {
+                plan = plan.transformUp(pruneNode.getClass(), p -> {
+                    PhysicalPlan pl = p;
+                    // instance equality should work
+                    if (pruneNode == p) {
+                        var withoutSourceAttribute = new ArrayList<>(p.output());
+                        withoutSourceAttribute.removeIf(EsQueryExec::isSourceAttribute);
+                        pl = new ProjectExec(p.source(), p, withoutSourceAttribute);
+                    }
+                    return pl;
+                });
             }
 
             return plan;
         }
-    }
 
-    private static UnaryExec possiblySplitExtractFieldNode(
-        UnaryExec parent,
-        List<? extends NamedExpression> namedExpressions,
-        FieldExtractExec fieldExtractExec,
-        boolean preserveUnused
-    ) {
-        List<Attribute> attributesToKeep = new ArrayList<>();
-        List<Attribute> attributesToMoveUp = new ArrayList<>();
-        outer: for (Attribute fieldExtractAttribute : fieldExtractExec.attributesToExtract()) {
-            if (namedExpressions.stream().anyMatch(ne -> ne.anyMatch(e -> e.semanticEquals(fieldExtractAttribute)))) {
-                attributesToKeep.add(fieldExtractAttribute);
-            } else {
-                if (preserveUnused) {
-                    attributesToMoveUp.add(fieldExtractAttribute);
-                }
-            }
-        }
-        if (attributesToKeep.size() == fieldExtractExec.attributesToExtract().size()) {
-            return parent;
-        }
-        return new FieldExtractExec(
-            fieldExtractExec.source(),
-            parent.replaceChild(
-                new FieldExtractExec(
-                    fieldExtractExec.source(),
-                    fieldExtractExec.child(),
-                    attributesToKeep,
-                    fieldExtractExec.sourceAttributes()
-                )
-            ),
-            attributesToMoveUp,
-            fieldExtractExec.sourceAttributes()
-        );
-    }
-
-    private static class EmptyFieldExtractRemoval extends OptimizerRule<FieldExtractExec> {
         @Override
-        protected PhysicalPlan rule(FieldExtractExec fieldExtractExec) {
-            if (fieldExtractExec.attributesToExtract().isEmpty()) {
-                return fieldExtractExec.child();
-            }
-            return fieldExtractExec;
+        protected PhysicalPlan rule(PhysicalPlan plan) {
+            return plan;
         }
     }
 

@@ -19,9 +19,12 @@ import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunction.AggregatorFunctionFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.GroupingAggregatorFunctionFactory;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -75,6 +78,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -82,6 +86,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -198,6 +203,12 @@ public class LocalExecutionPlanner {
                             throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
                         }
 
+                        final Supplier<BlockHash> blockHash;
+                        if (grpAttrib.dataType() == DataTypes.KEYWORD) {
+                            blockHash = () -> BlockHash.newBytesRefHash(BigArrays.NON_RECYCLING_INSTANCE);
+                        } else {
+                            blockHash = () -> BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE);
+                        }
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.get(grpAttrib.id()),
@@ -208,7 +219,7 @@ public class LocalExecutionPlanner {
                                         source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
                                 ),
-                                BigArrays.NON_RECYCLING_INSTANCE,
+                                blockHash,
                                 AggregatorMode.INITIAL
                             );
                             layout.put(alias.id(), 1);  // <<<< TODO: this one looks suspicious
@@ -216,7 +227,7 @@ public class LocalExecutionPlanner {
                             operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.get(grpAttrib.id()),
                                 List.of(new GroupingAggregatorFactory(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
-                                BigArrays.NON_RECYCLING_INSTANCE,
+                                blockHash,
                                 AggregatorMode.FINAL
                             );
                             layout.put(alias.id(), 1);
@@ -239,21 +250,39 @@ public class LocalExecutionPlanner {
             return planFieldExtractNode(context, fieldExtractExec);
         } else if (node instanceof OutputExec outputExec) {
             PhysicalOperation source = plan(outputExec.child(), context);
-            if (outputExec.output().size() != source.layout.size()) {
+            var output = outputExec.output();
+            if (output.size() != source.layout.size()) {
                 throw new IllegalStateException(
                     "expected layout:"
-                        + outputExec.output()
+                        + output
                         + ": "
-                        + outputExec.output().stream().map(NamedExpression::id).collect(Collectors.toList())
+                        + output.stream().map(NamedExpression::id).toList()
                         + ", source.layout:"
                         + source.layout
                 );
             }
+            // align the page layout with the operator output
+            // extraction order - the list ordinal is the same as the column one
+            // while the value represents the position in the original page
+            final int[] mappedPosition = new int[output.size()];
+            int index = -1;
+            boolean transformRequired = false;
+            for (var attribute : output) {
+                mappedPosition[++index] = source.layout.get(attribute.id());
+                if (transformRequired == false) {
+                    transformRequired = mappedPosition[index] != index;
+                }
+            }
+            Function<Page, Page> mapper = transformRequired ? p -> {
+                var blocks = new Block[p.getBlockCount()];
+                for (int i = 0; i < blocks.length; i++) {
+                    blocks[i] = p.getBlock(mappedPosition[i]);
+                }
+                return new Page(blocks);
+            } : Function.identity();
+
             return new PhysicalOperation(
-                new OutputOperatorFactory(
-                    outputExec.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-                    outputExec.getPageConsumer()
-                ),
+                new OutputOperatorFactory(Expressions.names(outputExec.output()), mapper, outputExec.getPageConsumer()),
                 source.layout,
                 source
             );
@@ -334,18 +363,23 @@ public class LocalExecutionPlanner {
             }
             return new PhysicalOperation(new RowOperatorFactory(obj), layout);
         } else if (node instanceof ProjectExec project) {
+            var source = plan(project.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
-            var output = project.output();
-            for (int i = 0; i < output.size(); i++) {
-                layout.put(output.get(i).id(), i);
-            }
+
             var outputSet = project.outputSet();
             var input = project.child().output();
             var mask = new BitSet(input.size());
-            for (int i = 0; i < input.size(); i++) {
-                mask.set(i, outputSet.contains(input.get(i)));
+            int layoutPos = 0;
+            for (Attribute element : input) {
+                var id = element.id();
+                var maskPosition = source.layout.get(id);
+                var keepColumn = outputSet.contains(element);
+                mask.set(maskPosition, keepColumn);
+                if (keepColumn) {
+                    layout.put(id, layoutPos++);
+                }
             }
-            return new PhysicalOperation(new ProjectOperatorFactory(mask), layout);
+            return new PhysicalOperation(new ProjectOperatorFactory(mask), layout, source);
         } else if (node instanceof FilterExec filter) {
             PhysicalOperation source = plan(filter.child(), context);
             return new PhysicalOperation(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout, source);
@@ -378,7 +412,7 @@ public class LocalExecutionPlanner {
         Map<Object, Integer> layout = new HashMap<>();
         layout.putAll(source.layout);
 
-        var souceAttributes = fieldExtractExec.sourceAttributes().toArray(new Attribute[3]);
+        var sourceAttrs = fieldExtractExec.sourceAttributes();
 
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
@@ -408,9 +442,9 @@ public class LocalExecutionPlanner {
                     valuesSources.stream().map(Tuple::v1).collect(Collectors.toList()),
                     valuesSources.stream().map(Tuple::v2).collect(Collectors.toList()),
                     indexReaders,
-                    previousLayout.get(souceAttributes[0].id()),
-                    previousLayout.get(souceAttributes[1].id()),
-                    previousLayout.get(souceAttributes[2].id()),
+                    previousLayout.get(sourceAttrs.get(0).id()),
+                    previousLayout.get(sourceAttrs.get(1).id()),
+                    previousLayout.get(sourceAttrs.get(2).id()),
                     attr.name()
                 ),
                 layout,

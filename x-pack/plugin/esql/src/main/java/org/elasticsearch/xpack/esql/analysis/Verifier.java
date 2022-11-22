@@ -22,6 +22,11 @@ public class Verifier {
         Set<Failure> failures = new LinkedHashSet<>();
 
         plan.forEachUp(p -> {
+            // if the children are unresolved, so will this node; counting it will only add noise
+            if (p.childrenResolved() == false) {
+                return;
+            }
+
             if (p instanceof Unresolvable u) {
                 failures.add(Failure.fail(p, u.unresolvedMessage()));
             }

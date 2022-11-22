@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -168,7 +167,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final String concreteClusterAlias
     ) throws InterruptedException {
         try (var ignored = threadContext.stashContext()) {
-            final AuthorizationEngine.AuthorizationInfo originalAuthzInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
+            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
             final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
             final CountDownLatch latch = new CountDownLatch(1);
             // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
@@ -186,7 +185,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                         concreteClusterAlias,
                         authentication.getEffectiveSubject(),
                         new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(equalTo(originalAuthzInfo)));
+                            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
                             actual.set(newValue);
                         }), latch)
                     );
@@ -194,7 +193,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             );
             latch.await();
             // Validate original authz info is restored after call complete
-            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), equalTo(originalAuthzInfo));
+            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
             return actual.get();
         }
     }

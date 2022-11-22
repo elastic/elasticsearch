@@ -74,7 +74,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 }
 
                 if (p instanceof Sample sample) {
-                    return new SampleExec(p.source(), matches, keys);
+                    return new SampleExec(p.source(), matches, keys, sample.maxSamplesPerKey());
                 }
 
                 Sequence s = (Sequence) p;

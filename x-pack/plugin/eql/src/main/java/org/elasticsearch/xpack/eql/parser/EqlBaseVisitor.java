@@ -54,6 +54,13 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
     T visitSequence(EqlBaseParser.SequenceContext ctx);
 
     /**
+     * Visit a parse tree produced by {@link EqlBaseParser#sampleParams}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitSampleParams(EqlBaseParser.SampleParamsContext ctx);
+
+    /**
      * Visit a parse tree produced by {@link EqlBaseParser#sample}.
      * @param ctx the parse tree
      * @return the visitor result

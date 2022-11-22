@@ -113,6 +113,22 @@ class EqlBaseBaseListener implements EqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override
+    public void enterSampleParams(EqlBaseParser.SampleParamsContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
+    public void exitSampleParams(EqlBaseParser.SampleParamsContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
     public void enterSample(EqlBaseParser.SampleContext ctx) {}
 
     /**

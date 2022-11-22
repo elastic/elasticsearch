@@ -12,24 +12,46 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
+import java.util.Objects;
 
 public class Sample extends AbstractJoin {
 
-    public Sample(Source source, List<KeyedFilter> queries) {
+    private final int maxSamplesPerKey;
+
+    public Sample(Source source, List<KeyedFilter> queries, int maxSamplesPerKey) {
         super(source, queries);
+        this.maxSamplesPerKey = maxSamplesPerKey;
     }
 
     @Override
     protected NodeInfo<? extends Sample> info() {
-        return NodeInfo.create(this, Sample::new, queries);
+        return NodeInfo.create(this, Sample::new, queries, maxSamplesPerKey);
     }
 
     @Override
     public Sample replaceChildren(List<LogicalPlan> newChildren) {
-        return new Sample(source(), asKeyed(newChildren));
+        return new Sample(source(), asKeyed(newChildren), maxSamplesPerKey);
     }
 
     public Sample with(List<KeyedFilter> queries) {
-        return new Sample(source(), queries);
+        return new Sample(source(), queries, maxSamplesPerKey);
+    }
+
+    public int maxSamplesPerKey() {
+        return maxSamplesPerKey;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        Sample sample = (Sample) o;
+        return maxSamplesPerKey == sample.maxSamplesPerKey;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), maxSamplesPerKey);
     }
 }

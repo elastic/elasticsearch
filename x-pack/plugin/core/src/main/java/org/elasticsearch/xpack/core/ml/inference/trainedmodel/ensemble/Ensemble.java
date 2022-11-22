@@ -84,6 +84,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     private final List<String> featureNames;
+
+    public List<TrainedModel> getModels() {
+        return models;
+    }
+
     private final List<TrainedModel> models;
     private final OutputAggregator outputAggregator;
     private final TargetType targetType;

@@ -34,11 +34,6 @@ import static org.hamcrest.Matchers.is;
 
 public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90843")
-    public void testHashcodeAndEquals() {
-        super.testHashcodeAndEquals();
-    }
-
     @Override
     public RollupStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
@@ -56,7 +51,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
-            case 2 -> fixedInterval = ConfigTestHelpers.randomInterval();
+            case 2 -> fixedInterval = randomValueOtherThan(instance.getFixedInterval(), ConfigTestHelpers::randomInterval);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 

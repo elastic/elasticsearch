@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
+public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
     public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -103,11 +103,6 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
      */
     public boolean wrapLongitude() {
         return wrapLongitude;
-    }
-
-    @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.NONE;
     }
 
     @Override

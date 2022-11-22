@@ -37,11 +37,11 @@ public class MultiFieldsSerializationTests extends ESTestCase {
         sortedNames.sort(Comparator.naturalOrder());
 
         for (String name : names) {
-            builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, Version.CURRENT));
+            builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, Version.CURRENT));
         }
 
         Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, false, Version.CURRENT);
-        FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.ROOT);
+        FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.root(false));
 
         String serialized = Strings.toString(multiFields);
         int lastStart = 0;

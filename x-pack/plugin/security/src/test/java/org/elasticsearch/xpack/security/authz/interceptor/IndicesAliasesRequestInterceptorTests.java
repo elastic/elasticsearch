@@ -68,7 +68,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         if (useFls) {
             fieldPermissions = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, null));
         } else {
-            fieldPermissions = new FieldPermissions();
+            fieldPermissions = FieldPermissions.DEFAULT;
         }
         final boolean useDls = (useFls == false) || randomBoolean();
         final Set<BytesReference> queries;

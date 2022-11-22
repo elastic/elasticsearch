@@ -1,6 +1,0 @@
-pr: 90341
-summary: Don't shortcut the total hit count for text fields
-area: Search
-type: bug
-issues:
- - 89760

@@ -307,7 +307,7 @@ public class HotThreads {
                     String.format(
                         Locale.ROOT,
                         "%n%s memory allocated by thread '%s'%n",
-                        new ByteSizeValue(topThread.getAllocatedBytes()),
+                        ByteSizeValue.ofBytes(topThread.getAllocatedBytes()),
                         threadName
                     )
                 );

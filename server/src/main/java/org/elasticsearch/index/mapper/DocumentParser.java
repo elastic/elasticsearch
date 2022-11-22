@@ -244,7 +244,7 @@ public final class DocumentParser {
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.ROOT);
+        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic()));
         root.fixRedundantIncludes();
         return context.mappingLookup().getMapping().mappingUpdate(root);
     }
@@ -310,6 +310,9 @@ public final class DocumentParser {
             switch (token) {
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
+                    if (currentFieldName.isEmpty()) {
+                        throw new IllegalArgumentException("Field name cannot be an empty string");
+                    }
                     if (currentFieldName.isBlank()) {
                         throwFieldNameBlank(context, currentFieldName);
                     }

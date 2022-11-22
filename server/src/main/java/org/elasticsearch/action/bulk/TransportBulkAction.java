@@ -30,6 +30,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -167,6 +169,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
         }
         return indexRequest;
+    }
+
+    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
+        final ActionListener<Response> listener
+    ) {
+        return ActionListener.wrap(bulkItemResponses -> {
+            assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
+            final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
+            if (bulkItemResponse.isFailed() == false) {
+                @SuppressWarnings("unchecked")
+                final Response response = (Response) bulkItemResponse.getResponse();
+                listener.onResponse(response);
+            } else {
+                listener.onFailure(bulkItemResponse.getFailure().getCause());
+            }
+        }, listener::onFailure);
     }
 
     @Override

@@ -142,7 +142,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 } else if (ownedByAuthenticatedUser) {
                     return true;
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
-                    if (false == username.equals(authentication.getUser().principal())) {
+                    if (false == username.equals(authentication.getEffectiveSubject().getUser().principal())) {
                         return false;
                     }
                     RealmDomain domain = authentication.getSourceRealm().getDomain();
@@ -159,7 +159,9 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         private static boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
             if (authentication.isApiKey()) {
                 // API key id from authentication must match the id from request
-                final String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                final String authenticatedApiKeyId = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_ID_KEY);
                 if (Strings.hasText(apiKeyId)) {
                     return apiKeyId.equals(authenticatedApiKeyId);
                 }

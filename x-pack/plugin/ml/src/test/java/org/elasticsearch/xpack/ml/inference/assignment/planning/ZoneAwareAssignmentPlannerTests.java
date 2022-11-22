@@ -111,6 +111,9 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(plan);
         assertThat(indexedBasedPlan.keySet(), hasItems("m_1"));
         assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 1, "n_2", 1)));
+
+        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(0L));
+        assertThat(plan.getRemainingNodeMemory("n_2"), equalTo(0L));
     }
 
     public void testGivenThreeModels_TwoNodesPerZone_ThreeZones_FullyFit() {

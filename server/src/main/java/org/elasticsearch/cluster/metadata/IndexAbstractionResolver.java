@@ -67,33 +67,7 @@ public class IndexAbstractionResolver {
             }
 
             // we always need to check for date math expressions
-            final String dateMathName = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
-            if (dateMathName != indexAbstraction) {
-                assert dateMathName.equals(indexAbstraction) == false;
-                if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(dateMathName)) {
-                    // continue
-                    indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName)
-                    && isIndexVisible(
-                        indexAbstraction,
-                        dateMathName,
-                        indicesOptions,
-                        metadata,
-                        indexNameExpressionResolver,
-                        includeDataStreams,
-                        true
-                    )) {
-                        if (minus) {
-                            finalIndices.remove(dateMathName);
-                        } else {
-                            finalIndices.add(dateMathName);
-                        }
-                    } else {
-                        if (indicesOptions.ignoreUnavailable() == false) {
-                            throw new IndexNotFoundException(dateMathName);
-                        }
-                    }
-            }
+            indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
@@ -123,7 +97,7 @@ public class IndexAbstractionResolver {
                         finalIndices.addAll(resolvedIndices);
                     }
                 }
-            } else if (dateMathName.equals(indexAbstraction)) {
+            } else {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
                 } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
@@ -141,18 +115,6 @@ public class IndexAbstractionResolver {
         Metadata metadata,
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
-    ) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, resolver, includeDataStreams, false);
-    }
-
-    public static boolean isIndexVisible(
-        String expression,
-        String index,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        IndexNameExpressionResolver resolver,
-        boolean includeDataStreams,
-        boolean dateMathExpression
     ) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
@@ -176,12 +138,6 @@ public class IndexAbstractionResolver {
             }
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
-        // date math to explicitly reference the index
-        if (dateMathExpression) {
-            assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
-            return true;
-        }
         if (isVisible == false) {
             return false;
         }

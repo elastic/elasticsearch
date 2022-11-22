@@ -1,4 +1,3 @@
-ifeval::["{release-state}"=="unreleased"]
 [[downsampling]]
 === Downsampling a time series data stream
 
@@ -175,5 +174,3 @@ To take downsampling for a test run, try our example of
 
 Downsampling can easily be added to your ILM policy. To learn how, try our
 <<downsampling-ilm,Run downsampling with ILM>> example.
-
-endif::[]

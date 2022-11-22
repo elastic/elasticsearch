@@ -49,10 +49,10 @@ public class FollowParametersTests extends AbstractXContentSerializingTestCase<F
         followParameters.setMaxOutstandingWriteRequests(randomIntBetween(0, Integer.MAX_VALUE));
         followParameters.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         followParameters.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
-        followParameters.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong()));
-        followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+        followParameters.setMaxReadRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
+        followParameters.setMaxWriteRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         followParameters.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
-        followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
+        followParameters.setMaxWriteBufferSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         followParameters.setMaxRetryDelay(new TimeValue(randomNonNegativeLong()));
         followParameters.setReadPollTimeout(new TimeValue(randomNonNegativeLong()));
         return followParameters;

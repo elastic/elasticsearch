@@ -72,6 +72,7 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -292,7 +293,6 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(avg.getValue(), equalTo(5.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testTranslateMissingRollup() {
         MultiSearchResponse.Item missing = new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"));
 
@@ -588,7 +588,6 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testDateHistoWithGap() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo").field("timestamp")
             .fixedInterval(new DateHistogramInterval("100ms"))
@@ -1081,7 +1080,6 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testStringTermsNullValue() throws IOException {
         TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
             .field("stringField");
@@ -1158,7 +1156,6 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testHisto() throws IOException {
         HistogramAggregationBuilder nonRollupHisto = new HistogramAggregationBuilder("histo").field("bar").interval(100);
 
@@ -1317,7 +1314,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        try (Aggregator aggregator = createAggregator(aggBuilder, indexSearcher, fieldType)) {
+        try (AggregationContext context = createAggregationContext(indexSearcher, query, fieldType)) {
+            Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
             indexSearcher.search(query, aggregator.asCollector());
             aggregator.postCollection();

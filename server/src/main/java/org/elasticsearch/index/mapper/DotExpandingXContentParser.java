@@ -73,9 +73,6 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             XContentParser delegate = delegate();
             String field = delegate.currentName();
             String[] subpaths = splitAndValidatePath(field);
-            if (subpaths.length == 0) {
-                throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
-            }
             // Corner case: if the input has a single trailing '.', eg 'field.', then we will get a single
             // subpath due to the way String.split() works. We can only return fast here if this is not
             // the case

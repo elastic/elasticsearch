@@ -17,7 +17,7 @@ class LocalRepositoryFixture extends ExternalResource {
 
     private TemporaryFolder temporaryFolder
 
-    LocalRepositoryFixture(){
+    LocalRepositoryFixture() {
         this.temporaryFolder = new TemporaryFolder()
     }
 
@@ -33,22 +33,27 @@ class LocalRepositoryFixture extends ExternalResource {
         temporaryFolder.after()
     }
 
-    void generateJar(String group, String module, String version, String... clazzNames){
+    void generateJar(String group, String module, String version, String... clazzNames) {
         def baseGroupFolderPath = group.replace('.', '/')
         def targetFolder = new File(repoDir, "${baseGroupFolderPath}/$module/$version")
         targetFolder.mkdirs()
 
         def jarFile = new File(targetFolder, "${module}-${version}.jar")
-        clazzNames.each {clazzName ->
-            DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
-                    .name(clazzName)
-                    .make()
-            if(jarFile.exists()) {
-                dynamicType.inject(jarFile);
-            }else {
-                dynamicType.toJar(jarFile);
+        if (clazzNames.size() == 0) {
+            jarFile.write("blubb")
+        } else {
+            clazzNames.each { clazzName ->
+                DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+                        .name(clazzName)
+                        .make()
+                if (jarFile.exists()) {
+                    dynamicType.inject(jarFile);
+                } else {
+                    dynamicType.toJar(jarFile);
+                }
             }
         }
+
     }
 
     void configureBuild(File buildFile) {

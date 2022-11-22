@@ -196,7 +196,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
             if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
                 // If the field is an aggregate_metric_double field, we should use the correct subfields
                 // for each aggregation. This is a rollup-of-rollup case
-                AggregateMetricFieldProducer producer = new AggregateMetricFieldProducer.AggregateMetricFieldProducer(field);
+                AggregateMetricFieldProducer producer = new AggregateMetricFieldProducer(field);
                 for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
                     AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
                     NumberFieldMapper.NumberFieldType metricSubField = e.getValue();

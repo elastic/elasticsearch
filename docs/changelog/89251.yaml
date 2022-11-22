@@ -1,6 +1,0 @@
-pr: 89251
-summary: Include runtime fields in total fields count
-area: Mapping
-type: bug
-issues:
- - 88265

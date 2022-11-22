@@ -313,6 +313,32 @@ and use {ccr}:
 * <<ccr-auto-follow>>
 * <<ccr-upgrading>>
 
+[discrete]
+[[ccr-limitations]]
+=== {ccr-cap} limitations
+{ccr-cap} is designed to replicate user-generated indices only, and doesn't 
+currently replicate any of the following:
+
+* <<system-indices,System indices>>
+* {ml-docs}/machine-learning-intro.html[Machine learning jobs]
+* <<index-templates,index templates>>
+* <<index-lifecycle-management,{ilm-cap}>> and
+<<snapshot-lifecycle-management-api,{slm}>> polices
+* {ref}/mapping-roles.html[User permissions and role mappings]
+* <<snapshots-register-repository,Snapshot repository settings>>
+* <<modules-cluster,Cluster settings>>
+* <<searchable-snapshots,Searchable snapshot>>
+
+If you want to replicate any of this data, you must replicate it to a remote
+cluster manually. 
+
+NOTE: Data for <<searchable-snapshots,searchable snapshot>> indices is stored in 
+the snapshot repository. {ccr-cap} won't replicate these indices completely, even
+though they're either partially or fully-cached on the {es} nodes. To achieve
+searchable snapshots in a remote cluster, configure snapshot repositories on
+the remote cluster and use the same {ilm} policy from the local cluster to move 
+data into the cold or frozen tiers on the remote cluster.
+
 include::getting-started.asciidoc[]
 include::managing.asciidoc[]
 include::auto-follow.asciidoc[]

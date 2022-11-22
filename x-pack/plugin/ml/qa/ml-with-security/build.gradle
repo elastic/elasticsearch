@@ -28,6 +28,8 @@ tasks.named("yamlRestTest").configure {
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple allocations',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple threads per allocation',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',

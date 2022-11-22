@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -66,7 +67,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(clusterState.routingTable().index("idx").size(), 1);
         assertEquals(clusterState.routingTable().index("idx").shard(0).shard(0).state(), UNASSIGNED);
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertEquals(clusterState.routingTable().index("idx").size(), 1);
         assertEquals(clusterState.routingTable().index("idx").shard(0).shard(0).state(), INITIALIZING);
@@ -99,7 +100,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(routingTable.index("idx").shard(0).shard(0).unassignedInfo().getMessage(), containsString("boom"));
 
         // manual resetting of retry count
-        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
+        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
@@ -191,7 +192,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     .build()
             )
             .build();
-        ClusterState newState = strategy.reroute(clusterState, "settings changed");
+        ClusterState newState = strategy.reroute(clusterState, "settings changed", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
@@ -264,7 +265,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         });
 
         // manually reset retry count
-        clusterState = strategy.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
+        clusterState = strategy.reroute(clusterState, new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
 
         // shard could be relocated again
         withRoutingAllocation(clusterState, allocation -> {

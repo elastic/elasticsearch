@@ -8,9 +8,12 @@ Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 
 * to find geopoints within a <<query-dsl-geo-bounding-box-query,bounding box>>,
   within a certain <<query-dsl-geo-distance-query,distance>> of a central point,
-  or within a <<query-dsl-geo-polygon-query,polygon>> or within a <<query-dsl-geo-shape-query,`geo_shape` query>>.
-* to aggregate documents <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
-  or by <<search-aggregations-bucket-geodistance-aggregation,distance>> from a central point.
+  or within a <<query-dsl-geo-shape-query,`geo_shape` query>> (for example, points in a polygon).
+* to aggregate documents by <<search-aggregations-bucket-geodistance-aggregation,distance>> from a central point
+* to aggregate documents by geographic grids: either
+  <<search-aggregations-bucket-geohashgrid-aggregation,`geo_hash`>>,
+  <<search-aggregations-bucket-geotilegrid-aggregation,`geo_tile`>> or
+  <<search-aggregations-bucket-geohexgrid-aggregation,`geo_hex`>>.
 * to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
 * to <<geo-sorting,sort>> documents by distance.
 
@@ -205,7 +208,15 @@ def lon      = doc['location'].lon;
 --------------------------------------------------
 
 [[geo-point-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic source
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
 `geo_point` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or with

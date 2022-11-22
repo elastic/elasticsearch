@@ -293,7 +293,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
 
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).build(
-            MapperBuilderContext.ROOT
+            MapperBuilderContext.root(false)
         );
 
         // test store z disabled
@@ -326,7 +326,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
-            MapperBuilderContext.ROOT
+            MapperBuilderContext.root(false)
         );
 
         // test store z disabled
@@ -350,7 +350,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
-            MapperBuilderContext.ROOT
+            MapperBuilderContext.root(false)
         );
 
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
@@ -367,7 +367,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper defaultMapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).coerce(
             false
-        ).build(MapperBuilderContext.ROOT);
+        ).build(MapperBuilderContext.root(false));
         ElasticsearchParseException exception = expectThrows(
             ElasticsearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder)
@@ -376,7 +376,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true)
             .coerce(true)
-            .build(MapperBuilderContext.ROOT);
+            .build(MapperBuilderContext.root(false));
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
         assertNotNull(shapeBuilder);
         assertEquals("polygon ((100.0 5.0, 100.0 10.0, 90.0 10.0, 90.0 5.0, 100.0 5.0))", shapeBuilder.toWKT());

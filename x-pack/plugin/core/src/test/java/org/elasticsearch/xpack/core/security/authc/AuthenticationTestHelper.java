@@ -209,7 +209,7 @@ public class AuthenticationTestHelper {
     }
 
     public static String randomInternalUsername() {
-        return builder().internal().build(false).getUser().principal();
+        return builder().internal().build(false).getEffectiveSubject().getUser().principal();
     }
 
     /**
@@ -244,7 +244,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder(Authentication authentication) {
             assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
-            this.version = authentication.getVersion();
+            this.version = authentication.getEffectiveSubject().getVersion();
         }
 
         public AuthenticationTestBuilder realm() {
@@ -502,7 +502,7 @@ public class AuthenticationTestHelper {
                 if (version == null) {
                     version = Version.CURRENT;
                 }
-                if (version.before(authentication.getVersion())) {
+                if (version.before(authentication.getEffectiveSubject().getVersion())) {
                     return authentication.maybeRewriteForOlderVersion(version);
                 } else {
                     return authentication;

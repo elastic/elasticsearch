@@ -70,7 +70,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
-    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = ByteSizeValue.ofBytes(Integer.MAX_VALUE);
 
     /**
      * If a search needs data from the repository then we expand it to a larger contiguous range whose size is determined by this setting,

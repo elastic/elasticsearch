@@ -68,7 +68,7 @@ public class SecurityContext {
     @Nullable
     public User getUser() {
         Authentication authentication = getAuthentication();
-        return authentication == null ? null : authentication.getUser();
+        return authentication == null ? null : authentication.getEffectiveSubject().getUser();
     }
 
     /** Returns the authentication information, or null if the current request has no authentication info. */

@@ -1,0 +1,24 @@
+## Smoke tests for char filters included in the analysis-common module
+
+#todo this can be expanded with parameters once settings support is added
+---
+"Stable analyzer provider plugin. It combines a underscore tokenizer, token filter which skips 1 and char filter which replaces # with 3":
+  - do:
+      indices.analyze:
+        body:
+          text: 1x_y_#z
+          analyzer: example_analyzer_factory
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: "y" }
+  - match:  { tokens.1.token: "3z" }
+
+  - do:
+      indices.analyze:
+        body:
+          text: 1x_y_#z
+          explain: true
+          analyzer: example_analyzer_factory
+  - match:  { detail.custom_analyzer: false } #?? why not custom?
+  - length: { detail.analyzer.tokens: 2 }
+  - match:  { detail.analyzer.tokens.0.token: "y" }
+  - match:  { detail.analyzer.tokens.1.token: "3z" }

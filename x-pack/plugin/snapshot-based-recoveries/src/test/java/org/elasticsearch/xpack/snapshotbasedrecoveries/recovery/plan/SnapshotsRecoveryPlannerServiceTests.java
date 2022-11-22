@@ -72,7 +72,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
-    private static final ByteSizeValue PART_SIZE = new ByteSizeValue(Long.MAX_VALUE);
+    private static final ByteSizeValue PART_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
 
     private String shardHistoryUUID;

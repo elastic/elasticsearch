@@ -1936,7 +1936,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
                     indicesService,
-                    mock(FileSettingsService.class)
+                    mock(FileSettingsService.class),
+                    threadPool
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,

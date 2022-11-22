@@ -8,7 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -16,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<SnapshotsStatusResponse> {
+public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTestCase<SnapshotsStatusResponse> {
 
     @Override
     protected SnapshotsStatusResponse doParseInstance(XContentParser parser) throws IOException {
@@ -42,5 +43,27 @@ public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<Snaps
             snapshotStatuses.add(statusBuilder.createTestInstance());
         }
         return new SnapshotsStatusResponse(snapshotStatuses);
+    }
+
+    @Override
+    protected Writeable.Reader<SnapshotsStatusResponse> instanceReader() {
+        return SnapshotsStatusResponse::new;
+    }
+
+    public void testChunkCount() {
+        final var instance = createTestInstance();
+        // open and close chunk
+        int chunksExpected = 2;
+        for (SnapshotStatus snapshot : instance.getSnapshots()) {
+            // open and close chunk + one chunk per index
+            chunksExpected += 2 + snapshot.getIndices().size();
+        }
+        final var iterator = instance.toXContentChunked();
+        int chunksSeen = 0;
+        while (iterator.hasNext()) {
+            iterator.next();
+            chunksSeen++;
+        }
+        assertEquals(chunksExpected, chunksSeen);
     }
 }

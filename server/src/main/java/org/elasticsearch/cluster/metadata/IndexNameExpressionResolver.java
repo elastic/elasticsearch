@@ -323,11 +323,12 @@ public class IndexNameExpressionResolver {
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
 
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
+        final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
         for (String expression : expressions) {
             if (context.getOptions().ignoreUnavailable() == false) {
                 ensureAliasOrIndexExists(context, expression);
             }
-            final IndexAbstraction indexAbstraction = context.state.metadata().getIndicesLookup().get(expression);
+            final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null) {
                 continue;
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {

@@ -257,7 +257,7 @@ public class LocalExecutionPlanner {
                     "expected layout:"
                         + output
                         + ": "
-                        + output.stream().map(NamedExpression::id).collect(Collectors.toList())
+                        + output.stream().map(NamedExpression::id).toList()
                         + ", source.layout:"
                         + source.layout
                 );

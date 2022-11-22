@@ -46,6 +46,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -377,6 +378,18 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test | stats x = avg(count) | where x > 100");
         logger.info(results);
         Assert.assertEquals(0, results.values().size());
+    }
+
+    public void testEvalOverride() {
+        EsqlQueryResponse results = run("from test | eval count = count + 1 | eval count = count + 1");
+        logger.info(results);
+        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(1, results.columns().stream().filter(c -> c.name().equals("count")).count());
+        int countIndex = results.columns().size() - 1;
+        Assert.assertEquals(new ColumnInfo("count", "long"), results.columns().get(countIndex));
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(countIndex), greaterThanOrEqualTo(42L));
+        }
     }
 
     public void testRefreshSearchIdleShards() throws Exception {

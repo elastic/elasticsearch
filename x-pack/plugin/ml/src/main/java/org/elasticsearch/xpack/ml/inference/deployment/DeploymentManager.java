@@ -144,6 +144,7 @@ public class DeploymentManager {
         });
 
         ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(success -> {
+            logger.debug("[{}] model loaded. Starting result processor thread", task.getModelId());
             executorServiceForProcess.execute(() -> processContext.getResultProcessor().process(processContext.process.get()));
             listener.onResponse(task);
         }, listener::onFailure);
@@ -179,7 +180,7 @@ public class DeploymentManager {
                     // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                     // executor.
                     executorServiceForDeployment.execute(
-                        () -> startAndLoad(processContext, modelConfig.getLocation(), modelLoadedListener)
+                        () -> startAndLoad(processContext, modelConfig.getLocation(), modelConfig.getModelId(), modelLoadedListener)
                     );
                 }, listener::onFailure));
             } else {
@@ -229,10 +230,18 @@ public class DeploymentManager {
         }
     }
 
-    private void startAndLoad(ProcessContext processContext, TrainedModelLocation modelLocation, ActionListener<Boolean> loadedListener) {
+    private void startAndLoad(
+        ProcessContext processContext,
+        TrainedModelLocation modelLocation,
+        String modelId,
+        ActionListener<Boolean> loadedListener
+    ) {
+        logger.debug("[{}] start and load", modelId);
         try {
             processContext.startProcess();
+            logger.debug("[{}] process started", modelId);
             processContext.loadModel(modelLocation, ActionListener.wrap(success -> {
+                logger.debug("[{}] model loaded, starting priority process worker thread", modelId);
                 processContext.startPriorityProcessWorker();
                 loadedListener.onResponse(success);
             }, loadedListener::onFailure));

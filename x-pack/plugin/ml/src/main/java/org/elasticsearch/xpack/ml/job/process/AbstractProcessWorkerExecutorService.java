@@ -132,6 +132,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
             Thread.currentThread().interrupt();
         } finally {
             awaitTermination.countDown();
+            logger.debug("[{}] Process worker executor has stopped ", processName);
         }
     }
 }

@@ -58,6 +58,7 @@ public class PyTorchStateStreamer {
      * Cancels the state streaming at the first opportunity.
      */
     public void cancel() {
+        logger.debug("Canceling model loading");
         isCancelled = true;
     }
 
@@ -74,7 +75,7 @@ public class PyTorchStateStreamer {
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
         restorer.setSearchIndex(index);
         restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), success -> {
+        restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream, modelId), success -> {
             logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
 
             if (success) {
@@ -89,12 +90,14 @@ public class PyTorchStateStreamer {
             } else {
                 logger.info("[{}] loading model state cancelled", modelId);
             }
+            logger.debug("[{}] model state successfully loaded", modelId);
             listener.onResponse(success);
         }, listener::onFailure);
     }
 
-    private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {
+    private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream, String modelId) throws IOException {
         if (isCancelled) {
+            logger.info("[{}] state streamer has been cancelled", modelId);
             return false;
         }
 

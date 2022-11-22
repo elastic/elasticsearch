@@ -1,5 +1,0 @@
-pr: 91173
-summary: Ensure PKI's `delegated_by_realm` metadata respect run-as
-area: Authentication
-type: bug
-issues: []

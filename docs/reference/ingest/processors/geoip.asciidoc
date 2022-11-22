@@ -415,10 +415,11 @@ updates and deletes all downloaded databases. Defaults to `true`.
 [[ingest-geoip-downloader-endpoint]]
 `ingest.geoip.downloader.endpoint`::
 (<<static-cluster-setting,Static>>, string)
-Endpoint URL used to download updates for GeoIP2 databases. Defaults to
-`https://geoip.elastic.co/v1/database`. {es} stores downloaded database files in
-each node's <<es-tmpdir,temporary directory>> at
-`$ES_TMPDIR/geoip-databases/<node_id>`.
+Endpoint URL used to download updates for GeoIP2 databases. For example, `https://myDomain.com/overview.json`.
+Defaults to `https://geoip.elastic.co/v1/database`. {es} stores downloaded database files in
+each node's <<es-tmpdir,temporary directory>> at `$ES_TMPDIR/geoip-databases/<node_id>`.
+Note that {es} will make a GET request to `${ingest.geoip.downloader.endpoint}?elastic_geoip_service_tos=agree`,
+expecting the list of metadata about databases typically found in `overview.json`.
 
 [[ingest-geoip-downloader-poll-interval]]
 `ingest.geoip.downloader.poll.interval`::

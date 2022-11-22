@@ -1,0 +1,134 @@
+setup:
+  - skip:
+      version: " - 8.5.99"
+      reason: "support for byte vectors added in 8.6"
+
+---
+"Access to values of dense_vector in script":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              v:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"v": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"v": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"v": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  # vector functions in loop – return the index of the closest parameter vector based on cosine similarity
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "v" } }
+              script:
+                source: |
+                  float[] v = doc['v'].vectorValue;
+                  float vm = doc['v'].magnitude;
+
+                  int closestPv = 0;
+                  float maxCosSim = -1;
+                  for (int i = 0; i < params.pvs.length; i++) {
+                    float dotProduct = 0;
+                    for (int j = 0; j < v.length; j++) {
+                      dotProduct += v[j] * params.pvs[i][j];
+                    }
+                    float cosSim = dotProduct / (vm * (float) params.pvs_magnts[i]);
+                    if (maxCosSim < cosSim) {
+                      maxCosSim = cosSim;
+                      closestPv = i;
+                    }
+                  }
+                  closestPv;
+                params:
+                  pvs: [ [ 1, 1, 1 ], [ 1, 1, 2 ], [ 1, 1, 3 ] ]
+                  pvs_magnts: [1.7320, 2.4495, 3.3166]
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 1 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 0 }
+
+---
+"Access to values of indexed dense_vector in script":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              v:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: cosine
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"v": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"v": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"v": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+
+  # vector functions in loop – return the index of the closest parameter vector based on cosine similarity
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "v" } }
+              script:
+                source: |
+                  float[] v = doc['v'].vectorValue;
+                  float vm = doc['v'].magnitude;
+
+                  int closestPv = 0;
+                  float maxCosSim = -1;
+                  for (int i = 0; i < params.pvs.length; i++) {
+                    float dotProduct = 0;
+                    for (int j = 0; j < v.length; j++) {
+                      dotProduct += v[j] * params.pvs[i][j];
+                    }
+                    float cosSim = dotProduct / (vm * (float) params.pvs_magnts[i]);
+                    if (maxCosSim < cosSim) {
+                      maxCosSim = cosSim;
+                      closestPv = i;
+                    }
+                  }
+                  closestPv;
+                params:
+                  pvs: [ [ 1, 1, 1 ], [ 1, 1, 2 ], [ 1, 1, 3 ] ]
+                  pvs_magnts: [1.7320, 2.4495, 3.3166]
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 1 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 0 }

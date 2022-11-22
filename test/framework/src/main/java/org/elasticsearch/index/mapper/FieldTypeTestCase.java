@@ -10,8 +10,10 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,8 +57,8 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
-        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap(field, sourceValue)));
-        return fetcher.fetchValues(lookup, -1, new ArrayList<>());
+        Source source = Source.fromMap(Collections.singletonMap(field, sourceValue), randomFrom(XContentType.values()));
+        return fetcher.fetchValues(source, -1, new ArrayList<>());
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
@@ -66,7 +68,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap(field, List.of(values))));
-        return fetcher.fetchValues(lookup, -1, new ArrayList<>());
+        Source source = Source.fromMap(Collections.singletonMap(field, List.of(values)), randomFrom(XContentType.values()));
+        return fetcher.fetchValues(source, -1, new ArrayList<>());
     }
 }

@@ -92,8 +92,18 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
 
+            // This helps significantly reducing time spent attempting to add bucket + tsid combos that already were added.
+            long currentTsidOrd = -1;
+            long currentBucket = -1;
+            long currentBucketOrdinal;
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                if (currentBucket == bucket && currentTsidOrd == aggCtx.getTsidOrd()) {
+                    collectExistingBucket(sub, doc, currentBucketOrdinal);
+                    return;
+                }
+
                 long bucketOrdinal = bucketOrds.add(bucket, aggCtx.getTsid());
                 if (bucketOrdinal < 0) { // already seen
                     bucketOrdinal = -1 - bucketOrdinal;
@@ -101,6 +111,10 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 } else {
                     collectBucket(sub, doc, bucketOrdinal);
                 }
+
+                currentBucketOrdinal = bucketOrdinal;
+                currentTsidOrd = aggCtx.getTsidOrd();
+                currentBucket = bucket;
             }
         };
     }

@@ -327,6 +327,52 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         );
     }
 
+    public void testRespectsAssignmentByGatewayAllocators() {
+        var desiredBalanceComputer = createDesiredBalanceComputer();
+        var clusterState = createInitialClusterState(3);
+        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+
+        final var routingAllocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            clusterState.mutableRoutingNodes(),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0L
+        );
+        for (var iterator = routingAllocation.routingNodes().unassigned().iterator(); iterator.hasNext();) {
+            var shardRouting = iterator.next();
+            if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
+                routingAllocation.routingNodes()
+                    .startShard(
+                        logger,
+                        iterator.initialize("node-2", null, 0L, routingAllocation.changes()),
+                        routingAllocation.changes(),
+                        0L
+                    );
+                break;
+            }
+        }
+
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.INITIAL,
+            DesiredBalanceInput.create(randomNonNegativeLong(), routingAllocation),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            desiredBalance,
+            Map.of(
+                new ShardId(index, 0),
+                new ShardAssignment(Set.of("node-2", "node-1"), 2, 0, 0),
+                new ShardId(index, 1),
+                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
+            )
+        );
+
+    }
+
     public void testSimulatesAchievingDesiredBalanceBeforeDelegating() {
 
         var allocateCalled = new AtomicBoolean();

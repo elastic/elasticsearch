@@ -63,7 +63,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettin
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfPrimarySegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getSnapshotState;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
@@ -487,7 +487,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client().performRequest(request);
         }
 
-        assertThat(getNumberOfSegments(client(), index), greaterThanOrEqualTo(1));
+        assertThat(getNumberOfPrimarySegments(client(), index), greaterThanOrEqualTo(1));
         createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, codec));
         updatePolicy(client(), index, policy);
 

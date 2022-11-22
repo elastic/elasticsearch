@@ -228,7 +228,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             if (routedNodeIdsToRemove.isEmpty() == false) {
                 logger.debug(
                     () -> format(
-                        "[%s] removing routing entries to nodes {} because they have been removed or are shutting down",
+                        "[%s] removing routing entries to nodes %s because they have been removed or are shutting down",
                         assignment.getModelId(),
                         routedNodeIdsToRemove
                     )

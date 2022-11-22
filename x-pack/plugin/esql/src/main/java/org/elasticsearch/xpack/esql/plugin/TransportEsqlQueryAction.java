@@ -84,8 +84,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     // Or should we add a new method that returns a human representation to Block.
                     if (value instanceof BytesRef bytes) {
                         row.add(bytes.utf8ToString());
+                    } else {
+                        row.add(value);
                     }
-                    row.add(value);
                 }
                 result.add(row);
             }

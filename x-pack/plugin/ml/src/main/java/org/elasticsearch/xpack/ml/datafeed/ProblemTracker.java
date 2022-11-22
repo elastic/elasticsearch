@@ -40,7 +40,7 @@ class ProblemTracker {
     ProblemTracker(AnomalyDetectionAuditor auditor, String jobId, long numberOfSearchesInADay) {
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
-        this.numberOfSearchesInADay = numberOfSearchesInADay;
+        this.numberOfSearchesInADay = Math.max(numberOfSearchesInADay, 1);
     }
 
     /**

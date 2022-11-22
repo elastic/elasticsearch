@@ -19,5 +19,3 @@ include::start-trained-model-deployment.asciidoc[leveloffset=+2]
 include::stop-trained-model-deployment.asciidoc[leveloffset=+2]
 //UPDATE
 include::update-trained-model-deployment.asciidoc[leveloffset=+2]
-//SEMANTIC SEARCH
-include::../../../search/semantic-search.asciidoc[]

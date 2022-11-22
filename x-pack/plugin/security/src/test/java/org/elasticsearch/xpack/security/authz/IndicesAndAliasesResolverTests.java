@@ -2240,6 +2240,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(authorizedIndices.check(indexName), is(false));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName()), is(true));
         }
 
         // only the backing indices will be in the resolved list since the request does not support data streams
@@ -2253,6 +2254,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolvedIndices.getLocal(), not(hasItem(dataStream.getName())));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName()), is(true));
         }
     }
 

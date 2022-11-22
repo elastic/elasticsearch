@@ -25,10 +25,12 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -77,8 +79,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch resolution = new Batch("Resolution", new ResolveTable(), new ResolveRefs(), new ResolveFunctions());
-        return List.of(resolution);
+        var resolution = new Batch("Resolution", new ResolveTable(), new ResolveRefs(), new ResolveFunctions());
+        var finish = new Batch("Finish Analysis", Limiter.ONCE, new AddMissingProjection());
+        return List.of(resolution, finish);
     }
 
     private class ResolveTable extends AnalyzerRule<UnresolvedRelation> {
@@ -345,6 +348,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 Function f = uf.buildResolved(configuration, def);
                 return f;
             });
+        }
+    }
+
+    private class AddMissingProjection extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            var projections = plan.collect(e -> e instanceof Project || e instanceof Aggregate);
+            if (projections.isEmpty()) {
+                // TODO: should unsupported fields be filtered?
+                plan = new Project(plan.source(), plan, plan.output());
+            }
+            return plan;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan;
         }
     }
 }

@@ -75,6 +75,20 @@ a:integer | b:integer | y:double
 1 | 2 | -121.568
 ;
 
+evalOverride
+row a = 1, b = 100 | eval b = a + 1 | eval a = b + 1;
+
+b:integer | a:integer
+2 | 3
+;
+
+evalOverride2
+row a = 1, b = 10, c = 100, d = 1000, e = 10000 | eval d = a + 1 | eval b = d + 1;
+
+a:integer | c:integer | e:integer | d:integer | b:integer
+1 | 100 | 10000 | 2 | 3
+;
+
 filterRow
 row a = 1 | where a > 0;
 

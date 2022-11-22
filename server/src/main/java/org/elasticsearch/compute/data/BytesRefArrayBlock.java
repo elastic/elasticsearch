@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.BytesRefArray;
 public final class BytesRefArrayBlock extends Block {
     private final BytesRefArray bytes;
 
-    private BytesRefArrayBlock(int positionCount, BytesRefArray bytes) {
+    public BytesRefArrayBlock(int positionCount, BytesRefArray bytes) {
         super(positionCount);
         assert bytes.size() == positionCount : bytes.size() + " != " + positionCount;
         this.bytes = bytes;

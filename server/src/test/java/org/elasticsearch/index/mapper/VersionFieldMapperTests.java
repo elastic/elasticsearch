@@ -23,7 +23,20 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class VersionFieldMapperTests extends MapperServiceTestCase {
+public class VersionFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return VersionFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));

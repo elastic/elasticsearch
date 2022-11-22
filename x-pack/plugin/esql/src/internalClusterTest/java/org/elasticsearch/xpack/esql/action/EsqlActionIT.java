@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +43,10 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -71,17 +74,31 @@ public class EsqlActionIT extends ESIntegTestCase {
                     "count_d",
                     "type=double",
                     "time",
-                    "type=date"
+                    "type=date",
+                    "color",
+                    "type=keyword"
                 )
                 .get()
         );
         long timestamp = epoch;
         for (int i = 0; i < 10; i++) {
             client().prepareBulk()
-                .add(new IndexRequest("test").id("1" + i).source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++))
-                .add(new IndexRequest("test").id("2" + i).source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++))
-                .add(new IndexRequest("test").id("3" + i).source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++))
-                .add(new IndexRequest("test").id("4" + i).source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++))
+                .add(
+                    new IndexRequest("test").id("1" + i)
+                        .source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++, "color", "red")
+                )
+                .add(
+                    new IndexRequest("test").id("2" + i)
+                        .source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++, "color", "blue")
+                )
+                .add(
+                    new IndexRequest("test").id("3" + i)
+                        .source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++, "color", "green")
+                )
+                .add(
+                    new IndexRequest("test").id("4" + i)
+                        .source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++, "color", "red")
+                )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
@@ -232,6 +249,29 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(expectedValues, actualValues);
     }
 
+    public void testFromStatsGroupingByKeyword() {
+        EsqlQueryResponse results = run("from test | stats avg(count) by color");
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+        Assert.assertEquals(3, results.values().size());
+
+        // assert column metadata
+        assertEquals("color", results.columns().get(0).name());
+        assertEquals("keyword", results.columns().get(0).type());
+        assertEquals("avg(count)", results.columns().get(1).name());
+        assertEquals("double", results.columns().get(1).type());
+        record Group(String color, double avg) {
+
+        }
+        List<Group> expectedGroups = List.of(new Group("blue", 42), new Group("green", 44), new Group("red", 43));
+        List<Group> actualGroups = results.values()
+            .stream()
+            .map(l -> new Group((String) l.get(0), (Double) l.get(1)))
+            .sorted(Comparator.comparing(c -> c.color))
+            .toList();
+        assertThat(actualGroups, equalTo(expectedGroups));
+    }
+
     public void testFrom() {
         EsqlQueryResponse results = run("from test");
         logger.info(results);
@@ -248,14 +288,26 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test | sort count | limit 1");
         logger.info(results);
         Assert.assertEquals(1, results.values().size());
-        assertEquals(40, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("count", "long"))));
+        // trying to get the count
+        var position = results.columns().indexOf(new ColumnInfo("count", "long"));
+        assertEquals(40, (long) results.values().get(0).get(position));
     }
 
     public void testFromEvalSortLimit() {
         EsqlQueryResponse results = run("from test | eval x = count + 7 | sort x | limit 1");
         logger.info(results);
-        Assert.assertEquals(1, results.values().size());
-        assertEquals(47, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "long"))));
+        // there are no shard, segment, doc_id
+        assertThat(
+            results.columns().stream().map(ColumnInfo::name).toList(),
+            contains("color", "count", "count_d", "data", "data_d", "time", "x")
+        );
+        var values = results.values();
+        Assert.assertEquals(1, values.size());
+        var row = values.get(0);
+        logger.info(row);
+        // x is the last one
+        var position = results.columns().size() - 1;
+        assertEquals(47, (long) row.get(position));
     }
 
     public void testFromStatsEval() {
@@ -294,13 +346,12 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test | where count > 40");
         logger.info(results);
         Assert.assertEquals(30, results.values().size());
-        int countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
+        var countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
         for (List<Object> values : results.values()) {
             assertThat((Long) values.get(countIndex), greaterThan(40L));
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/396")
     public void testProjectWhere() {
         EsqlQueryResponse results = run("from test | project count | where count > 40");
         logger.info(results);
@@ -327,6 +378,18 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test | stats x = avg(count) | where x > 100");
         logger.info(results);
         Assert.assertEquals(0, results.values().size());
+    }
+
+    public void testEvalOverride() {
+        EsqlQueryResponse results = run("from test | eval count = count + 1 | eval count = count + 1");
+        logger.info(results);
+        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(1, results.columns().stream().filter(c -> c.name().equals("count")).count());
+        int countIndex = results.columns().size() - 1;
+        Assert.assertEquals(new ColumnInfo("count", "long"), results.columns().get(countIndex));
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(countIndex), greaterThanOrEqualTo(42L));
+        }
     }
 
     public void testRefreshSearchIdleShards() throws Exception {
@@ -423,27 +486,30 @@ public class EsqlActionIT extends ESIntegTestCase {
         record Doc(long val, String tag) {
 
         }
-        List<Doc> docs = new ArrayList<>();
+        List<Doc> allDocs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             Doc d = new Doc(i, "tag-" + randomIntBetween(1, 100));
-            docs.add(d);
+            allDocs.add(d);
             indexRequests.add(
                 client().prepareIndex().setIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag))
             );
         }
         indexRandom(true, randomBoolean(), indexRequests);
-        int limit = randomIntBetween(1, 1); // TODO: increase the limit after resolving the limit issue
+        int limit = randomIntBetween(1, 10);
         String command = "from test_extract_fields | sort val | limit " + limit;
         EsqlQueryResponse results = run(command);
         logger.info(results);
+        // _doc, _segment, _shard are pruned
+        assertThat(results.columns().size(), equalTo(2));
         assertThat(results.values(), hasSize(Math.min(limit, numDocs)));
-        assertThat(results.columns().get(3).name(), equalTo("val"));
-        assertThat(results.columns().get(4).name(), equalTo("tag"));
+        assertThat(results.columns().get(1).name(), equalTo("val"));
+        assertThat(results.columns().get(0).name(), equalTo("tag"));
+        List<Doc> actualDocs = new ArrayList<>();
         for (int i = 0; i < results.values().size(); i++) {
             List<Object> values = results.values().get(i);
-            assertThat(values.get(3), equalTo(docs.get(i).val));
-            assertThat(values.get(4), equalTo(docs.get(i).tag));
+            actualDocs.add(new Doc((Long) values.get(1), (String) values.get(0)));
         }
+        assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
     }
 
     public void testEvalWithNull() {

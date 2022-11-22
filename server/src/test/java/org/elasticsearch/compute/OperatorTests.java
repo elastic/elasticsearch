@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
@@ -74,6 +75,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -94,6 +96,7 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @Experimental
 public class OperatorTests extends ESTestCase {
@@ -588,17 +591,17 @@ public class OperatorTests extends ESTestCase {
                         new HashAggregationOperator(
                             3, // group by channel
                             List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 3)),
-                            BigArrays.NON_RECYCLING_INSTANCE
+                            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new HashAggregationOperator(
                             0, // group by channel
                             List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 1)),
-                            BigArrays.NON_RECYCLING_INSTANCE
+                            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new HashAggregationOperator(
                             0, // group by channel
                             List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 1)),
-                            BigArrays.NON_RECYCLING_INSTANCE
+                            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new PageConsumerOperator(page -> {
                             logger.info("New page: {}", page);
@@ -692,7 +695,7 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INITIAL, 1),
                         new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 1)
                     ),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
@@ -703,7 +706,7 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INTERMEDIATE, 4),
                         new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 5)
                     ),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
@@ -714,7 +717,7 @@ public class OperatorTests extends ESTestCase {
                         new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.FINAL, 4),
                         new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 5)
                     ),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new PageConsumerOperator(page -> {
                     logger.info("New page: {}", page);
@@ -872,7 +875,7 @@ public class OperatorTests extends ESTestCase {
                 partialAggregatorOperator = new HashAggregationOperator(
                     0, // group by channel
                     List.of(new GroupingAggregator(aggFunction, AggregatorMode.INITIAL, 1)),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 );
                 partialAggregatorOperators.add(partialAggregatorOperator);
             }
@@ -887,7 +890,7 @@ public class OperatorTests extends ESTestCase {
                 interAggregatorOperator = new HashAggregationOperator(
                     0, // group by channel
                     List.of(new GroupingAggregator(aggFunction, AggregatorMode.INTERMEDIATE, 1)),
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 );
                 interAggregatorOperators.add(interAggregatorOperator);
             }
@@ -898,7 +901,7 @@ public class OperatorTests extends ESTestCase {
         HashAggregationOperator finalAggregationOperator = new HashAggregationOperator(
             0, // group by channel
             List.of(new GroupingAggregator(aggFunction, AggregatorMode.FINAL, 1)),
-            BigArrays.NON_RECYCLING_INSTANCE
+            BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
         );
         intermediatePages.stream().forEach(finalAggregationOperator::addInput);
         finalAggregationOperator.finish();
@@ -987,21 +990,49 @@ public class OperatorTests extends ESTestCase {
         );
     }
 
-    public void testTopN() {
-        List<Long> values = randomList(0, 5000, ESTestCase::randomLong);
+    public void testRandomTopN() {
+        for (boolean asc : List.of(true, false)) {
+            int limit = randomIntBetween(1, 20);
+            List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
+            Comparator<Long> comparator = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
+            List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
+            List<Long> outputValues = topN(inputValues, limit, asc);
+            assertThat(outputValues, equalTo(expectedValues));
+        }
+    }
+
+    public void testBasicTopN() {
+        List<Long> values = List.of(2L, 1L, 4L, 5L, 10L, 20L, 4L, 100L);
+        assertThat(topN(values, 1, true), equalTo(List.of(1L)));
+        assertThat(topN(values, 1, false), equalTo(List.of(100L)));
+        assertThat(topN(values, 2, true), equalTo(List.of(1L, 2L)));
+        assertThat(topN(values, 2, false), equalTo(List.of(100L, 20L)));
+        assertThat(topN(values, 3, true), equalTo(List.of(1L, 2L, 4L)));
+        assertThat(topN(values, 3, false), equalTo(List.of(100L, 20L, 10L)));
+        assertThat(topN(values, 4, true), equalTo(List.of(1L, 2L, 4L, 4L)));
+        assertThat(topN(values, 4, false), equalTo(List.of(100L, 20L, 10L, 5L)));
+        assertThat(topN(values, 5, true), equalTo(List.of(1L, 2L, 4L, 4L, 5L)));
+        assertThat(topN(values, 5, false), equalTo(List.of(100L, 20L, 10L, 5L, 4L)));
+    }
+
+    private List<Long> topN(List<Long> inputValues, int limit, boolean ascendingOrder) {
         List<Long> outputValues = new ArrayList<>();
-        int limit = randomIntBetween(1, 20);
         Driver driver = new Driver(
-            List.of(new SequenceLongBlockSourceOperator(values), new TopNOperator(0, true, limit, true), new PageConsumerOperator(page -> {
-                Block block = page.getBlock(0);
-                for (int i = 0; i < block.getPositionCount(); i++) {
-                    outputValues.add(block.getLong(i));
-                }
-            })),
+            List.of(
+                new SequenceLongBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
+                new TopNOperator(0, ascendingOrder, limit, true),
+                new PageConsumerOperator(page -> {
+                    Block block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        outputValues.add(block.getLong(i));
+                    }
+                })
+            ),
             () -> {}
         );
         driver.run();
-        assertThat(outputValues.stream().sorted().toList(), equalTo(values.stream().sorted().limit(limit).toList()));
+        assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
+        return outputValues;
     }
 
     /**

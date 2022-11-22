@@ -447,8 +447,9 @@ public class IndexNameExpressionResolver {
 
     private static IndexNotFoundException notFoundException(String... indexExpressions) {
         final IndexNotFoundException infe;
-        if (indexExpressions == null || indexExpressions.length == 0 ||
-                (indexExpressions.length == 1 && Metadata.ALL.equals(indexExpressions[0]))) {
+        if (indexExpressions == null
+            || indexExpressions.length == 0
+            || (indexExpressions.length == 1 && Metadata.ALL.equals(indexExpressions[0]))) {
             infe = new IndexNotFoundException("no indices exist", Metadata.ALL);
             infe.setResources("index_or_alias", Metadata.ALL);
         } else if (indexExpressions.length == 1) {

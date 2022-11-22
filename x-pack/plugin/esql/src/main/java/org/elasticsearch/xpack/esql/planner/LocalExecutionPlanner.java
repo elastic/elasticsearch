@@ -235,7 +235,7 @@ public class LocalExecutionPlanner {
                         } else {
                             throw new UnsupportedOperationException();
                         }
-                    } else {
+                    } else if (aggregate.groupings().contains(e) == false) {
                         throw new UnsupportedOperationException();
                     }
                 }

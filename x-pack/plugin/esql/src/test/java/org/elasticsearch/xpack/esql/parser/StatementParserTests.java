@@ -142,7 +142,11 @@ public class StatementParserTests extends ESTestCase {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 List.of(attribute("c"), attribute("d.e")),
-                List.of(new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))))
+                List.of(
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    attribute("c"),
+                    attribute("d.e")
+                )
             ),
             processingCommand("stats b = min(a) by c, d.e")
         );

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 
 import java.util.List;
@@ -43,8 +43,8 @@ public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
     }
 
     @Override
-    public List<Expression> visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) {
-        return ctx == null ? emptyList() : visitList(this, ctx.qualifiedName(), Expression.class);
+    public List<NamedExpression> visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) {
+        return ctx == null ? emptyList() : visitList(this, ctx.qualifiedName(), NamedExpression.class);
     }
 
     @Override

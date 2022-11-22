@@ -151,12 +151,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 // NOCOMMIT - don't forget to remove the seed before merging
-@Seed("DFD753B506109938")
+@Seed("DFD753B506109938:D134E59FDFDFF640")
 public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;
@@ -938,8 +939,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     // Testing actual results, by first building a map of expected key->count because key order can change
                     HashMap<Object, Long> expectedCounts = new HashMap<>();
-                    for (int i = 0; i < size; i++) {
-                        Map.Entry<T, Integer> expected = expectedBuckets.get(i);
+                    for (Map.Entry<T, Integer> expected : expectedBuckets) {
                         Object key = (valueType == ValueType.IP) ? String.valueOf(expected.getKey()).substring(1) : expected.getKey();
                         expectedCounts.put(key, expected.getValue().longValue());
                     }
@@ -954,12 +954,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             bucketDocCountError,
                             lessThanOrEqualTo(docCountError)
                         );
-                        long expectedCount = expectedCounts.getOrDefault(actual.getKey(), 0L);
+                        assertThat("Found an unexpected key", expectedCounts, hasKey(actual.getKey()));
+                        long expectedCount = expectedCounts.get(actual.getKey());
                         if (aggTestConfig.splitLeavesIntoSeparateAggregators() == false || indexReader.leaves().size() == 1) {
-                            // When there is only a single sub-aggregation, counts should be exact
+                            // When there is only a single collector, counts should be exact
                             assertThat("Count mismatch for " + actual.getKey(), actual.getDocCount(), equalTo(expectedCount));
                         } else if (order == false) {
-                            // If there are sub-aggregations, the maximum error should be less than docCountError, but only for descending
+                            // If there are multiple collectors, the maximum error should be less than docCountError, but only for
+                            // descending
                             long diff = Math.abs(expectedCount - actual.getDocCount());
                             assertThat(
                                 "Count error too large for bucket [" + i + "] with key: [" + actual.getKey() + "] " +
@@ -968,7 +970,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 lessThanOrEqualTo(bucketDocCountError)
                             );
                         } else {
-                            // If there are sub-aggregations, and we have ascending order, the maximum error is unbounded
+                            // If there are multiple collectors, and we have ascending order, the maximum error is unbounded
                             fail("This test does not yet cover the case of multiple-shards/aggregators and ascending counts");
                         }
                     }

@@ -316,13 +316,9 @@ public class BulkProcessor2 implements Closeable {
             if (cancellableFlushTask == null) {
                 cancellableFlushTask = threadPool.schedule(() -> {
                     synchronized (mutex) {
-                        if (closed) {
-                            return;
+                        if (closed == false && bulkRequest.numberOfActions() > 0) {
+                            execute();
                         }
-                        if (bulkRequest.numberOfActions() == 0) {
-                            return;
-                        }
-                        execute();
                         cancellableFlushTask = null;
                     }
                 }, flushInterval, ThreadPool.Names.GENERIC);

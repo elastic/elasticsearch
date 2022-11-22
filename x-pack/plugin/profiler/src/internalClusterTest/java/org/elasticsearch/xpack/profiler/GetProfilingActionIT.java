@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.profiler;
 
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -24,6 +25,14 @@ public class GetProfilingActionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(ProfilingPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ProfilingPlugin.PROFILING_ENABLED.getKey(), true)
+            .build();
     }
 
     private byte[] read(String resource) throws IOException {

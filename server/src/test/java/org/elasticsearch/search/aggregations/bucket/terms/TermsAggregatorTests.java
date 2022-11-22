@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -156,8 +154,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-// NOCOMMIT - don't forget to remove the seed before merging
-@Seed("DFD753B506109938:D134E59FDFDFF640")
 public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;

@@ -1,0 +1,20 @@
+[[semantic-search]]
+== Semantic search
+
+//tag::semantic-def[]
+Semantic search uses a text embedding NLP model to generate a dense vector from 
+the input query string. The resulting dense vector is then used in a 
+<<knn-search,k-nearest neighbor (knn) search>> against an index containing dense 
+vectors created with the same text embedding model. The search results are 
+semantically similar as learned by the model.
+//end::semantic-def[]
+
+Common use cases for semantic search include:
+* 
+* 
+* 
+
+[discrete]
+[[semantic-prereqs]]
+=== Prerequisites
+

@@ -5,10 +5,9 @@
 ++++
 
 experimental::[]
-Semantic search uses a text embedding NLP model to generate a dense vector from the input query string.
-The resulting dense vector is then used in a <<knn-search,k-nearest neighbor (knn) search>> against an index containing dense vectors
-created with the same text embedding model. The search results are semantically similar as learned
-by the model.
+
+include::{es-repo-dir}/search/search-your-data/semantic-search-concept.asciidoc[tag=semantic-def]
+
 
 [source,console]
 ----
@@ -36,9 +35,8 @@ GET my-index/_semantic_search
 [[semantic-search-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have the `read`
-<<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias.
+Requires the `read` <<privileges-list-indices,index privilege>> for the target 
+data stream, index, or alias.
 
 [[semantic-search-api-desc]]
 ==== {api-description-title}

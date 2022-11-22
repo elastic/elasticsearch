@@ -14,13 +14,21 @@ import java.util.BitSet;
 /**
  * Block implementation that stores an array of long values.
  */
-public final class LongArrayBlock extends Block {
+public final class LongArrayBlock extends NumberArrayBlock {
 
     private final long[] values;
 
     public LongArrayBlock(long[] values, int positionCount) {
         super(positionCount);
         this.values = values;
+    }
+
+    public LongArrayBlock(Number[] values, int positionCount) {
+        super(values, positionCount);
+        this.values = new long[positionCount];
+        for (int i = 0; i < positionCount; i++) {
+            this.values[i] = internalNumberValues[i].longValue();
+        }
     }
 
     public LongArrayBlock(long[] values, int positionCount, BitSet nulls) {
@@ -32,7 +40,7 @@ public final class LongArrayBlock extends Block {
     public long getLong(int position) {
         assert assertPosition(position);
         assert isNull(position) == false;
-        return isNull(position) ? 0L : values[position];
+        return values[position];
     }
 
     @Override
@@ -52,6 +60,12 @@ public final class LongArrayBlock extends Block {
     }
 
     public long[] getRawLongArray() {
+        assert nullValuesCount() == 0;
         return values;
+    }
+
+    @Override
+    Number nullValue() {
+        return 0L;
     }
 }

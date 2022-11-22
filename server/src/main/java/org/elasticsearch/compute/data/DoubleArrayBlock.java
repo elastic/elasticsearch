@@ -14,13 +14,21 @@ import java.util.BitSet;
 /**
  * Block implementation that stores an array of double values.
  */
-public final class DoubleArrayBlock extends Block {
+public final class DoubleArrayBlock extends NumberArrayBlock {
 
     private final double[] values;
 
     public DoubleArrayBlock(double[] values, int positionCount) {
         super(positionCount);
         this.values = values;
+    }
+
+    public DoubleArrayBlock(Number[] values, int positionCount) {
+        super(values, positionCount);
+        this.values = new double[positionCount];
+        for (int i = 0; i < positionCount; i++) {
+            this.values[i] = internalNumberValues[i].doubleValue();
+        }
     }
 
     public DoubleArrayBlock(double[] values, int positionCount, BitSet nulls) {
@@ -32,12 +40,17 @@ public final class DoubleArrayBlock extends Block {
     public double getDouble(int position) {
         assert assertPosition(position);
         assert isNull(position) == false;
-        return isNull(position) ? 0.0d : values[position];
+        return values[position];
     }
 
     @Override
     public Object getObject(int position) {
         return getDouble(position);
+    }
+
+    @Override
+    Number nullValue() {
+        return 0.0d;
     }
 
     @Override

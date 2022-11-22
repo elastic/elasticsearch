@@ -31,7 +31,7 @@ public class ConstantIntBlock extends Block {
     public int getInt(int position) {
         assert assertPosition(position);
         assert isNull(position) == false;
-        return isNull(position) ? 0 : value;
+        return value;
     }
 
     @Override

@@ -45,9 +45,9 @@ public class TopNOperator implements Operator {
                 Block blockA = a.getBlock(sortByChannel);
                 Block blockB = b.getBlock(sortByChannel);
                 if (blockA.isNull(0)) {
-                    return asc;
+                    return nullsFirst;
                 } else if (blockB.isNull(0)) {
-                    return asc == false;
+                    return nullsFirst == false;
                 }
                 if (asc) {
                     return blockA.getLong(0) > blockB.getLong(0);

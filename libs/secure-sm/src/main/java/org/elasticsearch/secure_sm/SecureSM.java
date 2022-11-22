@@ -162,9 +162,11 @@ public class SecureSM extends SecurityManager {
     protected void checkThreadAccess(Thread t) {
         Objects.requireNonNull(t);
 
-        // first, check if we can modify threads at all.
-        boolean isInnocuousThread = isInnocuousThread(t);
-        if (isInnocuousThread == false) {
+
+        boolean targetThreadIsInnocuous = isInnocuousThread(t);
+        // we don't need to check if innocuous thread is modifying itself (like changes its name)
+        if (Thread.currentThread() != t || targetThreadIsInnocuous == false) {
+            // first, check if we can modify threads at all.
             checkPermission(MODIFY_THREAD_PERMISSION);
         }
 
@@ -174,7 +176,7 @@ public class SecureSM extends SecurityManager {
 
         if (target == null) {
             return;    // its a dead thread, do nothing.
-        } else if (source.parentOf(target) == false && isInnocuousThread == false) {
+        } else if (source.parentOf(target) == false && targetThreadIsInnocuous == false) {
             checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
         }
     }

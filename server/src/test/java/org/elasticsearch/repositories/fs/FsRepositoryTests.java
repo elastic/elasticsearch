@@ -60,7 +60,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -112,7 +111,6 @@ public class FsRepositoryTests extends ESTestCase {
                     null,
                     snapshotStatus,
                     Version.CURRENT,
-                    Collections.emptyMap(),
                     randomMillisUpToYear9999(),
                     snapshot1Future
                 )
@@ -155,7 +153,6 @@ public class FsRepositoryTests extends ESTestCase {
                     null,
                     snapshotStatus2,
                     Version.CURRENT,
-                    Collections.emptyMap(),
                     randomMillisUpToYear9999(),
                     snapshot2future
                 )

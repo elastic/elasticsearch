@@ -75,7 +75,8 @@ public class DeploymentManagerTests extends ESTestCase {
             mock(Client.class),
             mock(NamedXContentRegistry.class),
             tp,
-            mock(PyTorchProcessFactory.class)
+            mock(PyTorchProcessFactory.class),
+            10
         );
 
         PriorityProcessWorkerExecutorService priorityExecutorService = new PriorityProcessWorkerExecutorService(

@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -191,11 +192,16 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected Response startDeployment(String modelId, String waitForState) throws IOException {
-        return startDeployment(modelId, waitForState, 1, 1);
+        return startDeployment(modelId, waitForState, 1, 1, Priority.NORMAL);
     }
 
-    protected Response startDeployment(String modelId, String waitForState, int numberOfAllocations, int threadsPerAllocation)
-        throws IOException {
+    protected Response startDeployment(
+        String modelId,
+        String waitForState,
+        int numberOfAllocations,
+        int threadsPerAllocation,
+        Priority priority
+    ) throws IOException {
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
@@ -206,6 +212,8 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                 + threadsPerAllocation
                 + "&number_of_allocations="
                 + numberOfAllocations
+                + "&priority="
+                + priority
         );
         return client().performRequest(request);
     }

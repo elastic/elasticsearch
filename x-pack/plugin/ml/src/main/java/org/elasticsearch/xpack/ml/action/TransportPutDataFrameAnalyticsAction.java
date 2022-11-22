@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,10 +55,12 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAction<
@@ -160,8 +163,11 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         if (securityContext != null) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
+                final String[] sourceIndices = Arrays.stream(preparedForPutConfig.getSource().getIndex())
+                    .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+                    .toArray(String[]::new);
                 RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(preparedForPutConfig.getSource().getIndex())
+                    .indices(sourceIndices)
                     .privileges("read")
                     .build();
                 RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
@@ -173,7 +179,10 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
                 privRequest.username(username);
                 privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-                privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
+                RoleDescriptor.IndicesPrivileges[] indicesPrivileges = sourceIndices.length > 0
+                    ? new RoleDescriptor.IndicesPrivileges[] { sourceIndexPrivileges, destIndexPrivileges }
+                    : new RoleDescriptor.IndicesPrivileges[] { destIndexPrivileges };
+                privRequest.indexPrivileges(indicesPrivileges);
 
                 ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                     r -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener),

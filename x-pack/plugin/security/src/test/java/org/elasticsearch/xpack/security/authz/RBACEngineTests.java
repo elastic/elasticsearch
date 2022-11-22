@@ -1487,7 +1487,6 @@ public class RBACEngineTests extends ESTestCase {
             lookup,
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices, instanceOf(AuthorizedIndices.class));
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
         assertThat(
@@ -1532,7 +1531,6 @@ public class RBACEngineTests extends ESTestCase {
             lookup,
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndices.class));
         assertThat(authorizedIndices.all().get().isEmpty(), is(true));
     }
 

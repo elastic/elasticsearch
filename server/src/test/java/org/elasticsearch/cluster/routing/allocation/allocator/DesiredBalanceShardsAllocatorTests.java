@@ -59,18 +59,18 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
+    private static final String LOCAL_NODE_ID = "node-1";
+    private static final String OTHER_NODE_ID = "node-2";
+
     public void testGatewayAllocatorPreemptsAllocation() {
+        final var nodeId = randomFrom(LOCAL_NODE_ID, OTHER_NODE_ID);
         testAllocate(
-            (allocation, unassignedAllocationHandler) -> unassignedAllocationHandler.initialize(
-                allocation.nodes().getLocalNodeId(),
-                null,
-                0L,
-                allocation.changes()
-            ),
-            routingTable -> assertTrue(routingTable.index("test-index").shard(0).primaryShard().assignedToNode())
+            (allocation, unassignedAllocationHandler) -> unassignedAllocationHandler.initialize(nodeId, null, 0L, allocation.changes()),
+            routingTable -> assertEquals(nodeId, routingTable.index("test-index").shard(0).primaryShard().currentNodeId())
         );
     }
 
@@ -106,9 +106,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
 
-        var localNode = createDiscoveryNode("node-1");
+        var localNode = createDiscoveryNode(LOCAL_NODE_ID);
+        var otherNode = createDiscoveryNode(OTHER_NODE_ID);
         var initialState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
 
@@ -116,8 +117,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var clusterService = new ClusterService(
             Settings.EMPTY,
             clusterSettings,
-            new FakeThreadPoolMasterService("node-1", "test", threadPool, deterministicTaskQueue::scheduleNow),
-            new ClusterApplierService("node-1", Settings.EMPTY, clusterSettings, threadPool) {
+            new FakeThreadPoolMasterService(LOCAL_NODE_ID, "test", threadPool, deterministicTaskQueue::scheduleNow),
+            new ClusterApplierService(LOCAL_NODE_ID, Settings.EMPTY, clusterSettings, threadPool) {
                 @Override
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                     return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
@@ -139,10 +140,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             }
         };
 
-        var allocationService = createAllocationService(
-            new DesiredBalanceShardsAllocator(createShardsAllocator(), threadPool, clusterService, reconcileAction),
-            createGatewayAllocator(allocateUnassigned)
+        final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            createShardsAllocator(),
+            threadPool,
+            clusterService,
+            reconcileAction
         );
+        var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
         allocationServiceRef.set(allocationService);
 
         var listenerCalled = new AtomicBoolean(false);
@@ -173,7 +177,17 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         try {
             assertTrue(listenerCalled.get());
-            verifier.accept(clusterService.state().routingTable());
+            final var routingTable = clusterService.state().routingTable();
+            verifier.accept(routingTable);
+            final var desiredBalance = desiredBalanceShardsAllocator.getDesiredBalance();
+            for (final var indexRoutingTable : routingTable) {
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    final var shardRoutingTable = indexRoutingTable.shard(shardId);
+                    for (final var assignedShard : shardRoutingTable.assignedShards()) {
+                        assertThat(desiredBalance.getAssignment(assignedShard.shardId()).nodeIds(), hasItem(assignedShard.currentNodeId()));
+                    }
+                }
+            }
         } finally {
             clusterService.close();
         }
@@ -283,8 +297,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var newMasterElected = new CountDownLatch(1);
         var clusterStateUpdatesExecuted = new CountDownLatch(1);
 
-        var node1 = createDiscoveryNode("node-1");
-        var node2 = createDiscoveryNode("node-2");
+        var node1 = createDiscoveryNode(LOCAL_NODE_ID);
+        var node2 = createDiscoveryNode(OTHER_NODE_ID);
         var initial = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
             .build();

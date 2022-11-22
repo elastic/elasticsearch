@@ -248,6 +248,34 @@ public final class H3 {
         return h3ToStringList(h3ToChildren(stringToH3(h3Address)));
     }
 
+    private static final int[] PEN_INTERSECTING_CHILDREN_DIRECTIONS = new int[] { 3, 1, 6, 4, 2 };
+    private static final int[] HEX_INTERSECTING_CHILDREN_DIRECTIONS = new int[] { 3, 6, 2, 5, 1, 4 };
+
+    /**
+     * Returns the h3 bins on the level below which are not children of the given H3 index but
+     * intersects with it.
+     */
+    public static long[] h3ToNoChildrenIntersecting(long h3) {
+        final long[] children = new long[cellToChildrenSize(h3) - 1];
+        final Iterator.IterCellsChildren it = Iterator.iterInitParent(h3, H3Index.H3_get_resolution(h3) + 1);
+        final int[] directions = H3.isPentagon(it.h) ? PEN_INTERSECTING_CHILDREN_DIRECTIONS : HEX_INTERSECTING_CHILDREN_DIRECTIONS;
+        int pos = 0;
+        Iterator.iterStepChild(it);
+        while (it.h != Iterator.H3_NULL) {
+            children[pos] = HexRing.h3NeighborInDirection(it.h, directions[pos++]);
+            Iterator.iterStepChild(it);
+        }
+        return children;
+    }
+
+    /**
+     * Returns the h3 addresses on the level below which are not children of the given H3 address but
+     * intersects with it.
+     */
+    public static String[] h3ToNoChildrenIntersecting(String h3Address) {
+        return h3ToStringList(h3ToNoChildrenIntersecting(stringToH3(h3Address)));
+    }
+
     /**
      * Returns the neighbor indexes.
      *

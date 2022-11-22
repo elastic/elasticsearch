@@ -956,12 +956,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             // When there is only a single collector, counts should be exact
                             assertThat("Count mismatch for " + actual.getKey(), actual.getDocCount(), equalTo(expectedCount));
                         } else if (order == false) {
-                            // If there are multiple collectors, the maximum error should be less than docCountError, but only for
-                            // descending
+                            // For descending, if there are multiple collectors, the maximum error should be less than docCountError
                             long diff = Math.abs(expectedCount - actual.getDocCount());
                             assertThat(
-                                "Count error too large for bucket [" + i + "] with key: [" + actual.getKey() + "] " +
-                                "expected: [" + expectedCount + "] but was [" + actual.getDocCount() +"]",
+                                "Count error too large: " + actual.getKey() + " (" + actual.getDocCount() + "!=" + expectedCount + ")",
                                 diff,
                                 lessThanOrEqualTo(bucketDocCountError)
                             );

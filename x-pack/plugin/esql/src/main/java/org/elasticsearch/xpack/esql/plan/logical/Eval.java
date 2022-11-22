@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Eval extends UnaryPlan {
 
@@ -35,7 +37,14 @@ public class Eval extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        List<Attribute> output = new ArrayList<>(child().output());
+        Set<String> fieldNames = fields.stream().map(NamedExpression::name).collect(Collectors.toSet());
+        List<Attribute> childOutput = child().output();
+        List<Attribute> output = new ArrayList<>(childOutput.size() + fields.size());
+        for (Attribute childAttr : childOutput) {
+            if (fieldNames.contains(childAttr.name()) == false) {
+                output.add(childAttr);
+            }
+        }
         output.addAll(Expressions.asAttributes(fields));
         return output;
     }

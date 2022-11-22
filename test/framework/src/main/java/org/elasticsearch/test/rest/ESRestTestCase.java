@@ -684,6 +684,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         } else {
             inProgressSnapshots.set(wipeSnapshots());
         }
+        if (preserveReposUponCompletion() == false) {
+            deleteRepositories();
+        }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
         if (preserveDataStreamsUponCompletion() == false) {
@@ -1006,7 +1009,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Wipe fs snapshots we created one by one and all repositories so that the next test can create the repositories fresh and they'll
+     * Wipe fs snapshots we created one by one so that the next test can create the repositories fresh and they'll
      * start empty. There isn't an API to delete all snapshots. There is an API to delete all snapshot repositories but that leaves all of
      * the snapshots intact in the repository.
      * @return Map of repository name to list of snapshots found in unfinished state
@@ -1033,9 +1036,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                     adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));
                 }
             }
-            if (preserveReposUponCompletion() == false) {
-                deleteRepository(repoName);
-            }
         }
         return inProgressSnapshots;
     }
@@ -1043,6 +1043,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected void deleteRepository(String repoName) throws IOException {
         logger.debug("wiping snapshot repository [{}]", repoName);
         adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+    }
+
+    private static void deleteRepositories() throws IOException {
+        adminClient().performRequest(new Request("DELETE", "_snapshot/*"));
     }
 
     /**

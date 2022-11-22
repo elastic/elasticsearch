@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -51,25 +54,62 @@ public class ShardsCollector extends Collector {
 
                 final String[] indicesToMonitor = getCollectionIndices();
                 final boolean isAllIndices = IndexNameExpressionResolver.isAllIndices(Arrays.asList(indicesToMonitor));
-                final String[] indices = isAllIndices ? routingTable.indicesRouting().keySet().toArray(new String[0]) : indicesToMonitor;
+                final String[] allIndices = routingTable.indicesRouting().keySet().toArray(new String[0]);
+                final String[] indices = isAllIndices ? allIndices : expandIndexPattern(indicesToMonitor, allIndices);
 
                 for (String index : indices) {
-                    int shardCount = 0;
-                    for (ShardRouting shard : routingTable.allShards(index)) {
-                        if (shard.primary()) {
-                            shardCount = 0;
+                    IndexRoutingTable indexRoutingTable = routingTable.index(index);
+                    if (indexRoutingTable != null) {
+                        final int shardCount = indexRoutingTable.size();
+                        for (int i = 0; i < shardCount; i++) {
+                            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+
+                            ShardRouting primary = shardRoutingTable.primaryShard();
+                            MonitoringDoc.Node primaryShardNode = null;
+                            if (primary.assignedToNode()) {
+                                // If the shard is assigned to a node, the shard monitoring document refers to this node
+                                primaryShardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(primary.currentNodeId()));
+                            }
+                            results.add(new ShardMonitoringDoc(clusterUuid, timestamp, interval, primaryShardNode, primary, stateUUID, 0));
+
+                            List<ShardRouting> replicas = shardRoutingTable.replicaShards();
+                            for (int j = 0; j < replicas.size(); j++) {
+                                ShardRouting replica = replicas.get(j);
+
+                                MonitoringDoc.Node replicaShardNode = null;
+                                if (replica.assignedToNode()) {
+                                    replicaShardNode = convertNode(
+                                        node.getTimestamp(),
+                                        clusterState.getNodes().get(replica.currentNodeId())
+                                    );
+                                }
+                                results.add(
+                                    new ShardMonitoringDoc(clusterUuid, timestamp, interval, replicaShardNode, replica, stateUUID, j + 1)
+                                );
+                            }
                         }
-                        MonitoringDoc.Node shardNode = null;
-                        if (shard.assignedToNode()) {
-                            // If the shard is assigned to a node, the shard monitoring document refers to this node
-                            shardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(shard.currentNodeId()));
-                        }
-                        results.add(new ShardMonitoringDoc(clusterUuid, timestamp, interval, shardNode, shard, stateUUID, shardCount));
-                        shardCount++;
                     }
                 }
             }
         }
         return Collections.unmodifiableCollection(results);
+    }
+
+    private String[] expandIndexPattern(String[] indicesToMonitor, String[] indices) {
+        final List<String> expandedIndices = new ArrayList<>();
+
+        for (String indexOrPattern : indicesToMonitor) {
+            if (indexOrPattern.contains("*")) {
+                for (String index : indices) {
+                    if (Regex.simpleMatch(indexOrPattern, index)) {
+                        expandedIndices.add(index);
+                    }
+                }
+            } else {
+                expandedIndices.add(indexOrPattern);
+            }
+        }
+
+        return expandedIndices.toArray(new String[0]);
     }
 }

@@ -33,7 +33,7 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         final MonitoringDoc.Node node,
         final ShardRouting shardRouting,
         final String clusterStateUUID,
-        final int shardCount
+        final int shardIndex
     ) {
 
         super(
@@ -43,7 +43,7 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
             node,
             MonitoredSystem.ES,
             TYPE,
-            id(clusterStateUUID, shardRouting, shardCount),
+            id(clusterStateUUID, shardRouting, shardIndex),
             XCONTENT_FILTERS
         );
         this.shardRouting = Objects.requireNonNull(shardRouting);
@@ -71,9 +71,9 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
     /**
      * Compute an id that has the format:
      *
-     * {state_uuid}:{node_id || '_na'}:{index}:{shard}:{'p' || 'r'}
+     * {state_uuid}:{node_id || '_na'}:{index}:s{shard}:{'p' || 'rX'}
      */
-    public static String id(String stateUUID, ShardRouting shardRouting, int shardCount) {
+    public static String id(String stateUUID, ShardRouting shardRouting, int shardIndex) {
         StringBuilder builder = new StringBuilder();
         builder.append(stateUUID);
         builder.append(':');
@@ -91,7 +91,7 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
             builder.append("p");
         } else {
             builder.append("r");
-            builder.append(Integer.valueOf(shardCount));
+            builder.append(Integer.valueOf(shardIndex));
         }
         return builder.toString();
     }

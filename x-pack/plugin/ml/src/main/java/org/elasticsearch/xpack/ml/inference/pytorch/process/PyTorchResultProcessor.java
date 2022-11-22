@@ -96,6 +96,7 @@ public class PyTorchResultProcessor {
     }
 
     public void process(PyTorchProcess process) {
+        logger.debug(() -> "[" + deploymentId + "] Results processing started");
         try {
             Iterator<PyTorchResult> iterator = process.readResults();
             while (iterator.hasNext()) {

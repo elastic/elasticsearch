@@ -46,7 +46,7 @@ import java.util.function.Consumer;
  */
 public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyingVisitor {
 
-    private static RuntimeException unaryError(String type, String operation, String constant) {
+    private static IllegalStateException unaryError(String type, String operation, String constant) {
         return new IllegalStateException(
             Strings.format(
                 "constant folding error: unexpected type [%s] for unary operation [%s] on constant [%s]",
@@ -57,19 +57,19 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
         );
     }
 
-    private static RuntimeException binaryError(String type, String operation, String constant1, String constant2) {
+    private static IllegalStateException binaryError(String type, String operation, String constant1, String constant2) {
         return error(type, "binary", operation, constant1, constant2);
     }
 
-    private static RuntimeException booleanError(String type, String operation, String constant1, String constant2) {
+    private static IllegalStateException booleanError(String type, String operation, String constant1, String constant2) {
         return error(type, "boolean", operation, constant1, constant2);
     }
 
-    private static RuntimeException comparisonError(String type, String operation, String constant1, String constant2) {
+    private static IllegalStateException comparisonError(String type, String operation, String constant1, String constant2) {
         return error(type, "comparison", operation, constant1, constant2);
     }
 
-    private static RuntimeException error(String type, String opType, String operation, String constant1, String constant2) {
+    private static IllegalStateException error(String type, String opType, String operation, String constant1, String constant2) {
         return new IllegalStateException(
             Strings.format(
                 "constant folding error: unexpected type [%s] for %s operation [%s] on constants [%s] and [%s]",

@@ -36,6 +36,11 @@ public abstract class Block {
         this(positionCount, new BitSet(positionCount));
     }
 
+    /**
+     * @param positionCount the number of values in this block
+     * @param nullsMask a {@link BitSet} indicating which values of this block are null (a set bit value
+     *                  represents a null value). A null nullsMask indicates this block cannot have null values.
+     */
     protected Block(int positionCount, BitSet nullsMask) {
         assert positionCount >= 0;
         this.positionCount = positionCount;
@@ -118,24 +123,6 @@ public abstract class Block {
     }
 
     /**
-     * Marks the value stored at the given position as null.
-     *
-     * @param position the position
-     */
-    public final void setNull(int position) {
-        assertNullValues();
-        nullsMask.set(position);
-    }
-
-    /**
-     * Marks all the values in this block as null.
-     */
-    public final void setAllNull() {
-        assertNullValues();
-        nullsMask.set(0, positionCount);
-    }
-
-    /**
      * @return false if all values of this block are not null, true otherwise.
      */
     public boolean mayHaveNull() {
@@ -150,6 +137,13 @@ public abstract class Block {
     }
 
     /**
+     * @return the number of non-null values in this block.
+     */
+    public int validPositionCount() {
+        return positionCount - nullValuesCount();
+    }
+
+    /**
      * @return true if all values in this block are null.
      */
     public boolean areAllValuesNull() {
@@ -160,10 +154,6 @@ public abstract class Block {
         assert (position >= 0 || position < getPositionCount())
             : "illegal position, " + position + ", position count:" + getPositionCount();
         return true;
-    }
-
-    private void assertNullValues() {
-        assert (mayHaveNull()) : "This block cannot have null values";
     }
 
     @Experimental

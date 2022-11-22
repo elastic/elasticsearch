@@ -14,13 +14,21 @@ import java.util.BitSet;
 /**
  * Block implementation that stores an array of integers.
  */
-public final class IntArrayBlock extends Block {
+public final class IntArrayBlock extends NumberArrayBlock {
 
     private final int[] values;
 
     public IntArrayBlock(int[] values, int positionCount) {
         super(positionCount);
         this.values = values;
+    }
+
+    public IntArrayBlock(Number[] values, int positionCount) {
+        super(values, positionCount);
+        this.values = new int[positionCount];
+        for (int i = 0; i < positionCount; i++) {
+            this.values[i] = internalNumberValues[i].intValue();
+        }
     }
 
     public IntArrayBlock(int[] values, int positionCount, BitSet nulls) {
@@ -32,7 +40,7 @@ public final class IntArrayBlock extends Block {
     public int getInt(int position) {
         assert assertPosition(position);
         assert isNull(position) == false;
-        return isNull(position) ? 0 : values[position];
+        return values[position];
     }
 
     @Override
@@ -50,6 +58,11 @@ public final class IntArrayBlock extends Block {
     @Override
     public Object getObject(int position) {
         return getInt(position);
+    }
+
+    @Override
+    Number nullValue() {
+        return 0;
     }
 
     @Override

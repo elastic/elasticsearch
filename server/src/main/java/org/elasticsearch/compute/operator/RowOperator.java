@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.ConstantLongBlock;
 import org.elasticsearch.compute.data.ConstantStringBlock;
 import org.elasticsearch.compute.data.Page;
 
+import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -77,8 +78,9 @@ public class RowOperator implements Operator {
             } else if (object instanceof String stringVal) {
                 blocks[i] = new ConstantStringBlock(stringVal, 1);
             } else if (object == null) {
-                blocks[i] = new ConstantLongBlock(0L, 1);
-                blocks[i].setAllNull();
+                BitSet nulls = new BitSet(1);
+                nulls.set(0);
+                blocks[i] = new ConstantLongBlock(0L, 1, nulls);
             } else {
                 throw new UnsupportedOperationException();
             }

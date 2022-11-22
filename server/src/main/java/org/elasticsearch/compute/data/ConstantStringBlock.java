@@ -36,7 +36,7 @@ public class ConstantStringBlock extends Block {
     public Object getObject(int position) {
         assert assertPosition(position);
         assert isNull(position) == false;
-        return isNull(position) ? null : value;
+        return value;
     }
 
     @Override

@@ -31,7 +31,7 @@ public final class ConstantDoubleBlock extends Block {
     public double getDouble(int position) {
         assert assertPosition(position);
         assert isNull(position) == false;
-        return isNull(position) ? 0.0d : value;
+        return value;
     }
 
     @Override

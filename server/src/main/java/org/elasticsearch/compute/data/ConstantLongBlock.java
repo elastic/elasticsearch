@@ -31,7 +31,7 @@ public final class ConstantLongBlock extends Block {
     public long getLong(int position) {
         assert assertPosition(position);
         assert isNull(position) == false;
-        return isNull(position) ? 0L : value;
+        return value;
     }
 
     @Override

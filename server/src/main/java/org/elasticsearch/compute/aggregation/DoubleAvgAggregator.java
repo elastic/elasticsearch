@@ -46,15 +46,12 @@ class DoubleAvgAggregator implements AggregatorFunction {
         assert channel >= 0;
         Block block = page.getBlock(channel);
         AvgState state = this.state;
-        int nullsCount = 0;
         for (int i = 0; i < block.getPositionCount(); i++) {
             if (block.isNull(i) == false) { // skip null values
                 state.add(block.getDouble(i));
-            } else {
-                nullsCount++;
             }
         }
-        state.count += block.getPositionCount() - nullsCount;
+        state.count += block.getPositionCount() - block.nullValuesCount();
     }
 
     @Override

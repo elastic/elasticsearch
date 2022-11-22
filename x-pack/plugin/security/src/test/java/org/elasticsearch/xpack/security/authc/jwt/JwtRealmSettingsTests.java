@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.Strings.capitalize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * JWT realm settings unit tests. These are low-level tests against ES settings parsers.
@@ -395,5 +397,35 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                 assertThat(actualValue, equalTo(Integer.valueOf(acceptedValue)));
             }
         }
+    }
+
+    public void testTokenTypeSetting() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String fullSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE);
+
+        // Default is id_token
+        assertThat(
+            buildRealmConfig(JwtRealmSettings.TYPE, realmName, Settings.EMPTY, randomInt()).getSetting(JwtRealmSettings.TOKEN_TYPE),
+            is(JwtRealmSettings.TokenType.ID_TOKEN)
+        );
+
+        // Valid values
+        final JwtRealmSettings.TokenType expectedTokenType = randomFrom(JwtRealmSettings.TokenType.values());
+        final Settings settings = Settings.builder()
+            .put(fullSettingKey, randomBoolean() ? expectedTokenType.value() : expectedTokenType.value().toUpperCase(Locale.ROOT))
+            .build();
+        assertThat(
+            buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt()).getSetting(JwtRealmSettings.TOKEN_TYPE),
+            is(expectedTokenType)
+        );
+
+        // Anything else is invalid
+        final Settings invalidSettings = Settings.builder().put(fullSettingKey, randomAlphaOfLengthBetween(3, 20)).build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildRealmConfig(JwtRealmSettings.TYPE, realmName, invalidSettings, randomInt()).getSetting(JwtRealmSettings.TOKEN_TYPE)
+        );
+        assertThat(e.getMessage(), containsString("Invalid value"));
     }
 }

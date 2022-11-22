@@ -1723,11 +1723,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
 
         assertNotNull(e.getCause());
-        assertThat(e.getCause().getMessage(), containsString("invalid composite mappings for [my-template]"));
-
         assertNotNull(e.getCause().getCause());
+        assertThat(e.getCause().getCause().getMessage(), containsString("invalid composite mappings for [my-template]"));
+
+        assertNotNull(e.getCause().getCause().getCause());
         assertThat(
-            e.getCause().getCause().getMessage(),
+            e.getCause().getCause().getCause().getMessage(),
             containsString("can't merge a non object mapping [field2] with an object mapping")
         );
     }

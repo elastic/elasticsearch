@@ -1117,7 +1117,7 @@ public class IndexNameExpressionResolver {
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
             if (context.getOptions().expandWildcardExpressions() == false) {
-                if (expressions.size() == 1 && expressions.iterator().next().equals(Metadata.ALL)) {
+                if (expressions.size() == 1 && expressions.get(0).equals(Metadata.ALL)) {
                     return List.of();
                 } else {
                     return expressions;

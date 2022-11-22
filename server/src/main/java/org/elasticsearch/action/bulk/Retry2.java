@@ -125,6 +125,7 @@ class Retry2 {
         int retriesRemaining
     ) {
         if (isClosing) {
+            totalBytesInFlight.addAndGet(-1 * bulkRequestForRetry.estimatedSizeInBytes());
             listener.onFailure(new EsRejectedExecutionException("The bulk processor is closing"));
             return;
         }
@@ -154,6 +155,13 @@ class Retry2 {
         isClosing = true;
         inFlightRequestsPhaser.arriveAndDeregister();
         inFlightRequestsPhaser.awaitAdvanceInterruptibly(0, timeout, unit);
+    }
+
+    /*
+     * Exposed for unit testing
+     */
+    long getTotalBytesInFlight() {
+        return totalBytesInFlight.get();
     }
 
     /**
@@ -212,7 +220,9 @@ class Retry2 {
                         bulkItemResponses.getItems().length
                     );
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
-                    retry(createBulkRequestForRetry(bulkItemResponses), responsesAccumulator, consumer, listener, retriesRemaining);
+                    BulkRequest retryRequest = createBulkRequestForRetry(bulkItemResponses);
+                    totalBytesInFlight.addAndGet(-1 * (bulkRequest.estimatedSizeInBytes() - retryRequest.estimatedSizeInBytes()));
+                    retry(retryRequest, responsesAccumulator, consumer, listener, retriesRemaining);
                 } else {
                     totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                     logger.trace(
@@ -229,12 +239,12 @@ class Retry2 {
 
         @Override
         public void onFailure(Exception e) {
-            totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
             boolean canRetry = ExceptionsHelper.status(e) == RETRY_STATUS && retriesRemaining > 0;
             if (canRetry) {
                 inFlightRequestsPhaser.arriveAndDeregister();
                 retry(bulkRequest, responsesAccumulator, consumer, listener, retriesRemaining);
             } else {
+                totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                 listener.onFailure(e);
                 inFlightRequestsPhaser.arriveAndDeregister();
             }

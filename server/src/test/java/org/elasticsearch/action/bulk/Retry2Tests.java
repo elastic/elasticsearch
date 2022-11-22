@@ -65,11 +65,11 @@ public class Retry2Tests extends ESTestCase {
 
     private BulkRequest createBulkRequest() {
         BulkRequest request = new BulkRequest();
-        request.add(new UpdateRequest("shop", "1"));
-        request.add(new UpdateRequest("shop", "2"));
-        request.add(new UpdateRequest("shop", "3"));
-        request.add(new UpdateRequest("shop", "4"));
-        request.add(new UpdateRequest("shop", "5"));
+        request.add(new UpdateRequest("shop", "1").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
+        request.add(new UpdateRequest("shop", "2").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
+        request.add(new UpdateRequest("shop", "3").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
+        request.add(new UpdateRequest("shop", "4").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
+        request.add(new UpdateRequest("shop", "5").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
         return request;
     }
 
@@ -82,6 +82,7 @@ public class Retry2Tests extends ESTestCase {
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+        assertThat(retry2.getTotalBytesInFlight(), equalTo(0L));
     }
 
     public void testRetryFailsAfterBackoff() throws Exception {
@@ -96,6 +97,7 @@ public class Retry2Tests extends ESTestCase {
             */
             assertTrue(response.hasFailures());
             assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+            assertThat(retry2.getTotalBytesInFlight(), equalTo(0L));
         } catch (EsRejectedExecutionException e) {
             /*
              * If the last failure was a rejection we'll end up here.
@@ -117,6 +119,7 @@ public class Retry2Tests extends ESTestCase {
         listener.assertResponseWithoutFailures();
         listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
         listener.assertOnFailureNeverCalled();
+        assertThat(retry.getTotalBytesInFlight(), equalTo(0L));
     }
 
     public void testRetryWithListenerFailsAfterBacksOff() throws Exception {
@@ -142,6 +145,7 @@ public class Retry2Tests extends ESTestCase {
             assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
             assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
         }
+        assertThat(retry.getTotalBytesInFlight(), equalTo(0L));
     }
 
     public void testAwaitClose() throws Exception {
@@ -177,6 +181,7 @@ public class Retry2Tests extends ESTestCase {
                 }, bulkRequest, listener);
             }
             retry.awaitClose(1, TimeUnit.SECONDS);
+            assertThat(retry.getTotalBytesInFlight(), equalTo(0L));
         }
         /*
          * Most requests are complete but one request is hung so awaitClose ought to throw a TimeoutException
@@ -204,6 +209,7 @@ public class Retry2Tests extends ESTestCase {
                 // never calls onResponse or onFailure
             }, bulkRequest, listener);
             expectThrows(TimeoutException.class, () -> retry.awaitClose(200, TimeUnit.MILLISECONDS));
+            assertThat(retry.getTotalBytesInFlight(), equalTo(bulkRequest.estimatedSizeInBytes()));
         }
     }
 

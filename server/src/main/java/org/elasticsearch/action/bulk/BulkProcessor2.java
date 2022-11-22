@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -74,7 +75,7 @@ public class BulkProcessor2 implements Closeable {
         private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
         private ByteSizeValue maxBytesInFlight = new ByteSizeValue(50, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
-        int maxNumberOfRetries = 3;
+        private int maxNumberOfRetries = 3;
 
         private Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, ThreadPool threadPool) {
             this.consumer = consumer;
@@ -161,6 +162,14 @@ public class BulkProcessor2 implements Closeable {
 
     private final int maxActionsPerBulkRequest;
     private final long maxBulkSizeBytes;
+    private final ByteSizeValue maxBytesInFlight;
+    /*
+     * This is the approximate total number of bytes in use by this object, both in the BulkRequest that it is building up and in all of
+     * the BulkRequests that its Retry2 is managing. If this number would exceed maxBytesInFlight, then calls to add() will throw
+     * EsRejectedExecutionExceptions and any calls to Retry2::withBackoff will notify the listener of a EsRejectedExecutionException for
+     * the whole batch.
+     */
+    private final AtomicLong totalBytesInFlight = new AtomicLong(0);
 
     /**
      * This is a task (which might be null) that is scheduled at some pont in the future to flush the bulk request and start a new bulk
@@ -204,10 +213,11 @@ public class BulkProcessor2 implements Closeable {
         this.logger = LogManager.getLogger(getClass());
         this.maxActionsPerBulkRequest = maxActionsPerBulkRequest;
         this.maxBulkSizeBytes = maxBulkSize.getBytes();
+        this.maxBytesInFlight = maxBytesInFlight;
         this.bulkRequest = new BulkRequest();
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(maxNumberOfRetries, maxBytesInFlight);
+        this.retry = new Retry2(maxNumberOfRetries, maxBytesInFlight, totalBytesInFlight);
         this.flushInterval = flushInterval;
         this.threadPool = threadPool;
     }
@@ -257,24 +267,37 @@ public class BulkProcessor2 implements Closeable {
     /**
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     * @throws EsRejectedExecutionException if adding the approximate size in bytes of the request to totalBytesInFlight would exceed
+     * maxBytesInFlight
      */
-    public BulkProcessor2 add(IndexRequest request) {
+    public BulkProcessor2 add(IndexRequest request) throws EsRejectedExecutionException {
         return add((DocWriteRequest<?>) request);
     }
 
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
+     * @throws EsRejectedExecutionException if adding the approximate size in bytes of the request to totalBytesInFlight would exceed
+     * maxBytesInFlight
      */
-    public BulkProcessor2 add(DeleteRequest request) {
+    public BulkProcessor2 add(DeleteRequest request) throws EsRejectedExecutionException {
         return add((DocWriteRequest<?>) request);
     }
 
     /**
      * Adds either a delete or an index request.
+     * @throws EsRejectedExecutionException if adding the approximate size in bytes of the request to totalBytesInFlight would exceed
+     * maxBytesInFlight
      */
-    public BulkProcessor2 add(DocWriteRequest<?> request) {
+    public BulkProcessor2 add(DocWriteRequest<?> request) throws EsRejectedExecutionException {
         internalAdd(request);
         return this;
+    }
+
+    /*
+     * Exposed for unit testing
+     */
+    long getTotalBytesInFlight() {
+        return totalBytesInFlight.get();
     }
 
     protected void ensureOpen() {
@@ -283,13 +306,25 @@ public class BulkProcessor2 implements Closeable {
         }
     }
 
-    private void internalAdd(DocWriteRequest<?> request) {
+    private void internalAdd(DocWriteRequest<?> request) throws EsRejectedExecutionException {
         // bulkRequest and instance swapping is not threadsafe, so execute the mutations under a mutex.
         // once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         synchronized (mutex) {
             ensureOpen();
+            if (totalBytesInFlight.get() + BulkRequest.getEstimatedSizeInBytes(request) > maxBytesInFlight.getBytes()) {
+                throw new EsRejectedExecutionException(
+                    "Cannot index request of size "
+                        + bulkRequest.estimatedSizeInBytes()
+                        + " because "
+                        + totalBytesInFlight.get()
+                        + " bytes are already in flight and the max is "
+                        + maxBytesInFlight
+                );
+            }
+            long bytesBeforeNewRequest = bulkRequest.estimatedSizeInBytes();
             bulkRequest.add(request);
+            totalBytesInFlight.addAndGet(bulkRequest.estimatedSizeInBytes() - bytesBeforeNewRequest);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         }
         // execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
@@ -344,6 +379,8 @@ public class BulkProcessor2 implements Closeable {
      * @param executionId
      */
     private void execute(BulkRequest bulkRequest, long executionId) {
+        // We're taking it off the books as far as BulkProcessor2 is concerned, and letting Retry2 account for it from here on out:
+        totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
         try {
             listener.beforeBulk(executionId, bulkRequest);
             retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {

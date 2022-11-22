@@ -44,7 +44,7 @@ class Retry2 {
     /*
      * This is an approximation of the total number of bytes in the bulk requests that are with consumers.
      */
-    private final AtomicLong totalBytesInFlight = new AtomicLong(0);
+    private final AtomicLong totalBytesInFlight;
     /*
      * This is the approximate maximum number of bytes that this object will allow to be in flight to consumers.
      */
@@ -58,11 +58,14 @@ class Retry2 {
      * Creates a Retry2.
      * @param maxNumberOfRetries This is the maximum number of times a BulkRequest will be retried
      * @param maxBytesInFlight This is the maximum number of bytes that we want this object to keep in flight to the consumers
+     * @param totalBytesInFlight The total bytes in flight between bulk requests being sent to consumers (tracked by this class) and bulk
+     *                          requests that are currently being built up.
      */
-    Retry2(int maxNumberOfRetries, ByteSizeValue maxBytesInFlight) {
+    Retry2(int maxNumberOfRetries, ByteSizeValue maxBytesInFlight, AtomicLong totalBytesInFlight) {
         this.logger = LogManager.getLogger(getClass());
         this.maxNumberOfRetries = maxNumberOfRetries;
         this.maxBytesInFlight = maxBytesInFlight.getBytes();
+        this.totalBytesInFlight = totalBytesInFlight;
     }
 
     /**
@@ -155,13 +158,6 @@ class Retry2 {
         isClosing = true;
         inFlightRequestsPhaser.arriveAndDeregister();
         inFlightRequestsPhaser.awaitAdvanceInterruptibly(0, timeout, unit);
-    }
-
-    /*
-     * Exposed for unit testing
-     */
-    long getTotalBytesInFlight() {
-        return totalBytesInFlight.get();
     }
 
     /**

@@ -29,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -75,20 +76,22 @@ public class Retry2Tests extends ESTestCase {
 
     public void testRetryBacksOff() throws Exception {
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry2 = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+        AtomicLong totalBytesInFlight = new AtomicLong(0);
+        Retry2 retry2 = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10), totalBytesInFlight);
         PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
         retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
         BulkResponse response = future.actionGet();
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
-        assertThat(retry2.getTotalBytesInFlight(), equalTo(0L));
+        assertThat(totalBytesInFlight.get(), equalTo(0L));
     }
 
     public void testRetryFailsAfterBackoff() throws Exception {
         BulkRequest bulkRequest = createBulkRequest();
         try {
-            Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1, ByteSizeValue.ofMb(10));
+            AtomicLong totalBytesInFlight = new AtomicLong(0);
+            Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1, ByteSizeValue.ofMb(10), totalBytesInFlight);
             PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
             retry2.withBackoff(bulkClient::bulk, bulkRequest, future);
             BulkResponse response = future.actionGet();
@@ -97,7 +100,7 @@ public class Retry2Tests extends ESTestCase {
             */
             assertTrue(response.hasFailures());
             assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
-            assertThat(retry2.getTotalBytesInFlight(), equalTo(0L));
+            assertThat(totalBytesInFlight.get(), equalTo(0L));
         } catch (EsRejectedExecutionException e) {
             /*
              * If the last failure was a rejection we'll end up here.
@@ -109,9 +112,9 @@ public class Retry2Tests extends ESTestCase {
 
     public void testRetryWithListenerBacksOff() throws Exception {
         AssertingListener listener = new AssertingListener();
-
+        AtomicLong totalBytesInFlight = new AtomicLong(0);
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+        Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10), totalBytesInFlight);
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
@@ -119,14 +122,14 @@ public class Retry2Tests extends ESTestCase {
         listener.assertResponseWithoutFailures();
         listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
         listener.assertOnFailureNeverCalled();
-        assertThat(retry.getTotalBytesInFlight(), equalTo(0L));
+        assertThat(totalBytesInFlight.get(), equalTo(0L));
     }
 
     public void testRetryWithListenerFailsAfterBacksOff() throws Exception {
         AssertingListener listener = new AssertingListener();
-
+        AtomicLong totalBytesInFlight = new AtomicLong(0);
         BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(CALLS_TO_FAIL - 1, ByteSizeValue.ofMb(10));
+        Retry2 retry = new Retry2(CALLS_TO_FAIL - 1, ByteSizeValue.ofMb(10), totalBytesInFlight);
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
@@ -145,7 +148,7 @@ public class Retry2Tests extends ESTestCase {
             assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
             assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
         }
-        assertThat(retry.getTotalBytesInFlight(), equalTo(0L));
+        assertThat(totalBytesInFlight.get(), equalTo(0L));
     }
 
     public void testAwaitClose() throws Exception {
@@ -153,7 +156,8 @@ public class Retry2Tests extends ESTestCase {
          * awaitClose() is called immediately, and we make sure that subsequent requests are rejected.
          */
         {
-            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+            AtomicLong totalBytesInFlight = new AtomicLong(0);
+            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10), totalBytesInFlight);
             retry.awaitClose(200, TimeUnit.MILLISECONDS);
             AssertingListener listener = new AssertingListener();
             BulkRequest bulkRequest = createBulkRequest();
@@ -161,12 +165,14 @@ public class Retry2Tests extends ESTestCase {
             listener.awaitCallbacksCalled();
             assertNotNull(listener.lastFailure);
             assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
+            assertThat(totalBytesInFlight.get(), equalTo(0L));
         }
         /*
          * awaitClose() returns without exception if all requests complete quickly, whether they were successes or failures
          */
         {
-            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+            AtomicLong totalBytesInFlight = new AtomicLong(0);
+            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10), totalBytesInFlight);
             List<AssertingListener> listeners = new ArrayList<>();
             BulkRequest bulkRequest = createBulkRequest();
             for (int i = 0; i < randomIntBetween(1, 100); i++) {
@@ -181,13 +187,14 @@ public class Retry2Tests extends ESTestCase {
                 }, bulkRequest, listener);
             }
             retry.awaitClose(1, TimeUnit.SECONDS);
-            assertThat(retry.getTotalBytesInFlight(), equalTo(0L));
+            assertThat(totalBytesInFlight.get(), equalTo(0L));
         }
         /*
          * Most requests are complete but one request is hung so awaitClose ought to throw a TimeoutException
          */
         {
-            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10));
+            AtomicLong totalBytesInFlight = new AtomicLong(0);
+            Retry2 retry = new Retry2(CALLS_TO_FAIL, ByteSizeValue.ofMb(10), totalBytesInFlight);
             List<AssertingListener> listeners = new ArrayList<>();
             BulkRequest bulkRequest = createBulkRequest();
             for (int i = 0; i < randomIntBetween(0, 100); i++) {
@@ -209,7 +216,7 @@ public class Retry2Tests extends ESTestCase {
                 // never calls onResponse or onFailure
             }, bulkRequest, listener);
             expectThrows(TimeoutException.class, () -> retry.awaitClose(200, TimeUnit.MILLISECONDS));
-            assertThat(retry.getTotalBytesInFlight(), equalTo(bulkRequest.estimatedSizeInBytes()));
+            assertThat(totalBytesInFlight.get(), equalTo(bulkRequest.estimatedSizeInBytes()));
         }
     }
 

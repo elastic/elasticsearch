@@ -67,13 +67,13 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             assertThat(listener.bulkFailures.size(), equalTo(0));
             assertResponseItems(listener.bulkItems, numDocs);
             assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
+            assertThat(processor.getTotalBytesInFlight(), equalTo(0L));
         }
     }
 
     public void testBulkProcessor2ConcurrentRequests() throws Exception {
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(1, 7);
 
         int expectedBulkActions = numDocs / bulkActions;
 
@@ -84,15 +84,13 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         BulkProcessor2TestListener listener = new BulkProcessor2TestListener(latch, closeLatch);
 
         MultiGetRequestBuilder multiGetRequestBuilder;
-
-        try (
-            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
-                .setBulkActions(bulkActions)
-                // set interval and size to high values
-                .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-                .build()
-        ) {
+        BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
+            .setBulkActions(bulkActions)
+            // set interval and size to high values
+            .setFlushInterval(TimeValue.timeValueHours(24))
+            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .build();
+        try (processor) {
 
             multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
@@ -122,6 +120,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         }
 
         assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
+        assertThat(processor.getTotalBytesInFlight(), equalTo(0L));
     }
 
     public void testBulkProcessor2WaitOnClose() throws Exception {
@@ -156,7 +155,6 @@ public class BulkProcessor2IT extends ESIntegTestCase {
 
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(1, 10);
 
         int expectedBulkActions = numDocs / bulkActions;
 
@@ -169,14 +167,13 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         MultiGetRequestBuilder multiGetRequestBuilder = client().prepareMultiGet();
         BulkProcessor2TestListener listener = new BulkProcessor2TestListener(latch, closeLatch);
 
-        try (
-            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
-                .setBulkActions(bulkActions)
-                // set interval and size to high values
-                .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-                .build()
-        ) {
+        BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
+            .setBulkActions(bulkActions)
+            // set interval and size to high values
+            .setFlushInterval(TimeValue.timeValueHours(24))
+            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .build();
+        try (processor) {
 
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
@@ -201,7 +198,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         assertThat(listener.afterCounts.get(), equalTo(totalExpectedBulkActions));
         assertThat(listener.bulkFailures.size(), equalTo(0));
         assertThat(listener.bulkItems.size(), equalTo(testDocs + testReadOnlyDocs));
-
+        assertThat(processor.getTotalBytesInFlight(), equalTo(0L));
         Set<String> ids = new HashSet<>();
         Set<String> readOnlyIds = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {

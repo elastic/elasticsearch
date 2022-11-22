@@ -17,7 +17,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -30,8 +29,6 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -109,6 +106,7 @@ public class BulkProcessor2Tests extends ESTestCase {
         ) {
             bulkProcessor.add(new IndexRequest());
             assertTrue(countDownLatch.await(5, TimeUnit.MINUTES));
+            assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
         }
 
         assertThat(attemptRef.get(), equalTo(maxAttempts));
@@ -136,7 +134,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 break;
             }
             maxBatchSize = randomIntBetween(1, 100);
-            maxDocuments = randomIntBetween(maxBatchSize, 1_000_000);
+            maxDocuments = randomIntBetween(maxBatchSize, 100_000);
             concurrentClients = randomIntBetween(1, 20);
             concurrentBulkRequests = randomIntBetween(0, 20);
             expectedExecutions.set(maxDocuments / maxBatchSize);
@@ -169,18 +167,17 @@ public class BulkProcessor2Tests extends ESTestCase {
                 }
             }, 0, TimeUnit.SECONDS);
         };
-        try (
-            BulkProcessor2 bulkProcessor = new BulkProcessor2(
-                consumer,
-                0,
-                countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
-                maxBatchSize,
-                ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-                new ByteSizeValue(50, ByteSizeUnit.MB),
-                null,
-                threadPool
-            )
-        ) {
+        BulkProcessor2 bulkProcessor = new BulkProcessor2(
+            consumer,
+            0,
+            countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
+            maxBatchSize,
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+            new ByteSizeValue(50, ByteSizeUnit.MB),
+            null,
+            threadPool
+        );
+        try (bulkProcessor) {
             IndexRequest indexRequest = new IndexRequest();
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
                 bulkProcessor.add(indexRequest);
@@ -238,6 +235,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 );
             }
         }
+        assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
         // count total docs after processor is closed since there may have been partial batches that are flushed on close.
         assertEquals(docCount.get(), maxDocuments);
         consumerExecutor.shutdown();
@@ -269,28 +267,20 @@ public class BulkProcessor2Tests extends ESTestCase {
                 exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
             }
         };
-        try (
-            BulkProcessor2 bulkProcessor = new BulkProcessor2(
-                consumer,
-                0,
-                countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
-                maxBatchSize,
-                ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-                new ByteSizeValue(50, ByteSizeUnit.MB),
-                TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
-                threadPool
-            )
-        ) {
+        BulkProcessor2 bulkProcessor = new BulkProcessor2(
+            consumer,
+            0,
+            countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
+            maxBatchSize,
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+            new ByteSizeValue(50, ByteSizeUnit.MB),
+            TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
+            threadPool
+        );
+        try (bulkProcessor) {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = """
-                { "index" : { "_index" : "test", "_id" : "1" } }
-                { "field1" : "value1" }
-                """;
-            BytesReference bytesReference = BytesReference.fromByteBuffers(
-                new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
-            );
             List<Future<?>> futures = new ArrayList<>();
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
@@ -320,6 +310,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             executorService.shutdown();
             executorService.awaitTermination(10, TimeUnit.SECONDS);
         }
+        assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
 
         if (failureCount.get() > 0 || requestCount.get() != successCount.get() || maxDocuments != docCount.get()) {
             if (exceptionRef.get() != null) {
@@ -378,27 +369,31 @@ public class BulkProcessor2Tests extends ESTestCase {
                 }
             }, 0, TimeUnit.SECONDS);
         };
-        CountDownLatch failureLatch = new CountDownLatch(1);
-        try (BulkProcessor2 bulkProcessor = new BulkProcessor2(consumer, 0, new BulkProcessor2.Listener() {
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {}
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
-                if (failure instanceof EsRejectedExecutionException) {
-                    failureLatch.countDown();
+        BulkProcessor2 bulkProcessor = new BulkProcessor2(
+            consumer,
+            0,
+            emptyListener(),
+            maxBatchSize,
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+            ByteSizeValue.ofBytes(500),
+            null,
+            threadPool
+        );
+        try (bulkProcessor) {
+            IndexRequest indexRequest = new IndexRequest();
+            boolean rejectedRequests = false;
+            for (int i = 0; i < maxDocuments; i++) {
+                try {
+                    bulkProcessor.add(indexRequest);
+                } catch (EsRejectedExecutionException e) {
+                    rejectedRequests = true;
+                    break;
                 }
             }
-        }, maxBatchSize, ByteSizeValue.ofBytes(Integer.MAX_VALUE), ByteSizeValue.ofBytes(50), null, threadPool)) {
-            IndexRequest indexRequest = new IndexRequest();
-            for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
-                bulkProcessor.add(indexRequest);
-            }
-            assertTrue(failureLatch.await(10, TimeUnit.SECONDS));
+            assertThat(rejectedRequests, equalTo(true));
         }
+        assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
+        consumerExecutor.shutdown();
     }
 
     private BulkProcessor2.Listener emptyListener() {

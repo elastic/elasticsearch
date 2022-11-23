@@ -264,9 +264,9 @@ public class BigArrays {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            int size = (int) size();
-            out.writeVInt(size * 8);
-            out.write(array, 0, size * Long.BYTES);
+            int size = Math.toIntExact(size()) * Long.BYTES;
+            out.writeVInt(size);
+            out.write(array, 0, size);
         }
     }
 

@@ -129,6 +129,6 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, (int) size, pages, Double.BYTES, DOUBLE_PAGE_SIZE);
+        writePages(out, Math.toIntExact(size), pages, Double.BYTES, DOUBLE_PAGE_SIZE);
     }
 }

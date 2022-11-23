@@ -131,7 +131,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, (int) size, pages, Long.BYTES, LONG_PAGE_SIZE);
+        writePages(out, Math.toIntExact(size), pages, Long.BYTES, LONG_PAGE_SIZE);
     }
 
     static void writePages(StreamOutput out, int size, byte[][] pages, int bytesPerValue, int pageSize) throws IOException {

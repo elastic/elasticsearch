@@ -1,6 +1,0 @@
-pr: 88209
-summary: Prioritize shard snapshot tasks over file snapshot tasks and limit the number of the concurrently running snapshot tasks
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 83408

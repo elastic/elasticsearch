@@ -15,10 +15,11 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class IndexAbstractionResolver {
 
@@ -43,15 +44,23 @@ public class IndexAbstractionResolver {
         Metadata metadata,
         boolean includeDataStreams
     ) {
-        Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        return resolveIndexAbstractions(indices, indicesOptions, metadata, availableIndexAbstractions, includeDataStreams);
+        final Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
+        return resolveIndexAbstractions(
+            indices,
+            indicesOptions,
+            metadata,
+            () -> availableIndexAbstractions,
+            availableIndexAbstractions::contains,
+            includeDataStreams
+        );
     }
 
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        Collection<String> availableIndexAbstractions,
+        Supplier<Set<String>> allAuthorizedAndAvailable,
+        Predicate<String> isAuthorized,
         boolean includeDataStreams
     ) {
         List<String> finalIndices = new ArrayList<>();
@@ -67,38 +76,12 @@ public class IndexAbstractionResolver {
             }
 
             // we always need to check for date math expressions
-            final String dateMathName = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
-            if (dateMathName != indexAbstraction) {
-                assert dateMathName.equals(indexAbstraction) == false;
-                if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(dateMathName)) {
-                    // continue
-                    indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName)
-                    && isIndexVisible(
-                        indexAbstraction,
-                        dateMathName,
-                        indicesOptions,
-                        metadata,
-                        indexNameExpressionResolver,
-                        includeDataStreams,
-                        true
-                    )) {
-                        if (minus) {
-                            finalIndices.remove(dateMathName);
-                        } else {
-                            finalIndices.add(dateMathName);
-                        }
-                    } else {
-                        if (indicesOptions.ignoreUnavailable() == false) {
-                            throw new IndexNotFoundException(dateMathName);
-                        }
-                    }
-            }
+            indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : availableIndexAbstractions) {
+                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
@@ -123,10 +106,10 @@ public class IndexAbstractionResolver {
                         finalIndices.addAll(resolvedIndices);
                     }
                 }
-            } else if (dateMathName.equals(indexAbstraction)) {
+            } else {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
-                } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
+                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
                     finalIndices.add(indexAbstraction);
                 }
             }
@@ -141,18 +124,6 @@ public class IndexAbstractionResolver {
         Metadata metadata,
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
-    ) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, resolver, includeDataStreams, false);
-    }
-
-    public static boolean isIndexVisible(
-        String expression,
-        String index,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        IndexNameExpressionResolver resolver,
-        boolean includeDataStreams,
-        boolean dateMathExpression
     ) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
@@ -176,12 +147,6 @@ public class IndexAbstractionResolver {
             }
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
-        // date math to explicitly reference the index
-        if (dateMathExpression) {
-            assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
-            return true;
-        }
         if (isVisible == false) {
             return false;
         }

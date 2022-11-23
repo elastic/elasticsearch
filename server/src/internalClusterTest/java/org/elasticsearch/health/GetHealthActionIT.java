@@ -15,11 +15,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -33,15 +35,18 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -139,12 +144,12 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
             var status = clusterService.getClusterSettings().get(statusSetting);
             return createIndicator(
                 status,
                 "Health is set to [" + status + "] by test plugin",
-                new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -204,6 +209,38 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));
             }
 
+            // Check health api stats
+            {
+                HealthApiStatsAction.Response response = client.execute(HealthApiStatsAction.INSTANCE, new HealthApiStatsAction.Request())
+                    .get();
+                Counters stats = response.getStats();
+                assertThat(stats.get("invocations.total"), equalTo(4L));
+                assertThat(stats.get("invocations.verbose_true"), equalTo(2L));
+                assertThat(stats.get("invocations.verbose_false"), equalTo(2L));
+                assertThat(
+                    stats.get("invocations.verbose_true") + stats.get("invocations.verbose_false"),
+                    equalTo(stats.get("invocations.total"))
+                );
+                HealthStatus mostSevereHealthStatus = HealthStatus.merge(
+                    Stream.of(ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus)
+                );
+                assertThat(stats.get("statuses." + mostSevereHealthStatus.xContentValue()), greaterThanOrEqualTo(2L));
+                assertThat(stats.get("statuses." + ilmIndicatorStatus.xContentValue()), greaterThanOrEqualTo(2L));
+                String label = "indicators." + ilmIndicatorStatus.xContentValue() + ".ilm";
+                if (ilmIndicatorStatus != HealthStatus.GREEN) {
+                    assertThat(stats.get(label), greaterThanOrEqualTo(4L));
+                } else {
+                    expectThrows(IllegalArgumentException.class, () -> stats.get(label));
+                }
+                Set<HealthStatus> expectedStatuses = new HashSet<>();
+                expectedStatuses.add(ilmIndicatorStatus);
+                expectedStatuses.add(mostSevereHealthStatus);
+                assertThat(response.getStatuses(), equalTo(expectedStatuses));
+                if (mostSevereHealthStatus != HealthStatus.GREEN || ilmIndicatorStatus != HealthStatus.GREEN) {
+                    assertThat(response.getIndicators().isEmpty(), equalTo(mostSevereHealthStatus == HealthStatus.GREEN));
+                }
+            }
+
         } finally {
             updateClusterSettings(
                 Settings.builder()
@@ -219,9 +256,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
         HealthStatus ilmIndicatorStatus,
         HealthStatus slmIndicatorStatus,
         HealthStatus clusterCoordinationIndicatorStatus,
-        boolean explain
+        boolean verbose
     ) throws Exception {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(explain)).get();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(verbose)).get();
 
         assertThat(
             response.getStatus(),
@@ -235,7 +272,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     ILM_INDICATOR_NAME,
                     ilmIndicatorStatus,
                     "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                    new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                    new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -248,7 +285,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     INSTANCE_HAS_MASTER_INDICATOR_NAME,
                     clusterCoordinationIndicatorStatus,
                     "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
-                    new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                    new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -256,8 +293,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
         );
     }
 
-    private void testIndicator(Client client, HealthStatus ilmIndicatorStatus, boolean explain) throws Exception {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(ILM_INDICATOR_NAME, explain)).get();
+    private void testIndicator(Client client, HealthStatus ilmIndicatorStatus, boolean verbose) throws Exception {
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(ILM_INDICATOR_NAME, verbose)).get();
         assertNull(response.getStatus());
         assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
         assertThat(
@@ -267,7 +304,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     ILM_INDICATOR_NAME,
                     ilmIndicatorStatus,
                     "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                    new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                    new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )

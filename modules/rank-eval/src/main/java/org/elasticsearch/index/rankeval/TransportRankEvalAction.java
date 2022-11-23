@@ -105,7 +105,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         XContentType.JSON
                     )
                 ) {
-                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
+                    evaluationRequest = new SearchSourceBuilder().parseXContent(subParser, false);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {

@@ -1506,24 +1506,27 @@ public final class TokenService {
             }
         } else {
             // falback to the previous method
-            if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
+            if (clientAuthentication.getEffectiveSubject().getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
                 logger.warn(
                     "Token was originally created by [{}] but [{}] attempted to refresh it",
                     refreshToken.getAssociatedUser(),
-                    clientAuthentication.getUser().principal()
+                    clientAuthentication.getEffectiveSubject().getUser().principal()
                 );
                 return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-            } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
-                logger.warn(
-                    "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                    refreshToken.getAssociatedUser(),
-                    refreshToken.getAssociatedRealm(),
-                    clientAuthentication.getAuthenticatedBy().getName()
-                );
-                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-            } else {
-                return Optional.empty();
-            }
+            } else if (clientAuthentication.getAuthenticatingSubject()
+                .getRealm()
+                .getName()
+                .equals(refreshToken.getAssociatedRealm()) == false) {
+                    logger.warn(
+                        "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                        refreshToken.getAssociatedUser(),
+                        refreshToken.getAssociatedRealm(),
+                        clientAuthentication.getAuthenticatingSubject().getRealm().getName()
+                    );
+                    return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+                } else {
+                    return Optional.empty();
+                }
         }
     }
 
@@ -1794,10 +1797,10 @@ public final class TokenService {
                 if (userToken.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
                     builder.field("authentication", originatingClientAuth.maybeRewriteForOlderVersion(userToken.getVersion()).encode());
                 } else {
-                    builder.field("user", originatingClientAuth.getUser().principal())
-                        .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
-                    if (originatingClientAuth.getAuthenticatedBy().getDomain() != null) {
-                        builder.field("realm_domain", originatingClientAuth.getAuthenticatedBy().getDomain());
+                    builder.field("user", originatingClientAuth.getEffectiveSubject().getUser().principal())
+                        .field("realm", originatingClientAuth.getAuthenticatingSubject().getRealm().getName());
+                    if (originatingClientAuth.getAuthenticatingSubject().getRealm().getDomain() != null) {
+                        builder.field("realm_domain", originatingClientAuth.getAuthenticatingSubject().getRealm().getDomain());
                     }
                 }
                 builder.endObject().endObject();
@@ -1824,7 +1827,7 @@ public final class TokenService {
             try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(auth))) {
                 in.setVersion(authVersion);
                 Authentication authentication = new Authentication(in);
-                return authentication.getUser().principal().equals(username);
+                return authentication.getEffectiveSubject().getUser().principal().equals(username);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -1959,7 +1962,7 @@ public final class TokenService {
                                 response.getIndex(),
                                 response.getId(),
                                 userToken.getId(),
-                                userToken.getAuthentication().getUser().principal()
+                                userToken.getAuthentication().getEffectiveSubject().getUser().principal()
                             );
                             onFailure.accept(
                                 traceLog(
@@ -2542,11 +2545,11 @@ public final class TokenService {
             String iv,
             String salt
         ) {
-            assert associatedAuthentication.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
+            assert associatedAuthentication.getEffectiveSubject().getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
             this.invalidated = invalidated;
             // not used, filled-in for consistency's sake
-            this.associatedUser = associatedAuthentication.getUser().principal();
-            this.associatedRealm = associatedAuthentication.getAuthenticatedBy().getName();
+            this.associatedUser = associatedAuthentication.getEffectiveSubject().getUser().principal();
+            this.associatedRealm = associatedAuthentication.getAuthenticatingSubject().getRealm().getName();
             this.associatedAuthentication = associatedAuthentication;
             this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;

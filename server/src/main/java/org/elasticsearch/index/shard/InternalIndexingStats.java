@@ -133,7 +133,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
             long timeSinceShardStartedInNanos
         ) {
             final long totalIndexingTimeInNanos = indexMetric.sum();
-            final long totalIndexingTimeSinceShardStarted = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
+            final long totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
             return new IndexingStats.Stats(
                 indexMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
@@ -145,7 +145,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 noopUpdates.count(),
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
-                timeSinceShardStartedInNanos > 0 ? (double) totalIndexingTimeSinceShardStarted / timeSinceShardStartedInNanos : 0
+                totalIndexingTimeSinceShardStartedInNanos,
+                timeSinceShardStartedInNanos
             );
         }
     }

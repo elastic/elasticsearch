@@ -82,7 +82,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
             /*
@@ -105,7 +105,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         return createIndicator(
             diskHealthAnalyzer.getHealthStatus(),
             diskHealthAnalyzer.getSymptom(),
-            diskHealthAnalyzer.getDetails(explain),
+            diskHealthAnalyzer.getDetails(verbose),
             diskHealthAnalyzer.getImpacts(),
             diskHealthAnalyzer.getDiagnoses()
         );
@@ -419,8 +419,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             return diagnosisList;
         }
 
-        HealthIndicatorDetails getDetails(boolean explain) {
-            if (explain == false) {
+        HealthIndicatorDetails getDetails(boolean verbose) {
+            if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
             return ((builder, params) -> {

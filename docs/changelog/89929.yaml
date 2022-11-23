@@ -1,5 +1,0 @@
-pr: 89929
-summary: Make sure listener is resolved when file queue is cleared
-area: Snapshot/Restore
-type: bug
-issues: []

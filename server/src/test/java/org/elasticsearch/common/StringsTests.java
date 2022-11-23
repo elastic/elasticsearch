@@ -190,10 +190,12 @@ public class StringsTests extends ESTestCase {
 
         String testStr = randomUnicodeOfLength(10);
         String delete = testStr.substring(testStr.length() - 1) + testStr.substring(0, 1);
-        assertThat(deleteAny(testStr, delete), equalTo(testStr.substring(1, testStr.length() - 1)));
-        assertThat(deleteAny(new StringBuilder(testStr), delete), hasToString(testStr.substring(1, testStr.length() - 1)));
-
-        // this method doesn't really work with surrogates
+        String expected = testStr.chars()
+            .mapToObj(Character::toString)
+            .filter(c -> delete.contains(c) == false)
+            .collect(Collectors.joining());
+        assertThat(deleteAny(testStr, delete), equalTo(expected));
+        assertThat(deleteAny(new StringBuilder(testStr), delete), hasToString(expected));
     }
 
     public void testSplitStringToSet() {

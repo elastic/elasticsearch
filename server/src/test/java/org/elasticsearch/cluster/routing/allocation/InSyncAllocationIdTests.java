@@ -75,7 +75,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(0));
         assertThat(clusterState.metadata().index("test-old").inSyncAllocationIds(0), equalTo(Set.of("x", "y")));
@@ -119,7 +119,9 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand("test", 0, "node1", true)),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop()
         ).clusterState();
 
         // check that in-sync allocation ids are reset by forcing an empty primary
@@ -269,7 +271,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(replicaShard.currentNodeId())))
                 .build();
-            clusterState = allocation.reroute(clusterState, "reroute");
+            clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
             logger.info("start replica shards");
             clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -328,7 +330,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         logger.info("add back node 1");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(1));
         // in-sync allocation ids should not be updated
@@ -393,7 +395,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(0));
 

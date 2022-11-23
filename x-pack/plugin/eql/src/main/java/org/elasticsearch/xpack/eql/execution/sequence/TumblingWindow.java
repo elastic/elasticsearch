@@ -15,8 +15,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
-import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
+import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
@@ -75,8 +75,8 @@ public class TumblingWindow implements Executable {
     };
 
     private final QueryClient client;
-    private final List<Criterion<BoxedQueryRequest>> criteria;
-    private final Criterion<BoxedQueryRequest> until;
+    private final List<SequenceCriterion> criteria;
+    private final SequenceCriterion until;
     private final SequenceMatcher matcher;
     // shortcut
     private final int maxStages;
@@ -102,12 +102,7 @@ public class TumblingWindow implements Executable {
         }
     }
 
-    public TumblingWindow(
-        QueryClient client,
-        List<Criterion<BoxedQueryRequest>> criteria,
-        Criterion<BoxedQueryRequest> until,
-        SequenceMatcher matcher
-    ) {
+    public TumblingWindow(QueryClient client, List<SequenceCriterion> criteria, SequenceCriterion until, SequenceMatcher matcher) {
         this.client = client;
 
         this.until = until;
@@ -115,7 +110,7 @@ public class TumblingWindow implements Executable {
         this.maxStages = criteria.size();
         this.matcher = matcher;
 
-        Criterion<BoxedQueryRequest> baseRequest = criteria.get(0);
+        SequenceCriterion baseRequest = criteria.get(0);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
@@ -179,7 +174,7 @@ public class TumblingWindow implements Executable {
 
     private void advance(int stage, ActionListener<Payload> listener) {
         // initialize
-        Criterion<BoxedQueryRequest> base = criteria.get(stage);
+        SequenceCriterion base = criteria.get(stage);
         // remove any potential upper limit (if a criteria has been promoted)
         base.queryRequest().to(null);
 
@@ -198,7 +193,7 @@ public class TumblingWindow implements Executable {
      * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
+        SequenceCriterion base = criteria.get(baseStage);
         List<SearchHit> hits = searchHits(r);
 
         log.trace("Found [{}] hits", hits.size());
@@ -239,7 +234,7 @@ public class TumblingWindow implements Executable {
     }
 
     private void completeBaseCriterion(int baseStage, List<SearchHit> hits, WindowInfo info, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
+        SequenceCriterion base = criteria.get(baseStage);
 
         // check for matches - if the limit has been reached, abort
         if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
@@ -379,7 +374,7 @@ public class TumblingWindow implements Executable {
     }
 
     private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
+        SequenceCriterion criterion = criteria.get(currentStage);
         BoxedQueryRequest request = criterion.queryRequest();
 
         boxQuery(window, criterion);
@@ -456,7 +451,7 @@ public class TumblingWindow implements Executable {
     /**
      * Trim hits outside the (upper) limit.
      */
-    private List<SearchHit> trim(List<SearchHit> searchHits, Criterion<BoxedQueryRequest> criterion, Ordinal boundary) {
+    private List<SearchHit> trim(List<SearchHit> searchHits, SequenceCriterion criterion, Ordinal boundary) {
         int offset = 0;
 
         for (int i = searchHits.size() - 1; i >= 0; i--) {
@@ -473,7 +468,7 @@ public class TumblingWindow implements Executable {
     /**
      * Box the query for the given (ASC) criterion based on the window information.
      */
-    private void boxQuery(WindowInfo window, Criterion<BoxedQueryRequest> criterion) {
+    private void boxQuery(WindowInfo window, SequenceCriterion criterion) {
         BoxedQueryRequest request = criterion.queryRequest();
         // for HEAD, it's the window upper limit that keeps changing
         // so check TO.
@@ -587,11 +582,11 @@ public class TumblingWindow implements Executable {
         return key;
     }
 
-    private static Ordinal headOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
+    private static Ordinal headOrdinal(List<SearchHit> hits, SequenceCriterion criterion) {
         return criterion.ordinal(hits.get(0));
     }
 
-    private static Ordinal tailOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
+    private static Ordinal tailOrdinal(List<SearchHit> hits, SequenceCriterion criterion) {
         return criterion.ordinal(hits.get(hits.size() - 1));
     }
 
@@ -616,7 +611,7 @@ public class TumblingWindow implements Executable {
         };
     }
 
-    Iterable<Tuple<KeyAndOrdinal, HitReference>> wrapValues(Criterion<?> criterion, List<SearchHit> hits) {
+    Iterable<Tuple<KeyAndOrdinal, HitReference>> wrapValues(SequenceCriterion criterion, List<SearchHit> hits) {
         return () -> {
             Iterator<SearchHit> delegate = criterion.descending() ? new ReversedIterator<>(hits) : hits.iterator();
 

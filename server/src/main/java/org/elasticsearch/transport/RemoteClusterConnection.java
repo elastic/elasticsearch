@@ -8,13 +8,12 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -122,24 +121,10 @@ final class RemoteClusterConnection implements Closeable {
                     ClusterStateAction.NAME,
                     request,
                     TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<ClusterStateResponse>() {
-
-                        @Override
-                        public ClusterStateResponse read(StreamInput in) throws IOException {
-                            return new ClusterStateResponse(in);
-                        }
-
-                        @Override
-                        public void handleResponse(ClusterStateResponse response) {
-                            DiscoveryNodes nodes = response.getState().nodes();
-                            contextPreservingActionListener.onResponse(nodes::get);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            contextPreservingActionListener.onFailure(exp);
-                        }
-                    }
+                    new ActionListenerResponseHandler<>(
+                        contextPreservingActionListener.map(response -> response.getState().nodes()::get),
+                        ClusterStateResponse::new
+                    )
                 );
             }
         };

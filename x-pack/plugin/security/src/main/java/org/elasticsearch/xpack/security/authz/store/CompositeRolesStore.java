@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RemoteIndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -152,12 +153,27 @@ public class CompositeRolesStore {
         }
         this.negativeLookupCache = nlcBuilder.build();
         this.restrictedIndices = restrictedIndices;
-        this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices)
-            .build();
-        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
-        securityProfileRole = Role.builder(SecurityProfileUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
-        xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
-        asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        this.superuserRole = Role.buildFromRoleDescriptor(
+            ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
+        this.xpackSecurityRole = Role.buildFromRoleDescriptor(
+            XPackSecurityUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
+        this.securityProfileRole = Role.buildFromRoleDescriptor(
+            SecurityProfileUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
+        this.xpackUserRole = Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
+        this.asyncSearchUserRole = Role.buildFromRoleDescriptor(
+            AsyncSearchUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
 
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,
@@ -412,16 +428,19 @@ public class CompositeRolesStore {
             return;
         }
 
-        Set<String> clusterPrivileges = new HashSet<>();
+        final Set<String> clusterPrivileges = new HashSet<>();
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
-        Set<String> runAs = new HashSet<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
+        final Set<String> runAs = new HashSet<>();
+
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
+
+        final Map<Set<String>, Set<IndicesPrivileges>> remoteIndicesPrivilegesByCluster = new HashMap<>();
 
         // Keyed by application + resource
-        Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
+        final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
 
-        List<String> roleNames = new ArrayList<>(roleDescriptors.size());
+        final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
@@ -433,8 +452,14 @@ public class CompositeRolesStore {
             if (descriptor.getRunAs() != null) {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
+
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
+
+            if (descriptor.hasRemoteIndicesPrivileges()) {
+                groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
+            }
+
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
                 Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
                 applicationPrivilegesMap.compute(key, (k, v) -> {
@@ -471,6 +496,20 @@ public class CompositeRolesStore {
             )
         );
 
+        remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
+            remoteIndicesPrivilegesForCluster.forEach(
+                (privilege) -> builder.addRemoteGroup(
+                    clusterAliasKey,
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                    ),
+                    privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
+                    IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
+                    privilege.allowRestrictedIndices(),
+                    newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
+                )
+            );
+        });
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {
@@ -534,6 +573,25 @@ public class CompositeRolesStore {
         return negativeLookupCache.get(key) != null;
     }
 
+    private static void groupIndexPrivilegesByCluster(
+        final RemoteIndicesPrivileges[] remoteIndicesPrivileges,
+        final Map<Set<String>, Set<IndicesPrivileges>> remoteIndexPrivilegesByCluster
+    ) {
+        assert remoteIndicesPrivileges != null;
+        // if a remote index privilege is an explicit denial, then we treat it as non-existent to stay consistent with local index
+        // privileges
+        final boolean isExplicitDenial = remoteIndicesPrivileges.length == 1
+            && "none".equalsIgnoreCase(remoteIndicesPrivileges[0].indicesPrivileges().getPrivileges()[0]);
+        if (isExplicitDenial) {
+            return;
+        }
+        for (final RemoteIndicesPrivileges remoteIndicesPrivilege : remoteIndicesPrivileges) {
+            final IndicesPrivileges indicesPrivilege = remoteIndicesPrivilege.indicesPrivileges();
+            final Set<String> clusterAliasKey = newHashSet(remoteIndicesPrivilege.remoteClusters());
+            remoteIndexPrivilegesByCluster.computeIfAbsent(clusterAliasKey, k -> new HashSet<>()).add(indicesPrivilege);
+        }
+    }
+
     /**
      * A mutable class that can be used to represent the combination of one or more {@link IndicesPrivileges}
      */
@@ -574,16 +632,19 @@ public class CompositeRolesStore {
         }
 
         private static void collatePrivilegesByIndices(
-            IndicesPrivileges[] indicesPrivileges,
-            boolean allowsRestrictedIndices,
-            Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
+            final IndicesPrivileges[] indicesPrivileges,
+            final boolean allowsRestrictedIndices,
+            final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
         ) {
+            // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
+            // merging
+            final boolean isExplicitDenial = indicesPrivileges.length == 1
+                && "none".equalsIgnoreCase(indicesPrivileges[0].getPrivileges()[0]);
+            if (isExplicitDenial) {
+                return;
+            }
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
-                // merging
-                final boolean isExplicitDenial = indicesPrivileges.length == 1
-                    && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
-                if (isExplicitDenial || (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices)) {
+                if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                     continue;
                 }
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());

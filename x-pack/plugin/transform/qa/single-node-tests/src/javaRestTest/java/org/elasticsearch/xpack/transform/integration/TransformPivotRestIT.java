@@ -1707,6 +1707,85 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals("business_3", actual);
     }
 
+    public void testPivotWithAggregateMetricDouble() throws Exception {
+        String transformId = "aggregate_metric_double_transform";
+        String transformIndex = "aggregate_metric_double_pivot_reviews";
+        String statsField = "stars_stats";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        String config = formatted("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "stats_min": {
+                    "min": {
+                      "field": "%s"
+                    }
+                  },
+                  "stats_max": {
+                    "max": {
+                      "field": "%s"
+                    }
+                  },
+                  "stats_sum": {
+                    "sum": {
+                      "field": "%s"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex, statsField, statsField, statsField);
+
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setJsonEntity(config);
+        Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappingsProperties = (Map<String, Object>) XContentMapValues.extractValue(
+            "generated_dest_index.mappings.properties",
+            previewTransformResponse
+        );
+        assertThat(XContentMapValues.extractValue("stats_min.type", mappingsProperties), is(equalTo("double")));
+        assertThat(XContentMapValues.extractValue("stats_max.type", mappingsProperties), is(equalTo("double")));
+        assertThat(XContentMapValues.extractValue("stats_sum.type", mappingsProperties), is(equalTo("double")));
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_min", searchResult)).get(0), is(equalTo(0.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_max", searchResult)).get(0), is(equalTo(6.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_sum", searchResult)).get(0), is(equalTo(1590.0)));
+
+        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_min", searchResult)).get(0), is(equalTo(0.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_max", searchResult)).get(0), is(equalTo(6.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_sum", searchResult)).get(0), is(equalTo(2020.0)));
+    }
+
     public void testManyBucketsWithSmallPageSize() throws Exception {
         String transformId = "test_with_many_buckets";
         String transformIndex = transformId + "-idx";

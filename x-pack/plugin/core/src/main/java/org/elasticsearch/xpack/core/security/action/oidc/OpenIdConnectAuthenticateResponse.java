@@ -28,7 +28,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         String refreshTokenString,
         TimeValue expiresIn
     ) {
-        this.principal = authentication.getUser().principal();
+        this.principal = authentication.getEffectiveSubject().getUser().principal();
         ;
         this.accessTokenString = accessTokenString;
         this.refreshTokenString = refreshTokenString;

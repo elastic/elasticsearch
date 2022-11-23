@@ -334,6 +334,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.RemoteClusterAuthorizationResolver;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -718,7 +719,8 @@ public class Security extends Plugin
             settings,
             client,
             getLicenseState(),
-            systemIndices.getMainIndexManager()
+            systemIndices.getMainIndexManager(),
+            clusterService
         );
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
 
@@ -896,6 +898,12 @@ public class Security extends Plugin
 
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
+
+        final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = new RemoteClusterAuthorizationResolver(
+            settings,
+            clusterService.getClusterSettings()
+        );
+
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -905,7 +913,8 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations
+                destructiveOperations,
+                remoteClusterAuthorizationResolver
             )
         );
 
@@ -1574,7 +1583,7 @@ public class Security extends Plugin
             extractClientCertificate = false;
         }
         return handler -> new SecurityRestFilter(
-            settings,
+            enabled,
             threadContext,
             authcService.get(),
             secondayAuthc.get(),

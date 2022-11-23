@@ -135,7 +135,26 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "the octopus comforter smells"
+          model_text: "the octopus comforter smells"
+          knn:
+            field: embedding
+            k: 3
+            num_candidates: 10
+  - gte: { inference_took: 0 }
+  - match: { hits.total.value: 3 }
+    # See comment at the top of the file for the reason why
+    # the test cannot match on the text field
+
+  - do:
+      semantic_search:
+        index: embedded_text
+        body:
+          model_id: text_embedding_model
+          model_text: "the octopus comforter smells"
+          text_embedding_config:
+            tokenization:
+              bert:
+                truncate: none
           knn:
             field: embedding
             k: 3
@@ -159,7 +178,7 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: source_text
             k: 2
@@ -179,7 +198,7 @@ setup:
         index: embedded_text_10_dims
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: embedding
             k: 2
@@ -193,7 +212,7 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: embedding
             k: 2
@@ -207,7 +226,7 @@ setup:
         index: embedded_text
         body:
           model_id: missing_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: embedding
             k: 2
@@ -234,4 +253,4 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"

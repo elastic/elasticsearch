@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -54,7 +55,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
             fields,
             randomDoubleBetween(0.0, 1.0, false),
             randomIntBetween(1, 20),
-            randomIntBetween(1, 20)
+            randomIntBetween(1, 20),
+            randomBoolean() ? QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null
         );
     }
 
@@ -111,7 +113,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 ),
                 1.2,
                 randomIntBetween(1, 20),
-                randomIntBetween(1, 20)
+                randomIntBetween(1, 20),
+                null
             )
         );
         assertEquals("[minimum_support] must be greater than 0 and less or equal to 1. Found [1.2] in [fi]", e.getMessage());
@@ -126,7 +129,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 ),
                 randomDoubleBetween(0.0, 1.0, false),
                 -4,
-                randomIntBetween(1, 20)
+                randomIntBetween(1, 20),
+                null
             )
         );
 
@@ -142,7 +146,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 ),
                 randomDoubleBetween(0.0, 1.0, false),
                 randomIntBetween(1, 20),
-                -2
+                -2,
+                null
             )
         );
 
@@ -158,7 +163,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
             ),
             randomDoubleBetween(0.0, 1.0, false),
             randomIntBetween(1, 20),
-            randomIntBetween(1, 20)
+            randomIntBetween(1, 20),
+            null
         ).subAggregation(AggregationBuilders.avg("fieldA")));
 
         assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());
@@ -173,7 +179,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
             ),
             randomDoubleBetween(0.0, 1.0, false),
             randomIntBetween(1, 20),
-            randomIntBetween(1, 20)
+            randomIntBetween(1, 20),
+            null
         ).subAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("fieldA"))));
 
         assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());

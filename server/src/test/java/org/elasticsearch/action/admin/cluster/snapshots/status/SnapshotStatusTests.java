@@ -10,10 +10,11 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus> {
+public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<SnapshotStatus> {
 
     public void testToString() throws Exception {
         SnapshotsInProgress.State state = randomFrom(SnapshotsInProgress.State.values());
@@ -179,5 +180,10 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Writeable.Reader<SnapshotStatus> instanceReader() {
+        return SnapshotStatus::new;
     }
 }

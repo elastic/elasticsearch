@@ -40,7 +40,7 @@ public class ClusterStateObserverTests extends ESTestCase {
         when(clusterApplierService.state()).thenReturn(clusterState);
 
         final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
-            clusterState,
+            clusterState.version(),
             clusterApplierService,
             null,
             logger,

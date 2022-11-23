@@ -265,7 +265,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                     if (hasMatchingSyncId()) {
                         builder.field("matching_sync_id", true);
                     } else {
-                        builder.humanReadableField("matching_size_in_bytes", "matching_size", new ByteSizeValue(matchingBytes));
+                        builder.humanReadableField("matching_size_in_bytes", "matching_size", ByteSizeValue.ofBytes(matchingBytes));
                     }
                 }
                 if (storeException != null) {

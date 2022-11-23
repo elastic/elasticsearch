@@ -72,7 +72,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
@@ -98,7 +98,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             return createIndicator(
                 GREEN,
                 "No corrupted snapshot repositories.",
-                explain ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
+                verbose ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -120,7 +120,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         return createIndicator(
             RED,
             createCorruptedRepositorySummary(corrupted),
-            explain
+            verbose
                 ? new SimpleHealthIndicatorDetails(
                     Map.of(
                         "total_repositories",

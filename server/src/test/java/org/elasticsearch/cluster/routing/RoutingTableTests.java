@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -95,7 +96,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             discoBuilder = discoBuilder.add(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
-        ClusterState rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute");
+        ClusterState rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(rerouteResult, not(equalTo(this.clusterState)));
         this.clusterState = rerouteResult;
     }

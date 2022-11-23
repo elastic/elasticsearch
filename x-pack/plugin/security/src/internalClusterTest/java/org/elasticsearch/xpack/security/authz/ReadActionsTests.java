@@ -213,7 +213,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     }
 
     public void testMissingDateMath() {
-        expectThrows(IndexNotFoundException.class, () -> trySearch("<logstash-{now/M}>"));
+        expectThrows(ElasticsearchSecurityException.class, () -> trySearch("<unauthorized-datemath-{now/M}>"));
+        expectThrows(IndexNotFoundException.class, () -> trySearch("<test-datemath-{now/M}>"));
     }
 
     public void testMultiSearchUnauthorizedIndex() {

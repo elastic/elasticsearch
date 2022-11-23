@@ -1,5 +1,0 @@
-pr: 90651
-summary: Fork building snapshot status response off of transport thread
-area: Snapshot/Restore
-type: bug
-issues: []

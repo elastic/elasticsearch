@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -31,6 +32,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.NOT_TAKEN;
 
 public final class Allocators {
     private static class NoopGatewayAllocator extends GatewayAllocator {
@@ -53,6 +56,14 @@ public final class Allocators {
             UnassignedAllocationHandler unassignedAllocationHandler
         ) {
             // noop
+        }
+
+        @Override
+        public AllocateUnassignedDecision explainUnassignedShardAllocation(
+            ShardRouting unassignedShard,
+            RoutingAllocation routingAllocation
+        ) {
+            return NOT_TAKEN;
         }
     }
 

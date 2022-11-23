@@ -88,7 +88,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
     private void addBytesFieldsSafe(XContentBuilder builder, long bytes, String rawFieldName, String humanFieldName) throws IOException {
         builder.field(rawFieldName, bytes);
         if (-1L <= bytes) {
-            builder.field(humanFieldName, new ByteSizeValue(bytes));
+            builder.field(humanFieldName, ByteSizeValue.ofBytes(bytes));
         } else {
             // Something's definitely wrong, maybe a breaker was freed twice? Still, we're just writing out stats here, so we should keep
             // going if we're running in production.

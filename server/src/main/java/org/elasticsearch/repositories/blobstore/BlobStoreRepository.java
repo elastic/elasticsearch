@@ -25,7 +25,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -62,7 +62,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -152,6 +151,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -304,7 +304,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
         "max_snapshot_bytes_per_sec",
-        new ByteSizeValue(40, ByteSizeUnit.MB),
+        (settings) -> {
+            if (RecoverySettings.hasNodeBandwidthRecoverySettings(settings)) {
+                return "0";
+            } else {
+                return "40mb";
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -399,15 +405,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.recoverySettings = recoverySettings;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
-        snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
-        restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
+        snapshotRateLimiter = getSnapshotRateLimiter();
+        restoreRateLimiter = getRestoreRateLimiter();
         readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         this.namedXContentRegistry = namedXContentRegistry;
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
-        this.repoDataDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
+        this.repoDataLoadDeduplicator = new SingleResultDeduplicator<>(
+            threadPool.getThreadContext(),
+            listener -> threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+                .execute(ActionRunnable.wrap(listener, this::doGetRepositoryData))
+        );
         shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT),
@@ -648,8 +658,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         metadata = getRepoMetadata(state);
         final Settings updatedSettings = metadata.settings();
         if (updatedSettings.equals(previousSettings) == false) {
-            snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
-            restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
+            snapshotRateLimiter = getSnapshotRateLimiter();
+            restoreRateLimiter = getRestoreRateLimiter();
         }
 
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
@@ -676,7 +686,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
-            latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
+            latestKnownRepoGen.accumulateAndGet(finalBestGen, Math::max);
         } else {
             final long previousBest = latestKnownRepoGen.getAndSet(metadata.generation());
             if (previousBest != metadata.generation()) {
@@ -861,7 +871,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final long genToLoad;
         final RepositoryData cached;
         if (bestEffortConsistency) {
-            genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, repositoryStateId));
+            genToLoad = latestKnownRepoGen.accumulateAndGet(repositoryStateId, Math::max);
             cached = null;
         } else {
             genToLoad = latestKnownRepoGen.get();
@@ -1639,17 +1649,57 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Configures RateLimiter based on repository and global settings
      *
+     * @param rateLimiter        the existing rate limiter to configure (or null if no throttling was previously needed)
      * @param repositorySettings repository settings
      * @param setting            setting to use to configure rate limiter
-     * @return rate limiter or null of no throttling is needed
+     * @param warnIfOverRecovery log a warning if rate limit setting is over the effective recovery rate limit
+     * @return the newly configured rate limiter or null if no throttling is needed
      */
-    private static RateLimiter getRateLimiter(Settings repositorySettings, Setting<ByteSizeValue> setting) {
-        ByteSizeValue maxSnapshotBytesPerSec = setting.get(repositorySettings);
-        if (maxSnapshotBytesPerSec.getBytes() <= 0) {
+    private RateLimiter getRateLimiter(
+        RateLimiter rateLimiter,
+        Settings repositorySettings,
+        Setting<ByteSizeValue> setting,
+        boolean warnIfOverRecovery
+    ) {
+        ByteSizeValue maxConfiguredBytesPerSec = setting.get(repositorySettings);
+        if (maxConfiguredBytesPerSec.getBytes() <= 0) {
             return null;
         } else {
-            return new RateLimiter.SimpleRateLimiter(maxSnapshotBytesPerSec.getMbFrac());
+            ByteSizeValue effectiveRecoverySpeed = recoverySettings.getMaxBytesPerSec();
+            if (warnIfOverRecovery && effectiveRecoverySpeed.getBytes() > 0) {
+                if (maxConfiguredBytesPerSec.getBytes() > effectiveRecoverySpeed.getBytes()) {
+                    logger.warn(
+                        "repository [{}] has a rate limit [{}={}] per second which is above the effective recovery rate limit "
+                            + "[{}={}] per second, thus the repository rate limit will be superseded by the recovery rate limit",
+                        metadata.name(),
+                        setting.getKey(),
+                        maxConfiguredBytesPerSec,
+                        INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                        effectiveRecoverySpeed
+                    );
+                }
+            }
+
+            if (rateLimiter != null) {
+                rateLimiter.setMBPerSec(maxConfiguredBytesPerSec.getMbFrac());
+                return rateLimiter;
+            } else {
+                return new RateLimiter.SimpleRateLimiter(maxConfiguredBytesPerSec.getMbFrac());
+            }
         }
+    }
+
+    private RateLimiter getSnapshotRateLimiter() {
+        return getRateLimiter(
+            snapshotRateLimiter,
+            metadata.settings(),
+            MAX_SNAPSHOT_BYTES_PER_SEC,
+            recoverySettings.nodeBandwidthSettingsExist()
+        );
+    }
+
+    private RateLimiter getRestoreRateLimiter() {
+        return getRateLimiter(restoreRateLimiter, metadata.settings(), MAX_RESTORE_BYTES_PER_SEC, true);
     }
 
     @Override
@@ -1741,19 +1791,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 metadata.name(),
                 latestKnownRepoGen
             );
-            // Don't deduplicate repo data loading if we don't have strong consistency guarantees between the repo and the cluster state
-            // Also, if we are not caching repository data (for tests) we assume that the contents of the repository data at a given
-            // generation may change
-            final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
-            if (bestEffortConsistency || cacheRepositoryData == false) {
-                executor.execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
-            } else {
-                repoDataDeduplicator.executeOnce(
-                    metadata,
-                    listener,
-                    (metadata, l) -> executor.execute(ActionRunnable.wrap(l, this::doGetRepositoryData))
-                );
-            }
+            repoDataLoadDeduplicator.execute(listener);
         }
     }
 
@@ -1797,78 +1835,70 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     existingListener.onFailure(e);
                 };
-                threadPool.generic()
-                    .execute(
-                        ActionRunnable.wrap(
-                            ActionListener.wrap(
-                                repoData -> submitUnbatchedTask(
-                                    "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
-                                    new ClusterStateUpdateTask() {
-                                        @Override
-                                        public ClusterState execute(ClusterState currentState) {
-                                            RepositoryMetadata metadata = getRepoMetadata(currentState);
-                                            // No update to the repository generation should have occurred concurrently in general except
-                                            // for
-                                            // extreme corner cases like failing over to an older version master node and back to the
-                                            // current
-                                            // node concurrently
-                                            if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
-                                                throw new RepositoryException(
-                                                    metadata.name(),
-                                                    "Found unexpected initialized repo metadata [" + metadata + "]"
-                                                );
-                                            }
-                                            return ClusterState.builder(currentState)
-                                                .metadata(
-                                                    Metadata.builder(currentState.getMetadata())
-                                                        .putCustom(
-                                                            RepositoriesMetadata.TYPE,
-                                                            currentState.metadata()
-                                                                .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-                                                                .withUpdatedGeneration(
-                                                                    metadata.name(),
-                                                                    repoData.getGenId(),
-                                                                    repoData.getGenId()
-                                                                )
-                                                        )
-                                                )
-                                                .build();
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            onFailure.accept(e);
-                                        }
-
-                                        @Override
-                                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                                            logger.trace(
-                                                "[{}] initialized repository generation in cluster state to [{}]",
-                                                metadata.name(),
-                                                repoData.getGenId()
-                                            );
-                                            // Resolve listeners on generic pool since some callbacks for repository data do additional IO
-                                            threadPool.generic().execute(() -> {
-                                                final ActionListener<RepositoryData> existingListener;
-                                                synchronized (BlobStoreRepository.this) {
-                                                    existingListener = repoDataInitialized;
-                                                    repoDataInitialized = null;
-                                                }
-                                                existingListener.onResponse(repoData);
-                                                logger.trace(
-                                                    "[{}] called listeners after initializing repository to generation [{}]",
-                                                    metadata.name(),
-                                                    repoData.getGenId()
-                                                );
-                                            });
-                                        }
+                repoDataLoadDeduplicator.execute(
+                    ActionListener.wrap(
+                        repoData -> submitUnbatchedTask(
+                            "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
+                            new ClusterStateUpdateTask() {
+                                @Override
+                                public ClusterState execute(ClusterState currentState) {
+                                    RepositoryMetadata metadata = getRepoMetadata(currentState);
+                                    // No update to the repository generation should have occurred concurrently in general except
+                                    // for
+                                    // extreme corner cases like failing over to an older version master node and back to the
+                                    // current
+                                    // node concurrently
+                                    if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
+                                        throw new RepositoryException(
+                                            metadata.name(),
+                                            "Found unexpected initialized repo metadata [" + metadata + "]"
+                                        );
                                     }
-                                ),
-                                onFailure
-                            ),
-                            this::doGetRepositoryData
-                        )
-                    );
+                                    return ClusterState.builder(currentState)
+                                        .metadata(
+                                            Metadata.builder(currentState.getMetadata())
+                                                .putCustom(
+                                                    RepositoriesMetadata.TYPE,
+                                                    currentState.metadata()
+                                                        .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+                                                        .withUpdatedGeneration(metadata.name(), repoData.getGenId(), repoData.getGenId())
+                                                )
+                                        )
+                                        .build();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    onFailure.accept(e);
+                                }
+
+                                @Override
+                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                                    logger.trace(
+                                        "[{}] initialized repository generation in cluster state to [{}]",
+                                        metadata.name(),
+                                        repoData.getGenId()
+                                    );
+                                    // Resolve listeners on generic pool since some callbacks for repository data do additional IO
+                                    threadPool.generic().execute(() -> {
+                                        final ActionListener<RepositoryData> existingListener;
+                                        synchronized (BlobStoreRepository.this) {
+                                            existingListener = repoDataInitialized;
+                                            repoDataInitialized = null;
+                                        }
+                                        existingListener.onResponse(repoData);
+                                        logger.trace(
+                                            "[{}] called listeners after initializing repository to generation [{}]",
+                                            metadata.name(),
+                                            repoData.getGenId()
+                                        );
+                                    });
+                                }
+                            }
+                        ),
+                        onFailure
+                    )
+                );
             } else {
                 logger.trace(
                     "[{}] waiting for existing initialization of repository metadata generation in cluster state",
@@ -1880,11 +1910,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * {@link RepositoryData} loading deduplicator. This may only be used with consistent generation repositories, meaning
-     * {@link #bestEffortConsistency} must be {@code false}, in which case we can assume that the {@link RepositoryData} loaded is
-     * unique for a given value of {@link #metadata} at any point in time.
+     * Deduplicator that deduplicates the physical loading of {@link RepositoryData} from the repositories' underlying storage.
      */
-    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator;
+    private final SingleResultDeduplicator<RepositoryData> repoDataLoadDeduplicator;
 
     private void doGetRepositoryData(ActionListener<RepositoryData> listener) {
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
@@ -1906,7 +1934,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     );
                     return;
                 }
-                genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
+                genToLoad = latestKnownRepoGen.accumulateAndGet(generation, Math::max);
                 if (genToLoad > generation) {
                     logger.info(
                         "Determined repository generation [{}] from repository contents but correct generation must be at " + "least [{}]",
@@ -3155,20 +3183,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
-     * throttling is recorded in the value returned by {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     * Wrap the snapshot rate limiter around the given stream. Any throttling is recorded in the value returned by
+     * {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}. Note that speed is throttled by the repository setting
+     * `max_snapshot_bytes_per_sec` and, if recovery node bandwidth settings have been set, additionally by the
+     * `indices.recovery.max_bytes_per_sec` speed.
      */
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
         return maybeRateLimitSnapshots(stream, snapshotRateLimitingTimeInNanos::inc);
     }
 
     /**
-     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
-     * throttling is reported to the given listener and not otherwise recorded in the value returned by {@link
-     * BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     * Wrap the snapshot rate limiter around the given stream. Any throttling is recorded in the value returned by
+     * {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}. Note that speed is throttled by the repository setting
+     * `max_snapshot_bytes_per_sec` and, if recovery node bandwidth settings have been set, additionally by the
+     * `indices.recovery.max_bytes_per_sec` speed.
      */
     public InputStream maybeRateLimitSnapshots(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
-        return maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
+        InputStream rateLimitStream = maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
+        if (recoverySettings.nodeBandwidthSettingsExist()) {
+            rateLimitStream = maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, throttleListener);
+        }
+        return rateLimitStream;
     }
 
     @Override

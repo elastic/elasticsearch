@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,10 +33,10 @@ public class ShardFollowTaskTests extends AbstractXContentSerializingTestCase<Sh
             randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE),
-            new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
-            new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+            ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomIntBetween(1, Integer.MAX_VALUE),
-            new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+            ByteSizeValue.ofBytes(randomNonNegativeLong()),
             TimeValue.parseTimeValue(randomTimeValue(), ""),
             TimeValue.parseTimeValue(randomTimeValue(), ""),
             randomBoolean() ? null : Collections.singletonMap("key", "value")

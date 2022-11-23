@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
@@ -56,10 +55,10 @@ public class AutoFollowMetadataTests extends AbstractXContentSerializingTestCase
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500)
             );

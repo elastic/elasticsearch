@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -179,7 +180,7 @@ public interface AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         Map<String, IndexAbstraction> indicesLookup,
-        ActionListener<Set<String>> listener
+        ActionListener<AuthorizationEngine.AuthorizedIndices> listener
     );
 
     /**
@@ -255,6 +256,25 @@ public interface AuthorizationEngine {
         default AuthorizationInfo getAuthenticatedUserAuthorizationInfo() {
             return this;
         }
+    }
+
+    /**
+     * Used to retrieve index-like resources that the user has access to, for a specific access action type,
+     * at a specific point in time (for a fixed cluster state view).
+     * It can also be used to check if a specific resource name is authorized (access to the resource name
+     * can be authorized even if it doesn't exist).
+     */
+    interface AuthorizedIndices {
+        /**
+         * Returns all the index-like resource names that are available and accessible for an action type by a user,
+         * at a fixed point in time (for a single cluster state view).
+         */
+        Supplier<Set<String>> all();
+
+        /**
+         * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
+         */
+        boolean check(String name);
     }
 
     /**
@@ -504,32 +524,21 @@ public interface AuthorizationEngine {
     }
 
     /**
-     * Represents the result of authorization. This includes whether the actions should be granted
-     * and if this should be considered an auditable event.
+     * Represents the result of authorization to tell whether the actions should be granted
      */
     class AuthorizationResult {
 
         private final boolean granted;
-        private final boolean auditable;
 
         /**
-         * Create an authorization result with the provided granted value that is auditable
+         * Create an authorization result with the provided granted value
          */
         public AuthorizationResult(boolean granted) {
-            this(granted, true);
-        }
-
-        public AuthorizationResult(boolean granted, boolean auditable) {
             this.granted = granted;
-            this.auditable = auditable;
         }
 
         public boolean isGranted() {
             return granted;
-        }
-
-        public boolean isAuditable() {
-            return auditable;
         }
 
         /**
@@ -541,14 +550,14 @@ public interface AuthorizationEngine {
         }
 
         /**
-         * Returns a new authorization result that is granted and auditable
+         * Returns a new authorization result that is granted
          */
         public static AuthorizationResult granted() {
             return new AuthorizationResult(true);
         }
 
         /**
-         * Returns a new authorization result that is denied and auditable
+         * Returns a new authorization result that is denied
          */
         public static AuthorizationResult deny() {
             return new AuthorizationResult(false);
@@ -562,10 +571,14 @@ public interface AuthorizationEngine {
      */
     class IndexAuthorizationResult extends AuthorizationResult {
 
+        public static final IndexAuthorizationResult DENIED = new IndexAuthorizationResult(IndicesAccessControl.DENIED);
+        public static final IndexAuthorizationResult EMPTY = new IndexAuthorizationResult(null);
+        public static final IndexAuthorizationResult ALLOW_NO_INDICES = new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES);
+
         private final IndicesAccessControl indicesAccessControl;
 
-        public IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
-            super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
+        public IndexAuthorizationResult(IndicesAccessControl indicesAccessControl) {
+            super(indicesAccessControl == null || indicesAccessControl.isGranted());
             this.indicesAccessControl = indicesAccessControl;
         }
 

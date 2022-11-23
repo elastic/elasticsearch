@@ -178,6 +178,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getBucket()).thenReturn(bucket);
 
         processorUnderTest.processResult(result);
+        assertEquals(1L, processorUnderTest.getCurrentRunBucketCount());
         assertFalse(processorUnderTest.isDeleteInterimRequired());
 
         verify(bulkResultsPersister).persistTimingStats(any(TimingStats.class));
@@ -185,6 +186,24 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkResultsPersister).executeRequest();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).deleteInterimResults(JOB_ID);
+    }
+
+    public void testProcessResult_bucket_isInterim() {
+        when(bulkResultsPersister.persistTimingStats(any(TimingStats.class))).thenReturn(bulkResultsPersister);
+        when(bulkResultsPersister.persistBucket(any(Bucket.class))).thenReturn(bulkResultsPersister);
+        AutodetectResult result = mock(AutodetectResult.class);
+        Bucket bucket = new Bucket(JOB_ID, new Date(), BUCKET_SPAN_MS);
+        bucket.setInterim(true);
+        when(result.getBucket()).thenReturn(bucket);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+        assertEquals(0L, processorUnderTest.getCurrentRunBucketCount());
+
+        verify(bulkResultsPersister, never()).persistTimingStats(any(TimingStats.class));
+        verify(bulkResultsPersister).persistBucket(bucket);
+        verify(bulkResultsPersister).executeRequest();
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
     }
 
     public void testProcessResult_records() {

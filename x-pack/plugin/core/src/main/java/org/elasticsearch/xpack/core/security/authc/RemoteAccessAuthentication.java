@@ -26,6 +26,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 public record RemoteAccessAuthentication(Authentication authentication, List<BytesReference> roleDescriptorsBytesIntersection) {
@@ -63,6 +64,10 @@ public record RemoteAccessAuthentication(Authentication authentication, List<Byt
 
     private static String encode(final Authentication authentication, final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
+        // If we ever lift this restriction, we need to ensure that the serialization of each role descriptor set to raw bytes is
+        // deterministic. We can do so by sorting the role descriptors before serializing.
+        assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
+            : "role descriptor sets with more than one element are not supported for remote access authentication";
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(authentication.getEffectiveSubject().getVersion());
         Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
@@ -80,6 +85,7 @@ public record RemoteAccessAuthentication(Authentication authentication, List<Byt
     }
 
     private static RemoteAccessAuthentication decode(final String header) throws IOException {
+        Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);
         final Version version = Version.readVersion(in);

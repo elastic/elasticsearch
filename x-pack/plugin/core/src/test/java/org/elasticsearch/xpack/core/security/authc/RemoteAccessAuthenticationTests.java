@@ -65,6 +65,6 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
     }
 
     private RoleDescriptorsIntersection randomRoleDescriptorIntersection() {
-        return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3))));
+        return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1))));
     }
 }

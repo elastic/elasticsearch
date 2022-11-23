@@ -17,20 +17,22 @@ TO BE DONE
 [[semantic-prereqs]]
 === Prerequisites
 
-* the {subscriptions}[appropriate subscription] level of using the {stack} 
-{ml-features} or the free trial period activated
+* the {subscriptions}[appropriate subscription] level for using the {stack} 
+{ml-features} or the free trial period activated.
 
 * To complete the steps in this guide, you must have:
-
-** https://docs.docker.com/get-docker/[Docker] installed.
+** https://docs.docker.com/get-docker/[Docker] installed,
 ** the following <<privileges-list-indices,index privileges>>:
-*** `create_index` or `manage` to create an index with a `dense_vector` field
-*** `create`, `index`, or `write` to add data to the index you created
+*** `create_index` or `manage` to create an index with a `dense_vector` field,
+*** `create`, `index`, or `write` to add data to the index you created,
 *** `read` to search the index.
 
 [discrete]
 [[install-model-start-deployment]]
-=== Install a text embedding NLP model and start the deplyoment
+=== Install a text embedding NLP model and start the deployment
+
+To use semantic search, you need to install a text embedding NLP model in your 
+cluster first.
 
 . Use the {eland-docs}[Eland client] to install a {nlp} model. Clone the Eland 
 repository then create a Docker image of Eland by using the following script:
@@ -56,9 +58,172 @@ model. You can find more supported text embedding models on the
 docker run -it --rm elastic/eland \
     eland_import_hub_model \
       --cloud-id $CLOUD_ID \
-      -u <username> -p <password> \
-      --hub-model-id sentence-transformers/msmarco-MiniLM-L-12-v3 \
+      -u <username> -p $CLOUD_PASSWORD \
+      --hub-model-id sentence-transformers/all-minilm-l12-v2 \
       --task-type text_embedding \
       --start
 --------------------------------------------------
+Provide an administrator username and password and replace the `$CLOUD_ID` with 
+the ID of your Cloud deployment. This Cloud ID can be copied from the 
+deployments page on your Cloud website.
+
+Since the `--start` option is used at the end of the Eland import script, {es} 
+automatically starts the deployment. The model is ready to use.
 --
+
+[discrete]
+[[populate-index]]
+=== Populate the index
+
+After you deployed the text embedding model, you need to create an index with a 
+field where the embeddings are stored. In this example, this field is called 
+`text_embedding`. The `dense_vector` field must be configured with the same 
+number of dimensions that the model uses for producing embeddings. Specify this 
+value in the `dims` option.
+
+[source,js]
+--------------------------------------------------
+PUT text-embeddings-index
+{
+ "mappings":{
+    "properties": {
+        "text_embedding": {
+            "type": "dense_vector",
+            "dims": 512,
+            "index": true,
+            "similarity": "cosine"
+        },
+   },
+   "text": {
+    "type": "text"
+    }
+  }
+}
+--------------------------------------------------
+
+
+[discrete]
+[[create-embeddings]]
+=== Create embeddings with an ingest processor
+
+Create an {infer} ingest pipeline. The {infer} processor defined in the pipeline 
+creates the embeddings for your data. 
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/text-embedding
+{
+  "description": "Text embedding pipeline",
+  "processors": [{
+    "inference": {
+      "model_id": "sentence-transformers__all-minilm-l12-v2", <1>				
+      "field_map": {
+        "paragraph": "text_field"
+      },
+      "Result_field": "text_embedding"
+    }
+  }]
+}
+--------------------------------------------------
+<1> The model ID to use to create the text embeddings. The same model must be 
+used to create the text embedding of the search query during semantic search.
+
+Ingest your data through the pipeline and use the previously created index to 
+store the embeddings.
+
+
+[discrete]
+[[perform-semantic-search]]
+=== Perform semantic search
+
+Text embeddings are ingested, the index can be used for semantic search. In this 
+example, the index is called `text-embeddings-index`.
+
+IMPORTANT: You need to use the same model for semantic search that you used to 
+create the text embeddings.
+
+Run the search using the text embedding model and the `knn` option in your 
+request:
+
+[source,js]
+--------------------------------------------------
+GET text-embeddings-index/_semantic_search
+{
+  "model_text": "Are climate models accurate", <1>
+  "model_id": "sentence-transformers__all-minilm-l12-v2", <2>
+  "knn": { <3>
+    "field": "text_embedding.predicted_value", <4>
+    "k": 10,
+    "num_candidates": 100
+  },
+    "fields": [ <5>
+    "text"
+  ],
+  "_source": false <6>
+}
+--------------------------------------------------
+<1> Your query that is the input text for the text embedding model.
+<2> The model to use for creating the text embeddings from the query. It must be 
+the same model that was used to create the text embeddings from your input data. 
+<3> The kNN search settings.
+<4> The name of the vector field to search against.
+<5> Field patterns to use during the search. The results contain values for 
+field names that match the patterns defined here.
+<6> The document source is not returned in the response.
+
+The `model_text` field contains the query that the model generates a vector 
+representation. Then a kNN search is performed on the field that contains the 
+dense vectors generated from your data. The search results are semantically 
+similar.
+
+
+[discrete]
+[[perform-hybrid-search]]
+=== Perform hybrid search
+
+You can run hybrid search by providing both the 
+{ref}search-search.html#search-api-knn[knn option] and an {es} 
+{ref}/search-search.html#request-body-search-query[query].
+
+[source,js]
+--------------------------------------------------
+GET {INDEX}/_semantic_search
+{
+  "model_text": "a dark forest", 
+  "model_id": "my-text-embedding-model", 
+  "knn": { 
+    "field": "embedding",
+    "k": 5,
+    "num_candidates": 100,
+    "boost": 2.0
+  },
+  "query": { 
+    "match": {
+        "source_text": {
+            "query": "the deep dark wood", 
+            "boost": 0.5 
+        }
+    }
+  }
+}
+--------------------------------------------------
+
+This search request performs a semantic search and a search in the same index. 
+The search results of the two searches are combined in the response and weighted 
+by the `boost` fields. As the `boost` value for the semantic search is higher than the 
+`boost` value of the search in the example above, semantic search results will 
+be higher in the response than the search results.
+
+
+[discrete]
+[[senatinc-search-limitations]]
+=== Limitations
+
+
+
+[discrete]
+[[semantic-end-to-end]]
+=== Semantic search end-to-end example
+
+For a more detailed, end-to-end example of semantic search, refer to 
+{ml-docs}ml-nlp-text-emb-vector-search-example.html[this page].

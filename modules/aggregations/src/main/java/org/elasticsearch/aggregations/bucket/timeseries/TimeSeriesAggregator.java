@@ -92,13 +92,18 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
 
-            // This helps significantly reducing time spent attempting to add bucket + tsid combos that already were added.
+            // Keeping track of these fields helps to reduce time spent attempting to add bucket + tsid combos that already were added.
             long currentTsidOrd = -1;
             long currentBucket = -1;
             long currentBucketOrdinal;
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                // Naively comparing bucket against currentBucket and tsid ord to currentBucket can work really well.
+                // TimeSeriesIndexSearcher ensures that docs are emitted in tsid and timestamp order, so if tsid ordinal
+                // changes to what is stored in currentTsidOrd then that ordinal well never occur again. Same applies
+                // currentBucket if there is no parent aggregation or the immediate parent aggregation creates buckets
+                // based on @timestamp field or dimension fields (fields that make up the tsid).
                 if (currentBucket == bucket && currentTsidOrd == aggCtx.getTsidOrd()) {
                     collectExistingBucket(sub, doc, currentBucketOrdinal);
                     return;

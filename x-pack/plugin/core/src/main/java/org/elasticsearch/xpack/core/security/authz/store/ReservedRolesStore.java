@@ -719,6 +719,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Fleet Server indices. Kibana create this indice before Fleet Server use them.
                 // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                 RoleDescriptor.IndicesPrivileges.builder().indices(".fleet*").allowRestrictedIndices(true).privileges("all").build(),
+                // Fleet telemetry queries Agent Logs indices in kibana task runner
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
@@ -811,12 +813,20 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".metrics-endpoint.metadata_current_default",
                         ".metrics-endpoint.metadata_united_default"
                     )
-                    .privileges("create_index", "delete_index", "read", "index")
+                    .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
                 // For src/dest indices of the example transform package
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("kibana_sample_data_*")
-                    .privileges("create_index", "delete_index", "read", "index", "view_index_metadata")
+                    .privileges(
+                        "create_index",
+                        "delete_index",
+                        "read",
+                        "index",
+                        "view_index_metadata",
+                        IndicesAliasesAction.NAME,
+                        UpdateSettingsAction.NAME
+                    )
                     .build(),
                 // For src/dest indices of the Cloud Security Posture packages that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -825,7 +835,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_security_posture.findings_latest-default", "logs-cloud_security_posture.scores-default")
-                    .privileges("create_index", "read", "index", "delete")
+                    .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build() },
             null,
             new ConfigurableClusterPrivilege[] {

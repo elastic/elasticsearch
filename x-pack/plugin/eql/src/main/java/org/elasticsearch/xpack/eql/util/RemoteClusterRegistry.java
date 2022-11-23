@@ -41,8 +41,8 @@ public class RemoteClusterRegistry {
         Set<String> incompatibleClusters = new TreeSet<>();
         for (String clusterAlias : clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
             Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
-            // EQL was released as GA in v 7.11.0
-            if (Version.CURRENT.isCompatible(clusterVersion) == false || clusterVersion.before(Version.V_7_11_0)) {
+            // EQL CCS still has problems with versions before 7.15, see https://github.com/elastic/elasticsearch/issues/91762
+            if (Version.CURRENT.isCompatible(clusterVersion) == false || clusterVersion.before(Version.V_7_15_0)) {
                 incompatibleClusters.add(clusterAlias);
             }
         }

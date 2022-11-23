@@ -20,8 +20,8 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-// EQL was released as GA in v 7.11.0
-BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.11.0")) { bwcVersion, baseName ->
+// EQL CCS still has problems with versions before 7.15, see https://github.com/elastic/elasticsearch/issues/91762
+BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.15.0")) { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.

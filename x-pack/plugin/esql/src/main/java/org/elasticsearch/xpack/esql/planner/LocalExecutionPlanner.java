@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -502,7 +503,7 @@ public class LocalExecutionPlanner {
             }
         } else if (exp instanceof Length length) {
             ExpressionEvaluator e1 = toEvaluator(length.field(), layout);
-            return (page, pos) -> Length.process((String) e1.computeRow(page, pos));
+            return (page, pos) -> Length.process(((BytesRef) e1.computeRow(page, pos)).utf8ToString());
         } else {
             throw new UnsupportedOperationException(exp.nodeName());
         }

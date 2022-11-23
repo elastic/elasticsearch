@@ -23,11 +23,13 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +44,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -70,15 +73,21 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
         when(metadata.settings()).thenReturn(Settings.builder().put("cluster.routing.allocation.type", "balanced").build());
 
-        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+        new TransportGetDesiredBalanceAction(
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            mock(ShardsAllocator.class)
+        ).masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
 
         ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
         verify(listener).onFailure(exceptionArgumentCaptor.capture());
 
-        assertEquals(
-            "Expected the shard balance allocator to be `desired_balance`, but got `balanced`",
-            exceptionArgumentCaptor.getValue().getMessage()
-        );
+        final var exception = exceptionArgumentCaptor.getValue();
+        assertEquals("Desired balance allocator is not in use, no desired balance found", exception.getMessage());
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
     public void testReturnsErrorIfDesiredBalanceIsNotAvailable() throws Exception {

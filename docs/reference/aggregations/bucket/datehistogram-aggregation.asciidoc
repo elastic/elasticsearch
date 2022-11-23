@@ -705,7 +705,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // TEST[setup:sales]
 
-<1> Documents without a value in the `publish_date` field will fall into the
+<1> Documents without a value in the `date` field will fall into the
 same bucket as documents that have the value `2000-01-01`.
 
 [[date-histogram-order]]

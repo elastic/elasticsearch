@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91383")
     public void testSnapshotBasedRecovery() throws Exception {
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
@@ -103,12 +102,31 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 // Drop replicas
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
-                ensureGreen(indexName);
+                try {
+                    ensureGreen(indexName);
+                } catch (AssertionError e) {
+                    logAllocationExplain();
+                    throw e;
+                }
                 assertMatchAllReturnsAllDocuments(indexName, numDocs);
                 assertMatchQueryReturnsAllDocuments(indexName, numDocs);
             }
             default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
+    }
+
+    private void logAllocationExplain() throws Exception {
+        // Used to debug #91383
+        var request = new Request(HttpGet.METHOD_NAME, "_cluster/allocation/explain?include_disk_info=true&include_yes_decisions=true");
+        request.setJsonEntity("""
+                    {
+                      "index": "snapshot_based_recovery",
+                      "shard": 0,
+                      "primary": false
+                    }
+            """);
+        var response = client().performRequest(request);
+        logger.info("--> allocation explain {}", EntityUtils.toString(response.getEntity()));
     }
 
     private List<String> getUpgradedNodeIds() throws IOException {

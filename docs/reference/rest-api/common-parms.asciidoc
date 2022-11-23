@@ -126,17 +126,17 @@ tag::cluster-health-status[]
 Health status of the cluster, based on the state of its primary and replica
 shards. Statuses are:
 
-  `green`:::
-  All shards are assigned.
+  * `green`:
+    All shards are assigned.
 
-  `yellow`:::
-  All primary shards are assigned, but one or more replica shards are
-  unassigned. If a node in the cluster fails, some
-  data could be unavailable until that node is repaired.
+  * `yellow`:
+    All primary shards are assigned, but one or more replica shards are 
+    unassigned. If a node in the cluster fails, some data could be unavailable 
+    until that node is repaired.
 
-  `red`:::
-  One or more primary shards are unassigned, so some data is unavailable. This
-  can occur briefly during cluster startup as primary shards are assigned.
+  * `red`:
+    One or more primary shards are unassigned, so some data is unavailable. This
+    can occur briefly during cluster startup as primary shards are assigned.
 end::cluster-health-status[]
 
 tag::committed[]

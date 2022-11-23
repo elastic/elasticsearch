@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -63,7 +64,7 @@ class HttpTracer {
                     restRequest.method(),
                     restRequest.uri(),
                     restRequest.getHttpChannel(),
-                    Task.extractTraceId(restRequest.header(Task.TRACE_PARENT_HTTP_HEADER)).map(t -> " trace.id: " + t).orElse("")
+                    RestUtils.extractTraceId(restRequest.header(Task.TRACE_PARENT_HTTP_HEADER)).map(t -> " trace.id: " + t).orElse("")
                 ),
                 e
             );

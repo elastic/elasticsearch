@@ -562,7 +562,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
-                    Optional<String> traceId = Task.extractTraceId(traceparent);
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
                     if (traceId.isPresent()) {
                         threadContext.putHeader(Task.TRACE_ID, traceId.get());
                         threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);

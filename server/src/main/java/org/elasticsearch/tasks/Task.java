@@ -64,10 +64,6 @@ public class Task {
         X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
     );
 
-    public static Optional<String> extractTraceId(String traceparent) {
-        return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
-    }
-
     private final long id;
 
     private final String type;

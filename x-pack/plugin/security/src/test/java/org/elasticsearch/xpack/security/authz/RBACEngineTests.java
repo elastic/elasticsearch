@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -89,14 +90,11 @@ import org.mockito.Mockito;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -120,7 +118,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -1462,7 +1459,6 @@ public class RBACEngineTests extends ESTestCase {
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.READ, dataStreamName)
@@ -1485,24 +1481,26 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         SearchRequest request = new SearchRequest("*");
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, SearchAction.NAME),
-            lookup
+            lookup,
+            () -> ignore -> {}
         );
-        // The authorized indices is the lazily loading set implementation
-        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndicesSet.class));
-        assertThat(authorizedIndices, hasItem(dataStreamName));
+        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName), is(true));
         assertThat(
-            authorizedIndices,
+            authorizedIndices.all().get(),
             hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY))
         );
+        for (String index : backingIndices.stream().map(im -> im.getIndex().getName()).toList()) {
+            assertThat(authorizedIndices.check(index), is(true));
+        }
     }
 
     public void testExplicitMappingUpdatesAreNotGrantedWithIngestPrivileges() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.emptySet(), Collections.emptyList())
             .add(IndexPrivilege.CREATE, "my_*")
@@ -1527,14 +1525,13 @@ public class RBACEngineTests extends ESTestCase {
 
         PutMappingRequest request = new PutMappingRequest("*");
         request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, PutMappingAction.NAME),
-            lookup
+            lookup,
+            () -> ignore -> {}
         );
-        // The authorized indices is the lazily loading set implementation
-        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndicesSet.class));
-        assertThat(authorizedIndices.isEmpty(), is(true));
+        assertThat(authorizedIndices.all().get().isEmpty(), is(true));
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {
@@ -1542,54 +1539,6 @@ public class RBACEngineTests extends ESTestCase {
         // No assertion is needed, the test is successful as long as hashCode calls do not throw error
         new RBACAuthorizationInfo(role, Role.builder(RESTRICTED_INDICES, "authenticated_role").build()).hashCode();
         new RBACAuthorizationInfo(role, null).hashCode();
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testLazinessForAuthorizedIndicesSet() {
-        final Set<String> authorizedNames = Set.of("foo", "bar", "baz");
-        final HashSet<String> allNames = new HashSet<>(authorizedNames);
-        allNames.addAll(Set.of("buzz", "fiz"));
-
-        final Supplier<Set<String>> supplier = mock(Supplier.class);
-        when(supplier.get()).thenReturn(authorizedNames);
-        final Predicate<String> predicate = mock(Predicate.class);
-        doAnswer(invocation -> {
-            final String name = (String) invocation.getArguments()[0];
-            return authorizedNames.contains(name);
-        }).when(predicate).test(anyString());
-        final RBACEngine.AuthorizedIndicesSet authorizedIndicesSet = new RBACEngine.AuthorizedIndicesSet(supplier, predicate);
-
-        // Check with contains or containsAll do not trigger loading
-        final String name1 = randomFrom(allNames);
-        final String name2 = randomValueOtherThan(name1, () -> randomFrom(allNames));
-        final boolean containsAll = randomBoolean();
-        if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
-        } else {
-            assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
-        }
-        verify(supplier, never()).get();
-        verify(predicate, atLeastOnce()).test(anyString());
-
-        // Iterating through the set triggers loading
-        Mockito.clearInvocations(predicate);
-        final Set<String> collectedNames = new HashSet<>();
-        for (String name : authorizedIndicesSet) {
-            collectedNames.add(name);
-        }
-        verify(supplier).get();
-        assertThat(collectedNames, equalTo(authorizedNames));
-
-        // Check with contains and containsAll again now uses the loaded set not the predicate anymore
-        Mockito.clearInvocations(supplier);
-        if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
-        } else {
-            assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
-        }
-        verify(predicate, never()).test(anyString());
-        // It also does not load twice
-        verify(supplier, never()).get();
     }
 
     public void testGetUserPrivilegesThrowsIaeForUnsupportedOperation() {

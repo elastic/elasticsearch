@@ -1024,7 +1024,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
             )
-            .system(randomBoolean())
             .build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);

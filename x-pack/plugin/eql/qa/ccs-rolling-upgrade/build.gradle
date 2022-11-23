@@ -7,7 +7,6 @@
  */
 
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -20,7 +19,7 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-// EQL CCS still has problems with versions before 7.15, see https://github.com/elastic/elasticsearch/issues/91762
+// see org.elasticsearch.xpack.eql.util.RemoteClusterRegistry.FIRST_COMPATIBLE_VERSION
 BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.15.0")) { bwcVersion, baseName ->
 
   /**

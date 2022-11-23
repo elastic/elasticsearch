@@ -338,7 +338,7 @@ functions>> that can be used in scripts.
 include::{es-repo-dir}/vectors/vector-functions.asciidoc[]
 
 [[score-explanation]]
-====== Explain request
+===== Explain request
 Using an <<search-explain, explain request>> provides an explanation of how the parts of a score were computed. The `script_score` query can add its own explanation by setting the `explanation` parameter:
 
 [source,console]

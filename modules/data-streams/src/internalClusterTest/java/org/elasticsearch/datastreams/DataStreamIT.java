@@ -2067,9 +2067,8 @@ public class DataStreamIT extends ESIntegTestCase {
         final List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(4);
         final String dataStreamName = "logs-es";
 
-        final var numberOfShards = 2;
         final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
             .build();

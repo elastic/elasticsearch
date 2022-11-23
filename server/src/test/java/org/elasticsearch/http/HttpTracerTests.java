@@ -25,7 +25,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 
-public class HttpTracerTest extends ESTestCase {
+public class HttpTracerTests extends ESTestCase {
 
     @TestLogging(reason = "Get HttpTracer to output trace logs", value = "org.elasticsearch.http.HttpTracer:TRACE")
     public void testLogging() {

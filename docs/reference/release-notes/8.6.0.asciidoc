@@ -33,6 +33,9 @@ Graph::
 Health::
 * SLM unhealthy policies diagnosis recommends correct URL in action {es-pull}91506[#91506]
 
+Indices APIs::
+* Trigger index settings providers when updating component templates {es-pull}91615[#91615] (issue: {es-issue}91592[#91592])
+
 Infra/Core::
 * Datastream unavailable exception metadata {es-pull}91461[#91461]
 * Fix `BytesRefArray` on append empty `BytesRef` {es-pull}91364[#91364]
@@ -62,8 +65,12 @@ Monitoring::
 Search::
 * Allow different decay values depending on the score function {es-pull}91195[#91195] (issue: {es-issue}78887[#78887])
 
+Stats::
+* Fix NPE in IndexService getNodeMappingStats {es-pull}91334[#91334] (issue: {es-issue}91259[#91259])
+
 Transform::
 * Fix failure when resolving indices from CCS {es-pull}91622[#91622] (issue: {es-issue}91550[#91550])
+* Skip remote clusters when performing up front privileges validation {es-pull}91788[#91788]
 
 Vector Search::
 * Make `knn` search requests fully cancellable {es-pull}90612[#90612]
@@ -217,6 +224,9 @@ Infra/Core::
 [[upgrade-8.6.0]]
 [float]
 === Upgrades
+
+Engine::
+* Upgrade Lucene to version 9.4.2 {es-pull}91823[#91823]
 
 Infra/Logging::
 * Upgrade to log4j 2.19.0 {es-pull}90589[#90589] (issue: {es-issue}90584[#90584])

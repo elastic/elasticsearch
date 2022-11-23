@@ -11,6 +11,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
+import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -22,8 +24,6 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeries;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
@@ -42,6 +42,8 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     protected List<SearchPlugin> getSearchPlugins() {
         return Collections.singletonList(new AnalyticsPlugin());
     }
+
+
 
     public void testSimple() throws IOException {
         RateAggregationBuilder builder = new RateAggregationBuilder("counter_field").field("counter_field");

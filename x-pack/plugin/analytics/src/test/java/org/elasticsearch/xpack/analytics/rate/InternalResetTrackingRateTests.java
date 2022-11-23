@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -18,12 +20,15 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
+@Seed("5313227FE8A8B004")
 public class InternalResetTrackingRateTests extends InternalAggregationTestCase<InternalResetTrackingRate> {
 
     @Override
@@ -55,7 +60,43 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
 
     @Override
     protected void assertReduced(InternalResetTrackingRate reduced, List<InternalResetTrackingRate> inputs) {
+        for (InternalResetTrackingRate input : inputs) {
+            assertEquals(0.01f, input.getValue(), 0.0001);
+        }
+        assertEquals(0.01f, reduced.getValue(), 0.0001);
+    }
 
+    @Override
+    protected BuilderAndToReduce<InternalResetTrackingRate> randomResultsToReduce(String name, int size) {
+        // generate a monotonically increasing counter, starting at 0 finishing at 1000 and increasing
+        // by 10 each time
+        // randomly reset to 0
+        // randomly break to a new rate
+        List<InternalResetTrackingRate> internalRates = new ArrayList<>();
+        double startValue = 0, currentValue = 0;
+        double resetComp = 0;
+        long startTime = 0;
+        long endTime = 0;
+        while (internalRates.size() < size - 1) {
+            endTime += 1000;
+            currentValue += 10;
+            if (randomInt(30) == 0) {
+                resetComp += currentValue;
+                currentValue = 0;
+            }
+            if (randomInt(45) == 0) {
+                internalRates.add(rate(startValue, currentValue, startTime, endTime, resetComp));
+                startValue = currentValue;
+                resetComp = 0;
+                startTime = endTime;
+            }
+        }
+        if (startTime == endTime) {
+            endTime += 1000;
+            currentValue += 10;
+        }
+        internalRates.add(rate(startValue, currentValue, startTime, endTime, resetComp));
+        return new BuilderAndToReduce<>(mock(RateAggregationBuilder.class), internalRates);
     }
 
     @Override

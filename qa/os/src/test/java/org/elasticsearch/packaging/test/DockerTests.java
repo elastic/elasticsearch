@@ -1096,4 +1096,22 @@ public class DockerTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         return Arrays.stream(sh.run(bin.pluginTool + " list").stdout.split("\n")).collect(Collectors.toList());
     }
+
+    public void test600Interrupt() throws Exception {
+        waitForElasticsearch(installation);
+        final Result containerLogs = getContainerLogs();
+
+        assertThat("Container logs should contain starting ...", containerLogs.stdout, containsString("starting ..."));
+
+        final List<String> processes = Arrays.stream(sh.run("pgrep java").stdout.split(System.lineSeparator()))
+            .collect(Collectors.toList());
+        int maxPid = processes.stream().map(i -> Integer.parseInt(i.trim())).max(Integer::compareTo).get();
+
+        sh.run("kill -int " + maxPid); // send ctrl+c to all java processes
+        final Result containerLogsAfter = getContainerLogs();
+
+        assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout, containsString("stopping ..."));
+        assertThat("No errors stdout", containerLogsAfter.stdout, not(containsString("java.security.AccessControlException:")));
+        assertThat("No errors stderr", containerLogsAfter.stderr, not(containsString("java.security.AccessControlException:")));
+    }
 }

@@ -92,7 +92,7 @@ PUT text-embeddings-index
             "dims": 512,
             "index": true,
             "similarity": "cosine"
-        },
+        }
    },
    "text": {
     "type": "text"
@@ -184,7 +184,7 @@ similar.
 === Perform hybrid search
 
 You can run hybrid search by providing both the 
-{ref}search-search.html#search-api-knn[knn option] and an {es} 
+{ref}/search-search.html#search-api-knn[knn option] and an {es} 
 {ref}/search-search.html#request-body-search-query[query].
 
 [source,console]
@@ -229,4 +229,4 @@ be higher in the response than the search results.
 === Semantic search end-to-end example
 
 For a more detailed, end-to-end example of semantic search, refer to 
-{ml-docs}ml-nlp-text-emb-vector-search-example.html[this page].
+{ml-docs}/ml-nlp-text-emb-vector-search-example.html[this page].

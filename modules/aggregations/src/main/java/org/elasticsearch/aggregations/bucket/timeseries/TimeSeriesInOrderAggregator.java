@@ -41,10 +41,9 @@ public class TimeSeriesInOrderAggregator extends BucketsAggregator {
         boolean keyed,
         AggregationContext context,
         Aggregator parent,
-        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, cardinality, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.keyed = keyed;
         this.results = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.collectedTsids = new BytesRefArray(1, context.bigArrays());

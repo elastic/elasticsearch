@@ -40,7 +40,7 @@ public class TimeSeriesAggregationFactory extends AggregatorFactory {
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         if (expectTsidBucketInOrder) {
-            return new TimeSeriesInOrderAggregator(name, factories, keyed, context, parent, cardinality, metadata);
+            return new TimeSeriesInOrderAggregator(name, factories, keyed, context, parent, metadata);
         } else {
             return new TimeSeriesAggregator(name, factories, keyed, context, parent, cardinality, metadata);
         }

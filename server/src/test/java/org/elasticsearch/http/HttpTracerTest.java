@@ -36,21 +36,33 @@ public class HttpTracerTest extends ESTestCase {
             appender.start();
             Loggers.addAppender(LogManager.getLogger(httpTracerLog), appender);
 
-            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
-                "request log", httpTracerLog, Level.TRACE,
-                "\\[1]\\[idHeader]\\[GET]\\[uri] received request from \\[.*] trace.id: 4bf92f3577b34da6a3ce929d0e0e4736"
-            ));
-            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
-                "response log", httpTracerLog, Level.TRACE,
-                "\\[1]\\[idHeader]\\[ACCEPTED]\\[text/plain; charset=UTF-8]\\[length] sent response to \\[.*] success \\[true]"
-            ));
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "request log",
+                    httpTracerLog,
+                    Level.TRACE,
+                    "\\[1]\\[idHeader]\\[GET]\\[uri] received request from \\[.*] trace.id: 4bf92f3577b34da6a3ce929d0e0e4736"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "response log",
+                    httpTracerLog,
+                    Level.TRACE,
+                    "\\[1]\\[idHeader]\\[ACCEPTED]\\[text/plain; charset=UTF-8]\\[length] sent response to \\[.*] success \\[true]"
+                )
+            );
 
-            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(List.of()))
-                .withMethod(RestRequest.Method.GET)
+            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(List.of())).withMethod(RestRequest.Method.GET)
                 .withPath("uri")
-                .withHeaders(Map.of(
-                    Task.X_OPAQUE_ID_HTTP_HEADER, List.of("idHeader"),
-                    "traceparent", List.of("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")))
+                .withHeaders(
+                    Map.of(
+                        Task.X_OPAQUE_ID_HTTP_HEADER,
+                        List.of("idHeader"),
+                        "traceparent",
+                        List.of("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+                    )
+                )
                 .build();
 
             HttpTracer tracer = new HttpTracer().maybeLogRequest(request, null);

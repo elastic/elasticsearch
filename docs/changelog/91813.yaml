@@ -1,5 +1,5 @@
 pr: 91813
-summary: Skip remote clusters when performing up front privileges validation
+summary: Skip remote clusters when performing up front privileges validation for datafeeds
 area: Machine Learning
 type: bug
 issues:

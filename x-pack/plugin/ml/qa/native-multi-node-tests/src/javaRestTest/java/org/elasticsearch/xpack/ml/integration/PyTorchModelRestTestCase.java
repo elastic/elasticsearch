@@ -272,19 +272,19 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    protected Response semanticSearch(String index, String queryText, String modelId, String denseVectorFieldName) throws IOException {
+    protected Response semanticSearch(String index, String modelText, String modelId, String denseVectorFieldName) throws IOException {
         Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
 
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "model_id": "%s",
-              "query_string": "%s",
+              "model_text": "%s",
               "knn": {
                   "field": "%s",
                   "k": 5,
                   "num_candidates": 10
               }
-            }""", modelId, queryText, denseVectorFieldName));
+            }""", modelId, modelText, denseVectorFieldName));
         return client().performRequest(request);
     }
 
@@ -304,7 +304,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "model_id": "%s",
-              "query_string": "%s",
+              "model_text": "%s",
               "knn": {
                   "field": "%s",
                   "k": 5,
@@ -322,7 +322,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "model_id": "%s",
-              "query_string": "%s",
+              "model_text": "%s",
               "knn": {
                   "field": "%s",
                   "k": 5,

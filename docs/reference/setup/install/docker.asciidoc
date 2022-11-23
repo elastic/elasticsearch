@@ -96,7 +96,7 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
-docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
+docker run --name es01 --net elastic -p 9200:9200 -it {docker-image}
 ----
 
 endif::[]

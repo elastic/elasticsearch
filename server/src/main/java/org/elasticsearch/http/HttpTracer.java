@@ -61,6 +61,8 @@ class HttpTracer {
     @Nullable
     HttpTracer maybeLogRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
+            // trace.id in the response log is included from threadcontext, which isn't set at request log time
+            // so include it here as part of the message
             logger.trace(
                 () -> format(
                     "[%s][%s][%s][%s] received request from [%s]%s",

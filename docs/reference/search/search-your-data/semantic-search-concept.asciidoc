@@ -81,7 +81,7 @@ field where the embeddings are stored. In this example, this field is called
 number of dimensions that the model uses for producing embeddings. Specify this 
 value in the `dims` option.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT text-embeddings-index
 {
@@ -100,7 +100,7 @@ PUT text-embeddings-index
   }
 }
 --------------------------------------------------
-
+// TEST[skip:TBD]
 
 [discrete]
 [[create-embeddings]]
@@ -109,7 +109,7 @@ PUT text-embeddings-index
 Create an {infer} ingest pipeline. The {infer} processor defined in the pipeline 
 creates the embeddings for your data. 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/text-embedding
 {
@@ -125,6 +125,7 @@ PUT _ingest/pipeline/text-embedding
   }]
 }
 --------------------------------------------------
+// TEST[skip:TBD]
 <1> The model ID to use to create the text embeddings. The same model must be 
 used to create the text embedding of the search query during semantic search.
 
@@ -145,7 +146,7 @@ create the text embeddings.
 Run the search using the text embedding model and the `knn` option in your 
 request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET text-embeddings-index/_semantic_search
 {
@@ -162,6 +163,7 @@ GET text-embeddings-index/_semantic_search
   "_source": false <6>
 }
 --------------------------------------------------
+// TEST[skip:TBD]
 <1> Your query that is the input text for the text embedding model.
 <2> The model to use for creating the text embeddings from the query. It must be 
 the same model that was used to create the text embeddings from your input data. 
@@ -185,9 +187,9 @@ You can run hybrid search by providing both the
 {ref}search-search.html#search-api-knn[knn option] and an {es} 
 {ref}/search-search.html#request-body-search-query[query].
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET {INDEX}/_semantic_search
+GET my-index/_semantic_search
 {
   "model_text": "a dark forest", 
   "model_id": "my-text-embedding-model", 
@@ -207,6 +209,7 @@ GET {INDEX}/_semantic_search
   }
 }
 --------------------------------------------------
+// TEST[skip:TBD]
 
 This search request performs a semantic search and a search in the same index. 
 The search results of the two searches are combined in the response and weighted 

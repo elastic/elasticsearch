@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.EnumSet;
@@ -40,7 +39,6 @@ import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefixOnMaster;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-@TestLogging(value = "org.elasticsearch.tasks:TRACE,org.elasticsearch.test.TaskAssertions:TRACE", reason = "debugging")
 public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
 
     public void testGetMappingsCancellation() throws Exception {

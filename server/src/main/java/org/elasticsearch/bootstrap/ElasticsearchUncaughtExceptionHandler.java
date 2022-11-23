@@ -70,12 +70,14 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
         // Without a final flush, the stacktrace may not be shown if ES goes on to exit
         Terminal.DEFAULT.flush();
     }
+
     private void logErrorMessage(Throwable t, String message) {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             logger.error(message, t);
             return null;
         });
     }
+
     void halt(int status) {
         AccessController.doPrivileged(new PrivilegedHaltAction(status));
     }

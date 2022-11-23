@@ -590,7 +590,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         try {
             if (randomBoolean() && aggs.size() > 1) {
                 // sometimes do an incremental reduce
-                logger.info("Doing incremental reduce");
                 int toReduceSize = aggs.size();
                 Collections.shuffle(aggs, random());
                 int r = randomIntBetween(1, toReduceSize);

@@ -114,6 +114,7 @@ setup:
     indices.get_mapping:
         index: test-x*
         expand_wildcards: none
+        ignore_unavailable: true
 
  - match: { '':  {} }
 ---

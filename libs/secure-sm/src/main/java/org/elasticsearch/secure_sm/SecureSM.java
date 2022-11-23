@@ -156,7 +156,7 @@ public class SecureSM extends SecurityManager {
     // Returns true if the given thread is an instance of the JDK's InnocuousThread.
     private static boolean isInnocuousThread(Thread t) {
         final Class<?> c = t.getClass();
-        return c.getModule() == Object.class.getModule() && c.getName().equals("jdk.internal.misc.InnocuousThread");
+        return c.getClassLoader() == null && c.getName().equals("jdk.internal.misc.InnocuousThread");
     }
 
     protected void checkThreadAccess(Thread t) {

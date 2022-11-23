@@ -79,7 +79,7 @@ public class HttpTracerTest extends ESTestCase {
 
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
+            Loggers.removeAppender(LogManager.getLogger(httpTracerLog), appender);
             appender.stop();
         }
     }

@@ -102,6 +102,7 @@ PUT text-embeddings-index
 --------------------------------------------------
 // TEST[skip:TBD]
 
+
 [discrete]
 [[create-embeddings]]
 === Create embeddings with an ingest processor
@@ -212,11 +213,14 @@ GET my-index/_semantic_search
 // TEST[skip:TBD]
 
 This search request performs a semantic search and a search in the same index. 
-The search results of the two searches are combined in the response and weighted 
-by the `boost` fields. As the `boost` value for the semantic search is higher than the 
-`boost` value of the search in the example above, semantic search results will 
-be higher in the response than the search results.
-
+The search results of the two searches are combined in the response with their 
+scores weighted by the `boost` fields. The `score` value represents the 
+relevance of a hit. The score of each hit is the sum of the semantic search and 
+query scores. The `boost` value modifies each score in the sum. In the example 
+above, the scores will be calculated as:
+```
+score = 2.0 * semantic_search_score + 0.5 * query_score
+```
 
 [discrete]
 [[senatinc-search-limitations]]

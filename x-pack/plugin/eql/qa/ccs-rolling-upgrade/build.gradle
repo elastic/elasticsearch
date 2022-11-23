@@ -7,7 +7,6 @@
  */
 
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -20,8 +19,8 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-// EQL was released as GA in v 7.11.0
-BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.11.0")) { bwcVersion, baseName ->
+// see org.elasticsearch.xpack.eql.util.RemoteClusterRegistry.FIRST_COMPATIBLE_VERSION
+BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.15.0")) { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.

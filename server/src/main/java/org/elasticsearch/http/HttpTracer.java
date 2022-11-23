@@ -34,6 +34,11 @@ class HttpTracer {
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;
 
+    // for testing
+    HttpTracer() {
+        tracerLogInclude = tracerLogExclude = new String[0];
+    }
+
     HttpTracer(Settings settings, ClusterSettings clusterSettings) {
 
         setTracerLogInclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.get(settings));

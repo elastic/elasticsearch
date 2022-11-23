@@ -291,7 +291,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
 
             bindServer();
-            acceptChannelPredicate.setBoundAddress(boundAddress());
+            if (acceptChannelPredicate != null) {
+                acceptChannelPredicate.setBoundAddress(boundAddress());
+            }
             success = true;
         } finally {
             if (success == false) {

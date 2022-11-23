@@ -1,8 +1,6 @@
 [[tsds]]
 == Time series data stream (TSDS)
 
-preview::[]
-
 A time series data stream (TSDS) models timestamped metrics data as one or
 more time series.
 

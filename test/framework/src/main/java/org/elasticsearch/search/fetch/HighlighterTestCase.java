@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperService;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -61,18 +63,30 @@ public class HighlighterTestCase extends MapperServiceTestCase {
             SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
+            Map<String, List<Object>> storedFields = storedFields(processor.storedFieldsSpec(), doc);
             Source source = Source.fromBytes(doc.source());
             FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
                 new SearchHit(0, "id"),
                 ir.leaves().get(0),
                 0,
-                Map.of(),
+                storedFields,
                 source
             );
             processor.process(hitContext);
             highlights.putAll(hitContext.hit().getHighlightFields());
         });
         return highlights;
+    }
+
+    private static Map<String, List<Object>> storedFields(StoredFieldsSpec spec, ParsedDocument doc) {
+        Map<String, List<Object>> storedFields = new HashMap<>();
+        for (String field : spec.requiredStoredFields()) {
+            List<Object> values = storedFields.computeIfAbsent(field, f -> new ArrayList<>());
+            for (IndexableField f : doc.rootDoc().getFields(field)) {
+                values.add(f.stringValue());
+            }
+        }
+        return storedFields;
     }
 
     /**

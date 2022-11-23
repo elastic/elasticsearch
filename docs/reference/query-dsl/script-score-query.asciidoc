@@ -145,7 +145,6 @@ A good default choice might be to use the `_seq_no`
 field, whose only drawback is that scores will change if the document is
 updated since update operations also update the value of the `_seq_no` field.
 
-
 [[decay-functions-numeric-fields]]
 ====== Decay functions for numeric fields
 You can read more about decay functions 
@@ -333,8 +332,8 @@ through a script:
 
 [[decay-functions]]
 ====== `decay` functions
-The `script_score` query has equivalent <<decay-functions, decay functions>>
-that can be used in script.
+The `script_score` query has equivalent <<decay-functions-numeric-fields, decay
+functions>> that can be used in scripts.
 
 include::{es-repo-dir}/vectors/vector-functions.asciidoc[]
 

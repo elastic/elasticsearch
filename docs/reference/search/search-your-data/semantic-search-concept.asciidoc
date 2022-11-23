@@ -10,11 +10,55 @@ semantically similar as learned by the model.
 //end::semantic-def[]
 
 Common use cases for semantic search include:
-* 
-* 
-* 
+
+TO BE DONE
 
 [discrete]
 [[semantic-prereqs]]
 === Prerequisites
 
+* the {subscriptions}[appropriate subscription] level of using the {stack} 
+{ml-features} or the free trial period activated
+
+* To complete the steps in this guide, you must have:
+
+** https://docs.docker.com/get-docker/[Docker] installed.
+** the following <<privileges-list-indices,index privileges>>:
+*** `create_index` or `manage` to create an index with a `dense_vector` field
+*** `create`, `index`, or `write` to add data to the index you created
+*** `read` to search the index.
+
+[discrete]
+[[install-model-start-deployment]]
+=== Install a text embedding NLP model and start the deplyoment
+
+. Use the {eland-docs}[Eland client] to install a {nlp} model. Clone the Eland 
+repository then create a Docker image of Eland by using the following script:
++
+--
+[source,shell]
+--------------------------------------------------
+git clone git@github.com:elastic/eland.git
+cd eland
+docker build -t elastic/eland .
+--------------------------------------------------
+After the script finishes, your Eland Docker client is ready to use.
+--
+
+. Install an NLP model by running the `eland_import_model_hub` command in the 
+Docker image. This example uses the `all-minilm-l12-v2` sentence-transformer 
+model. You can find more supported text embedding models on the 
+{ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-ner[third-party model reference list].
++
+--
+[source,shell]
+--------------------------------------------------
+docker run -it --rm elastic/eland \
+    eland_import_hub_model \
+      --cloud-id $CLOUD_ID \
+      -u <username> -p <password> \
+      --hub-model-id sentence-transformers/msmarco-MiniLM-L-12-v3 \
+      --task-type text_embedding \
+      --start
+--------------------------------------------------
+--

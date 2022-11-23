@@ -28,7 +28,7 @@ import java.util.Map;
 public class HttpTracerTests extends ESTestCase {
 
     @TestLogging(reason = "Get HttpTracer to output trace logs", value = "org.elasticsearch.http.HttpTracer:TRACE")
-    public void testLogging() {
+    public void testLogging() throws IllegalAccessException {
         String httpTracerLog = HttpTracer.class.getName();
 
         MockLogAppender appender = new MockLogAppender();

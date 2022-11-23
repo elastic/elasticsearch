@@ -11,8 +11,8 @@ package org.elasticsearch.http;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -22,6 +22,8 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,23 +55,20 @@ public class HttpTracerTests extends ESTestCase {
                 )
             );
 
-            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(List.of())).withMethod(RestRequest.Method.GET)
+            Map<String, List<String>> headers = new HashMap<>();
+            headers.put(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList("idHeader"));
+            headers.put("traceparent", Collections.singletonList("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
+
+            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(Collections.emptyList())).withMethod(RestRequest.Method.GET)
                 .withPath("uri")
-                .withHeaders(
-                    Map.of(
-                        Task.X_OPAQUE_ID_HTTP_HEADER,
-                        List.of("idHeader"),
-                        "traceparent",
-                        List.of("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
-                    )
-                )
+                .withHeaders(headers)
                 .build();
 
-            HttpTracer tracer = new HttpTracer().maybeLogRequest(request, null);
+            HttpTracer tracer = new HttpTracer().maybeTraceRequest(request, null);
             assertNotNull(tracer);
 
-            tracer.logResponse(
-                new RestResponse(RestStatus.ACCEPTED, ""),
+            tracer.traceResponse(
+                new BytesRestResponse(RestStatus.ACCEPTED, ""),
                 new FakeRestRequest.FakeHttpChannel(InetSocketAddress.createUnresolved("127.0.0.1", 9200)),
                 "length",
                 "idHeader",

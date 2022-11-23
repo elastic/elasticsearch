@@ -65,7 +65,7 @@ public record RemoteAccessAuthentication(Authentication authentication, Collecti
 
     private static String encode(final Authentication authentication, final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
-        // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptor to raw bytes is
+        // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
             : "sets with more than one role descriptor are not supported for remote access authentication";

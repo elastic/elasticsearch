@@ -75,7 +75,7 @@ public class FastMathTests extends ESTestCase {
         );
     }
 
-    public void doTest(DoubleUnaryOperator expected, DoubleUnaryOperator actual, DoubleUnaryOperator delta, DoubleSupplier supplier) {
+    private void doTest(DoubleUnaryOperator expected, DoubleUnaryOperator actual, DoubleUnaryOperator delta, DoubleSupplier supplier) {
         assertEquals(expected.applyAsDouble(Double.NaN), actual.applyAsDouble(Double.NaN), delta.applyAsDouble(Double.NaN));
         assertEquals(
             expected.applyAsDouble(Double.NEGATIVE_INFINITY),

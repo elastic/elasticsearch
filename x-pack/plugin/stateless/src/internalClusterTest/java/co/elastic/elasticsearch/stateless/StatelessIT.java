@@ -13,13 +13,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.BeforeClass;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class StatelessIT extends ESIntegTestCase {
 
     @Override
@@ -39,21 +41,45 @@ public class StatelessIT extends ESIntegTestCase {
         return List.of(Stateless.class);
     }
 
-    @BeforeClass
-    public static void ensureStateless() {
-        assertThat("Stateless feature flag must be enabled to run this test", DiscoveryNodeRole.hasStatelessFeatureFlag(), equalTo(true));
+    private String startIndexNode() {
+        return internalCluster().startNode(
+            Settings.builder()
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .build()
+        );
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(Stateless.STATELESS_ENABLED.getKey(), true)
-            .build();
+    private String startMasterOnlyNode() {
+        return internalCluster().startMasterOnlyNode(Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build());
+    }
+
+    private String startMasterAndIndexNode() {
+        return internalCluster().startNode(
+            Settings.builder()
+                .putList(
+                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                    List.of(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.INDEX_ROLE.roleName())
+                )
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .build()
+        );
+    }
+
+    private List<String> startIndexNodes(int numOfNodes) {
+        final List<String> nodes = new ArrayList<>(numOfNodes);
+        for (int i = 0; i < numOfNodes; i++) {
+            nodes.add(startIndexNode());
+        }
+        return List.copyOf(nodes);
     }
 
     public void testClusterCanFormWithStatelessEnabled() {
-        ensureStableCluster(internalCluster().size());
+        startMasterOnlyNode();
+
+        final int numIndexNodes = randomIntBetween(1, 5);
+        startIndexNodes(numIndexNodes);
+        ensureStableCluster(numIndexNodes + 1);
 
         var plugins = StreamSupport.stream(internalCluster().getInstances(PluginsService.class).spliterator(), false)
             .flatMap(ps -> ps.filterPlugins(Stateless.class).stream())
@@ -63,6 +89,7 @@ public class StatelessIT extends ESIntegTestCase {
 
     @TestLogging(reason = "testing logging at TRACE level", value = "co.elastic.elasticsearch.stateless.lucene:TRACE")
     public void testDirectoryListener() throws Exception {
+        startMasterAndIndexNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         final Logger listenerLogger = LogManager.getLogger(DefaultDirectoryListener.class);

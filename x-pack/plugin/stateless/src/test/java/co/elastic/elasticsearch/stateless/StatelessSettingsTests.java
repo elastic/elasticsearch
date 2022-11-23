@@ -22,22 +22,8 @@ public class StatelessSettingsTests extends ESTestCase {
         if (randomBoolean()) {
             settings.put(Stateless.STATELESS_ENABLED.getKey(), false);
         }
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new Stateless(settings.build(), randomBoolean())
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new Stateless(settings.build()));
         assertThat(exception.getMessage(), containsString("stateless is not enabled"));
-    }
-
-    public void testStatelessNotInUse() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new Stateless(
-                statelessSettings(List.of(randomFrom(Stateless.STATELESS_ROLES))),
-                false // use_stateless is false
-            )
-        );
-        assertThat(exception.getMessage(), containsString("stateless requires the feature flag [es.use_stateless] to be enabled"));
     }
 
     public void testNonStatelessDataRolesNotAllowed() {
@@ -53,8 +39,7 @@ public class StatelessSettingsTests extends ESTestCase {
                                 .toList()
                         )
                     )
-                ),
-                true
+                )
             )
         );
         assertThat(exception.getMessage(), containsString("stateless does not support roles ["));

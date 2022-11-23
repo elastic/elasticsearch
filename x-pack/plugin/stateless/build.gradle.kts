@@ -17,9 +17,3 @@ dependencies {
         internalClusterTestImplementation(testArtifact(xpackModule("core")))
     }
 }
-
-tasks {
-    internalClusterTest {
-        systemProperty("es.use_stateless", "true")
-    }
-}

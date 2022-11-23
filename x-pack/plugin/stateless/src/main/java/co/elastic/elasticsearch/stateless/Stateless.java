@@ -52,11 +52,7 @@ public class Stateless extends Plugin {
     private final Settings settings;
 
     public Stateless(Settings settings) {
-        this(settings, DiscoveryNodeRole.hasStatelessFeatureFlag());
-    }
-
-    Stateless(Settings settings, boolean isStateless) {
-        this.settings = requireValidSettings(settings, isStateless);
+        this.settings = requireValidSettings(settings);
     }
 
     @Override
@@ -100,12 +96,9 @@ public class Stateless extends Plugin {
     /**
      * Validates that stateless can work with the given node settings.
      */
-    private static Settings requireValidSettings(final Settings settings, boolean isStateless) {
+    private static Settings requireValidSettings(final Settings settings) {
         if (STATELESS_ENABLED.get(settings) == false) {
             throw new IllegalArgumentException(NAME + " is not enabled");
-        }
-        if (isStateless == false) {
-            throw new IllegalArgumentException(NAME + " requires the feature flag [es.use_stateless] to be enabled");
         }
         var nonStatelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
             .stream()

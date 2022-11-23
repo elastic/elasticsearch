@@ -2,4 +2,5 @@ pr: 91834
 summary: Limit CCS to v 7.15
 area: EQL
 type: bug
-issues: []
+issues:
+ - 91762

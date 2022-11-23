@@ -1,0 +1,5 @@
+pr: 91823
+summary: Upgrade Lucene to version 9.4.2
+area: Engine
+type: upgrade
+issues: []

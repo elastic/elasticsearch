@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -31,7 +29,6 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
@@ -69,7 +66,7 @@ public class Verifier {
         this.metrics = metrics;
     }
 
-    Collection<Failure> verify(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters) {
+    Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -151,7 +148,6 @@ public class Verifier {
 
                 checkFilterConditionType(p, localFailures);
                 checkJoinKeyTypes(p, localFailures);
-                checkRemoteClusterOnSameVersion(p, versionIncompatibleClusters, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
@@ -271,27 +267,6 @@ public class Verifier {
                     expectedKey.dataType().esType()
                 )
             );
-        }
-    }
-
-    private void checkRemoteClusterOnSameVersion(
-        LogicalPlan plan,
-        Function<String, Collection<String>> versionIncompatibleClusters,
-        Collection<Failure> localFailures
-    ) {
-        if (plan instanceof EsRelation esRelation) {
-            Collection<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());
-            if (incompatibleClusters.size() > 0) {
-                localFailures.add(
-                    fail(
-                        esRelation,
-                        "the following remote cluster{} incompatible, being on a version different than local " + "cluster's [{}]: {}",
-                        incompatibleClusters.size() > 1 ? "s are" : " is",
-                        Version.CURRENT,
-                        incompatibleClusters
-                    )
-                );
-            }
         }
     }
 }

@@ -85,6 +85,17 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
      * {@link #visitChildren} on {@code ctx}.</p>
      */
     @Override
+    public T visitSample(EqlBaseParser.SampleContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override
     public T visitJoin(EqlBaseParser.JoinContext ctx) {
         return visitChildren(ctx);
     }

@@ -12,7 +12,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.initialization.layout.BuildLayout;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,19 +23,16 @@ import static java.util.Map.Entry;
 public class DraResolvePlugin implements Plugin<Project> {
 
     public static final String USE_DRA_ARTIFACTS_FLAG = "dra.artifacts";
+    public static final String DRA_WORKFLOW = "dra.workflow";
     public static final String DRA_ARTIFACTS_DEPENDENCY_PREFIX = "dra.artifacts.dependency";
     private final ProviderFactory providerFactory;
-    private BuildLayout buildLayout;
 
-    private final Provider<String> snapshotRepositoryPrefix;
-    private final Provider<String> releaseRepositoryPrefix;
+    private final Provider<String> repositoryPrefix;
 
     @Inject
-    public DraResolvePlugin(ProviderFactory providerFactory, BuildLayout buildLayout) {
+    public DraResolvePlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;
-        this.buildLayout = buildLayout;
-        this.snapshotRepositoryPrefix = providerFactory.systemProperty("dra.artifacts.url.repo.snapshot.prefix");
-        this.releaseRepositoryPrefix = providerFactory.systemProperty("dra.artifacts.url.repo.release.prefix");
+        this.repositoryPrefix = providerFactory.systemProperty("dra.artifacts.url.repo.prefix");
     }
 
     @Override
@@ -44,22 +40,15 @@ public class DraResolvePlugin implements Plugin<Project> {
         boolean useDra = providerFactory.systemProperty(USE_DRA_ARTIFACTS_FLAG).map(Boolean::parseBoolean).getOrElse(false);
         project.getExtensions().getExtraProperties().set("useDra", useDra);
         if (useDra) {
+            DraWorkflow workflow = providerFactory.systemProperty(DRA_WORKFLOW).map(String::toUpperCase).map(DraWorkflow::valueOf).get();
             resolveBuildIdProperties().get().forEach((key, buildId) -> {
                 configureDraRepository(
                     project,
-                    "dra-snapshot-artifacts-" + key,
+                    "dra-" + workflow.name().toLowerCase() + "-artifacts-" + key,
                     key,
                     buildId,
-                    snapshotRepositoryPrefix.orElse("https://artifacts-snapshot.elastic.co/"),
-                    ".*SNAPSHOT"
-                );
-                configureDraRepository(
-                    project,
-                    "dra-release-artifacts-" + key,
-                    key,
-                    buildId,
-                    releaseRepositoryPrefix.orElse("https://artifacts.elastic.co/"),
-                    "^(.(?!SNAPSHOT))*$"
+                    repositoryPrefix.orElse(workflow.repository),
+                    workflow.versionRegex
                 );
             });
         }
@@ -99,4 +88,19 @@ public class DraResolvePlugin implements Plugin<Project> {
                     )
             );
     }
+
+    enum DraWorkflow {
+        SNAPSHOT("https://artifacts-snapshot.elastic.co/", ".*SNAPSHOT"),
+        STAGING("https://artifacts-staging.elastic.co/", "^(.(?!SNAPSHOT))*$"),
+        RELEASE("https://artifacts.elastic.co/", "^(.(?!SNAPSHOT))*$");
+
+        private final String repository;
+        public String versionRegex;
+
+        DraWorkflow(String repository, String versionRegex) {
+            this.repository = repository;
+            this.versionRegex = versionRegex;
+        }
+    }
+
 }

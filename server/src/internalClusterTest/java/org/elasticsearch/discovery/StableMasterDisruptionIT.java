@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.GetHealthAction;
@@ -43,7 +44,6 @@ import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
@@ -142,9 +142,16 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         });
     }
 
-    private String xContentToString(ToXContentObject xContent) throws IOException {
+    private String xContentToString(ChunkedToXContent xContent) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        xContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        xContent.toXContentChunked().forEachRemaining(xcontent -> {
+            try {
+                xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            } catch (IOException e) {
+                logger.error(e.getMessage(), e);
+                fail(e.getMessage());
+            }
+        });
         return BytesReference.bytes(builder).utf8ToString();
     }
 

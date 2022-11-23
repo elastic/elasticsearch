@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -274,7 +275,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 testThreadPool,
                 createIndexService,
                 indexAliasesService,
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                WriteLoadForecaster.DEFAULT
             );
         }
 

@@ -185,11 +185,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[] { "*" };
-        }
-
-        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        final Collection<String> expressions = resolveExpressions(context, indexExpressions);
         return expressions.stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
@@ -219,7 +215,7 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
 
-        final Collection<String> expressions = resolveExpressions(List.of(request.index()), context);
+        final Collection<String> expressions = resolveExpressions(context, request.index());
 
         if (expressions.size() == 1) {
             IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
@@ -247,8 +243,11 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static Collection<String> resolveExpressions(List<String> expressions, Context context) {
-        return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, expressions));
+    private static Collection<String> resolveExpressions(Context context, String... expressions) {
+        return WildcardExpressionResolver.resolve(
+            context,
+            DateMathExpressionResolver.resolve(context, expressions == null ? List.of() : List.of(expressions))
+        );
     }
 
     /**
@@ -320,39 +319,16 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        IndicesOptions options = context.getOptions();
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[] { Metadata.ALL };
-        } else {
-            if (options.ignoreUnavailable() == false) {
-                List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
-                if (crossClusterIndices.size() > 0) {
-                    throw new IllegalArgumentException(
-                        "Cross-cluster calls are not supported in this context but remote indices "
-                            + "were requested: "
-                            + crossClusterIndices
-                    );
-                }
-            }
-        }
+        ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
+        final Collection<String> expressions = resolveExpressions(context, indexExpressions);
 
-        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
-
-        if (expressions.isEmpty() || (expressions.size() == 1 && expressions.iterator().next().equals(Metadata.ALL))) {
-            if (options.allowNoIndices() == false) {
-                throw notFoundException(indexExpressions);
-            } else {
-                return Index.EMPTY_ARRAY;
-            }
-        }
-
-        final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
-        final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
+        final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
+        final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
         for (String expression : expressions) {
-            if (options.ignoreUnavailable() == false) {
+            if (context.getOptions().ignoreUnavailable() == false) {
                 ensureAliasOrIndexExists(context, expression);
             }
-            IndexAbstraction indexAbstraction = indicesLookup.get(expression);
+            final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null) {
                 continue;
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
@@ -373,15 +349,15 @@ public class IndexNameExpressionResolver {
                     );
                 }
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else {
-                if (indexAbstraction.getIndices().size() > 1 && options.allowAliasesToMultipleIndices() == false) {
+                if (indexAbstraction.getIndices().size() > 1 && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (Index indexName : indexAbstraction.getIndices()) {
@@ -398,18 +374,18 @@ public class IndexNameExpressionResolver {
                 }
 
                 for (Index index : indexAbstraction.getIndices()) {
-                    if (shouldTrackConcreteIndex(context, options, index)) {
-                        concreteIndices.add(index);
+                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                        concreteIndicesResult.add(index);
                     }
                 }
             }
         }
 
-        if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
+        if (context.getOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
             throw notFoundException(indexExpressions);
         }
-        checkSystemIndexAccess(context, concreteIndices);
-        return concreteIndices.toArray(Index.EMPTY_ARRAY);
+        checkSystemIndexAccess(context, concreteIndicesResult);
+        return concreteIndicesResult.toArray(Index.EMPTY_ARRAY);
     }
 
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
@@ -458,14 +434,26 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static IndexNotFoundException notFoundException(String... indexExpressions) {
-        IndexNotFoundException infe;
-        if (indexExpressions != null && indexExpressions.length == 1) {
-            if (Metadata.ALL.equals(indexExpressions[0])) {
-                infe = new IndexNotFoundException("no indices exist", indexExpressions[0]);
-            } else {
-                infe = new IndexNotFoundException(indexExpressions[0]);
+    private void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, String... indexExpressions) {
+        if (options.ignoreUnavailable() == false && indexExpressions != null) {
+            List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
+            if (crossClusterIndices.size() > 0) {
+                throw new IllegalArgumentException(
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+                );
             }
+        }
+    }
+
+    private static IndexNotFoundException notFoundException(String... indexExpressions) {
+        final IndexNotFoundException infe;
+        if (indexExpressions == null
+            || indexExpressions.length == 0
+            || (indexExpressions.length == 1 && Metadata.ALL.equals(indexExpressions[0]))) {
+            infe = new IndexNotFoundException("no indices exist", Metadata.ALL);
+            infe.setResources("index_or_alias", Metadata.ALL);
+        } else if (indexExpressions.length == 1) {
+            infe = new IndexNotFoundException(indexExpressions[0]);
             infe.setResources("index_or_alias", indexExpressions[0]);
         } else {
             infe = new IndexNotFoundException((String) null);
@@ -662,7 +650,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        Collection<String> resolved = resolveExpressions(Arrays.asList(expressions), context);
+        Collection<String> resolved = resolveExpressions(context, expressions);
         if (resolved instanceof Set<String>) {
             // unmodifiable without creating a new collection as it might contain many items
             return Collections.unmodifiableSet((Set<String>) resolved);
@@ -789,10 +777,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        final Collection<String> resolvedExpressions = resolveExpressions(
-            expressions != null ? Arrays.asList(expressions) : Collections.emptyList(),
-            context
-        );
+        final Collection<String> resolvedExpressions = resolveExpressions(context, expressions);
 
         // TODO: it appears that this can never be true?
         if (isAllIndices(resolvedExpressions)) {
@@ -1134,7 +1119,11 @@ public class IndexNameExpressionResolver {
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
             if (context.getOptions().expandWildcardExpressions() == false) {
-                return expressions;
+                if (expressions.size() == 1 && expressions.get(0).equals(Metadata.ALL)) {
+                    return List.of();
+                } else {
+                    return expressions;
+                }
             } else if (isEmptyOrTrivialWildcard(expressions)) {
                 return innerResolveAll(context);
             } else {

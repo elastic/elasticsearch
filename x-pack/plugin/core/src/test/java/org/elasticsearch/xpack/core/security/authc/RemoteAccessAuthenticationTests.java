@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,7 +40,7 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
 
         assertThat(actual.authentication(), equalTo(expectedAuthentication));
         final var actualRoleDescriptorIntersection = new RoleDescriptorsIntersection(
-            actual.roleDescriptorsBytesIntersection().stream().map(RemoteAccessAuthentication::parseRoleDescriptorBytes).toList()
+            actual.roleDescriptorsBytesIntersection().stream().map(RemoteAccessAuthentication::parseRoleDescriptorsBytes).toList()
         );
         assertThat(actualRoleDescriptorIntersection, equalTo(expectedRoleDescriptorsIntersection));
     }
@@ -62,6 +68,16 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
                     + "] is already present in the context"
             )
         );
+    }
+
+    public void testParseRoleDescriptorsBytes() throws IOException {
+        final Set<RoleDescriptor> expectedRoleDescriptors = Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3));
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.map(expectedRoleDescriptors.stream().collect(Collectors.toMap(RoleDescriptor::getName, Function.identity())));
+        final Set<RoleDescriptor> actualRoleDescriptors = RemoteAccessAuthentication.parseRoleDescriptorsBytes(
+            BytesReference.bytes(builder)
+        );
+        assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
     }
 
     private RoleDescriptorsIntersection randomRoleDescriptorIntersection() {

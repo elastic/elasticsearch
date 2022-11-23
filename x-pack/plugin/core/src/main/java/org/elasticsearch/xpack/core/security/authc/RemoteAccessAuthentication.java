@@ -25,11 +25,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public record RemoteAccessAuthentication(Authentication authentication, List<BytesReference> roleDescriptorsBytesIntersection) {
+public record RemoteAccessAuthentication(Authentication authentication, Collection<BytesReference> roleDescriptorsBytesIntersection) {
     public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY = "_remote_access_authentication";
 
     public static void writeToContextAsRemoteAccessAuthentication(
@@ -45,9 +46,9 @@ public record RemoteAccessAuthentication(Authentication authentication, List<Byt
         return decode(ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY));
     }
 
-    public static Set<RoleDescriptor> parseRoleDescriptorBytes(final BytesReference roleDescriptorBytes) {
+    public static Set<RoleDescriptor> parseRoleDescriptorsBytes(final BytesReference roleDescriptorsBytes) {
         try (
-            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, roleDescriptorBytes, XContentType.JSON)
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, roleDescriptorsBytes, XContentType.JSON)
         ) {
             final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
             parser.nextToken();
@@ -64,7 +65,7 @@ public record RemoteAccessAuthentication(Authentication authentication, List<Byt
 
     private static String encode(final Authentication authentication, final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
-        // If we ever lift this restriction, we need to ensure that the serialization of each role descriptor set to raw bytes is
+        // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptor to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
             : "role descriptor sets with more than one element are not supported for remote access authentication";
@@ -84,7 +85,7 @@ public record RemoteAccessAuthentication(Authentication authentication, List<Byt
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    private static RemoteAccessAuthentication decode(final String header) throws IOException {
+    static RemoteAccessAuthentication decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);

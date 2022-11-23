@@ -68,7 +68,7 @@ public record RemoteAccessAuthentication(Authentication authentication, Collecti
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptor to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
-            : "role descriptor sets with more than one element are not supported for remote access authentication";
+            : "sets with more than one role descriptor are not supported for remote access authentication";
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(authentication.getEffectiveSubject().getVersion());
         Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);

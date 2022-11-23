@@ -1583,7 +1583,7 @@ public class Security extends Plugin
             extractClientCertificate = false;
         }
         return handler -> new SecurityRestFilter(
-            settings,
+            enabled,
             threadContext,
             authcService.get(),
             secondayAuthc.get(),

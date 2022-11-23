@@ -158,7 +158,7 @@ public class HealthServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
             assertThat(healthInfo.diskInfoByNode().size(), equalTo(internalCluster().getNodeNames().length));
             for (DiskHealthInfo diskHealthInfo : healthInfo.diskInfoByNode().values()) {
                 assertThat(diskHealthInfo.healthStatus(), equalTo(HealthStatus.GREEN));

@@ -1,0 +1,50 @@
+role:
+  remote_indices:
+    - clusters:
+        - remote1
+        - "*-remote"
+      names:
+        - idx1
+        - idx2
+      privileges:
+        - READ
+
+role_with_fls_dls:
+  remote_indices:
+    - clusters:
+        - "*"
+      names:
+        - idx1
+      privileges:
+        - READ
+      query: '{ "match_all": {} }'
+      field_security:
+        grant:
+          - foo
+          - boo
+        except:
+          - boo
+
+invalid_role_missing_clusters:
+  remote_indices:
+    - names:
+        - idx1
+      privileges:
+        - READ
+
+invalid_role_empty_names:
+  remote_indices:
+    - clusters:
+        - remote1
+      names:
+      privileges:
+        - READ
+
+invalid_role_empty_privileges:
+  remote_indices:
+    - clusters:
+        - remote1
+      names:
+        - idx1
+      privileges:
+

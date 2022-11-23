@@ -69,7 +69,7 @@ public enum ActiveShardsObserver {
                 public void onClusterServiceClose() {
                     logger.debug(
                         () -> format(
-                            "[{}] cluster service closed while waiting for enough shards to be started.",
+                            "[%s] cluster service closed while waiting for enough shards to be started.",
                             Arrays.toString(indexNames)
                         )
                     );

@@ -119,6 +119,10 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
             + "]";
     }
 
+    public DiskUsage copyWithFreeBytes(long freeBytes) {
+        return new DiskUsage(nodeId, nodeName, path, totalBytes, freeBytes);
+    }
+
     /**
      * Finds the path with the least available disk space and returns its disk usage. It returns null if there is no
      * file system data in the NodeStats or if the total bytes are a negative number.

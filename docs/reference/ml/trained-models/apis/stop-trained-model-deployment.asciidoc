@@ -18,7 +18,7 @@ beta::[]
 [[stop-trained-model-deployment-prereq]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 [[stop-trained-model-deployment-desc]]
@@ -42,8 +42,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-deployments]
 
 `force`::
-(Optional, Boolean) If true, the deployment is stopped even if it is referenced
-by ingest pipelines. You can't use these pipelines until you restart the model
+(Optional, Boolean) If true, the deployment is stopped even if it or one of its model aliases
+is referenced by ingest pipelines. You can't use these pipelines until you restart the model
 deployment.
 
 ////

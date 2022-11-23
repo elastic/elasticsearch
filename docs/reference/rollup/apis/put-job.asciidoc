@@ -10,6 +10,9 @@ Creates a {rollup-job}.
 
 experimental[]
 
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
+
 [[rollup-put-job-api-request]]
 ==== {api-request-title}
 

@@ -265,9 +265,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     .mapToObj(
                         i -> new SearchHit(
                             randomIntBetween(0, Integer.MAX_VALUE),
-                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i],
-                            Map.of(),
-                            Map.of()
+                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i]
                         )
                     )
                     .toArray(SearchHit[]::new);

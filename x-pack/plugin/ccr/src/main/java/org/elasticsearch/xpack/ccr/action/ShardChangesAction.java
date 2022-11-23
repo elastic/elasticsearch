@@ -214,55 +214,53 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     public static final class Response extends ActionResponse {
 
-        private long mappingVersion;
+        private final long mappingVersion;
 
         public long getMappingVersion() {
             return mappingVersion;
         }
 
-        private long settingsVersion;
+        private final long settingsVersion;
 
         public long getSettingsVersion() {
             return settingsVersion;
         }
 
-        private long aliasesVersion;
+        private final long aliasesVersion;
 
         public long getAliasesVersion() {
             return aliasesVersion;
         }
 
-        private long globalCheckpoint;
+        private final long globalCheckpoint;
 
         public long getGlobalCheckpoint() {
             return globalCheckpoint;
         }
 
-        private long maxSeqNo;
+        private final long maxSeqNo;
 
         public long getMaxSeqNo() {
             return maxSeqNo;
         }
 
-        private long maxSeqNoOfUpdatesOrDeletes;
+        private final long maxSeqNoOfUpdatesOrDeletes;
 
         public long getMaxSeqNoOfUpdatesOrDeletes() {
             return maxSeqNoOfUpdatesOrDeletes;
         }
 
-        private Translog.Operation[] operations;
+        private final Translog.Operation[] operations;
 
         public Translog.Operation[] getOperations() {
             return operations;
         }
 
-        private long tookInMillis;
+        private final long tookInMillis;
 
         public long getTookInMillis() {
             return tookInMillis;
         }
-
-        Response() {}
 
         Response(StreamInput in) throws IOException {
             super(in);

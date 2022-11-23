@@ -33,9 +33,12 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -284,24 +287,33 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     public void testEmptyFetch() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
-        SourceLookup sourceLookup = new SourceLookup(new SourceLookup.BytesSourceProvider(BytesReference.bytes(source)));
-        {
-            // make sure that an empty fetch don't deserialize the document
-            FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
-            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup, 0);
-            assertThat(fields.size(), equalTo(0));
-            assertThat(sourceLookup.hasSourceAsMap(), equalTo(false));
-        }
-        {
-            // but a non-empty fetch deserialize the document
-            FieldFetcher fieldFetcher = FieldFetcher.create(
-                newSearchExecutionContext(mapperService),
-                fieldAndFormatList("field", null, false)
-            );
-            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup, 0);
-            assertThat(fields.size(), equalTo(1));
-            assertThat(sourceLookup.hasSourceAsMap(), equalTo(true));
-        }
+
+        // make sure that an empty fetch doesn't deserialize the document
+        Source s = new Source() {
+            @Override
+            public XContentType sourceContentType() {
+                return XContentType.JSON;
+            }
+
+            @Override
+            public Map<String, Object> source() {
+                throw new AssertionError("Empty fetch should not deserialize the document");
+            }
+
+            @Override
+            public BytesReference internalSourceRef() {
+                return BytesReference.bytes(source);
+            }
+
+            @Override
+            public Source filter(SourceFilter sourceFilter) {
+                return sourceFilter.filterBytes(this);
+            }
+        };
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
+        Map<String, DocumentField> fields = fieldFetcher.fetch(s, 0);
+        assertThat(fields.size(), equalTo(0));
+
     }
 
     public void testNestedArrays() throws IOException {
@@ -1183,14 +1195,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
-        SourceLookup sourceLookup = null;
-        if (source != null) {
-            sourceLookup = new SourceLookup(new SourceLookup.BytesSourceProvider(BytesReference.bytes(source)));
-        } else {
-            sourceLookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.emptyMap()));
-        }
+        Source s = source == null
+            ? Source.empty(randomFrom(XContentType.values()))
+            : Source.fromBytes(BytesReference.bytes(source), source.contentType());
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
-        return fieldFetcher.fetch(sourceLookup, -1);
+        return fieldFetcher.fetch(s, -1);
     }
 
     public MapperService createMapperService() throws IOException {

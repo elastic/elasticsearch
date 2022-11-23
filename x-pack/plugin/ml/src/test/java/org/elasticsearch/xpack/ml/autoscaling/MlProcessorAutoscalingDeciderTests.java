@@ -22,6 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -67,13 +68,29 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId1,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 2, 3, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        42L,
+                                        2,
+                                        3,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 10, 1, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        42L,
+                                        10,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                                     .addRoutingEntry(mlNodeId2, new RoutingInfo(8, 8, RoutingState.STARTED, ""))
@@ -118,13 +135,29 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId1,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 1, 8, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        42L,
+                                        1,
+                                        8,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 )
                             )
                             .addNewAssignment(
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 3, 4, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        42L,
+                                        3,
+                                        4,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                                     .addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -148,6 +181,73 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         assertThat(capacity.reason(), equalTo("requesting scale up as there are unsatisfied deployments"));
     }
 
+    public void testScale_GivenUnsatisfiedDeploymentIsLowPriority_ShouldNotScaleUp() {
+        String modelId1 = "model-id-1";
+        String modelId2 = "model-id-2";
+
+        String mlNodeId1 = "ml-node-id-1";
+        String mlNodeId2 = "ml-node-id-2";
+        String dataNodeId = "data-node-id";
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 4);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 4);
+        DiscoveryNode dataNode = buildNode(dataNodeId, false, 24);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                modelId1,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        42L,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.LOW
+                                    )
+                                )
+                            )
+                            .addNewAssignment(
+                                modelId2,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        42L,
+                                        2,
+                                        4,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
+                                )
+                                    .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                                    .addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        MlProcessorAutoscalingDecider decider = newDecider();
+
+        MlProcessorAutoscalingCapacity capacity = decider.scale(
+            Settings.EMPTY,
+            newContext(clusterState),
+            new MlAutoscalingContext(clusterState)
+        );
+
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(4.0)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(8.0)));
+        assertThat(capacity.reason(), equalTo("passing currently perceived capacity as it is fully used"));
+    }
+
     public void testScale_GivenMoreThanHalfProcessorsAreUsed() {
         String modelId1 = "model-id-1";
         String modelId2 = "model-id-2";
@@ -169,13 +269,29 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId1,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 2, 2, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        42L,
+                                        2,
+                                        2,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 1, 1, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        42L,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .build()
@@ -221,13 +337,29 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId1,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 2, 2, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        42L,
+                                        2,
+                                        2,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 1, 1, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        42L,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .build()
@@ -271,13 +403,29 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                             .addNewAssignment(
                                 modelId1,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId1, 42L, 2, 2, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        42L,
+                                        2,
+                                        2,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
                             .addNewAssignment(
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams(modelId2, 42L, 1, 1, 1024, ByteSizeValue.ONE)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        42L,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.NORMAL
+                                    )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
                             .build()
@@ -302,6 +450,76 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(2.0)));
         assertThat(capacity.tierProcessors(), equalTo(Processors.of(5.0)));
         assertThat(capacity.reason(), containsString("requesting scale down as tier and/or node size could be smaller"));
+    }
+
+    public void testScale_GivenLowPriorityDeploymentsOnly() {
+        String modelId1 = "model-id-1";
+        String modelId2 = "model-id-2";
+
+        String mlNodeId1 = "ml-node-id-1";
+        String mlNodeId2 = "ml-node-id-2";
+        String dataNodeId = "data-node-id";
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 4);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 4);
+        DiscoveryNode dataNode = buildNode(dataNodeId, false, 24);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                modelId1,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId1,
+                                        42L,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.LOW
+                                    )
+                                ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            )
+                            .addNewAssignment(
+                                modelId2,
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
+                                        42L,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ONE,
+                                        Priority.LOW
+                                    )
+                                ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        TimeMachine timeMachine = new TimeMachine();
+        scaleTimer = new ScaleTimer(timeMachine);
+        MlProcessorAutoscalingDecider decider = newDecider();
+        scaleTimer.markScale();
+        scaleTimer.markDownScaleAndGetMillisLeftFromDelay(Settings.EMPTY);
+        timeMachine.setOffset(TimeValue.timeValueHours(1));
+
+        MlProcessorAutoscalingCapacity capacity = decider.scale(
+            Settings.EMPTY,
+            newContext(clusterState),
+            new MlAutoscalingContext(clusterState)
+        );
+
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.ZERO));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(0.1)));
+        assertThat(capacity.reason(), equalTo("requesting scale down as tier and/or node size could be smaller"));
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {

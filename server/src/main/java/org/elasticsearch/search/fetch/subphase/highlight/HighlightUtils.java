@@ -39,7 +39,8 @@ public final class HighlightUtils {
         boolean forceSource
     ) throws IOException {
         if (forceSource == false && fieldType.isStored()) {
-            return hitContext.loadedFields().get(fieldType.name());
+            List<Object> values = hitContext.loadedFields().get(fieldType.name());
+            return values == null ? List.of() : values;
         }
         ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
         fetcher.setNextReader(hitContext.readerContext());
